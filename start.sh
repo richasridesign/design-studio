@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 APP=dist/DesignStudio.app
 BIN=$APP/Contents/MacOS/DesignStudio
 if [ ! -x "$BIN" ] || [ menubar/DesignStudioBar.swift -nt "$BIN" ] || [ start.sh -nt "$BIN" ]; then
-  mkdir -p "$APP/Contents/MacOS"
+  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
   cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,10 +18,25 @@ if [ ! -x "$BIN" ] || [ menubar/DesignStudioBar.swift -nt "$BIN" ] || [ start.sh
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>NSMicrophoneUsageDescription</key><string>Design Studio uses the microphone for voice input.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Design Studio turns your voice into text in the composer.</string>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>
 PLIST
   swiftc -O menubar/DesignStudioBar.swift -o "$BIN"
+  # App icon, drawn by the app itself. A failure here only skips the icon.
+  ICONS=$(mktemp -d)/AppIcon.iconset
+  mkdir -p "$ICONS"
+  if "$BIN" --write-icon "$ICONS/full.png"; then
+    for s in 16 32 128 256 512; do
+      sips -z $s $s "$ICONS/full.png" --out "$ICONS/icon_${s}x${s}.png" >/dev/null 2>&1 || true
+      sips -z $((s * 2)) $((s * 2)) "$ICONS/full.png" --out "$ICONS/icon_${s}x${s}@2x.png" >/dev/null 2>&1 || true
+    done
+    rm -f "$ICONS/full.png"
+    iconutil -c icns "$ICONS" -o "$APP/Contents/Resources/AppIcon.icns" || true
+  fi
   codesign --force --sign - --identifier io.github.richasridesign.designstudio "$APP"
 fi
 

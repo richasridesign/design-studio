@@ -12,8 +12,13 @@ npm install
 ./start.sh
 ```
 
-`start.sh` builds and opens `dist/DesignStudio.app`, a menu bar app that runs the server on :7778, the web app on :5174
-and a Chrome relay on :7780. It uses the Claude Code CLI you have installed and its login.
+`start.sh` builds and opens `dist/DesignStudio.app`. It runs the server on :7778, the web app on :5174 and a Chrome
+relay on :7780, and restarts them if they stop. It uses the Claude Code CLI you have installed and its login.
+
+The app opens Design Studio in its own window and shows in the Dock while the window is open. Close the window and
+it keeps running in the menu bar. The menu bar icon has "Open Design Studio" (Cmd+O), "Open in browser", Keep Mac
+awake, Open at login and logs. Links to other sites open in your browser. Quit from the menu bar or with Cmd+Q
+stops the server too.
 
 | Command | |
 | --- | --- |
