@@ -16,6 +16,7 @@ import { LongRunButton } from './LongRun';
 import { ModelPicker } from './ModelPicker';
 import { focusChecked, menuKeys } from '../press';
 import { useTip } from '../Tip';
+import { typedAnswer, waitingPlaceholder } from './typedAnswer';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -195,7 +196,8 @@ export function Composer() {
   const chatId = useStore((s) => s.session.id);
   const running = useStore((s) => s.session.running);
   const stopping = useStore((s) => s.session.stopping);
-  const waiting = useStore((s) => s.pending.length > 0);
+  const waitingOn = useStore((s) => s.pending[0]);
+  const waiting = Boolean(waitingOn);
   const serverCommands = useStore((s) => s.session.commands);
   const customRecipes = useCustomRecipes();
   const flow = useStore((s) => s.session.flow);
@@ -417,7 +419,10 @@ export function Composer() {
       if (cmd) runInTerminal(cmd).catch(() => notice('Terminal unavailable'));
     } else {
       const images = imgs.length ? imgs.map((i) => i.ref) : undefined;
-      if (running) steer(t, images);
+      // Typing while a plan or question waits answers it (go approves), instead of aborting it.
+      const answer = images ? null : typedAnswer(t, waitingOn);
+      if (answer) send(answer);
+      else if (running) steer(t, images);
       else send({ type: 'prompt', text: t, images });
       clearImgs();
       const next = remember(t, stored);
@@ -460,7 +465,7 @@ export function Composer() {
   };
 
   const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !text && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /design, /review, /audit' : '';
-  const placeholder = waiting ? 'Answer below, or steer Claude' : running ? 'Steer Claude: stops the current step and sends this' : MODE_INFO[flow.mode].placeholder;
+  const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : MODE_INFO[flow.mode].placeholder;
   const level = pct === null ? '' : context! >= COMPACT_AT ? 'over' : context! >= COMPACT_AT * 0.75 ? 'near' : '';
 
   return (
