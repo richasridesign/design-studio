@@ -78,7 +78,11 @@ export const splitRun = (run: ReviewRun, triage: Triage | null | undefined) => s
 export const openRun = (run: ReviewRun, triage: Triage | null | undefined): ReviewRun => ({
   ...run,
   check: splitFindings(run, run.check, triage).open,
-  results: run.results.map((r) => ({ ...r, findings: splitFindings(run, r.findings, triage).open })),
+  results: run.results.map((r) => {
+    const findings = splitFindings(run, r.findings, triage).open;
+    // An area whose blocking and major findings were all closed by hand passes, like the gate counts it.
+    return { ...r, findings, pass: r.pass || (!r.error && !findings.some((f) => f.severity !== 'minor')) };
+  }),
 });
 
 /** Blocking and major findings still open: what the Validate gate and the report summary count. */
