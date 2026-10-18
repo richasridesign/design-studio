@@ -1,14 +1,15 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getJson } from './store';
 
-export type Outline = { name: string; lastModified: string; pages: Array<{ id: string; name: string; frames: Array<{ id: string; name: string; page: string; w?: number; h?: number }> }> };
+export type Outline = { name: string; lastModified: string; readAt?: number; pages: Array<{ id: string; name: string; frames: Array<{ id: string; name: string; page: string; w?: number; h?: number }> }> };
 
 const cache = new Map<string, { promise: Promise<Outline>; at: number }>();
 
 export function getOutline(key: string, fresh = false): Promise<Outline> {
   const hit = cache.get(key);
   if (!fresh && hit && Date.now() - hit.at < 60_000) return hit.promise;
-  const promise = getJson<Outline>('/api/figma/outline');
+  // The server keeps the outline on disk; fresh reads the file again through the Figma plugin.
+  const promise = getJson<Outline>(`/api/figma/outline${fresh ? '?fresh=1' : ''}`);
   promise.catch(() => { if (cache.get(key)?.promise === promise) cache.delete(key); });
   cache.set(key, { promise, at: Date.now() });
   return promise;

@@ -27,52 +27,6 @@ export async function figmaGet<T = any>(route: string, init: RequestInit = {}): 
 
 export const SAMPLE_KEY = 'sample';
 
-export type FrameInfo = { id: string; name: string; page: string; type: string; w: number; h: number };
-
-export type Outline = { name: string; lastModified: string; thumbnail: string; pages: Array<{ id: string; name: string; frames: FrameInfo[] }> };
-
-export async function fileOutline(key: string): Promise<Outline> {
-  if (key === SAMPLE_KEY) {
-    const frame = (id: string, name: string): FrameInfo => ({ id, name, page: 'Design', type: 'FRAME', w: 390, h: 844 });
-    return { name: 'Grocery app (sample)', lastModified: '', thumbnail: '', pages: [{ id: '0:1', name: 'Design', frames: [frame('12:3', 'Cart'), frame('12:4', 'Empty cart')] }] };
-  }
-  const f = await figmaGet<any>(`/files/${key}?depth=2`);
-  const pages = (f.document?.children ?? []).map((p: any) => ({
-    id: p.id as string,
-    name: p.name as string,
-    frames: (p.children ?? [])
-      .filter((n: any) => ['FRAME', 'COMPONENT', 'COMPONENT_SET', 'SECTION'].includes(n.type))
-      .map((n: any): FrameInfo => ({ id: n.id, name: n.name, page: p.name, type: n.type, w: Math.round(n.absoluteBoundingBox?.width ?? 0), h: Math.round(n.absoluteBoundingBox?.height ?? 0) })),
-  }));
-  return { name: f.name as string, lastModified: f.lastModified as string, thumbnail: f.thumbnailUrl as string, pages };
-}
-
-const holds = (n: any, ids: string[]): boolean => ids.includes(n.id) || (n.children ?? []).some((c: any) => holds(c, ids));
-
-export function topFramesFor(doc: any, frameIds: string[], ids: string[]): string[] {
-  const tops = (doc?.children ?? []).flatMap((p: any) => p.children ?? []);
-  return frameIds.filter((id) => tops.some((n: any) => n.id === id && holds(n, ids)));
-}
-
-export async function framesContaining(key: string, frameIds: string[], ids: string[]): Promise<string[]> {
-  if (ids.every((id) => frameIds.includes(id))) return frameIds.filter((f) => ids.includes(f));
-  const f = await figmaGet<any>(`/files/${key}?ids=${encodeURIComponent(ids.slice(0, 50).join(','))}`);
-  return topFramesFor(f.document, frameIds, ids);
-}
-
-const imageCache = new Map<string, { at: number; urls: Record<string, string | null> }>();
-
-export async function images(key: string, ids: string[], scale = 0.5, format: 'png' | 'jpg' = 'png', version?: string, fresh = false) {
-  const want = [...new Set(ids)].slice(0, 100);
-  if (!want.length || key === SAMPLE_KEY) return {};
-  const cacheKey = `${key}:${scale}:${format}:${version ?? ''}:${want.join(',')}`;
-  const hit = imageCache.get(cacheKey);
-  if (hit && !fresh && Date.now() - hit.at < 10 * 60_000) return hit.urls;
-  const r = await figmaGet<{ images: Record<string, string | null> }>(`/images/${key}?ids=${encodeURIComponent(want.join(','))}&scale=${scale}&format=${format}${version ? `&version=${encodeURIComponent(version)}` : ''}`);
-  imageCache.set(cacheKey, { at: Date.now(), urls: r.images });
-  return r.images;
-}
-
 export const VERSION_PREFIX = 'Design Studio';
 
 export type FigmaVersion = { id: string; at: string; label: string; description: string; user: string; checkpoint: boolean };
@@ -191,13 +145,13 @@ function parseUrl(url: string) {
   return parsed;
 }
 
-async function lookupName(key: string) {
-  try {
-    return (await figmaGet<{ name: string }>(`/files/${key}?depth=1`)).name;
-  } catch (err) {
-    if (err instanceof FigmaError && err.status === 412) throw err;
-    throw new FigmaError(`Could not open the file: ${(err as Error).message}`);
-  }
+/** The file name from the link (figma.com/design/KEY/File-Name), since the plugin only knows the document as "Document". */
+export function nameFromUrl(url: string, key: string) {
+  const m = new RegExp(`/${key}/([^/?#]+)`).exec(url);
+  if (!m) return 'Figma file';
+  let raw = m[1];
+  try { raw = decodeURIComponent(raw); } catch {}
+  return raw.replace(/-+/g, ' ').trim() || 'Figma file';
 }
 
 const figmaFile = (key: string, name: string): FigmaFile => ({ key, name, url: `https://www.figma.com/design/${key}` });
@@ -209,7 +163,7 @@ export async function folderFor(url: string) {
     await installSkills(existing.dir);
     return existing.dir;
   }
-  const name = await lookupName(parsed.key);
+  const name = nameFromUrl(url, parsed.key);
   const dir = path.join(CHATS_ROOT, `${slug(name)}-${parsed.key.slice(0, 6)}`);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, 'figma.json'), JSON.stringify(figmaFile(parsed.key, name), null, 2));
@@ -230,7 +184,7 @@ export async function freshChatFolder(now = new Date()) {
 
 export async function attachFolder(dir: string, url: string) {
   const parsed = parseUrl(url);
-  const figma = figmaFile(parsed.key, await lookupName(parsed.key));
+  const figma = figmaFile(parsed.key, nameFromUrl(url, parsed.key));
   await writeFile(path.join(dir, 'figma.json'), JSON.stringify(figma, null, 2));
   return figma;
 }

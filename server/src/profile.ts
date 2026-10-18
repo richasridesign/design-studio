@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { MODELS, type DesignSystem, type FigmaFile } from '../../shared/design.js';
-import { fileOutline } from './figma.js';
+import { fileOutline } from './figmaCache.js';
 import { figmaMcp, lean } from './lean.js';
 
 export const PROFILE_FILE = 'design-system.json';
@@ -52,7 +52,7 @@ export function profileMarkdown(ds: DesignSystem) {
 
 export async function buildProfile(dir: string, figma: FigmaFile, signal?: AbortSignal) {
   const { servers, plugins, name } = await figmaMcp();
-  const frames = await fileOutline(figma.key).then((o) => o.pages.flatMap((p) => p.frames).slice(0, 6).map((f) => `${f.id} ${f.name} (${f.page})`)).catch(() => [] as string[]);
+  const frames = await fileOutline(dir, figma.key, { signal }).then((o) => o.pages.flatMap((p) => p.frames).slice(0, 6).map((f) => `${f.id} ${f.name} (${f.page})`)).catch(() => [] as string[]);
   const prompt = [
     `Build a design system profile for the Figma file ${figma.name} (${figma.url}, file key ${figma.key}).`,
     'Use the Figma tools: list the libraries the file uses, search the design system for common components (button, input, select, checkbox, card, list item, navigation, tab, dialog, icon, avatar, badge) and for color and text styles, and read the variables used by a few frames.',

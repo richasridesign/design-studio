@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson, useStore } from '../store';
-import { getOutline, useOutlineVersion, type Outline } from '../outline';
+import { getOutline, refreshOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
 import { attachFigma, insertPrompt } from './Files';
 import { DecisionLog } from './DecisionLog';
@@ -41,12 +41,18 @@ function useDraft(screens: Screen[]) {
   }, [events, screens]);
 }
 
+const readAgo = (at: number) => {
+  const m = Math.floor((Date.now() - at) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} d ago`;
+};
+
 export function Decisions() {
   const figma = useStore((s) => s.session.figma);
   const key = figma?.key;
   const v = useOutlineVersion();
   const [outline, setOutline] = useState<Outline | null>(null);
   const [error, setError] = useState('');
+  const [reading, setReading] = useState(false);
   const [doc, setDoc] = useState<DecisionDoc>({});
   const [local, setLocal] = useState(false);
   const [applied, setApplied] = useState<string | null>(null);
@@ -170,6 +176,13 @@ export function Decisions() {
       <DecisionLog />
 
       {error && <p className="dec-line" role="alert">Could not load the screens: {error}</p>}
+      {outline?.readAt && !reading && (
+        <p className="dec-line dec-read">
+          <span>Screens read from Figma: {readAgo(outline.readAt)}.</span>
+          <button className="link" onClick={() => { setReading(true); refreshOutline(key).finally(() => setReading(false)); }}>Read again</button>
+        </p>
+      )}
+      {(reading || (!outline && !error)) && <p className="dec-line" role="status"><span className="dec-spin" aria-hidden="true" /><span>Reading the screens from Figma, about 15 seconds.</span></p>}
       {!outline && !error && (
         <ul className="dec-list" aria-busy="true" aria-label="Loading screens">
           {[0, 1, 2].map((i) => <li key={i} className="dec-row dec-skel" />)}
