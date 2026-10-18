@@ -3,7 +3,8 @@ import path from 'node:path';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { checkFlows, hasClick, hasHover, reactionsOf, readFlowChecks, runFlowCheck } from './flowcheck.js';
-import { flowFixPrompt, flowLabel } from '../../shared/flowcheck.js';
+import { hoverDrift, screenFindings } from './flowRules.js';
+import { flowFixPrompt, flowLabel, wiringIssues } from '../../shared/flowcheck.js';
 
 // Fixtures follow the REST shape from figma/rest-api-spec (Interaction = { trigger, actions }, NodeAction =
 // { type: 'NODE', destinationId, navigation }), plus the Plugin API `reactions` shape for the same links.
@@ -200,7 +201,8 @@ describe('checkFlows', () => {
   it('lists loose screens on a page with sections, and skips pages without sections', () => {
     const r = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [])]), screen('loose', 'Stray', [button('Go')], 5000, 0)], [screen('comp', 'Components', [button('Go')])]), maps);
     expect(r.flows.map((f) => f.name)).toEqual(['F', 'Not in a section (Page 1)']);
-    expect(r.flows[1].findings.map((f) => f.rule)).toEqual(['no-click', 'no-hover']);
+    expect(r.flows[1].findings.map((f) => f.rule)).toEqual(['no-click', 'no-hover', 'loose-screen']);
+    expect(r.flows[1].findings[2]).toMatchObject({ nodeId: 'loose', severity: 'minor', message: '"Stray" sits loose on the canvas, outside any section.' });
   });
 
   it('shows an empty leaf section as not checked', () => {
@@ -216,6 +218,104 @@ describe('checkFlows', () => {
     expect(r.flows[0].findings).toHaveLength(100);
     expect(r.flows[0].more).toBe(160);
     expect(flowLabel(r.flows[0])).toBe('260 issues');
+  });
+});
+
+describe('new screen rules', () => {
+  const hoverTo = (dest: string) => ({ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: dest, navigation: 'CHANGE_TO' }] });
+  const cards = {
+    components: {
+      'c:ready': { name: 'Status=Partly ready', componentSetId: 'set:card' },
+      'c:readyHover': { name: 'Status=Partly ready Hover', componentSetId: 'set:card' },
+      'c:setupHover': { name: 'Status=Needs setup Hover', componentSetId: 'set:card' },
+      'c:none': { name: 'Decider=None, State=Default', componentSetId: 'set:row' },
+      'c:noneHover': { name: 'Decider=None, State=Hover', componentSetId: 'set:row' },
+      'c:harHover': { name: 'Decider=Atlas, State=Hover', componentSetId: 'set:row' },
+      'c:tabSel': { name: 'State=Selected', componentSetId: 'set:tab' },
+      'c:tabHover': { name: 'State=Hover', componentSetId: 'set:tab' },
+      'c:other': { name: 'State=Hover', componentSetId: 'set:other' },
+    },
+    componentSets: { 'set:card': { name: 'Colleague card' }, 'set:row': { name: 'Workflow row' }, 'set:tab': { name: 'Tab' }, 'set:other': { name: 'Chip' } },
+  };
+  const inst = (id: string, componentId: string, dest: string) => ({ id, type: 'INSTANCE', name: 'Card', componentId, interactions: [click('s9'), hoverTo(dest)], children: [] });
+  const one = (children: any[], m: any = cards) => checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', children)])]), m);
+
+  it('reads what a hover changes besides the state', () => {
+    expect(hoverDrift('Type=Primary, State=Default', 'Type=Primary, State=Hover')).toEqual([]);
+    expect(hoverDrift('Status=Partly ready', 'Status=Partly ready Hover')).toEqual([]);
+    expect(hoverDrift('Status=Partly ready', 'Status=Needs setup Hover')).toEqual([{ key: 'Status', from: 'Partly ready', to: 'Needs setup Hover' }]);
+    expect(hoverDrift('Decider=None, State=Default', 'Decider=Atlas, State=Hover')).toEqual([{ key: 'Decider', from: 'None', to: 'Atlas' }]);
+    expect(hoverDrift('Size=Small, Show tooltip=False', 'Size=Small, Show tooltip=True')).toEqual([]);
+    expect(hoverDrift('Icon', 'Icon hover')).toEqual([]);
+  });
+
+  it('flags a hover that goes to another status, decider or component set, and passes the right one', () => {
+    expect(rules(one([inst('a', 'c:ready', 'c:readyHover'), inst('b', 'c:none', 'c:noneHover')]))).toEqual([]);
+    const r = one([inst('a', 'c:ready', 'c:setupHover'), inst('a2', 'c:ready', 'c:setupHover'), inst('b', 'c:none', 'c:harHover'), inst('c', 'c:none', 'c:other')]);
+    expect(rules(r)).toEqual(['wrong-hover', 'wrong-hover', 'wrong-hover']);
+    const [a, b, c] = r.flows[0].findings;
+    expect(a).toMatchObject({ nodeId: 'a', severity: 'major', message: '"Card" changes on hover to Status=Needs setup Hover, but its own is Status=Partly ready (and 1 more like it).', fix: 'Point While hovering to the Hover variant with Status=Partly ready and the same other properties.' });
+    expect(b.message).toBe('"Card" changes on hover to Decider=Atlas, but its own is Decider=None.');
+    expect(c.message).toBe('"Card" changes on hover to "State=Hover", a variant of another component.');
+  });
+
+  it('tells a selected tab to keep still on hover', () => {
+    const r = one([inst('t', 'c:tabSel', 'c:tabHover')]);
+    expect(r.flows[0].findings[0]).toMatchObject({ rule: 'wrong-hover', fix: 'A selected or disabled item stays as it is on hover: remove the While hovering reaction.' });
+  });
+
+  it('skips hover targets it cannot read', () => {
+    expect(rules(one([inst('a', 'c:ready', 'c:unknown')]))).toEqual([]);
+  });
+
+  it('flags a close icon that does nothing, but not one inside a control already flagged as No click', () => {
+    const dialog = (close: any) => ({ id: `d${++seq}`, type: 'INSTANCE', name: 'Dialog', componentId: 'c:dialog', children: [text('Disconnect HRIS'), close] });
+    const dead = one([dialog({ id: 'x1', type: 'VECTOR', name: 'close' })], maps);
+    expect(dead.flows[0].findings.map((f) => [f.rule, f.nodeId, f.message])).toEqual([['no-close', 'x1', 'The close icon in Dialog "Disconnect HRIS" does nothing when clicked.']]);
+    const iconX = one([dialog({ id: 'x2', type: 'INSTANCE', name: 'Icon/x', componentId: 'c:icon', children: [] })], maps);
+    expect(rules(iconX)).toEqual(['no-close']);
+    const wired = one([dialog({ id: 'g', type: 'FRAME', name: 'Header actions', interactions: [click('s0')], children: [{ id: 'x3', type: 'VECTOR', name: 'close' }] })], maps);
+    expect(rules(wired)).toEqual([]);
+    const control = one([dialog({ id: 'x4', type: 'INSTANCE', name: 'Close button', componentId: 'c:iconbtn', children: [icon('x')] })], maps);
+    expect(rules(control)).toEqual(['no-click', 'no-tooltip']);
+  });
+
+  it('checks a toast is 24px from the top, centred, and the top layer', () => {
+    const toast = (id: string, x: number, y: number) => ({ id, type: 'INSTANCE', name: 'Toast', componentId: 'c:toast', ...box(x, y, 400, 48), children: [text('Saved')] });
+    const s = (children: any[]) => checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', children)])]), maps);
+    expect(rules(s([text('Body'), toast('t1', 520, 24)]))).toEqual([]);
+    expect(rules(s([text('Body'), toast('t1', 520.4, 24.6)]))).toEqual([]);
+    const off = s([toast('t2', 900, 820), text('Body')]);
+    expect(off.flows[0].findings.map((f) => [f.rule, f.severity, f.message])).toEqual([['toast', 'minor', 'Toast "Saved" sits 820px from the top of the screen, 380px right of centre, under layers drawn after it.']]);
+  });
+
+  it('flags notes over 230 characters with no bullets, outside screens, stickies and the changelog', () => {
+    const long = 'This flow shows how Richa activates the colleague after setup. '.repeat(5);
+    const note = (id: string, characters: string, extra: any = {}) => ({ id, type: 'TEXT', name: 'Flow note', characters, ...extra });
+    const r = checkFlows(doc([section('1:1', 'F', [
+      screen('s1', 'Home', [note('in-screen', long)]),
+      note('n1', long),
+      note('n2', `• ${long}`),
+      { id: 'k', type: 'INSTANCE', name: 'Decision 1 · Home', children: [note('n3', long)] },
+      { id: 'cl', type: 'FRAME', name: 'Changelog', children: [note('n4', long)] },
+      // From the plugin walker: the text is clipped, the length and bullet flag come with it.
+      note('n5', 'Short clip', { textLength: 400, bullets: false }),
+      note('n6', 'Short clip', { textLength: 400, bullets: true }),
+    ])]), maps);
+    const notes = r.flows[0].findings.filter((f) => f.rule === 'long-note');
+    expect(notes.map((f) => f.nodeId)).toEqual(['n1', 'n5']);
+    expect(notes[0]).toMatchObject({ screen: null, severity: 'minor', message: `The note "This flow shows how Richa activates the…" is ${long.trim().length + 1} characters with no bullets.` });
+  });
+
+  it('keeps craft rules out of the Prototype wired gate', () => {
+    const f = { id: 'f', name: 'F', path: [], page: 'P', screens: 1, state: 'fail' as const, counts: { toast: 1, 'long-note': 2, 'loose-screen': 1 }, unchecked: [], findings: [], more: 0 };
+    expect(wiringIssues(f)).toBe(0);
+    expect(wiringIssues({ ...f, counts: { ...f.counts, 'wrong-hover': 1 } })).toBe(1);
+  });
+
+  it('gives the Code scan the same per-screen findings with stable ids', () => {
+    const s = screen('s1', 'Home', [inst('a', 'c:ready', 'c:setupHover')]);
+    expect(screenFindings(s, cards).map((f) => f.id)).toEqual(['wrong-hover:a:c:setupHover']);
   });
 });
 

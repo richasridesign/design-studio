@@ -15,18 +15,27 @@ export const PLUGIN_MAX_DEPTH = 40;
 // when they carry a prototype reaction, or a name the close and sticky checks read.
 const GEOMETRY = ['VECTOR', 'RECTANGLE', 'ELLIPSE', 'LINE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'SLICE'];
 const KEEP = /close|dismiss|decision|^\s*x\s*$/i;
+// Toasts get a box so their place on the screen can be measured. Notes over this length send their full length.
+const TOAST = /\btoast\b/i;
+const NOTE_LIMIT = 230;
+const BULLETS = /•|(^|\n)\s*([-*–]|\d+[.)])\s/;
 
 /**
  * The Plugin API script for use_figma. It only reads: no setters, no page switch, no version save.
  * It builds a compact tree (short keys, see expandNode) plus the component maps checkFlows groups copies by.
  * Like the REST loader, pages with a top-level SECTION get full SECTION and FRAME subtrees and shallow other nodes.
  */
-type WalkOpts = { maxNodes?: number; maxDepth?: number };
+type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[] };
 
 function flowWalk(opts: WalkOpts = {}) {
   const maxNodes = opts.maxNodes ?? PLUGIN_MAX_NODES;
   const maxDepth = opts.maxDepth ?? PLUGIN_MAX_DEPTH;
   return `const MAX_NODES = ${maxNodes};
+const ONLY = ${JSON.stringify(opts.only ?? null)};
+const TOAST = new RegExp(${JSON.stringify(TOAST.source)}, 'i');
+const NOTE_LIMIT = ${NOTE_LIMIT};
+const BULLETS = new RegExp(${JSON.stringify(BULLETS.source)});
+const dests = new Set();
 const MAX_DEPTH = ${maxDepth};
 const GEOMETRY = new Set(${JSON.stringify(GEOMETRY)});
 const KEEP = new RegExp(${JSON.stringify(KEEP.source)}, 'i');
@@ -63,6 +72,7 @@ function reactions(n) {
     if (!r || !r.trigger || !r.trigger.type) continue;
     const a = acts(r.actions || (r.action ? [r.action] : []));
     if (a.length) out.push([String(r.trigger.type), a]);
+    for (const x of a) if (x[2] === 'CHANGE_TO' && x[1]) dests.add(x[1]);
   }
   return out.length ? out : null;
 }
@@ -96,9 +106,25 @@ async function walk(n, depth, parentType, full) {
   if (n.type === 'SECTION' || parentType === 'SECTION' || parentType === 'PAGE') o.b = box(n);
   if (r) o.r = r;
   if (n.type === 'TEXT') {
-    try { const s = String(n.characters || '').trim(); if (s) o.x = s.slice(0, 40); } catch (e) {}
+    try {
+      const s = String(n.characters || '').trim();
+      if (s) o.x = s.slice(0, 40);
+      if (s.length > NOTE_LIMIT) {
+        o.L = s.length;
+        let u = BULLETS.test(s);
+        if (!u && typeof n.getStyledTextSegments === 'function') {
+          try { u = n.getStyledTextSegments(['listOptions']).some((g) => g.listOptions && g.listOptions.type && g.listOptions.type !== 'NONE'); } catch (e) {}
+        }
+        o.u = u ? 1 : 0;
+      }
+    } catch (e) {}
   }
   if (n.type === 'INSTANCE') await instance(n, o);
+  if (!o.b && n.type !== 'TEXT') {
+    const c = o.m ? components[o.m] : null;
+    const set = c && c.componentSetId ? componentSets[c.componentSetId] : null;
+    if (TOAST.test(n.name || '') || (c && TOAST.test(c.name || '')) || (set && TOAST.test(set.name || ''))) o.b = box(n);
+  }
   if (!full || GEOMETRY.has(n.type)) return o;
   let ch = null;
   try { ch = 'children' in n ? n.children : null; } catch (e) {}
@@ -122,13 +148,30 @@ for (const page of figma.root.children) {
   const c = [];
   for (const t of tops) {
     if (flows) {
-      const w = await walk(t, 1, 'PAGE', t.type === 'SECTION' || t.type === 'FRAME');
+      // ONLY (a measuring aid) walks the named top-level nodes in full and keeps the rest shallow.
+      const deep = (t.type === 'SECTION' || t.type === 'FRAME') && (!ONLY || ONLY.includes(t.id));
+      const w = await walk(t, 1, 'PAGE', deep);
       if (w) c.push(w);
     } else if (KEEP.test(t.name || '')) {
       c.push({ i: t.id, n: clip(t.name), t: t.type });
     }
   }
   pages.push({ i: page.id, n: clip(page.name), t: page.type, c });
+}
+// Hover targets are variants that often have no instance in the file, so they are looked up by id to read their
+// properties (the wrong hover rule compares them with the instance's own).
+if (typeof figma.getNodeByIdAsync === 'function') {
+  for (const id of dests) {
+    if (components[id]) continue;
+    try {
+      const d = await figma.getNodeByIdAsync(id);
+      if (!d || d.type !== 'COMPONENT') continue;
+      const p = d.parent;
+      const set = p && p.type === 'COMPONENT_SET' ? p : null;
+      components[id] = set ? { name: d.name, componentSetId: set.id } : { name: d.name };
+      if (set && !componentSets[set.id]) componentSets[set.id] = { name: set.name };
+    } catch (e) {}
+  }
 }
 const __payload = { flowcheck: 1, document: { i: figma.root.id, n: clip(figma.root.name), t: 'DOCUMENT', c: pages }, components, componentSets, nodes: count, truncated };`;
 }
@@ -159,7 +202,7 @@ export async function flowCheckBody(scope: Scope = EMPTY_SCOPE, opts: WalkOpts =
 export type PluginCheck = { flows: FlowCheckRun['flows']; unchecked: FlowCheckRun['unchecked']; missing: string[]; truncated: boolean; nodes: number; costUsd: number; ms: number };
 
 /** Runs the Flow check inside Figma through the plugin. */
-export async function pluginFlowCheck(fileKey: string, scope: Scope, opts: { dir: string; signal?: AbortSignal } & ReadDeps): Promise<PluginCheck> {
-  const r = await pluginScript<Omit<PluginCheck, 'costUsd' | 'ms'>>(fileKey, await flowCheckBody(scope), 'Check prototype links for Flow check (read only)', opts);
+export async function pluginFlowCheck(fileKey: string, scope: Scope, opts: { dir: string; signal?: AbortSignal; walk?: WalkOpts } & ReadDeps): Promise<PluginCheck> {
+  const r = await pluginScript<Omit<PluginCheck, 'costUsd' | 'ms'>>(fileKey, await flowCheckBody(scope, opts.walk), 'Check prototype links for Flow check (read only)', opts);
   return { ...r.value, costUsd: r.costUsd, ms: r.ms };
 }

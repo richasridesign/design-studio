@@ -103,6 +103,37 @@ describe('flowCheckScript', () => {
     expect(out.nodes).toBe(5);
   });
 
+  it('reads hover targets, toast boxes and long notes, and walks only the named sections when asked', async () => {
+    const cardSet = { id: 'set:card', type: 'COMPONENT_SET', name: 'Colleague card' };
+    const ready = { id: 'c:ready', type: 'COMPONENT', name: 'Status=Partly ready', parent: cardSet };
+    const setupHover = { id: 'c:setupHover', type: 'COMPONENT', name: 'Status=Needs setup Hover', parent: cardSet };
+    const toastMain = { id: 'c:toast', type: 'COMPONENT', name: 'Toast', parent: { type: 'PAGE' } };
+    const long = 'Activation keeps the test strip so Richa can try it as an employee first. '.repeat(4);
+    const card = node({ id: '4:1', type: 'INSTANCE', name: 'Card', main: ready, reactions: [click('2:1'), { trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: 'c:setupHover', navigation: 'CHANGE_TO' }] }] });
+    const toast = node({ id: '4:2', type: 'INSTANCE', name: 'Saved message', main: toastMain, absoluteBoundingBox: { x: 620, y: 140, width: 400, height: 48 } });
+    const note = node({ id: '4:3', type: 'TEXT', name: 'Note', characters: long, absoluteBoundingBox: { x: 0, y: 1000, width: 400, height: 200 } });
+    const listNote = node({ id: '4:4', type: 'TEXT', name: 'Note', characters: long, getStyledTextSegments: () => [{ listOptions: { type: 'UNORDERED' } }] });
+    const main = section('1:1', 'Main', 0, 0, 4000, 2000, [frame('2:1', 'Home', 100, 100, [card, toast]), note, listNote]);
+    const other = section('1:2', 'Other', 5000, 0, 2000, 1200, [frame('2:9', 'Old home', 5100, 100, [])]);
+    const page = node({ id: '0:1', type: 'PAGE', name: 'Flows', loadAsync: async () => {} }, [main, other]);
+    const byId: Record<string, any> = { 'c:setupHover': setupHover };
+    const figma = { root: node({ id: '0:0', type: 'DOCUMENT', name: 'Doc' }, [page]), getNodeByIdAsync: async (id: string) => byId[id] ?? null };
+    const out = await runScript(flowCheckScript(), figma);
+    expect(out.components['c:setupHover']).toEqual({ name: 'Status=Needs setup Hover', componentSetId: 'set:card' });
+    const json = JSON.stringify(out.document);
+    expect(json).toContain('"i":"4:2","n":"Saved message","t":"INSTANCE","m":"c:toast","b":[620,140,400,48]');
+    expect(json).toContain(`"x":"${long.slice(0, 40)}","L":${long.trim().length},"u":0`);
+    expect(json).toContain('"i":"4:4","n":"Note","t":"TEXT"');
+    expect(json).toContain('"u":1');
+    const r = runPayload(out);
+    const rules = r.flows.find((f) => f.name === 'Main')!.findings.map((f) => `${f.rule}:${f.nodeId}`);
+    expect(rules).toEqual(expect.arrayContaining(['wrong-hover:4:1', 'toast:4:2', 'long-note:4:3']));
+    expect(rules).not.toContain('long-note:4:4');
+    const only = await runScript(flowCheckScript({ only: ['1:1'] }), figma);
+    expect(JSON.stringify(only.document)).not.toContain('"2:9"');
+    expect(JSON.stringify(only.document)).toContain('"4:1"');
+  });
+
   it('stays well under the use_figma code limit', () => {
     expect(flowCheckScript().length).toBeLessThan(50000);
     expect(flowCheckScript()).not.toMatch(/setCurrentPageAsync|loadAllPagesAsync|saveVersionHistoryAsync|setPluginData/);

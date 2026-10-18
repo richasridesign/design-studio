@@ -7,7 +7,7 @@ import type { DesignDoc, FlowPhase, ReviewDoc, SketchDoc } from './design.js';
 import type { DecisionDoc } from './decisions.js';
 import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
-import { flowIssues, type FlowCheckRun } from './flowcheck.js';
+import { flowIssues, wiringIssues, type FlowCheckRun } from './flowcheck.js';
 import { stateMap } from './stateMap.js';
 import { closedTally, splitRun, triagedRules, type Triage } from './triage.js';
 import { rulesSummary } from './rules.js';
@@ -178,13 +178,15 @@ function checksFor(id: StageId, e: StageEvidence, kind: ChatKind): StageCheck[] 
     case 'validate': {
       const run = e.review?.runs.at(-1);
       const flows = e.flowcheck?.flows.filter((f) => f.state !== 'unchecked') ?? [];
-      const failing = flows.filter((f) => flowIssues(f) > 0).length;
+      const failing = flows.filter((f) => wiringIssues(f) > 0).length;
+      // Toast places, long notes and loose screens show in Flow check but do not hold the gate.
+      const tidy = flows.reduce((n, f) => n + flowIssues(f) - wiringIssues(f), 0);
       // A large file read only in part can hide broken flows, so a clean but partial run does not pass.
       const partial = !!e.flowcheck?.truncated;
       // Flows named in Scope with no section in the file.
       const missing = e.flowcheck?.missing ?? [];
       const wired: StageCheck = flows.length
-        ? check('Prototype wired', failing === 0 && !partial && !missing.length, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : missing.length ? `Flow check: not found in the file: ${missing.join(', ')}` : partial ? 'Flow check: the file is too large to read in full, so some flows were not checked' : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
+        ? check('Prototype wired', failing === 0 && !partial && !missing.length, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : missing.length ? `Flow check: not found in the file: ${missing.join(', ')}` : partial ? 'Flow check: the file is too large to read in full, so some flows were not checked' : tidy ? `Flow check: wired, ${plural(tidy, 'other issue')} to tidy` : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
         : { label: 'Prototype wired', state: 'unchecked', detail: 'Flow check has not run on this file', open: 'review' };
       if (!run) return [check('Review run', false, 'No review yet', 'review'), wired];
       // Findings closed by hand (fixed, won't fix, parked) do not count; the detail still names them.

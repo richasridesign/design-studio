@@ -68,7 +68,26 @@ describe('framesScript', () => {
     expect(part.frames.map((f) => f.i)).toEqual(['1:1', '5:1']);
     expect(part.missing).toEqual(['404:1', '0:1']);
     expect(part.truncated).toBe(false);
-    expect(part.components).toEqual({ 'c:1': { name: 'Size=Small', remote: true, componentSetId: 's:1' }, 'c:2': { name: 'Card', remote: false } });
+    expect(part.components).toEqual({ 'c:1': { name: 'Size=Small', remote: true, componentSetId: 's:1', setName: 'Button' }, 'c:2': { name: 'Card', remote: false } });
+  });
+
+  it('carries reactions and looks up hover targets for the Code scan', async () => {
+    const hoverMain = { id: 'c:1h', type: 'COMPONENT', name: 'Size=Small, State=Hover', remote: true, parent: { id: 's:1', type: 'COMPONENT_SET', name: 'Button' } };
+    const btn = node({ id: '7:2', type: 'INSTANCE', name: 'Button', getMainComponentAsync: async () => library, ...box(0, 0, 80, 36), reactions: [
+      { trigger: { type: 'ON_CLICK' }, actions: [{ type: 'CONDITIONAL', conditionalBlocks: [{ actions: [{ type: 'NODE', destinationId: '7:9', navigation: 'NAVIGATE' }] }] }] },
+      { trigger: { type: 'ON_HOVER' }, action: { type: 'NODE', destinationId: 'c:1h', navigation: 'CHANGE_TO' } },
+      { trigger: null, actions: [] },
+    ] });
+    const f = node({ id: '7:1', type: 'FRAME', name: 'Home', ...box(0, 0, 1440, 900) }, [btn]);
+    const byId: Record<string, any> = { '7:1': f, 'c:1h': hoverMain };
+    const { part } = await readAll(['7:1'], { getNodeByIdAsync: async (id: string) => byId[id] ?? null });
+    expect(part.components['c:1h']).toEqual({ name: 'Size=Small, State=Hover', remote: true, componentSetId: 's:1', setName: 'Button' });
+    const doc = expandFrame(part.frames[0]);
+    expect(doc.children[0].reactions).toEqual([
+      { trigger: { type: 'ON_CLICK' }, actions: [{ type: 'NODE', destinationId: '7:9', navigation: 'NAVIGATE' }] },
+      { trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: 'c:1h', navigation: 'CHANGE_TO' }] },
+    ]);
+    expect(checkFrames([{ document: doc, components: part.components }], null).filter((x) => x.area === 'interaction')).toEqual([]);
   });
 
   it('gives the checks, the outline and the copy list what the REST endpoint gave', async () => {

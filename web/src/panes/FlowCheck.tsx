@@ -130,7 +130,7 @@ export function FlowCheck() {
       <div className="fc-head">
         <div className="fc-intro">
           <h2 id="fc-title">Flow check</h2>
-          <p>Clicks, hovers, close icons, tooltips, old and parked links, overlaps and stickies in each section. Costs under a cent.</p>
+          <p>Clicks, hovers, close icons, tooltips, toasts, links, overlaps, stickies and notes in each section. Costs under a cent.</p>
         </div>
         <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? 'Checking…' : 'Run flow check'}</button>
       </div>
