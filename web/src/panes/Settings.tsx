@@ -51,7 +51,7 @@ function CheckSetup() {
               <div className="check-body">
                 <span className="check-title">{CHECK_TITLES[id]}</span>
                 <span className="muted">{row?.busy ? 'Checking…' : r ? r.detail : 'Not checked'}</span>
-                {r && r.tone !== 'ok' && !row?.busy && r.fix && <span className="check-fix">How to fix: {r.fix}</span>}
+                {r && r.tone !== 'ok' && !row?.busy && r.fix && <span className="check-fix">{r.optional ? 'To add it' : 'How to fix'}: {r.fix}</span>}
                 {r && r.tone !== 'ok' && !row?.busy && r.steps && (
                   <ol className="fl-steps check-steps">
                     {r.steps.map((st, i) => <li key={i}>{st.text}{st.cmd && <> <Command id={`chk-${id}-${i}`} text={st.cmd} /></>}{st.after && ` ${st.after}`}</li>)}
@@ -197,7 +197,7 @@ function McpState({ status }: { status?: string }) {
   return (
     <span className="inline mcp-state">
       <span className={`mcp-dot ${tone}`} aria-hidden /><span role="status">Figma plugin: {label}</span>
-      {tone === 'warn' && <button className="link" onClick={openFigmaLogin}>How to log in</button>}
+      {tone === 'warn' && <button className="link" onClick={openFigmaLogin}>Log in to Figma</button>}
       {!busy && <button className="link" onClick={check}>Check now</button>}
     </span>
   );

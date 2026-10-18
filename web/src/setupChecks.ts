@@ -4,7 +4,8 @@ import type { McpServer } from '../../shared/protocol';
 export type Tone = 'idle' | 'checking' | 'ok' | 'warn' | 'bad';
 /** One numbered step of a fix. `cmd` is text she types, shown with a Copy button. */
 export type Step = { text: string; cmd?: string; after?: string };
-export type CheckResult = { tone: 'ok' | 'warn' | 'bad'; detail: string; fix?: string; steps?: Step[]; fixLabel?: string; fixId?: string };
+/** `optional` marks a missing extra: it shows in Settings but never stops a chat. */
+export type CheckResult = { tone: 'ok' | 'warn' | 'bad'; detail: string; fix?: string; steps?: Step[]; fixLabel?: string; fixId?: string; optional?: boolean };
 export type CheckId = 'figma' | 'mcp' | 'chrome' | 'claude';
 
 export const CHECK_IDS: CheckId[] = ['figma', 'mcp', 'chrome', 'claude'];
@@ -33,13 +34,15 @@ export const CHROME_CHECKBOX = 'Allow remote debugging for this browser instance
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+// Claude edits Figma through the plugin login. The token only feeds Design Studio's own views, so a missing one is optional.
 async function figma(): Promise<CheckResult> {
+  const saved = await getJson<{ figmaToken?: string }>('/api/settings').then((s) => !!s.figmaToken, () => true);
+  if (!saved) return { tone: 'warn', optional: true, detail: 'Token: Not added (optional). It shows frames, previews, versions and Figma comments here. Claude edits Figma without it.', fix: 'Paste a token in Personal access token above, then save.' };
   try {
     const m = await getJson<{ handle: string; email: string }>('/api/figma/me');
     return { tone: 'ok', detail: `Signed in as ${m.handle} (${m.email})` };
   } catch (e) {
-    const err = msg(e);
-    return { tone: 'bad', detail: err, fix: 'Add a personal access token above, then save.' };
+    return { tone: 'bad', detail: `Token not accepted: ${msg(e)}`, fix: 'Make a new token in Figma (Settings, Security, Personal access tokens), paste it above, then save.' };
   }
 }
 
@@ -53,7 +56,7 @@ async function mcp(): Promise<CheckResult> {
     const row = rows.find((r) => /figma/i.test(r.name));
     if (!row) return { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
     if (row.status === 'connected') return { tone: 'ok', detail: 'Figma plugin: Connected. Claude can edit your file.' };
-    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'Figma plugin: Needs login', fix: 'Log in once from the terminal. How to log in shows each step.', fixLabel: 'How to log in', fixId: 'figma-login' };
+    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'Figma plugin: Needs login', fix: 'Log in once. Figma opens in your browser to approve it.', fixLabel: 'Log in to Figma', fixId: 'figma-login' };
     return { tone: 'bad', detail: `Figma plugin: Not connected${row.error ? ` (${row.error})` : ''}`, fix: 'Add the Figma plugin to Claude again, then log in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };
