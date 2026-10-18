@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { insertPrompt } from './Files';
-import type { DesignDoc } from '../../../shared/design';
+import type { DesignDoc, ReviewDoc } from '../../../shared/design';
+import { stageFrames } from '../../../shared/stages';
 import { missingPrompt, stateMap, type MappedScreen } from '../../../shared/stateMap';
 import '../statemap.css';
 
@@ -15,6 +16,7 @@ export function StateBox() {
   const first = useStore((s) => s.events.find((e) => e.kind === 'user'));
   const [plan, setPlan] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc | null>(null);
+  const [review, setReview] = useState<ReviewDoc | null>(null);
   const [open, setOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const box = useRef<HTMLDivElement>(null);
@@ -23,6 +25,7 @@ export function StateBox() {
     const t = setTimeout(() => {
       getJson<{ content: string }>('/api/file?path=plan.md').then((f) => alive && setPlan(f.content ?? '')).catch(() => alive && setPlan(''));
       getJson<DesignDoc | null>('/api/design').then((d) => alive && setDesign(d)).catch(() => alive && setDesign(null));
+      getJson<ReviewDoc | null>('/api/review').then((r) => alive && setReview(r)).catch(() => alive && setReview(null));
     }, 300);
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, tick]);
@@ -35,9 +38,11 @@ export function StateBox() {
   }, []);
   // Same source as the Build gate: plan.md, or the first message when there is no plan yet.
   const brief = plan?.trim() ? plan : first?.kind === 'user' ? first.text : '';
-  const map = useMemo(() => stateMap(brief, design?.frames ?? []), [brief, design]);
+  // Same frames as the Build gate, so the box and the gate agree.
+  const frames = useMemo(() => stageFrames(design, review), [design, review]);
+  const map = useMemo(() => stateMap(brief, frames), [brief, frames]);
   if (plan === null || !map.total) return null;
-  const unnamed = !!design?.frames.length && !map.named;
+  const unnamed = frames.length > 0 && !map.named;
   const summary = unnamed ? `${map.total} listed, not checked` : map.missing ? `${map.missing} of ${map.total} missing` : `All ${map.total} designed`;
   return (
     <div className="smap" ref={box}>
@@ -79,8 +84,8 @@ function Row({ s, checked }: { s: MappedScreen; checked: boolean }) {
         ))}
       </ul>
       {checked && gaps > 0 && (
-        <button className="link smap-ask" aria-label={`Ask Claude to design the missing ${s.screen} ${gaps === 1 ? 'state' : 'states'}`} onClick={() => insertPrompt(missingPrompt(s))}>
-          Ask Claude to design {gaps === 1 ? 'it' : 'them'}
+        <button className="link smap-ask" onClick={() => insertPrompt(missingPrompt(s))}>
+          Ask Claude to design {gaps === 1 ? 'it' : 'them'}<span className="sr-only">: {s.screen}, {s.states.filter((x) => !x.frame).map((x) => x.state).join(', ')}</span>
         </button>
       )}
     </li>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approve, cleanApprovals, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
+import { approve, cleanApprovals, stageFrames, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -70,6 +70,13 @@ describe('stages', () => {
 
   it('reads the states from the first message when there is no plan.md', () => {
     expect(byId({ ...none, brief: 'Design a cart\n\n## States\n- Cart: default' }).build.checks[2]).toMatchObject({ state: 'open', detail: '1 of 1 state missing' });
+  });
+
+  it('reads frames from design.json, or from the last review when it has none', () => {
+    const design = { frames: [{ screen: 'Home', state: 'empty', nodeId: '1:1' }] };
+    expect(stageFrames(design, { runs: [run({ frames: ['9:9'] })] })).toEqual(design.frames);
+    expect(stageFrames({ frames: [] }, { runs: [run({ frames: ['9:9'] })] })).toEqual([{ nodeId: '9:9' }]);
+    expect(stageFrames(null, null)).toEqual([]);
   });
 
   it('does not judge states when the frames have no names', () => {

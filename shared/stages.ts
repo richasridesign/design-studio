@@ -46,13 +46,16 @@ export type StageEvidence = {
   decisions: DecisionDoc | null;
 };
 
+/** The frames a chat designed. Older chats only list them on their review runs, by node id. */
+export const stageFrames = (design: DesignDoc | null, review: ReviewDoc | null): Array<{ nodeId: string; screen?: string; state?: string; name?: string }> =>
+  design?.frames.length ? design.frames : (review?.runs.at(-1)?.frames ?? []).map((nodeId) => ({ nodeId }));
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const check = (label: string, met: boolean, detail: string, open?: StageOpen): StageCheck => ({ label, state: met ? 'met' : 'open', detail, open });
 
 function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
   const screens = e.sketch?.screens ?? [];
-  // Older chats only list frames on their review runs.
-  const frames = e.design?.frames.length ? e.design.frames : (e.review?.runs.at(-1)?.frames ?? []).map((nodeId) => ({ nodeId }));
+  const frames = stageFrames(e.design, e.review);
   switch (id) {
     case 'spec':
       return [
