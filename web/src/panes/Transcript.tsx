@@ -51,10 +51,10 @@ function SetupBanner() {
   useEffect(() => {
     let live = true;
     const run = () => void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => {
-      // The Figma tools matter most for a chat, so their state wins over the token's.
-      const c = [r[1], r[0]].find((x) => x.tone !== 'ok');
+      // The Figma tools matter most for a chat, so their state wins over the token's. A missing token is optional, so it never shows here.
+      const c = [r[1], r[0]].find((x) => x.tone !== 'ok' && !x.optional);
       if (!live) return;
-      // Needing login, the steps live in the How to log in dialog, so the notice keeps one short line and one action.
+      // Needing login, the login lives in the Log in to Figma dialog, so the notice keeps one short line and one action.
       const login = c?.fixId === 'figma-login';
       setProblem(c && c.tone !== 'ok' ? { tone: c.tone, text: login ? `${c.detail}.` : [c.detail, c.fix].filter(Boolean).join('. ').replace(/\.\./g, '.'), login } : null);
     });
@@ -69,7 +69,7 @@ function SetupBanner() {
       <span className={`tl-setup-mark ${problem.tone}`} aria-hidden />
       <span>{problem.text}{' '}
         {problem.login
-          ? <button className="link" onClick={openFigmaLogin}>How to log in</button>
+          ? <button className="link" onClick={openFigmaLogin}>Log in to Figma</button>
           : <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button>}
       </span>
     </div>

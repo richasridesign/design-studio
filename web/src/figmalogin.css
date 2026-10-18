@@ -1,4 +1,4 @@
-/* How to log in to the Figma plugin, opened from the status bar, the welcome notice and Settings. */
+/* Log in to the Figma plugin, opened from the status bar, the welcome notice and Settings. */
 .rs-dialog.fl-dialog { width: min(520px, 100%); }
 .fl-dialog .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .fl-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
@@ -18,3 +18,8 @@
   .fl-foot .primary { min-height: 44px; }
 }
 .statusbar .sb-help + .sb-link { margin-left: -4px; }
+.fl-wait { margin: 0; padding: 12px; border-radius: var(--radius-sm); background: var(--tint-blue); color: var(--fg); }
+.fl-error { margin: 0; color: var(--err); }
+.fl-other summary { cursor: pointer; min-height: 24px; color: var(--fg-muted); }
+.fl-other .fl-steps { margin-top: 12px; }
+.fl-steps .link { font-size: inherit; line-height: inherit; }

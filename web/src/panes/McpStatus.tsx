@@ -111,7 +111,7 @@ export function McpPage() {
         )}
         {error && <div className="mcp-error"><Icon name="error" small /> {error}</div>}
         {rows.some((r) => isFigma(r) && r.status === 'needs-auth' && r.live) && (
-          <p className="mcp-login" role="status"><span className="mcp-orb warn" aria-hidden="true" /> Figma plugin: Needs login. <button className="link" onClick={openFigmaLogin}>How to log in</button></p>
+          <p className="mcp-login" role="status"><span className="mcp-orb warn" aria-hidden="true" /> Figma plugin: Needs login. <button className="link" onClick={openFigmaLogin}>Log in to Figma</button></p>
         )}
         {probed === null && !error && (
           <div className="mcp-grid">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="mcp-card skeleton" style={{ animationDelay: `${i * 80}ms` }} />)}</div>
@@ -192,7 +192,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
         <dt>Status</dt><dd className={tone}>{label}</dd>
         {row.error && (row.live || row.status !== 'needs-auth') && <><dt>Error</dt><dd className="bad mono wrap">{row.error}</dd></>}
         {row.status === 'needs-auth' && isFigma(row) && (
-          <><dt>Log in</dt><dd>Log in once from the terminal. <button className="link" onClick={openFigmaLogin}>How to log in</button></dd></>
+          <><dt>Log in</dt><dd>Log in once. Figma opens in your browser to approve it. <button className="link" onClick={openFigmaLogin}>Log in to Figma</button></dd></>
         )}
         {row.status === 'needs-auth' && !isFigma(row) && row.live && (
           <><dt>Log in</dt><dd>Log in once from the terminal: run <code>claude</code>, type <code>/mcp</code> and pick {row.name}. <button className="link" onClick={() => window.dispatchEvent(new Event('designstudio:terminal'))}>Open terminal</button></dd></>

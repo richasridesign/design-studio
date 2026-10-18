@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { send, useStore } from './store';
-import type { PlanLimit } from '../../shared/protocol';
+import { getJson, send, useStore } from './store';
+import type { McpServer, PlanLimit } from '../../shared/protocol';
 import { Icon } from './Icon';
 import { SpendPill } from './SpendPill';
 import { McpItem, openMcp } from './panes/McpStatus';
-import { openFigmaLogin } from './FigmaLogin';
+import { openFigmaLogin, RECHECK } from './FigmaLogin';
 import { useDevTools } from './devTools';
 import './statusbar.css';
 
@@ -19,6 +19,27 @@ export function figmaState(mcp: { name: string; status: string }[]): [tone: stri
   const row = mcp.find((m) => /figma/i.test(m.name));
   return row ? FIGMA[row.status] ?? ['off', 'Off'] : ['off', 'Not set up'];
 }
+
+/**
+ * Claude reports the live Figma status only once it runs in a chat. Before that, show the server's last check
+ * of the plugin login, so a new chat does not read as Not set up. A login in the dialog checks again.
+ */
+function useFigmaRows(): McpServer[] | null {
+  const live = useStore((s) => s.session.mcp);
+  const [probed, setProbed] = useState<McpServer[] | null>(null);
+  const none = live.length === 0;
+  useEffect(() => {
+    if (!none) return;
+    let alive = true;
+    const load = () => getJson<McpServer[]>('/api/mcp/probe').then((r) => { if (alive) setProbed(r); }, () => { if (alive) setProbed([]); });
+    load();
+    window.addEventListener(RECHECK, load);
+    return () => { alive = false; window.removeEventListener(RECHECK, load); };
+  }, [none]);
+  return none ? probed : live;
+}
+
+const shownState = (rows: McpServer[] | null): [tone: string, label: string] => (rows ? figmaState(rows) : ['wait', 'Checking']);
 
 export const RETRY_MS = 30_000;
 
@@ -69,8 +90,7 @@ const clock = (ms: number) => {
 
 /** Compact Figma connection for the phone top bar: a status shape plus the word Figma, full state in its name. */
 export function FigmaItem() {
-  const mcp = useStore((s) => s.session.mcp);
-  const [tone, label] = figmaState(mcp);
+  const [tone, label] = shownState(useFigmaRows());
   return (
     <button className="mcp-item figma-item" aria-label={`Figma: ${label}`} onClick={openMcp}>
       <span className={`sb-dot ${tone}`} aria-hidden="true" /> <span className="label">Figma</span>
@@ -92,8 +112,10 @@ export function StatusBar() {
     return () => clearInterval(t);
   }, [left > 0, cache?.at]);
 
-  const [tone, label] = figmaState(mcp);
+  const rows = useFigmaRows();
+  const [tone, label] = shownState(rows);
   const figma = mcp.find((m) => /figma/i.test(m.name));
+  const needsLogin = rows?.find((m) => /figma/i.test(m.name))?.status === 'needs-auth';
   useFigmaRetry(figma);
   const stuck = figma && (figma.status === 'needs-auth' || figma.status === 'failed');
   const retry = () => { if (figma) send({ type: 'mcp_reconnect', name: figma.name }); };
@@ -103,8 +125,8 @@ export function StatusBar() {
       <button className="sb-item" onClick={openMcp}>
         <span className={`sb-dot ${tone}`} aria-hidden="true" /> Figma: {label}
       </button>
-      {figma?.status === 'needs-auth' && <button className="sb-link sb-help" onClick={openFigmaLogin}>How to log in</button>}
-      {/* Needing login, Try again lives in the How to log in dialog, so the footer keeps one action. */}
+      {needsLogin && <button className="sb-link sb-help" onClick={openFigmaLogin}>Log in to Figma</button>}
+      {/* Needing login, Try again lives in the Log in to Figma dialog, so the footer keeps one action. */}
       {stuck && figma.status !== 'needs-auth' && (
         <button
           className="sb-link"
