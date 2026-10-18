@@ -115,7 +115,7 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
       </div>
       {current && stage.state === 'open' && next && <p className="gate-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
       <div className="gate-label">Passes when</div>
-      <ul className="gate-checks">{stage.checks.map((c) => <Check key={c.label} c={c} />)}</ul>
+      <ul className="gate-checks">{stage.checks.map((c, i) => <Check key={c.label} c={c} link={c.open !== stage.checks[i - 1]?.open} />)}</ul>
       {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
       {current && noting && (
         <label className="gate-note-field">
@@ -144,7 +144,8 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
   );
 }
 
-function Check({ c }: { c: StageCheck }) {
+// Checks in a row that open the same place share one link, on the first of them.
+function Check({ c, link }: { c: StageCheck; link: boolean }) {
   return (
     <li className={`gate-check ${c.state}`}>
       <span className="gate-icon" aria-hidden="true">{c.state === 'met' ? <Icon name="check" small /> : c.state === 'open' ? <i /> : <Icon name="dash" small />}</span>
@@ -152,7 +153,7 @@ function Check({ c }: { c: StageCheck }) {
         <span>{c.label}<span className="sr-only">{c.state === 'met' ? ': met' : c.state === 'open' ? ': not met' : ': not checked'}</span></span>
         <span className="muted">{c.detail}</span>
       </span>
-      {c.open && <button className="link" onClick={() => go(c.open!)}>{OPEN_LABEL[c.open]}</button>}
+      {c.open && link && <button className="link" onClick={() => go(c.open!)}>{OPEN_LABEL[c.open]}</button>}
     </li>
   );
 }
