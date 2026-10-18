@@ -117,9 +117,11 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
           </li>
         ))}
       </ol>
-      <ScopeBox onChange={reload} />
-      <StateBox />
-      <Gate stage={shown} current={shown === now} brief={brief} onChange={change} />
+      {/* The gate comes first, so its stage, state and Approve show in a short panel; scope and states sit under its checks. */}
+      <Gate stage={shown} current={shown === now} brief={brief} onChange={change}>
+        <ScopeBox onChange={reload} />
+        <StateBox />
+      </Gate>
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
   );
@@ -128,7 +130,7 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
 // Every gate shares one heading; the state reads from this line, not from the heading style.
 const STATE_LABEL: Record<Stage['state'], string> = { approved: 'Approved', ready: 'Ready to approve', open: 'Current stage', later: 'Later' };
 
-function Gate({ stage, current, brief, onChange }: { stage: Stage; current: boolean; brief: string; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void }) {
+function Gate({ stage, current, brief, onChange, children }: { stage: Stage; current: boolean; brief: string; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void; children?: React.ReactNode }) {
   const open = stage.checks.filter((c) => c.state === 'open').length;
   const next = nextStep(stage, brief);
   const [noting, setNoting] = useState(false);
@@ -153,6 +155,7 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
       {current && stage.state === 'open' && next && <p className="gate-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
       <div className="gate-label">Passes when{open > 0 && <span className="gate-open"> · {open} not met yet</span>}</div>
       <ul className="gate-checks">{stage.checks.map((c, i) => <Check key={c.label} c={c} link={c.open !== stage.checks[i - 1]?.open} />)}</ul>
+      {children}
       {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
       {current && noting && (
         <label className="gate-note-field">

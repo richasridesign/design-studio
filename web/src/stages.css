@@ -30,7 +30,12 @@
 .stage-rail .approved .stage-mark, .gate-head.approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--st-ink); color: #fff; }
 .stage-rail .approved .stage-mark .codicon, .gate-head.approved .stage-mark .codicon { font-size: 12px; }
 
-.stage-panel { container-type: inline-size; flex: none; max-height: min(560px, 60vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+/* The panel takes at most about 40% of the chat column and scrolls on its own, so at least three lines of the conversation stay in view. */
+.stage-panel { container-type: inline-size; flex: 0 1 auto; min-height: 0; max-height: clamp(280px, 40%, 560px); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+
+.stage-panel ~ .tr { min-height: 144px; }
+/* Scope and states sit under the gate's checks, split by the same rule as the checks. */
+.gate .scope, .gate .smap { margin: 0; padding: 12px 0 4px; border-bottom: 0; border-top: 1px solid var(--border); }
 
 /* Rail: six stages joined by lines. Scrolls sideways on narrow screens. */
 .stage-rail { display: flex; align-items: center; margin: 0 0 16px; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
