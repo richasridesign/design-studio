@@ -9,3 +9,6 @@
 .attach-pop li > button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; min-width: 0; padding: 0 8px; border-radius: inherit; cursor: pointer; }
 .attach-pop li > button:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 .attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-current { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 12px 8px; border-bottom: 1px solid var(--border); font-size: var(--text-sm); line-height: 20px; }
+.attach-current-name { min-width: 0; overflow-wrap: anywhere; }
+.attach-current .link { min-height: 24px; display: inline-flex; align-items: center; }

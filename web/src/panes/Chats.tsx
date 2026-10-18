@@ -165,7 +165,7 @@ function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onC
       <span className="lines" aria-current={selected || undefined} {...press(() => selected || send({ type: 'view', id: c.id }))}>
         <span className="l1">
           <span className="name">{c.title}</span>
-          <span className="when">{c.pending ? 'needs you' : c.running ? '' : ago(c.lastActive)}</span>
+          <span className="when">{c.pending || c.running ? '' : ago(c.lastActive)}</span>
         </span>
         {text && <span className="l2"><span className="sub">{text}</span></span>}
       </span>

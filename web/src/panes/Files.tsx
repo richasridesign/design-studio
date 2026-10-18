@@ -5,8 +5,6 @@ import { Empty, FilesArt } from './Empty';
 import { Changes } from './Changes';
 import { Comments } from './Comments';
 import { Section } from '../Section';
-import { figmaNodeUrl } from '../../../shared/design';
-import { getOutline, refreshOutline, useOutlineVersion, type Outline } from '../outline';
 
 type Project = { id: string; name: string };
 type FileRow = { key: string; name: string; thumbnail_url: string; last_modified: string };
@@ -17,28 +15,11 @@ export const focusComposer = () => window.dispatchEvent(new Event('designstudio:
 export const attachFigma = () => window.dispatchEvent(new Event('designstudio:attach'));
 export const showNode = (nodeId: string) => postJson('/api/figma/focus', { nodeId }).catch(() => {});
 
+export const openFigmaTab = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } }));
+
+/** The file's comments and versions. Its frames live on the Figma tab, so they are listed once. */
 export function Files() {
   const figma = useStore((s) => s.session.figma);
-  const focus = useStore((s) => s.ui.focus);
-  const [outline, setOutline] = useState<Outline | null>(null);
-  const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
-  const [error, setError] = useState('');
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const v = useOutlineVersion();
-
-  useEffect(() => {
-    setOutline(null);
-    setError('');
-    if (!figma) return;
-    getOutline(figma.key)
-      .then((o) => {
-        setOutline(o);
-        const ids = o.pages.flatMap((p) => p.frames.slice(0, 12).map((f) => f.id)).slice(0, 60);
-        if (ids.length) getJson<Record<string, string | null>>(`/api/figma/thumbs?ids=${encodeURIComponent(ids.join(','))}`).then(setThumbs).catch(() => {});
-      })
-      .catch((e) => setError(e.message));
-  }, [figma?.key, v]);
-
   return (
     <div className="side-scroll">
       {figma ? (
@@ -46,40 +27,14 @@ export function Files() {
           <section className="side-section">
             <div className="file-head">
               <div className="file-name">{figma.name}</div>
-              <div className="file-acts inline">
-                <button onClick={() => postJson('/api/figma/show', {}).catch((e) => setError(e.message))}><Icon name="link-external" small /> Show in Chrome</button>
-                <button className="icon-btn" title="Reload frames from Figma" aria-label="Reload frames from Figma" onClick={() => void refreshOutline(figma.key).catch(() => {})}><Icon name="refresh" small /></button>
-              </div>
             </div>
-            {error && <div className="error-text">{error}{/Settings/.test(error) && <> <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button></>}</div>}
-            {!outline && !error && <div className="hint">Loading frames…</div>}
-            {outline?.pages.map((p) => (
-              <div key={p.id} className="page-group">
-                <button className="page-row" aria-expanded={open[p.id] ?? p.name !== 'Sketch'} onClick={() => setOpen((o) => ({ ...o, [p.id]: !(o[p.id] ?? p.name !== 'Sketch') }))}>
-                  <Icon name={(open[p.id] ?? p.name !== 'Sketch') ? 'chevron-down' : 'chevron-right'} small /> {p.name} <span className="count">{p.frames.length}</span>
-                </button>
-                {(open[p.id] ?? p.name !== 'Sketch') && (
-                  <ul className="frame-list">
-                    {p.frames.map((f) => (
-                      <li key={f.id} className={focus === f.id ? 'focused' : ''}>
-                        <button className="frame" title={`${f.name} · ${f.w}×${f.h}\nShow in Figma`} onClick={() => showNode(f.id)}>
-                          <span className="thumb">{thumbs[f.id] ? <img src={thumbs[f.id]!} alt="" loading="lazy" /> : <Icon name="symbol-misc" small />}</span>
-                          <span className="frame-name">{f.name}</span>
-                        </button>
-                        <button className="icon-btn" title="Add to the prompt" aria-label={`Add ${f.name} to the prompt`} onClick={() => insertPrompt(`${f.name} (${figmaNodeUrl(figma.key, f.id)})`)}><Icon name="add" small /></button>
-                      </li>
-                    ))}
-                    {!p.frames.length && <li className="hint">No frames on this page</li>}
-                  </ul>
-                )}
-              </div>
-            ))}
+            <p className="file-frames-hint muted small">Frames: on the Figma tab. <button className="link" onClick={openFigmaTab}>Open Figma tab</button></p>
           </section>
           <Section view="files" id="comments" title="Comments"><Comments /></Section>
           <Section view="files" id="versions" title="Versions"><Changes /></Section>
         </>
       ) : (
-        <Empty art={<FilesArt />} title="No Figma file yet" text="Attach a Figma file to open its frames here." action={{ label: 'Attach Figma file', onClick: attachFigma }} />
+        <Empty art={<FilesArt />} title="No Figma file yet" text="Attach a Figma file to see its comments and versions here." action={{ label: 'Attach Figma file', onClick: attachFigma }} />
       )}
       <TeamFiles />
     </div>
