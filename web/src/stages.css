@@ -19,12 +19,14 @@
 .stage-short { display: none; }
 .stage-btn:hover { background: color-mix(in srgb, var(--st-tint, var(--bg)) 92%, var(--fg)); color: var(--fg); }
 
-/* Marks differ by shape as well as colour: ring = in progress, filled = ready, check = approved, hollow grey = later. */
-.stage-mark { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--warn); }
-.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark { border-color: var(--fg); background: var(--fg); }
-.stage-btn.approved .stage-mark { border-color: var(--ok); background: var(--ok); }
-.stage-rail .later .stage-mark { border-color: var(--border-strong); }
-.stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--ok); color: #fff; }
+/* Marks differ by shape as well as colour, all drawn in the stage's own ink: ring with a centre dot = current, filled = ready,
+   filled with a check = approved, thin ring = later. Every ink is at least 3:1 on white and on its tint, and the label says the state too. */
+.stage-mark { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--st-ink, var(--warn)); }
+.stage-btn.open .stage-mark::after, .stage-rail .open .stage-mark::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--st-ink, var(--warn)); }
+.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark { background: var(--st-ink, var(--fg)); }
+.stage-btn.approved .stage-mark { background: var(--st-ink, var(--ok)); }
+.stage-rail .later .stage-mark { border-width: 1px; border-color: color-mix(in srgb, var(--st-ink) 80%, var(--bg-elevated)); }
+.stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--st-ink); color: #fff; }
 .stage-rail .approved .stage-mark .codicon { font-size: 12px; }
 
 .stage-panel { container-type: inline-size; flex: none; max-height: min(560px, 60vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
@@ -40,7 +42,7 @@
 .stage-rail button:hover { background: var(--bg-hover); color: var(--fg); }
 .stage-rail button { border-radius: var(--radius-pill); }
 .stage-rail .shown button { background: var(--st-tint); color: var(--fg); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-ink) 45%, transparent); }
-.stage-rail .approved + .stage-line, .stage-rail li.approved .stage-line { background: var(--ok); }
+.stage-rail li.approved .stage-line { height: 2px; background: var(--st-ink); }
 .stage-rail .later .stage-name { color: var(--fg-muted); }
 .stage-line { flex: 1 1 8px; min-width: 8px; height: 1px; background: var(--border-strong); }
 
