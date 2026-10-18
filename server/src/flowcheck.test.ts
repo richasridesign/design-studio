@@ -201,8 +201,9 @@ describe('checkFlows', () => {
   it('lists loose screens on a page with sections, and skips pages without sections', () => {
     const r = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [])]), screen('loose', 'Stray', [button('Go')], 5000, 0)], [screen('comp', 'Components', [button('Go')])]), maps);
     expect(r.flows.map((f) => f.name)).toEqual(['F', 'Not in a section (Page 1)']);
-    expect(r.flows[1].findings.map((f) => f.rule)).toEqual(['no-click', 'no-hover', 'loose-screen']);
-    expect(r.flows[1].findings[2]).toMatchObject({ nodeId: 'loose', severity: 'minor', message: '"Stray" sits loose on the canvas, outside any section.' });
+    expect(r.flows[1].findings.map((f) => f.rule)).toEqual(['no-click', 'no-hover']);
+    const linked = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [ok('Go', 'loose')])]), screen('loose', 'Stray', [], 5000, 0)]), maps);
+    expect(linked.flows[1].findings).toMatchObject([{ rule: 'loose-screen', nodeId: 'loose', severity: 'minor', message: '"Stray" sits loose on the canvas, outside any section.' }]);
   });
 
   it('shows an empty leaf section as not checked', () => {
@@ -305,6 +306,29 @@ describe('new screen rules', () => {
     const notes = r.flows[0].findings.filter((f) => f.rule === 'long-note');
     expect(notes.map((f) => f.nodeId)).toEqual(['n1', 'n5']);
     expect(notes[0]).toMatchObject({ screen: null, severity: 'minor', message: `The note "This flow shows how Richa activates the…" is ${long.trim().length + 1} characters with no bullets.` });
+  });
+
+  it('flags only loose screens that are part of a prototype, and skips notes in a changelog section', () => {
+    const long = 'V2 · 9 Oct 2026. Rebuilt on the Flow 1 screens with the new connectors table and the toast at the top. '.repeat(3);
+    const r = checkFlows(doc([
+      section('1:1', 'F', [screen('s1', 'Home', [ok('Open', 'linkedIn')])]),
+      section('2:1', 'Changelog · V1 to V2', [{ id: 'n1', type: 'TEXT', name: 'Log', characters: long }], 0, 3000),
+      screen('linkedIn', 'Detail', [], 6000, 0),
+      screen('linksOut', 'Settings', [ok('Back', 's1')], 6000, 1200),
+      screen('thumb', 'Portfolio thumbnail', [], 6000, 2400),
+    ]), maps);
+    const loose = r.flows.find((f) => f.name.startsWith('Not in a section'))!.findings.filter((f) => f.rule === 'loose-screen');
+    expect(loose.map((f) => f.nodeId)).toEqual(['linkedIn', 'linksOut']);
+    expect(r.flows.find((f) => f.id === '2:1')!.findings).toEqual([]);
+  });
+
+  it('lets one wired chip cover the other chips of its set, and groups unwired chips into one finding', () => {
+    const chip = (label: string, extra: any = {}) => ({ id: `ch${++seq}`, type: 'INSTANCE', name: 'Suggestion chip', componentId: 'c:chip', children: [text(label)], ...extra });
+    const m = { ...maps, components: { ...maps.components, 'c:chip': { name: 'Chip', componentSetId: 'set:chip' } } };
+    const wired = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [chip('Track visas', { interactions: [click()] }), chip('Answer payroll')])])]), m);
+    expect(rules(wired)).toEqual([]);
+    const none = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [chip('Track visas'), chip('Answer payroll'), chip('Collect feedback')])])]), m);
+    expect(none.flows[0].findings.map((f) => f.message)).toEqual(['Suggestion chip "Track visas" looks clickable but has no click (and 2 more like it).']);
   });
 
   it('keeps craft rules out of the Prototype wired gate', () => {

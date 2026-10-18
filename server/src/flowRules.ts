@@ -52,6 +52,7 @@ export const hasHover = (node: any) => has(node, 'hover');
 
 const STRONG = new RegExp(`${CONTROL.source}|\\bclose\\b`, 'i');
 const SOFT = /\b(card|row|tile)\b/i;
+const CHIP = /\b(chip|suggestion)\b/i;
 const BUTTONISH = /\b(button|btn|cta|close)\b/i;
 const ICON_BUTTON = /\bicon[- ]?button\b/i;
 const CONTAINER = /\b(group|bar|tabs|list|toolbar)\b/i;
@@ -127,7 +128,9 @@ function collectControls(node: any, maps: Maps, clickAbove: boolean, out: Contro
     const lab = inst ? label(c, maps) : String(c.name ?? '');
     const strong = STRONG.test(lab) && !CONTAINER.test(c.name ?? '');
     const click = hasClick(c);
-    const key = `${inst ? c.componentId : c.name}|${firstText(c)}`;
+    // Chips in a list are repeated items: one wired example covers the rest, whatever their labels.
+    const set = inst ? maps.components?.[c.componentId]?.componentSetId ?? c.componentId : null;
+    const key = inst && CHIP.test(lab) ? `chip|${set}` : `${inst ? c.componentId : c.name}|${firstText(c)}`;
     if (strong) {
       const buttonish = inst && (BUTTONISH.test(lab) || ICON_BUTTON.test(lab));
       out.push({ node: c, key, wired: click || clickAbove, hover: hasHover(c), iconOnly: ICON_BUTTON.test(lab) || !textIn(c), buttonish });
@@ -454,7 +457,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     if (loose.length) {
       const ref = { id: page.id, name: `Not in a section (${page.name})` };
       flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null });
-      // Only frames: a main component or an instance on the canvas can be a deliberate reference.
+      // Only frames that are part of a prototype: a thumbnail, a style guide or a main component can sit on the canvas.
       for (const sc of loose) if (sc.type === 'FRAME') looseScreens.push({ flow: ref, node: sc });
       for (const sc of loose) {
         screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
@@ -491,7 +494,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       }
     };
     collect(f.node);
-    if (f.section) noteFindings(f, adder(f.ref, null));
+    if (f.section && ![...f.path, f.ref.name].some((n) => NOTE_SKIP.test(n))) noteFindings(f, adder(f.ref, null));
     for (const sc of f.screens) {
       const screen = { id: sc.id, name: String(sc.name ?? sc.id) };
       const add = adder(f.ref, screen);
@@ -507,7 +510,18 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     }
   }
 
+  const linked = new Set<string>();
+  const linksFrom = (n: any): boolean => {
+    let out = false;
+    for (const r of reactionsOf(n)) for (const a of r.actions) if (a.type === 'NODE' && a.destinationId && LINKS.has(a.navigation ?? '')) { linked.add(a.destinationId); out = true; }
+    for (const c of n.children ?? []) if (linksFrom(c)) out = true;
+    return out;
+  };
+  const outgoing = new Set(looseScreens.filter((l) => linksFrom(l.node)).map((l) => l.node.id));
+  // Top-level sections hold their sub-sections, so one walk each covers every link.
+  if (looseScreens.length) for (const f of flows) if (f.section && !f.path.length) linksFrom(f.node);
   for (const { flow, node } of looseScreens) {
+    if (!outgoing.has(node.id) && !linked.has(node.id)) continue;
     const name = String(node.name ?? node.id);
     adder(flow, { id: node.id, name })(node, 'loose-screen', `${quote(name)} sits loose on the canvas, outside any section.`, 'Move it into the section of its flow, or into a named section beside the main one if it is a side scenario, and grow that section.');
   }
