@@ -49,6 +49,44 @@ describe('parseStates', () => {
     ]);
   });
 
+  it('drops screen ids, so "S1 Cart" and "S1 (Cart)" are the screen Cart', () => {
+    const md = '## States per screen\n- **S1 Cart**: default, loading\n- S2 (Checkout): default\n- Profile (S3): error\n- S4 \u00b7 Search: empty\n- S5 - Help: default\n- 404 page: default';
+    expect(parseStates(md).map((s) => s.screen)).toEqual(['Cart', 'Checkout', 'Profile', 'Search', 'Help', '404 page']);
+    expect(parseStates('## States\n### S1: Cart\n- default')).toEqual([{ screen: 'Cart', states: ['default'] }]);
+  });
+
+  it('matches frames named after the screen when the brief gives it an id', () => {
+    const map = designed('## States per screen\n- S1 Cart: default, loading', [f('9:1', 'S1', 'default', 'Cart / Default'), f('9:2', undefined, undefined, 'Cart / Loading')]);
+    expect(map).toEqual({ 'Cart: default': '9:1', 'Cart: loading': '9:2' });
+  });
+
+  it('keeps a state and its note as one state, so commas in the note are not new states', () => {
+    const md = '## States per screen\n- **Cart**\n  - Empty: no items, browse button\n  - Loading: skeleton\n- Checkout\n  - States: default, card declined';
+    expect(parseStates(md)).toEqual([
+      { screen: 'Cart', states: ['Empty: no items, browse button', 'Loading: skeleton'] },
+      { screen: 'Checkout', states: ['default', 'card declined'] },
+    ]);
+    expect(designed(md, [f('8:1', 'Cart', 'empty')])['Cart: Empty: no items, browse button']).toBe('8:1');
+  });
+
+  it('reads numbered and bold headings', () => {
+    expect(parseStates('## 4. States per screen\n- Cart: default, error')).toEqual([{ screen: 'Cart', states: ['default', 'error'] }]);
+    expect(parseStates('**States per screen**\n- Cart: default\n\n**Layout**\n- Home: ignored')).toEqual([{ screen: 'Cart', states: ['default'] }]);
+    expect(parseStates('## States\n**Cart**\n- default\n- loading')).toEqual([{ screen: 'Cart', states: ['default', 'loading'] }]);
+  });
+
+  it('reads tables: a States column, one state per row, or check marks per state', () => {
+    expect(parseStates('## States\n| Screen | States |\n|---|---|\n| Cart | default, loading |\n| Checkout | default |')).toEqual([
+      { screen: 'Cart', states: ['default', 'loading'] },
+      { screen: 'Checkout', states: ['default'] },
+    ]);
+    expect(parseStates('## States\n| Screen | State | Notes |\n|---|---|---|\n| Cart | Default | items |\n| Cart | Error | payment failed, retry |')).toEqual([{ screen: 'Cart', states: ['Default', 'Error'] }]);
+    expect(parseStates('## States\n| Screen | Default | Loading | Error |\n|---|:-:|---|---|\n| Cart | \u2713 | \u2713 | \u2013 |\n| Checkout | yes | | x |')).toEqual([
+      { screen: 'Cart', states: ['Default', 'Loading'] },
+      { screen: 'Checkout', states: ['Default', 'Error'] },
+    ]);
+  });
+
   it('merges a screen listed twice and drops repeated states', () => {
     expect(parseStates('## States\n- Cart: default, Default\n- cart: error')).toEqual([{ screen: 'Cart', states: ['default', 'error'] }]);
   });
@@ -111,6 +149,10 @@ describe('missingPrompt', () => {
     const map = stateMap(SAMPLE, [f('1:1', 'cart', 'default'), f('1:2', 'cart', 'updating quantity'), f('1:3', 'cart', 'invalid promo code')]);
     expect(missingPrompt(map.screens[0])).toBe('Design the missing state for Cart: payment failed. Name each frame "Cart / <State>" and add it to design.json. Plan it first and wait for my approval.');
     expect(missingPrompt(map.screens[1])).toBe('Design the missing states for Empty cart: default, signed out. Name each frame "Empty cart / <State>" and add it to design.json. Plan them first and wait for my approval.');
+  });
+
+  it('separates states that carry a note with semicolons', () => {
+    expect(missingPrompt({ screen: 'Cart', states: [{ state: 'Empty: no items, browse button' }, { state: 'Loading: skeleton' }] })).toContain('for Cart: Empty: no items, browse button; Loading: skeleton.');
   });
 
   it('is empty when nothing is missing', () => {

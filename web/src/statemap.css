@@ -12,9 +12,10 @@
 .smap-name b { font-weight: 600; }
 /* Name first, status in its own column, kept close so the two read as one row. */
 .smap-states { display: grid; max-width: 480px; margin: 0; padding: 0; list-style: none; }
-.smap-states li { display: grid; grid-template-columns: minmax(0, 1fr) 104px; align-items: center; gap: 12px; min-height: 28px; }
+/* A state with a note wraps to two lines: rows keep 4px apart and the status sits on the first line. */
+.smap-states li { display: grid; grid-template-columns: minmax(0, 1fr) 104px; align-items: start; gap: 12px; min-height: 28px; padding: 4px 0; box-sizing: border-box; }
 .smap-state { overflow-wrap: anywhere; }
-.smap-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.smap-status { display: inline-flex; align-items: center; gap: 4px; min-height: 20px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
 .smap-states .designed .codicon { color: var(--ok); }
 .smap-states .missing .smap-status { color: var(--warn); font-weight: 600; }
 .smap-ask { justify-self: start; min-height: 24px; font-size: var(--text-sm); line-height: 20px; }
