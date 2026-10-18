@@ -31,3 +31,33 @@
 /* Frame chips in a finding's foot line up with the Resolve link; long names are cut with an ellipsis, the full name is in the tooltip. */
 .findings .f-foot .link { display: block; height: 28px; line-height: 28px; }
 @media (max-width: 600px) { .findings .f-foot .link { height: 36px; line-height: 36px; } }
+
+/* Awaiting your decision: findings whose fix changes something shared. Amber mark = needs her attention. */
+.awaiting { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.aw-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.aw-head p { margin: 4px 0 0; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
+.aw-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--bg-sunken); font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+.aw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.aw-list li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.aw-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.aw-body dl { margin: 0; display: grid; gap: 4px; font-size: var(--text-sm); line-height: 20px; }
+.aw-body dl div { display: block; }
+.aw-body dt { display: inline; font-weight: 500; }
+.aw-body dd { display: inline; margin: 0; color: var(--fg-muted); }
+.aw-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 4px; }
+.aw-approve { min-height: 32px; height: 32px; padding: 0 12px; font-size: var(--text-sm); background: var(--bg); border: 1px solid var(--fg); border-radius: var(--radius-sm); font-weight: 500; }
+.aw-approve:hover { background: var(--bg-hover); }
+.awaiting .triage-link { background: transparent; border: 0; padding: 0; min-height: 32px; height: 32px; display: inline-flex; align-items: center; gap: 4px; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.awaiting .triage-link:hover { background: transparent; text-decoration-thickness: 2px; }
+.aw-where { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--fg-muted); font-size: var(--text-sm); }
+.aw-where .node-chip { margin: 0; height: 28px; min-height: 28px; line-height: 28px; display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aw-more { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.aw-done li { padding: 8px 0; }
+.aw-said { margin: 0; font-size: var(--text-sm); color: var(--fg-muted); }
+.awaiting .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.f-decide { font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.f-decide b { color: var(--warn); font-weight: 600; }
+@media (max-width: 600px) {
+  .aw-list li { flex-direction: column; gap: 4px; }
+  .aw-approve, .awaiting .triage-link { min-height: 36px; height: 36px; }
+}
