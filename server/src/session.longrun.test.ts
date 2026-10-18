@@ -139,15 +139,14 @@ describe('long run loop', () => {
     await vi.waitFor(() => expect(s.state.session.longRun?.awaiting).toBe(2));
   });
 
-  it('keeps the Mac awake while the run works, with the weekly cap and rounds from the start options', async () => {
+  it('keeps the Mac awake while the run works, with the weekly cap and rounds from the start message', async () => {
     const s = new AgentSession('/tmp/project', { key: 'AbC123', name: 'Checkout', url: 'https://www.figma.com/design/AbC123' });
     const raw = s as unknown as { enqueue: (t: string) => void; handle: (m: unknown) => void; turns: number };
     const sent: string[] = [];
     raw.enqueue = vi.fn((t: string) => { sent.push(t); raw.turns++; });
     limitEvent(s, 'seven_day', 0.1);
-    s.setLongRunOptions({ weeklyCap: 50, rounds: 2 });
     const until = Date.now() + 3600_000;
-    await s.startLongRun('Review the onboarding flows', until, 80);
+    await s.startLongRun('Review the onboarding flows', until, 80, undefined, { weeklyCap: 50, rounds: 2 });
     expect(keepAwake).toHaveBeenCalled();
     expect(s.state.session.longRun).toMatchObject({ cap: 80, weeklyCap: 50, rounds: 2, awakeUntil: until });
     expect(sent[0]).toMatch(/up to 2/);
@@ -158,7 +157,7 @@ describe('long run loop', () => {
     expect(wake).toHaveBeenCalledTimes(1);
   });
 
-  it('does not start when weekly usage is already over the cap', async () => {
+  it('does not start when weekly usage is already over the cap (options from an older client, sent just before)', async () => {
     const s = new AgentSession('/tmp/project', null);
     limitEvent(s, 'seven_day_opus', 0.8);
     s.setLongRunOptions({ weeklyCap: 70, rounds: 3 });

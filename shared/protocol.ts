@@ -148,6 +148,7 @@ export type ClientMessage =
   | { type: 'flow_pick'; screen: string; direction: string; reason?: string }
   | { type: 'interrupt' }
   | { type: 'long_run_start'; text: string; until: number; cap: number; weeklyCap?: number; rounds?: number; images?: string[] }
+  /** Older clients sent the weekly cap and rounds here, just before long_run_start. Still accepted. */
   | { type: 'long_run_options'; weeklyCap: number; rounds: number }
   | { type: 'long_run_stop' }
   | { type: 'long_run_clear' }
