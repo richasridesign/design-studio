@@ -164,7 +164,7 @@ describe('loadDocumentViaPlugin', () => {
 
   it('names the plugin error when the tool result has no data', async () => {
     const run = fakeLean(toolMessages([{ type: 'text', text: 'You need to log in to Figma' }]));
-    await expect(loadDocumentViaPlugin('abc', { dir: os.tmpdir(), mcp: MCP, run })).rejects.toThrow(/Figma plugin: You need to log in to Figma/);
+    await expect(loadDocumentViaPlugin('abc', { dir: os.tmpdir(), mcp: MCP, run })).rejects.toThrow(/Figma plugin: You need to log in to Figma\. Log in to the Figma plugin, or add a Figma token in Settings/);
   });
 
   it('ignores tool results for other tools', () => {
