@@ -275,17 +275,29 @@ describe('planApprovedOnCard', () => {
     expect(planApprovedOnCard([plan])).toBe(false);
     expect(planApprovedOnCard([{ id: 't2', kind: 'tool_use', name: 'Bash' }, { id: 'r2', kind: 'tool_result', toolUseId: 't2', isError: false }])).toBe(false);
   });
-  it('counts only a plan approved after the latest brief', () => {
-    const approved = [plan, { id: 'r1', kind: 'tool_result', toolUseId: 't1', isError: false, at: 2000 }];
-    // Brief, then the approved plan: ticks.
-    expect(planApprovedOnCard(approved, 1000)).toBe(true);
-    // Brief, approved plan, then a new brief: the old approval was for older work.
-    expect(planApprovedOnCard(approved, 3000)).toBe(false);
-    // A new plan approved after the new brief ticks again.
-    expect(planApprovedOnCard([...approved, { id: 't3', kind: 'tool_use', name: 'ExitPlanMode' }, { id: 'r3', kind: 'tool_result', toolUseId: 't3', isError: false, at: 4000 }], 3000)).toBe(true);
-    // No written brief: any approved plan in the chat counts, as before.
+  it('reads the latest brief from this chat\'s own events, not from when plan.md was saved', () => {
+    const ok = (id: string) => ({ id: `r${id}`, kind: 'tool_result', toolUseId: id, isError: false });
+    const card = (id: string) => ({ id, kind: 'tool_use', name: 'ExitPlanMode' });
+    const ask = { id: 'u2', kind: 'user' };
+    const writePlan = { id: 'w1', kind: 'tool_use', name: 'Write', input: { file_path: '/Users/r/DesignStudio/atlas-mvp/plan.md' } };
+    const approved = [card('t1'), ok('t1')];
+    // Another chat in the folder saving plan.md leaves no event here, so this chat's approval still ticks.
     expect(planApprovedOnCard(approved)).toBe(true);
+    // Claude saving the approved plan to plan.md in the same turn keeps it.
+    expect(planApprovedOnCard([...approved, writePlan])).toBe(true);
+    // A newer message, then a new plan.md: the approval was for older work.
+    expect(planApprovedOnCard([...approved, ask, writePlan])).toBe(false);
+    // A newer plan card waiting, or one she asked to change, unticks the older approval.
+    expect(planApprovedOnCard([...approved, ask, card('t3')])).toBe(false);
+    expect(planApprovedOnCard([...approved, ask, card('t3'), { ...ok('t3'), isError: true }])).toBe(false);
+    // A new plan approved after the new brief ticks again.
+    expect(planApprovedOnCard([...approved, ask, writePlan, card('t3'), ok('t3')])).toBe(true);
+    // The flow moving on to its sketch saved a new plan without a card: the older approval does not count.
+    expect(planApprovedOnCard([...approved, { id: 'u3', kind: 'user', phase: 'sketch' }])).toBe(false);
+    // Other files written after a new message leave it ticked.
+    expect(planApprovedOnCard([...approved, ask, { ...writePlan, input: { file_path: '/x/research.md' } }])).toBe(true);
   });
+
 });
 
 describe('stageNote', () => {
