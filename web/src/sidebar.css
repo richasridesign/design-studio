@@ -120,7 +120,7 @@
 .sessions.chats .sessions-bar { gap: 8px; padding: 0 12px 8px; }
 @media (min-width: 901px) {
   .sessions.chats .sessions-bar .new-chat, .sessions.chats .sessions-bar input { height: 36px; }
-  .sessions.chats .sessions-bar input { line-height: 34px; }
+  .sessions.chats .sessions-bar input { line-height: 34px; font-size: var(--text-sm); }
 }
 .sessions.chats .sessions-bar input { padding: 0 16px; }
 /* Phone: the section switch wraps instead of running off screen. */

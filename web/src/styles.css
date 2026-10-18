@@ -199,7 +199,7 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .badge.running::before { content: ''; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: currentColor; }
 
 .sidebar {
-  width: 300px; flex: none; background: var(--side); display: flex; flex-direction: column; min-height: 0;
+  width: 160px; flex: none; background: var(--side); display: flex; flex-direction: column; min-height: 0;
 }
 .sidebar { border-right: 1px solid var(--border); }
 .workbench[data-sidebar='false'] .sidebar { display: none; }
@@ -364,7 +364,11 @@ button.destructive:hover { background: color-mix(in srgb, var(--err) 28%, transp
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
 @media (min-width: 901px) {
   .main { flex: none; width: var(--chat-w); border-left: 1px solid var(--border); }
+  .workbench[data-chat='false'] .main, .workbench[data-chat='false'] .sash { display: none; }
 }
+.sidebar-title .side-hide { margin-right: -12px; text-transform: none; letter-spacing: 0; }
+.chat-toggle { position: relative; }
+.chat-toggle .badge { position: absolute; top: 0; right: 0; }
 .sash { width: 4px; margin: 0 -2px; flex: none; cursor: ew-resize; position: relative; z-index: 2; }
 .sash:hover { background: var(--accent); }
 body.resizing { cursor: ew-resize; user-select: none; }
