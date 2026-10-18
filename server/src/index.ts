@@ -390,7 +390,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/review') return json(await readReview(chat.cwd));
     if (url.pathname === '/api/design') return json(await readDesign(chat.cwd));
-    if (url.pathname === '/api/design-system') return json(req.method === 'POST' ? await changeDesignSystem(chat.cwd, chat.state.session.figma, await readJsonBody()) : await readProfile(chat.cwd));
+    if (url.pathname === '/api/design-system') {
+      if (req.method !== 'POST') return json(await readProfile(chat.cwd));
+      const body = await readJsonBody();
+      const r = await changeDesignSystem(chat.cwd, chat.state.session.figma, body);
+      // A starter sets this chat's review areas (Lo-fi reviews flow and copy only).
+      if ((body as { action?: unknown } | null)?.action === 'starter') chat.useProfileAreas(r.ds);
+      return json(r);
+    }
     if (url.pathname === '/api/design-system/view') return json(await designSystemView(chat.cwd));
     if (url.pathname.startsWith('/api/chat-file/')) {
       const file = inside(chat.cwd, decodeURIComponent(url.pathname.slice('/api/chat-file/'.length)));

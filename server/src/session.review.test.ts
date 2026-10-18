@@ -24,6 +24,24 @@ describe('review events', () => {
     expect(s.state.session.flow.reviewers).toEqual([{ area: 'check', state: 'pass' }, { area: 'all', state: 'running' }]);
   });
 
+  it('a review with no areas ticked in the chat covers the profile areas, and her own ticks win', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { runReview } = await import('./review.js');
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'ds-areas-'));
+    await writeFile(path.join(dir, 'design-system.json'), JSON.stringify({ name: 'Lo-fi sketch', areas: ['interaction', 'writing'] }));
+    const s = new AgentSession(dir, { key: 'AbC123', name: 'Checkout', url: 'https://www.figma.com/design/AbC123' });
+    const review = (s as unknown as { command: (c: string, a: string, r: string) => Promise<void> }).command.bind(s);
+    vi.mocked(runReview).mockClear();
+    await review('review', 'quick https://www.figma.com/design/AbC123/F?node-id=1-2', '/review');
+    expect(vi.mocked(runReview).mock.calls[0][0].areas).toEqual(['interaction', 'writing']);
+    expect(s.state.session.flow.areas).toEqual(['interaction', 'writing']);
+    s.updateFlow({ areas: ['accessibility'] });
+    await review('review', 'quick https://www.figma.com/design/AbC123/F?node-id=1-2', '/review');
+    expect(vi.mocked(runReview).mock.calls[1][0].areas).toEqual(['accessibility']);
+  });
+
   it('replays saved runs in time order on history load', () => {
     const events = withReviews([{ id: 'a', kind: 'user', text: 'x', at: 1000 }, { id: 'b', kind: 'user', text: 'y', at: 3000 }], [{ at: 2000 }, { at: 4000 }]);
     expect(events.map((e) => e.at)).toEqual([1000, 2000, 3000, 4000]);

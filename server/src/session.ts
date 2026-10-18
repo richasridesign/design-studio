@@ -12,6 +12,7 @@ import { afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
 import { buildProfile, profileOff, readProfile } from './profile.js';
+import { reviewAreas } from '../../shared/dsProfiles.js';
 import { parseTone, runCopy, runCrit } from './crit.js';
 import { parseBuildArg, runBuildCheck } from './buildcheck.js';
 import { failedAreas, readDesign, readReview, runReview, toFix } from './review.js';
@@ -168,7 +169,8 @@ export class AgentSession {
     const s = await settings();
     this.rules = rulesBlock(await readRules(this.cwd));
     this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
-    this.state.session.flow = flowOff(s);
+    // The profile's review areas (a starter's) are this chat's ticks until she changes them.
+    this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
     // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
     const { servers, via } = await figmaMcp();
@@ -587,9 +589,31 @@ export class AgentSession {
     const next: Partial<FlowState> = {};
     if (patch.mode && FLOW_MODES.includes(patch.mode)) next.mode = patch.mode;
     if (patch.preset && PRESETS.includes(patch.preset)) next.preset = patch.preset;
-    if (Array.isArray(patch.areas)) next.areas = AREAS.filter((a) => patch.areas!.includes(a));
+    if (Array.isArray(patch.areas)) {
+      next.areas = AREAS.filter((a) => patch.areas!.includes(a));
+      this.areasChosen = true;
+    }
     if (typeof patch.stopAfterSketch === 'boolean') next.stopAfterSketch = patch.stopAfterSketch;
     this.setFlow(next);
+  }
+
+  /** True once she ticks review areas in this chat; until then the profile's areas are the default. */
+  private areasChosen = false;
+
+  /** A new starter's areas become this chat's ticks; she can tick others on the Review tab. */
+  useProfileAreas(ds: { areas?: unknown } | null) {
+    const own = reviewAreas([], false, ds?.areas);
+    if (!own.length) return;
+    this.areasChosen = false;
+    this.setFlow({ areas: own });
+  }
+
+  /** The areas a review covers now, shown on the Review tab too. */
+  private async areasForReview(): Promise<Area[]> {
+    const flow = this.state.session.flow.areas;
+    const areas = reviewAreas(flow, this.areasChosen, this.areasChosen ? null : (await readProfile(this.cwd))?.areas);
+    if (areas.join() !== flow.join()) this.setFlow({ areas });
+    return areas;
   }
 
   private async command(cmd: 'design' | 'sketch' | 'review' | 'audit' | 'system' | 'crit' | 'copy' | 'buildcheck', arg: string, raw: string) {
@@ -646,7 +670,7 @@ export class AgentSession {
     if (!frames.length) frames = (await readDesign(this.cwd))?.frames.map((f) => f.nodeId) ?? [];
     if (!frames.length) return this.system('Review: paste frame links after /review, or run /design first');
     return this.background(`Reviewing ${frames.length} ${frames.length === 1 ? 'frame' : 'frames'} (${PRESET_INFO[preset].label})`, async (signal) => {
-      const run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset, areas: this.state.session.flow.areas, round: 1, kind: 'review', signal, onProgress: (t) => this.setStatus(t), onArea: this.onArea });
+      const run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset, areas: await this.areasForReview(), round: 1, kind: 'review', signal, onProgress: (t) => this.setStatus(t), onArea: this.onArea });
       this.setFlow({ reviewers: [] });
       this.recordBackground('review', run);
       this.reviewDone(run);
@@ -816,6 +840,7 @@ export class AgentSession {
   }
 
   private async review(frames: string[], round: number, onlyFailed: Area[] | null, kind: 'review' | 'verify') {
+    if (kind === 'review') await this.areasForReview();
     const flow = this.state.session.flow;
     const preset = kind === 'verify' ? 'check' : flow.preset;
     this.setFlow({ phase: 'review', round, reviewers: [] });
