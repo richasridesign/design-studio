@@ -147,6 +147,12 @@
 /* Same 36px height as the buttons beside it: 1px border, 1px padding, 32px buttons. */
 .review-bar .seg, .set-card .seg { padding: 1px; }
 .review-bar .seg button, .set-card .seg button { min-height: 32px; padding: 0 12px; }
+/* 36px controls on a desktop, 44px on a phone: 2px of padding and border round the 40px buttons. */
+@media (max-width: 600px) { .review-bar .seg button, .set-card .seg button { min-height: 40px; } }
+/* Fix rounds under Quick: shown, not picked. The chosen number stays readable, the others fade. */
+.set-rounds { gap: 12px; flex-wrap: wrap; }
+.set-card .seg.fixed button:disabled { cursor: not-allowed; }
+.set-card .seg.fixed button:disabled:not(.on) { opacity: 0.5; }
 .review-bar .spacer { flex: 1; }
 /* Handoff report and its download read as one peach pill: the stage's end product, quieter than the primary Review. */
 .review-bar > button.ghost:has(+ .report-download) { background: var(--tint-peach); color: var(--fg); border-radius: var(--radius-pill) 0 0 var(--radius-pill); padding: 0 8px 0 16px; }

@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, postJson } from '../store';
 import { Icon } from '../Icon';
-import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, type CheckId, type CheckResult } from '../setupChecks';
-import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, type Settings as S } from '../../../shared/design';
+import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, mcpResult, type CheckId, type CheckResult } from '../setupChecks';
+import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, fixRoundsFor, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
-import { costLine, openReviewTab } from './ReviewSetup';
+import { SETTINGS_CHANGED, costLine, openReviewTab } from './ReviewSetup';
 import { shownState, useFigmaRows } from '../StatusBar';
 import { Command, RECHECK, openFigmaLogin } from '../FigmaLogin';
 
@@ -15,10 +15,21 @@ type Row = { busy: boolean; result?: CheckResult };
 function CheckSetup() {
   const [rows, setRows] = useState<Partial<Record<CheckId, Row>>>({});
   const [fixErr, setFixErr] = useState('');
+  // The Figma plugin row starts from the status the Figma card above shows, so it never reads Not checked beside Connected.
+  const figma = mcpResult(useFigmaRows()?.find((m) => /figma/i.test(m.name)));
+  const own = useRef(false);
+  useEffect(() => {
+    // Check now on the Figma card checked again: show that, not this row's older result.
+    const recheck = () => { if (!own.current) setRows((r) => (r.mcp?.busy ? r : { ...r, mcp: undefined })); };
+    window.addEventListener(RECHECK, recheck);
+    return () => window.removeEventListener(RECHECK, recheck);
+  }, []);
   const run = async (id: CheckId) => {
     setRows((r) => ({ ...r, [id]: { busy: true, result: r[id]?.result } }));
     const result = await CHECKS[id]();
     setRows((r) => ({ ...r, [id]: { busy: false, result } }));
+    // The Figma card and the status bar read the same check, so they update too.
+    if (id === 'mcp') { own.current = true; window.dispatchEvent(new Event(RECHECK)); own.current = false; }
   };
   const all = () => CHECK_IDS.forEach((id) => void run(id));
   const fix = async (id: CheckId, fixId: string) => {
@@ -49,7 +60,7 @@ function CheckSetup() {
       <ul className="check-list">
         {CHECK_IDS.map((id) => {
           const row = rows[id];
-          const r = row?.result;
+          const r = row?.result ?? (id === 'mcp' ? figma : undefined);
           const tone = row?.busy ? 'checking' : r ? r.tone : 'idle';
           return (
             <li key={id} className={`check-row ${tone}`}>
@@ -91,6 +102,7 @@ export function Settings() {
       const next = await postJson<S>('/api/settings', patch);
       setS(next);
       setMsg('Saved');
+      window.dispatchEvent(new Event(SETTINGS_CHANGED));
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -106,6 +118,8 @@ export function Settings() {
     }
   };
   if (!s) return <div className="settings-page"><div className="hint">{msg || 'Loading…'}</div></div>;
+  const fixedRounds = PRESET_INFO[shownPreset(s.preset)].fixRounds !== null;
+  const rounds = fixRoundsFor(shownPreset(s.preset), s.fixRounds);
 
   return (
     <div className="settings-page">
@@ -149,10 +163,14 @@ export function Settings() {
         )}
         <div className="field">
           <span id="set-rounds-l">Fix rounds</span>
-          <div className="seg" role="radiogroup" aria-labelledby="set-rounds-l">
-            {FIX_ROUNDS.map((n) => <button key={n} role="radio" aria-checked={s.fixRounds === n} className={s.fixRounds === n ? 'on' : ''} onClick={() => save({ fixRounds: n })}>{n}</button>)}
+          <div className="inline set-rounds">
+            {/* Quick always fixes once, so its rounds are shown, not picked. The setting applies to Focused and Full. */}
+            <div className={`seg${fixedRounds ? ' fixed' : ''}`} role="radiogroup" aria-labelledby="set-rounds-l" aria-describedby={fixedRounds ? 'set-rounds-fixed' : undefined}>
+              {FIX_ROUNDS.map((n) => <button key={n} role="radio" disabled={fixedRounds} aria-checked={rounds === n} className={rounds === n ? 'on' : ''} onClick={() => save({ fixRounds: n })}>{n}</button>)}
+            </div>
+            {fixedRounds && <span className="muted small" id="set-rounds-fixed">{PRESET_INFO[shownPreset(s.preset)].label} fixes once</span>}
           </div>
-          <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. Quick fixes once. Shared changes wait for you.</span>
+          <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. {fixedRounds ? `Your choice of ${s.fixRounds} applies to Focused and Full.` : 'Quick fixes once.'} Shared changes wait for you.</span>
           <span className="muted small">{costLine(shownPreset(s.preset), s.areas, s.fixRounds)}</span>
         </div>
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
@@ -178,7 +196,7 @@ export function Settings() {
 
       <section className="set-card" id="set-advanced" aria-labelledby="set-advanced-h">
         <h2 id="set-advanced-h" className="sr-only">Advanced</h2>
-        <Toggle label="Developer tools" detail="Show the chat folder's files and a terminal" on={s.devTools} set={(v) => save({ devTools: v }).then(() => window.dispatchEvent(new Event('designstudio:settings')))} />
+        <Toggle label="Developer tools" detail="Show the chat folder's files and a terminal" on={s.devTools} set={(v) => save({ devTools: v })} />
       </section>
     </div>
   );
