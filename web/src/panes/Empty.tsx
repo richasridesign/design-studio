@@ -57,18 +57,6 @@ export function SystemArt() {
   );
 }
 
-export function FilesArt() {
-  return (
-    <svg viewBox="0 0 120 120" aria-hidden="true">
-      <rect {...line} x="26" y="26" width="68" height="68" rx="2" />
-      <path {...line} d="M40 48 H80 M40 62 H66" />
-      {[[26, 26], [94, 26], [26, 94], [94, 94]].map(([x, y]) => (
-        <rect key={`${x}-${y}`} {...blue} fill="var(--bg)" x={x - 5} y={y - 5} width="10" height="10" rx="2" />
-      ))}
-    </svg>
-  );
-}
-
 export function BrowserArt() {
   return (
     <svg viewBox="0 0 120 120" aria-hidden="true">

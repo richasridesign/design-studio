@@ -115,8 +115,6 @@ export type DesignSystem = {
 export type FigmaFile = { key: string; name: string; url: string };
 
 export type Settings = {
-  figmaToken: string;
-  teamId: string;
   stopAfterSketch: boolean;
   preset: ReviewPreset;
   areas: Area[];
@@ -128,8 +126,6 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  figmaToken: '',
-  teamId: '',
   stopAfterSketch: false,
   preset: 'quick',
   areas: ['components', 'accessibility', 'brief'],

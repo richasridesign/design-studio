@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { api, getJson, postJson, send, useRev, useStore } from '../store';
+import { api, getJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { AREAS, AREA_NAMES, PRESET_INFO, type Area, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewRun, reviewChecklist } from '../../../shared/design';
 import { attachFigma, showNode, insertPrompt } from './Files';
@@ -8,9 +8,8 @@ import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FlowCheck } from './FlowCheck';
 import { FrameNames } from '../FrameNames';
-import { Confirm } from '../Confirm';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
-import { KIND_LABEL, TONE_MARK, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
+import { KIND_LABEL, TONE_MARK, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, type RulesTone, type RunRow } from './reviewRuns';
 import { rulesLine, type RuleResult } from '../../../shared/rules';
 import { openRun, resolvedRules, ruleKey, splitFindings, splitRun, triageKey, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
 import { ClosedGroup, CloseForm, useNodeLabel, useTriage } from './Triage';
@@ -111,19 +110,12 @@ function RunDetail({ row, doc, onDoc, focus, triage, change, dev }: { row: RunRo
 
 function ReviewDetail({ run, doc, onDoc, focus, triage, change, dev = false }: { run: ReviewRun; doc: ReviewDoc; onDoc: (d: ReviewDoc) => void; focus?: { area: string; at: number } } & TriageProps) {
   const focusAt = (area: string) => (focus?.area === area ? focus.at : 0);
-  const [posting, setPosting] = useState(false);
-  const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const postBtn = useRef<HTMLButtonElement>(null);
   const figmaKey = useStore((s) => s.session.figma?.key);
-  const fileName = useStore((s) => s.session.figma?.name) ?? 'the Figma file';
-  // Findings resolved by hand (fixed, won't fix, parked) leave the area cards and the Figma post; resolved rules leave the rule list.
+  // Findings resolved by hand (fixed, won't fix, parked) leave the area cards and the checklist; resolved rules leave the rule list.
   const split = splitRun(run, triage);
-  const isOpen = new Set(split.open.map((f) => f.id));
   const openOf = (list: Finding[]) => splitFindings(run, list, triage).open;
   const check = openOf(run.check);
-  const pending = unposted(run, doc).filter((f) => isOpen.has(f.id));
   const closedHead = useRef<HTMLButtonElement>(null);
   const [said, setSaid] = useState('');
   const triageOps: FindingTriage = {
@@ -158,40 +150,13 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change, dev = false }: {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const post = async () => {
-    setPosting(true);
-    try {
-      const r = await postJson<{ posted: number }>('/api/review/post', { runId: run.id, ids: pending.map((f) => f.id) });
-      setNote(`Posted ${r.posted} ${r.posted === 1 ? 'comment' : 'comments'} in Figma`);
-      onDoc(await getJson<ReviewDoc>('/api/review'));
-    } catch (e) {
-      setNote((e as Error).message);
-    } finally {
-      setPosting(false);
-    }
-  };
-
   return (
     <>
       <div className="review-summary">
         <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
         {run.costUsd > 0 && <div className="muted">Cost: ${run.costUsd.toFixed(2)}{dev && run.tokens ? ` · ${k(run.tokens)} tokens` : ''}</div>}
-        {pending.length > 0 && <button ref={postBtn} disabled={posting} title={`Post ${pending.length} ${pending.length === 1 ? 'finding' : 'findings'} as Figma comments`} onClick={() => setAsking(true)}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
-        {note && <span className="muted" role="status">{note}</span>}
       </div>
-      {asking && (
-        <Confirm
-          safe
-          icon="comment"
-          title={`Post ${pending.length} ${pending.length === 1 ? 'comment' : 'comments'} to Figma?`}
-          detail={`Each finding becomes a comment on its frame in ${fileName}.`}
-          warning="Everyone with access to the file sees them."
-          action={`Post ${pending.length}`}
-          run={post}
-          onClose={() => { setAsking(false); requestAnimationFrame(() => postBtn.current?.focus()); }}
-        />
-      )}
       <div className="review-grid">
         <AreaCard title="Design system check" sub={run.checkError ?? (check.length ? `${check.length} ${check.length === 1 ? 'issue' : 'issues'}` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} dev={dev} frames={run.frames} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
         {!!shown.rules?.length && (

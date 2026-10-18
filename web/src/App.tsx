@@ -9,7 +9,7 @@ import { FileSwitcher } from './panes/FileSwitcher';
 import { Palette } from './panes/Palette';
 import { Explorer } from './panes/Explorer';
 import { Chats } from './panes/Chats';
-import { Files, insertPrompt } from './panes/Files';
+import { insertPrompt } from './panes/Files';
 import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Sketch } from './panes/Sketch';
@@ -39,13 +39,12 @@ type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'decisions' | 'more';
 const MOBILE_CENTER: Center[] = ['figma', 'sketch', 'review', 'decisions'];
 const isMobileCenter = (t: string): t is Center & Tab => MOBILE_CENTER.some((c) => c === t);
 
-const VIEW_IDS = ['chats', 'files', 'system', 'explorer'] as const;
+const VIEW_IDS = ['chats', 'system', 'explorer'] as const;
 type View = (typeof VIEW_IDS)[number];
 const isView = (v: unknown): v is View => VIEW_IDS.some((x) => x === v);
 
 const VIEWS: { id: View; icon: string; title: string; dev?: boolean }[] = [
   { id: 'chats', icon: 'comment-discussion', title: 'Chats' },
-  { id: 'files', icon: 'file-media', title: 'File' },
   { id: 'system', icon: 'symbol-color', title: 'Design system' },
   { id: 'explorer', icon: 'files', title: 'Chat folder', dev: true },
 ];
@@ -239,8 +238,7 @@ export function App() {
     const onCommand = (e: Event) => {
       const [kind, arg] = (e as CustomEvent<{ id: string }>).detail.id.split(':');
       if (kind === 'view') {
-        if (arg === 'comments') openSection('files', 'comments');
-        else if (arg === 'rules') openSection('system', 'rules');
+        if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
       else if (kind === 'page') {
@@ -333,7 +331,7 @@ export function App() {
             </div>
           )}
           <ErrorBoundary label="sidebar">
-            {view === 'chats' ? <Chats /> : view === 'files' ? <Files /> : view === 'system' ? <DesignSystem /> : <Explorer />}
+            {view === 'chats' ? <Chats /> : view === 'system' ? <DesignSystem /> : <Explorer />}
           </ErrorBoundary>
         </section>
 

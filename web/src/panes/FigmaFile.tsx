@@ -80,7 +80,7 @@ function FrameGrid({ fileKey, frames }: { fileKey: string | null; frames: Design
 }
 
 function FrameCard({ frame, href, remote }: { frame: DesignFrame; href: string | null; remote: string | null }) {
-  // A review shot works without a Figma token; the Figma thumbnail is fresher when there is one.
+  // The review shot first, then the thumbnail read through the Figma plugin.
   const sources = [api(shotPath(frame.nodeId)), remote].filter((s): s is string => !!s);
   const [failed, setFailed] = useState<string[]>([]);
   const src = sources.find((s) => !failed.includes(s));

@@ -4,7 +4,7 @@ import { fetchTo } from './frameRead.js';
 import { SAMPLE_KEY } from './figma.js';
 import { pluginScript, pluginShots, type ReadDeps } from './pluginRead.js';
 
-// What the UI shows from a Figma file (the outline of top-level frames, thumbnails, a frame render) is read through
+// What the UI shows from a Figma file (the outline of top-level frames and thumbnails) is read through
 // the plugin and kept on disk in the chat folder, so showing it never starts a Claude run. It is read again when a
 // file is attached, after a run that edited the file, and when the designer asks for a refresh.
 
@@ -13,7 +13,6 @@ export type Outline = { name: string; lastModified: string; thumbnail: string; r
 
 export const CACHE_DIR = '.figma-cache';
 const THUMB_MAX = 480;
-const RENDER_MAX = 1600;
 const MAX_THUMBS = 24;
 
 export const cacheDir = (dir: string, key: string) => path.join(dir, CACHE_DIR, key.replace(/[^A-Za-z0-9]/g, ''));
@@ -140,15 +139,4 @@ export async function thumbs(dir: string, key: string, want: Array<[string, numb
   const out: Record<string, string | null> = {};
   for (const [id] of list) out[id] = await servedAt(dir, path.join(base, fileFor(id)));
   return out;
-}
-
-/** A frame as it is now, at review size, saved in the chat folder. */
-export async function renderFrame(dir: string, key: string, id: string, deps: ReadDeps = {}): Promise<string | null> {
-  if (key === SAMPLE_KEY) return null;
-  const urls = await pluginShots(key, [id], RENDER_MAX, { ...deps, dir });
-  if (!urls[id]) return null;
-  const file = path.join(cacheDir(dir, key), 'render', fileFor(id));
-  await mkdir(path.dirname(file), { recursive: true });
-  await fetchTo(urls[id]!, file);
-  return servedAt(dir, file);
 }

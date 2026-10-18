@@ -5,9 +5,17 @@ import { FLOW_RULES, FLOW_RULE_LABEL, flowFixPrompt, flowIssues, flowLabel, type
 import { attachFigma, insertPrompt, showNode } from './Files';
 import { Empty, ReviewArt } from './Empty';
 import { ago } from './reviewRuns';
+import { useOutline } from '../outline';
+import { FigmaErrorText } from '../FigmaLogin';
 import '../flowcheck.css';
 
 const SEV = { major: 'Major', minor: 'Minor' } as const;
+
+/** Rough wait for a flow check. 161 top-level frames took 36 seconds on a large test file. An assumption to confirm on more files. */
+export function flowEstimate(frames: number) {
+  const s = 15 + frames * 0.13;
+  return s < 60 ? `about ${Math.max(15, Math.round(s / 5) * 5)} seconds` : `about ${Math.round(s / 60)} ${Math.round(s / 60) === 1 ? 'minute' : 'minutes'}`;
+}
 
 function byScreen(findings: FlowFinding[]) {
   const out: Array<{ id: string; name: string; items: FlowFinding[] }> = [];
@@ -79,8 +87,8 @@ export function FlowCheck() {
   const [error, setError] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [asked, setAsked] = useState(false);
-  // Without a Figma token the server reads the file through the Figma plugin, which is slower.
-  const [viaPlugin, setViaPlugin] = useState(false);
+  const outline = useOutline(figma?.key);
+  const frames = outline ? outline.pages.reduce((n, p) => n + p.frames.length, 0) : 0;
 
   useEffect(() => {
     setRun(null);
@@ -94,8 +102,6 @@ export function FlowCheck() {
   const check = async () => {
     setBusy(true);
     setError('');
-    const token = await getJson<{ figmaToken?: string }>('/api/settings').then((s) => !!s.figmaToken, () => true);
-    setViaPlugin(!token);
     try {
       const r = await postJson<{ run: FlowCheckRun }>('/api/flowcheck', {});
       setRun(r.run);
@@ -124,17 +130,16 @@ export function FlowCheck() {
       <div className="fc-head">
         <div className="fc-intro">
           <h2 id="fc-title">Flow check</h2>
-          <p>Clicks, hovers, close icons, tooltips, old and parked links, overlaps and stickies in each section. Free.</p>
+          <p>Clicks, hovers, close icons, tooltips, old and parked links, overlaps and stickies in each section. Costs under a cent.</p>
         </div>
-        <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? (viaPlugin ? 'Checking through the Figma plugin…' : 'Checking…') : 'Run flow check'}</button>
+        <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? 'Checking…' : 'Run flow check'}</button>
       </div>
-      {error && <p className="fc-error" role="alert">{error}</p>}
-      {/* "About a minute" through the plugin is an assumption to confirm on a real file: one Claude call plus the plugin read. */}
-      {busy && <p className="fc-meta" role="status">{viaPlugin ? 'Checking through the Figma plugin, about a minute.' : 'Reading every section from Figma. Large files take up to a minute.'}</p>}
+      {error && <p className="fc-error" role="alert"><FigmaErrorText text={error} /></p>}
+      {/* The check runs inside Figma through the plugin: one short Claude call plus the read. */}
+      {busy && <p className="fc-meta" role="status">{frames ? `Checking ${frames} ${frames === 1 ? 'frame' : 'frames'} in Figma, ${flowEstimate(frames)}.` : 'Checking the file in Figma, about a minute.'}</p>}
       {run && !busy && (
         <div className="fc-meta" role="status">
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
-          {run.via === 'plugin' && <span className="fc-note">Read through the Figma plugin.</span>}
           {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers, so some screens were not read.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Ask Claude to fix'}</button>}

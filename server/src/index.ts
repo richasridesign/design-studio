@@ -3,7 +3,6 @@ import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
-import { splitRun } from '../../shared/triage.js';
 import { readRecipes, writeRecipes } from './recipes.js';
 import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
@@ -21,8 +20,8 @@ import { notifyAway } from './notify.js';
 import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
 import { listDir, listFiles, readFileWithOriginal } from './files.js';
-import { cachedOutline, fileOutline, refreshOutlineSoon, renderFrame, thumbs } from './figmaCache.js';
-import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isChatFolder, listComments, me, postComment, projectFiles, readFigma, replyComment, SAMPLE_KEY, scratchFolder, teamProjects, versions } from './figma.js';
+import { cachedOutline, fileOutline, refreshOutlineSoon, thumbs } from './figmaCache.js';
+import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isChatFolder, readFigma, SAMPLE_KEY, scratchFolder } from './figma.js';
 import { loadSample, samplePath } from './sample.js';
 import { today } from './spend.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
@@ -32,11 +31,10 @@ import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
 import { readBuildChecks } from './buildcheck.js';
 import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
-import { markPosted, readDesign, readReview } from './review.js';
+import { readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
-import { changeStage, readApprovals, readStages } from './stages.js';
-import { stageLabel } from '../../shared/stages.js';
+import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -294,12 +292,16 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
     if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
     if (url.pathname === '/api/stages') {
-      if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
-      // The written brief (plan.md) wins over the first message, so the gate and the report agree.
-      const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
-      const brief = (plan && briefLede(plan)) || (chat.state.events.find((e) => e.kind === 'user')?.text ?? null);
+      // Steps are kept per chat, by Claude's session id, which survives a resume. The first message guesses the kind.
+      const sid = chat.state.session.sessionId;
+      const first = chat.state.events.find((e) => e.kind === 'user')?.text ?? null;
       const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
-      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) }));
+      if (req.method === 'POST') await changeStage(chat.cwd, sid, await readJsonBody(), { first, seenRound: review.runs.at(-1)?.round ?? 1 });
+      // The written brief (plan.md) wins over the first message, so the steps and the report agree.
+      const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
+      const brief = (plan && briefLede(plan)) || first;
+      const view = await readStages(chat.cwd, sid, first, { brief, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
+      return json({ ...view, approvals: await readApprovals(chat.cwd) });
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));
@@ -313,30 +315,13 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/chrome/status') return json(chromeStatus());
     if (url.pathname === '/api/chrome/figma-tabs') return json(figmaTabs());
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());
-    if (url.pathname === '/api/figma/me') return json(await me());
-    if (url.pathname === '/api/figma/projects') {
-      const { teamId } = await settings();
-      return json(teamId ? await teamProjects(teamId) : []);
-    }
-    if (url.pathname === '/api/figma/files') return json(await projectFiles(url.searchParams.get('project') ?? ''));
-    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: stageLabel(await readApprovals(f.dir)) }))));
+    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));
     // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.
     if (url.pathname === '/api/figma/outline') return json(await fileOutline(chat.cwd, needFigma().key, { fresh: url.searchParams.get('fresh') === '1' }));
     if (url.pathname === '/api/figma/thumbs') {
       const rev = Number(url.searchParams.get('r') ?? 0) || 0;
       return json(await thumbs(chat.cwd, needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).map((id) => [id, rev])));
     }
-    if (url.pathname === '/api/figma/versions') return json(await versions(needFigma().key));
-    if (url.pathname === '/api/figma/render') {
-      const id = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean)[0];
-      return json(id ? { [id]: await renderFrame(chat.cwd, needFigma().key, id) } : {});
-    }
-    if (url.pathname === '/api/figma/comments/reply' && req.method === 'POST') {
-      const { commentId, message } = await readJsonBody();
-      if (!commentId || !String(message ?? '').trim()) throw new FigmaError('A comment and a message are required');
-      return json(await replyComment(needFigma().key, String(commentId), String(message).trim()));
-    }
-    if (url.pathname === '/api/figma/comments') return json(await listComments(needFigma().key));
     if (url.pathname === '/api/figma/show' && req.method === 'POST') {
       const f = needFigma();
       return json({ tab: await showFigma(f.key, f.url) });
@@ -355,19 +340,6 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/sketch/board') return json(await readBoard(chat.cwd));
     if (url.pathname === '/api/sketch') return json(await readSketch(chat.cwd).catch((err) => ({ error: (err as Error).message })));
-    if (url.pathname === '/api/review/post' && req.method === 'POST') {
-      const f = needFigma();
-      const { ids, runId } = await readJsonBody();
-      const doc = await readReview(chat.cwd);
-      // Finding ids repeat across rounds, so only the named run counts, and findings closed by hand stay out.
-      const run = doc.runs.find((r) => r.id === runId);
-      if (!run) return json({ error: 'Review run not found' }, 404);
-      const open = splitRun(run, await readTriage(chat.cwd)).open;
-      const chosen = open.filter((x) => Array.isArray(ids) && ids.includes(x.id) && !doc.posted?.includes(x.id));
-      for (const x of chosen) await postComment(f.key, `[Design Studio · ${x.area} · ${x.severity}] ${x.rule}\nFix: ${x.fix}`, x.node);
-      await markPosted(chat.cwd, chosen.map((x) => x.id));
-      return json({ posted: chosen.length });
-    }
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
     if (url.pathname === '/api/flowcheck' && req.method === 'POST') return json({ run: await runFlowCheck({ dir: chat.cwd, fileKey: needFigma().key }) });
     if (url.pathname === '/api/flowcheck') return json({ runs: await readFlowChecks(chat.cwd) });

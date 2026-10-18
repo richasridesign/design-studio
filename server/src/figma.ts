@@ -2,111 +2,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { parseFigmaUrl, type FigmaFile } from '../../shared/design.js';
-import { CHATS_ROOT, settings } from './settings.js';
+import { CHATS_ROOT } from './settings.js';
 
-const API = 'https://api.figma.com/v1';
 const SKILLS = fileURLToPath(new URL('../../skills', import.meta.url));
 
-export { FigmaError } from './figmaError.js';
 import { FigmaError } from './figmaError.js';
 
-export async function figmaGet<T = any>(route: string, init: RequestInit = {}): Promise<T> {
-  const { figmaToken } = await settings();
-  if (!figmaToken) throw new FigmaError('No Figma personal access token is saved. Add one in Settings, under Figma access.', 412);
-  const res = await fetch(`${API}${route}`, { ...init, headers: { 'X-Figma-Token': figmaToken, 'content-type': 'application/json', ...init.headers } });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) {
-    const why = body?.err ?? body?.message ?? res.statusText;
-    if (res.status === 403) throw new FigmaError(`Figma refused the request (${why}). Check the token and its scopes.`, 403);
-    if (res.status === 404) throw new FigmaError('Figma file not found, or the token cannot open it', 404);
-    if (res.status === 429) throw new FigmaError('Figma rate limit reached, try again in a minute', 429);
-    throw new FigmaError(`Figma API error ${res.status}: ${why}`, res.status);
-  }
-  return body as T;
-}
+export { FigmaError };
 
 export const SAMPLE_KEY = 'sample';
-
-export const VERSION_PREFIX = 'Design Studio';
-
-export type FigmaVersion = { id: string; at: string; label: string; description: string; user: string; checkpoint: boolean };
-
-export function mapVersions(raw: any[]): FigmaVersion[] {
-  return raw
-    .map((v): FigmaVersion => {
-      const label = v.label ?? '';
-      const description = v.description ?? '';
-      return { id: String(v.id), at: v.created_at, label, description, user: v.user?.handle ?? 'Unknown', checkpoint: label.startsWith(VERSION_PREFIX) || description.startsWith(VERSION_PREFIX) };
-    })
-    .sort((a, b) => b.at.localeCompare(a.at));
-}
-
-export async function versions(key: string) {
-  if (key === SAMPLE_KEY) return [];
-  const r = await figmaGet<{ versions: any[] }>(`/files/${key}/versions`);
-  return mapVersions(r.versions ?? []);
-}
-
-export async function nodes(key: string, ids: string[]) {
-  if (key === SAMPLE_KEY) return { name: 'Grocery app (sample)', nodes: {} };
-  return figmaGet<{ name: string; nodes: Record<string, { document: any; components: Record<string, any>; componentSets?: Record<string, any>; styles: Record<string, any> } | null> }>(
-    `/files/${key}/nodes?ids=${encodeURIComponent(ids.join(','))}`,
-  );
-}
-
-export async function postComment(key: string, message: string, nodeId?: string) {
-  if (key === SAMPLE_KEY) return {};
-  const body: Record<string, unknown> = { message };
-  if (nodeId) body.client_meta = { node_id: nodeId, node_offset: { x: 0, y: 0 } };
-  return figmaGet(`/files/${key}/comments`, { method: 'POST', body: JSON.stringify(body) });
-}
-
-export type CommentUser = { handle: string; img_url: string };
-export type CommentReply = { id: string; message: string; user: CommentUser; created_at: string };
-export type CommentThread = CommentReply & { resolved_at: string | null; nodeId: string | null; replies: CommentReply[] };
-
-export function flattenComments(raw: any[]): CommentThread[] {
-  const user = (c: any): CommentUser => ({ handle: c.user?.handle ?? 'Unknown', img_url: c.user?.img_url ?? '' });
-  const reply = (c: any): CommentReply => ({ id: c.id, message: c.message ?? '', user: user(c), created_at: c.created_at });
-  const byTime = (a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at);
-  const roots = raw.filter((c) => !c.parent_id);
-  const threads = roots.map((c): CommentThread => ({
-    ...reply(c),
-    resolved_at: c.resolved_at ?? null,
-    nodeId: c.client_meta?.node_id ?? null,
-    replies: raw.filter((r) => r.parent_id === c.id).map(reply).sort((a, b) => a.created_at.localeCompare(b.created_at)),
-  }));
-  return threads.sort((a, b) => Number(!!a.resolved_at) - Number(!!b.resolved_at) || byTime(a, b));
-}
-
-export async function listComments(key: string) {
-  if (key === SAMPLE_KEY) return [];
-  const r = await figmaGet<{ comments: any[] }>(`/files/${key}/comments?as_md=true`);
-  return flattenComments(r.comments ?? []);
-}
-
-export async function replyComment(key: string, commentId: string, message: string) {
-  if (key === SAMPLE_KEY) return {};
-  return figmaGet(`/files/${key}/comments`, { method: 'POST', body: JSON.stringify({ message, comment_id: commentId }) });
-}
-
-export async function teamProjects(teamId: string) {
-  return (await figmaGet<{ projects: Array<{ id: string; name: string }> }>(`/teams/${teamId}/projects`)).projects;
-}
-
-export async function projectFiles(projectId: string) {
-  return (await figmaGet<{ files: Array<{ key: string; name: string; thumbnail_url: string; last_modified: string }> }>(`/projects/${projectId}/files`)).files;
-}
-
-export async function me() {
-  return figmaGet<{ id: string; handle: string; email: string; img_url: string }>('/me');
-}
-
-export async function download(url: string, file: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-  await writeFile(file, Buffer.from(await res.arrayBuffer()));
-}
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'file';
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const root = await mkdtemp(path.join(os.tmpdir(), 'dv-attach-'));
-vi.mock('./settings.js', () => ({ CHATS_ROOT: root, settings: async () => ({ figmaToken: 'tok' }) }));
+vi.mock('./settings.js', () => ({ CHATS_ROOT: root }));
 
 const { attachFolder, freshChatFolder, FigmaError, nameFromUrl } = await import('./figma.js');
 
