@@ -102,8 +102,10 @@
 .tr-phase::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 .tr-review { margin: 6px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--text-sm); color: var(--fg-muted); }
-.tr-review-head { display: flex; align-items: baseline; gap: 8px; color: var(--fg); }
-.tr-review-sum { color: var(--fg-muted); }
+/* Label and tokens on the first line, the summary on its own line under them. */
+.tr-review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--fg); }
+.tr-review-head b, .tr-review-head .tr-dur { white-space: nowrap; }
+.tr-review-sum { order: 1; flex-basis: 100%; color: var(--fg-muted); }
 .tr-review-head .tr-dur { margin-left: auto; }
 .tr-review-rows { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .tr-review-rows li { display: flex; align-items: center; gap: 8px; line-height: 20px; }
