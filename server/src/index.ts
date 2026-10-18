@@ -25,6 +25,7 @@ import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.j
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
 import { readBuildChecks } from './buildcheck.js';
+import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { markPosted, readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
@@ -342,6 +343,8 @@ const server = http.createServer(async (req, res) => {
       return json({ posted: chosen.length });
     }
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
+    if (url.pathname === '/api/flowcheck' && req.method === 'POST') return json({ run: await runFlowCheck({ dir: chat.cwd, fileKey: needFigma().key }) });
+    if (url.pathname === '/api/flowcheck') return json({ runs: await readFlowChecks(chat.cwd) });
     if (url.pathname === '/api/crit') return json({ runs: await readCrit(chat.cwd) });
     if (url.pathname === '/api/copy/apply' && req.method === 'POST') {
       const { runId, nodeIds, edits } = await readJsonBody();
