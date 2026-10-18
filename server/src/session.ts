@@ -22,7 +22,6 @@ import { readRules, rulesBlock } from './rules.js';
 import { readChatSteps } from './stages.js';
 import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
-import { refreshOutlineSoon } from './figmaCache.js';
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, refreshMapSoon, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
@@ -210,7 +209,8 @@ export class AgentSession {
         beforeFigma: async (input) => this.beforeFigma(input),
         beforeAgent: async (input) => this.beforeAgent(input),
         afterTool: async (input) => this.afterTool(input),
-        mapFile: this.map && this.figma ? mapFiles(this.cwd, this.figma.key).md : null,
+        // The path is fixed per file, so Claude gets it even when the background read has not finished yet.
+        mapFile: this.figma && this.figma.key !== SAMPLE_KEY ? mapFiles(this.cwd, this.figma.key).md : null,
         refreshMap: () => this.readMapNow(),
       }),
     });
@@ -899,15 +899,15 @@ export class AgentSession {
     this.figmaUses.clear();
     const key = this.figma?.key;
     if (!edited || !key || key === SAMPLE_KEY) return;
-    // The file map is read again after any run that edited the file, so the next turn starts from it.
+    // The file map (and the outline, from the same read) is read again after any run that edited the file.
     refreshMapSoon(this.cwd, key);
-    // The saved outline is read again after any run that edited the file; the auto check reads it itself.
-    if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return refreshOutlineSoon(this.cwd, key);
+    if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
     void this.checkEdited(key, touched);
   }
 
   private async checkEdited(key: string, touched: string[]) {
-    if (!(await settings().catch(() => null))?.autoCheck) return refreshOutlineSoon(this.cwd, key);
+    // The map read started in autoCheck writes the outline too.
+    if (!(await settings().catch(() => null))?.autoCheck) return;
     try {
       this.setStatus('Checking edited frames');
       const { fileOutline, framesContaining } = await import('./figmaCache.js');
