@@ -58,6 +58,8 @@ export type SessionInfo = {
   flow: FlowState;
   spend: Spend;
   limit?: PlanLimit | null;
+  /** The latest plan limit per window ("five_hour", "seven_day", ...). */
+  limits?: Record<string, PlanLimit>;
   longRun?: LongRun | null;
 };
 
@@ -145,7 +147,8 @@ export type ClientMessage =
   | { type: 'flow_continue' }
   | { type: 'flow_pick'; screen: string; direction: string; reason?: string }
   | { type: 'interrupt' }
-  | { type: 'long_run_start'; text: string; until: number; cap: number; images?: string[] }
+  | { type: 'long_run_start'; text: string; until: number; cap: number; weeklyCap?: number; rounds?: number; images?: string[] }
+  | { type: 'long_run_options'; weeklyCap: number; rounds: number }
   | { type: 'long_run_stop' }
   | { type: 'long_run_clear' }
   | { type: 'view'; id: string }

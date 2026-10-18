@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { HOME } from './settings.js';
-import { AWAIT_STATES, addFindings, cleanAwaiting, decide, type AwaitItem, type AwaitState } from '../../shared/awaiting.js';
+import { AWAIT_STATES, addFindings, addQuestions, cleanAwaiting, decide, type AwaitItem, type AwaitState } from '../../shared/awaiting.js';
 import type { Finding } from '../../shared/design.js';
 
 // One list for every chat, so a decision waits for the designer wherever the review ran.
@@ -28,6 +28,12 @@ const fileName = (dir: string) => readFile(path.join(dir, 'figma.json'), 'utf8')
 export function awaitFindings(dir: string, fileKey: string, findings: Finding[]) {
   if (!findings.some((f) => f.decide)) return Promise.resolve(null);
   return serial(async () => save(addFindings(await readAwaiting(), findings, { key: fileKey, name: await fileName(dir) })));
+}
+
+/** A long run report's "Needs your decision" items, so they wait after the chat ends. */
+export function awaitQuestions(dir: string, fileKey: string, items: Array<{ text: string; fileKey: string; node: string }>) {
+  if (!items.length) return Promise.resolve(null);
+  return serial(async () => save(addQuestions(await readAwaiting(), items, { key: fileKey, name: await fileName(dir) })));
 }
 
 export function updateAwaiting(body: unknown) {

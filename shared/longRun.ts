@@ -1,16 +1,40 @@
 import type { PlanLimit } from './protocol.js';
 
 export type LongRunState = 'running' | 'reporting' | 'done' | 'stopped';
-export type LongRunReason = 'time' | 'cap' | 'rejected' | 'user' | 'errors' | 'reported' | 'ended';
+export type LongRunReason = 'time' | 'cap' | 'weekly' | 'rejected' | 'user' | 'errors' | 'reported' | 'ended';
 
 export type LongRun = {
   until: number;
+  /** Stop at this percent of the 5-hour plan window. */
   cap: number;
+  /** Stop at this percent of the weekly plan window. Older runs have none, so it falls back to the default. */
+  weeklyCap?: number;
+  /** How many review, fix, check rounds Claude is asked to do. */
+  rounds?: number;
+  /** The round Claude last said it was on ("Round 2 of 3"). */
+  round?: number;
   startedAt: number;
   turns: number;
   state: LongRunState;
   reason?: LongRunReason;
+  /** When the Mac is kept awake until (macOS only): the run's end time. */
+  awakeUntil?: number;
+  /** How many report questions were saved to Awaiting your decision when the run ended. */
+  awaiting?: number;
 };
+
+export const DEFAULT_CAP = 90;
+export const DEFAULT_WEEKLY_CAP = 70;
+export const DEFAULT_ROUNDS = 3;
+export const MAX_ROUNDS = 6;
+/** The Mac stays awake this long past the end time, so the report turn is not cut by sleep. */
+export const AWAKE_GRACE = 15 * 60_000;
+
+/** The latest plan limit per window ("five_hour", "seven_day", ...). */
+export type Limits = Record<string, PlanLimit>;
+export type Window = 'five_hour' | 'weekly';
+/** Weekly windows: the overall one and the per-model ones; the highest is the one that stops work first. */
+const WEEKLY = ['seven_day', 'seven_day_opus', 'seven_day_sonnet'];
 
 export const LONG_RUN_ACTIVE: LongRunState[] = ['running', 'reporting'];
 export const isActive = (r: LongRun | null | undefined) => !!r && LONG_RUN_ACTIVE.includes(r.state);
@@ -19,7 +43,8 @@ export const MAX_ERRORS = 2;
 
 export const REASON_TEXT: Record<LongRunReason, string> = {
   time: 'time reached',
-  cap: 'plan usage cap reached',
+  cap: '5-hour usage cap reached',
+  weekly: 'weekly usage cap reached',
   rejected: 'plan limit reached',
   user: 'stopped by you',
   errors: `${MAX_ERRORS} errors in a row`,
@@ -31,18 +56,24 @@ export const ASK_DENIED =
   'This is a long run and I am away, so I cannot answer. Do not ask. Pick the safe option or leave it as it is, list the question under "## Needs your decision" in the report, and keep working.';
 
 export const CONTINUE_TEXT =
-  'Keep going with the long run task. Work through what is left, check your work, and do not wait for me. When everything is done or you are blocked on my decisions, reply with the long run report.';
+  'Keep going with the long run task. Work through what is left, check your work, and say which round you are on ("Round 2 of 3"). Do not wait for me. When the rounds are done or you are blocked on my decisions, reply with the long run report.';
 
 export function reportAsk(reason: LongRunReason) {
-  const why = reason === 'cap' ? 'Plan usage reached the cap for this long run.' : 'The time for this long run is up.';
+  const why = reason === 'cap' ? '5-hour plan usage reached the cap for this long run.' : reason === 'weekly' ? 'Weekly plan usage reached the cap for this long run.' : 'The time for this long run is up.';
   return `${why} Stop working now. Do not start new edits. Reply with the long run report in the format I gave you.`;
 }
 
-export function longRunPrompt(task: string, until: number, cap: number) {
+export type PromptOpts = { cap: number; weeklyCap?: number; rounds?: number; mapFile?: string | null };
+
+export function longRunPrompt(task: string, until: number, o: PromptOpts) {
   const end = new Date(until).toTimeString().slice(0, 5);
+  const rounds = o.rounds ?? DEFAULT_ROUNDS;
+  const map = o.mapFile ? `Use the cached file map (${o.mapFile}) to find frames instead of exploring the file. ` : 'Use the cached file map to find frames instead of exploring the file. ';
   return `${task}
 
-This is a long run. I am away, so work on your own until it is done or until ${end}. Be careful with tokens: no repeated screenshots or full-file reads when a smaller check will do. Do not ask me questions and do not wait for me. When something needs my decision, pick the safe option or leave it as it is, note it, and move on to the next thing. I will send "keep going" after each of your turns. Usage stops at ${cap}% of the 5-hour plan limit.
+This is a long run. I am away, so work on your own until it is done or until ${end}. Work in rounds, up to ${rounds}: review, fix, then check again. Start each round's text with "Round 1 of ${rounds}", "Round 2 of ${rounds}" and so on. With several flows, give each flow its own subagent and pass it the file map. Write the report after round ${rounds}, or sooner when a round finds nothing new.
+
+Be careful with tokens: no repeated screenshots or full-file reads when a smaller check will do. ${map}Do not ask me questions and do not wait for me. When something needs my decision, pick the safe option or leave it as it is, note it, and move on to the next thing. I will send "keep going" after each of your turns. Usage stops at ${o.cap}% of the 5-hour plan limit or ${o.weeklyCap ?? DEFAULT_WEEKLY_CAP}% of the weekly limit.
 
 When everything is done, or you are blocked on my decisions, end with the long run report in exactly this format: these three headings, bullets under each, keep Figma node links as full links, write "- None" under an empty section.
 
@@ -50,7 +81,7 @@ When everything is done, or you are blocked on my decisions, end with the long r
 - what you changed, with the node link
 
 ## Needs your decision
-- the question, the options, and what you did for now
+- the question, the options, and what you did for now, with the node link
 
 ## Not checked
 - what you could not verify, and why`;
@@ -60,11 +91,25 @@ export type Decision = { action: 'continue' } | { action: 'ask_report'; reason: 
 
 export type TurnEnd = {
   now: number;
+  /** The latest limit of any window: a rejection there stops the run. */
   limit: PlanLimit | null | undefined;
+  /** The latest limit per window. Without it, only `limit` is known. */
+  limits?: Limits | null;
   errorStreak: number;
   reported: boolean;
 };
 
+/** Keeps the latest limit per window. */
+export const withLimit = (limits: Limits | null | undefined, l: PlanLimit): Limits => ({ ...(limits ?? {}), [l.kind]: l });
+
+/** Percent used of the 5-hour or the weekly window, or null when no event has said yet. */
+export function windowPct(limits: Limits | null | undefined, w: Window): number | null {
+  const kinds = w === 'five_hour' ? ['five_hour'] : WEEKLY;
+  const used = kinds.map((k) => limits?.[k]?.used).filter((u): u is number => typeof u === 'number');
+  return used.length ? Math.max(...used) * 100 : null;
+}
+
+/** Percent used of the 5-hour window from one limit event (0 when it is another window). */
 export function usedPct(limit: PlanLimit | null | undefined) {
   return limit && limit.kind === 'five_hour' && typeof limit.used === 'number' ? limit.used * 100 : 0;
 }
@@ -77,8 +122,23 @@ export function decide(run: LongRun | null | undefined, t: TurnEnd): Decision {
   if (run!.state === 'reporting') return { action: 'stop', reason: run!.reason ?? 'time' };
   if (t.errorStreak >= MAX_ERRORS) return { action: 'stop', reason: 'errors' };
   if (t.now >= run!.until) return { action: 'ask_report', reason: 'time' };
-  if (usedPct(t.limit) >= run!.cap) return { action: 'ask_report', reason: 'cap' };
+  const limits = t.limits ?? (t.limit ? withLimit(null, t.limit) : null);
+  if ((windowPct(limits, 'five_hour') ?? 0) >= run!.cap) return { action: 'ask_report', reason: 'cap' };
+  if ((windowPct(limits, 'weekly') ?? 0) >= (run!.weeklyCap ?? DEFAULT_WEEKLY_CAP)) return { action: 'ask_report', reason: 'weekly' };
   return { action: 'continue' };
+}
+
+/** The round Claude says it is on ("Round 2 of 3"), the last one in the text. */
+export function roundFrom(text: string): number | null {
+  const all = [...text.matchAll(/\bround (\d{1,2}) of (\d{1,2})\b/gi)];
+  const m = all[all.length - 1];
+  return m ? +m[1] : null;
+}
+
+/** A Figma node link in a report line: its file key and node id ("12:34"). */
+export function nodeLink(text: string): { fileKey: string; node: string } | null {
+  const m = /figma\.com\/(?:design|file|proto|board)\/([A-Za-z0-9]+)[^\s)]*?[?&]node-id=(\d+)[-:](\d+)/.exec(text);
+  return m ? { fileKey: m[1], node: `${m[2]}:${m[3]}` } : null;
 }
 
 /** "04:00" as the next time it comes round after `now` (tomorrow when it has passed today). */

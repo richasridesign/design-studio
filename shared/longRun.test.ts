@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, parseReport, stallReason, untilFrom, usedPct, type LongRun } from './longRun.js';
+import { decide, longRunPrompt, nodeLink, parseReport, roundFrom, stallReason, untilFrom, usedPct, windowPct, withLimit, type LongRun } from './longRun.js';
 import type { PlanLimit } from './protocol.js';
 
 const now = 1_000_000;
@@ -29,6 +29,24 @@ describe('decide', () => {
     expect(decide(run(), end({ limit: lim(0.89) }))).toEqual({ action: 'continue' });
     expect(decide(run(), end({ limit: lim(0.9) }))).toEqual({ action: 'ask_report', reason: 'cap' });
     expect(usedPct(lim(0.95, 'allowed', 'seven_day'))).toBe(0);
+  });
+  it('keeps the 5-hour cap when the latest event is the weekly one', () => {
+    const limits = withLimit(withLimit(null, lim(0.92)), lim(0.1, 'allowed', 'seven_day'));
+    expect(decide(run(), end({ limit: lim(0.1, 'allowed', 'seven_day'), limits }))).toEqual({ action: 'ask_report', reason: 'cap' });
+  });
+  it('asks for the report at the weekly cap, 70% by default', () => {
+    const at = (used: number, kind = 'seven_day') => end({ limits: withLimit(withLimit(null, lim(0.2)), lim(used, 'allowed', kind)) });
+    expect(decide(run(), at(0.69))).toEqual({ action: 'continue' });
+    expect(decide(run(), at(0.7))).toEqual({ action: 'ask_report', reason: 'weekly' });
+    expect(decide(run({ weeklyCap: 85 }), at(0.8))).toEqual({ action: 'continue' });
+    expect(decide(run(), at(0.75, 'seven_day_opus'))).toEqual({ action: 'ask_report', reason: 'weekly' });
+    expect(decide(run(), end({ limit: lim(0.71, 'allowed', 'seven_day') }))).toEqual({ action: 'ask_report', reason: 'weekly' });
+  });
+  it('reads the highest weekly window and nothing when no event came', () => {
+    const limits = withLimit(withLimit(null, lim(0.3, 'allowed', 'seven_day')), lim(0.6, 'allowed', 'seven_day_opus'));
+    expect(windowPct(limits, 'weekly')).toBeCloseTo(60);
+    expect(windowPct(limits, 'five_hour')).toBeNull();
+    expect(windowPct(null, 'weekly')).toBeNull();
   });
   it('stops without asking when the limit rejects', () => {
     expect(decide(run(), end({ limit: lim(1, 'rejected') }))).toEqual({ action: 'stop', reason: 'rejected' });
@@ -100,5 +118,26 @@ describe('stallReason', () => {
     expect(stallReason('default', false)).toMatch(/asks before Claude uses tools/);
     expect(stallReason('auto', false)).toBe('');
     expect(stallReason(null, false)).toBe('');
+  });
+});
+
+describe('rounds and links', () => {
+  it('reads the last round Claude names', () => {
+    expect(roundFrom('Round 1 of 3 done. Round 2 of 3: fixing hover.')).toBe(2);
+    expect(roundFrom('round 3 of 3')).toBe(3);
+    expect(roundFrom('Three rounds left')).toBeNull();
+  });
+  it('finds the file key and node in a report line', () => {
+    expect(nodeLink('Move it? [Toast](https://www.figma.com/design/Ab12Cd/Flows?node-id=12-345&t=x)')).toEqual({ fileKey: 'Ab12Cd', node: '12:345' });
+    expect(nodeLink('Rename the tab')).toBeNull();
+  });
+  it('asks for rounds, both caps and the file map in the prompt', () => {
+    const p = longRunPrompt('Review the flows', new Date(2026, 9, 19, 4, 0).getTime(), { cap: 90, weeklyCap: 70, rounds: 3, mapFile: '/x/map.md' });
+    expect(p).toMatch(/up to 3/);
+    expect(p).toMatch(/"Round 2 of 3"/);
+    expect(p).toMatch(/own subagent/);
+    expect(p).toMatch(/90% of the 5-hour plan limit or 70% of the weekly limit/);
+    expect(p).toMatch(/cached file map \(\/x\/map\.md\)/);
+    expect(p).not.toMatch(/\u2014/);
   });
 });

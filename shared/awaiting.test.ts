@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFindings, approvePrompt, awaitKey, cleanAwaiting, decide, stillAwaiting } from './awaiting';
+import { addFindings, addQuestions, answerPrompt, approvePrompt, awaitKey, cleanAwaiting, decide, stillAwaiting } from './awaiting';
 import type { Finding } from './design';
 
 const f = (rule: string, decide?: string): Finding => ({ id: rule, area: 'system', node: '1:2', nodeName: 'Home', severity: 'major', rule, fix: 'Darken text/muted to #5B5B5B', ...(decide ? { decide } : {}) });
@@ -42,5 +42,20 @@ describe('stillAwaiting', () => {
     expect(stillAwaiting(fs, 'KEY', list)).toBe(2);
     expect(stillAwaiting(fs, 'KEY', decide(list, list[0].id, 'parked', 2))).toBe(1);
     expect(stillAwaiting(fs, undefined, null)).toBe(2);
+  });
+});
+
+describe('long run questions', () => {
+  it('adds each question once, with its node and file name only for this file', () => {
+    const items = [{ text: 'Move the toast? Left it.', fileKey: 'KEY', node: '1:2' }, { text: 'Other file question', fileKey: 'OTHER', node: '' }];
+    const list = addQuestions([], items, { key: 'KEY', name: 'Checkout' }, 5);
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({ area: 'long_run', node: '1:2', fileName: 'Checkout', state: 'open', fix: '' });
+    expect(list[1].fileName).toBe('');
+    expect(addQuestions(list, items, { key: 'KEY', name: 'Checkout' }, 6)).toHaveLength(2);
+    expect(cleanAwaiting(JSON.parse(JSON.stringify(list)))[0].area).toBe('long_run');
+  });
+  it('answers in plain text without the link markup', () => {
+    expect(answerPrompt('Keep [Toast](https://x) on top?')).toBe('About "Keep Toast on top?": ');
   });
 });
