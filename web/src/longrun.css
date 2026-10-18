@@ -64,3 +64,4 @@
 /* One primary at a time: while the popover is open, Send steps back to an outline button. */
 .cp:has(.lr-pop) .cp-send:not(:disabled) { background: transparent; border-color: var(--border-strong); color: var(--fg); }
 .cp:has(.lr-pop) .cp-send:hover:not(:disabled) { background: var(--bg-hover); }
+.lr-answer { margin-top: 4px; min-height: 24px; font-size: var(--text-sm); }
