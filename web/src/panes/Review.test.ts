@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, areaRows, areaTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize, unposted } from './reviewRuns';
+import { ago, areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize, unposted } from './reviewRuns';
 import type { CopyRun, CritRun, Finding, ReviewRun } from '../../../shared/design';
 
 const finding = (severity: Finding['severity']): Finding => ({ id: severity, area: 'color', severity, rule: 'r', fix: 'f', node: '1:2' }) as Finding;
@@ -99,5 +99,20 @@ describe('retryPrompt', () => {
   });
   it('is null when nothing failed', () => {
     expect(retryPrompt(review('a', 1))).toBeNull();
+  });
+});
+
+describe('house rules', () => {
+  const rule = (state: 'pass' | 'fail' | 'unchecked') => ({ rule: 'r', state, frames: [] });
+  it('adds failed rules to the summary', () => {
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { rules: [rule('fail'), rule('pass')] }) })).toBe('1 rule failed');
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { check: [finding('major')], rules: [rule('fail'), rule('fail')] }) })).toBe('0 blocking, 1 major, 2 rules failed');
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { rules: [rule('pass')] }) })).toBe('No issues');
+  });
+  it('picks the card tone', () => {
+    expect(rulesTone({ rules: [rule('pass'), rule('pass')] })).toBe('pass');
+    expect(rulesTone({ rules: [rule('pass'), rule('fail')] })).toBe('major');
+    expect(rulesTone({ rules: [rule('pass'), rule('unchecked')] })).toBe('unchecked');
+    expect(rulesTone({ rules: [rule('unchecked')], rulesError: 'x' })).toBe('error');
   });
 });
