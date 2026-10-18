@@ -1,3 +1,5 @@
+import type { RuleResult } from './rules.js';
+
 export const AREAS = ['color', 'typography', 'spacing', 'components', 'accessibility', 'brief'] as const;
 export type Area = (typeof AREAS)[number];
 
@@ -74,6 +76,9 @@ export type ReviewRun = {
   check: Finding[];
   checkError?: string;
   results: AreaResult[];
+  /** House rules checked by one reviewer. Missing on runs with no rules or no model reviewer. */
+  rules?: RuleResult[];
+  rulesError?: string;
   tokens: number;
   costUsd: number;
 };
