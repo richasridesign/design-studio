@@ -58,6 +58,8 @@
 .dse-row { display: flex; align-items: center; gap: 16px; }
 .dse-error { margin: 0; color: var(--err); font-size: var(--text-sm); display: inline-flex; align-items: center; gap: 8px; }
 .dse-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-top: 1px solid var(--border); }
+.dse-confirm { flex-wrap: wrap; justify-content: flex-end; }
+.dse-confirm-q { flex: 1 1 280px; font-size: var(--text-sm); line-height: 20px; }
 .dse-said { flex: 1; font-size: var(--text-sm); color: var(--fg-muted); text-align: right; }
 .dse .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 600px) {

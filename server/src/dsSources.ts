@@ -141,6 +141,35 @@ export async function designSystemView(dir: string) {
   return { ds, skills: await listSkills(src?.dir ?? SKILLS_DIR) };
 }
 
+const sameLines = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * A new starter for a profile. Sources and items she found or added stay; the starter's own values replace the old
+ * starter's. Her name, note and principles stay when she changed them (they differ from the old starter's), so a switch
+ * never loses her writing. `kept` names what stayed hers.
+ */
+export function switchStarter(current: DesignSystem | null, id: StarterId, now = Date.now()): { ds: DesignSystem; kept: string[] } {
+  const s = starterProfile(id, now);
+  if (!current) return { ds: s, kept: [] };
+  const old = STARTER_IDS.includes(current.starter as StarterId) ? starterProfile(current.starter as StarterId, now) : null;
+  const hers = (k: 'name' | 'note') => !!current[k]?.trim() && current[k] !== old?.[k];
+  const rules = current.rules ?? [];
+  const hersRules = rules.length > 0 && !sameLines(rules, old?.rules ?? []);
+  const kept = [...(hers('name') ? ['name'] : []), ...(hers('note') ? ['note'] : []), ...(hersRules ? ['principles'] : [])];
+  const ds: DesignSystem = {
+    ...s,
+    ...(hers('name') ? { name: current.name } : {}),
+    ...(hers('note') ? { note: current.note } : {}),
+    ...(hersRules ? { rules } : {}),
+    colors: [...s.colors, ...current.colors.filter((c) => c.from && c.from !== 'starter')],
+    text: [...s.text, ...current.text.filter((t) => t.from && t.from !== 'starter')],
+    components: current.components.filter((c) => c.from !== 'starter'),
+    sources: [...(s.sources ?? []), ...(current.sources ?? []).filter((x) => !(s.sources ?? []).some((y) => y.kind === x.kind))],
+    dropped: current.dropped ?? [],
+  };
+  return { ds, kept };
+}
+
 /** One change to the chat's profile. Figma and code sources read their source now; nothing else costs anything. */
 export async function changeDesignSystem(dir: string, figma: FigmaFile | null, body: unknown, deps: ReadDeps = {}) {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -149,12 +178,13 @@ export async function changeDesignSystem(dir: string, figma: FigmaFile | null, b
   const base = current ?? blankProfile(now);
   let next: DesignSystem | null = base;
   let costUsd = 0;
+  let kept: string[] = [];
   switch (b.action) {
     case 'starter': {
       if (!STARTER_IDS.includes(b.id as StarterId)) throw new Error('Unknown starter');
-      const s = starterProfile(b.id as StarterId, now);
-      // Sources and items she already found or added stay; the starter's own values replace the old starter's.
-      next = current ? { ...s, colors: [...s.colors, ...current.colors.filter((c) => c.from && c.from !== 'starter')], text: [...s.text, ...current.text.filter((t) => t.from && t.from !== 'starter')], components: current.components.filter((c) => c.from !== 'starter'), sources: [...(s.sources ?? []), ...(current.sources ?? []).filter((x) => !(s.sources ?? []).some((y) => y.kind === x.kind))], dropped: current.dropped ?? [] } : s;
+      const r = switchStarter(current, b.id as StarterId, now);
+      next = r.ds;
+      kept = r.kept;
       break;
     }
     case 'figma': {
@@ -212,7 +242,7 @@ export async function changeDesignSystem(dir: string, figma: FigmaFile | null, b
     await Promise.all([PROFILE_FILE, 'design-system.md'].map((f) => rm(path.join(dir, f), { force: true })));
     // Removed on purpose: design runs carry on without a profile until she adds one.
     await writeFile(path.join(dir, PROFILE_OFF_FILE), `Removed ${new Date(now).toISOString()}\n`);
-    return { ds: null, costUsd };
+    return { ds: null, costUsd, kept };
   }
-  return { ds: await writeProfile(dir, next), costUsd };
+  return { ds: await writeProfile(dir, next), costUsd, kept };
 }

@@ -14,7 +14,10 @@ type View = { ds: DS | null; skills: SkillFile[] };
 const FROM: Record<DsFrom, string> = { starter: 'Starter', figma: 'Figma', code: 'Code', hand: 'Added' };
 
 /** One change to the profile. The server reads the source when the change needs it. */
-export const changeDs = (body: Record<string, unknown>) => postJson<{ ds: DS | null; costUsd: number }>('/api/design-system', body);
+export const changeDs = (body: Record<string, unknown>) => postJson<{ ds: DS | null; costUsd: number; kept?: string[] }>('/api/design-system', body);
+
+/** What a starter switch left as hers, for the line after it. */
+export const keptLine = (kept: string[] = []) => (kept.length ? ` Kept your ${kept.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : '');
 
 /**
  * The design system editor: where the profile comes from (a starter, the Figma file, a tokens file, her rule files),
@@ -23,7 +26,6 @@ export const changeDs = (body: Record<string, unknown>) => postJson<{ ds: DS | n
 export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'code' }) {
   const box = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useDialogFocus(true, box, onClose);
   const figma = useStore((s) => s.session.figma);
   const [view, setView] = useState<View | null>(null);
   const [busy, setBusy] = useState('');
@@ -32,6 +34,14 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
   const [codePath, setCodePath] = useState('');
   const [rules, setRules] = useState<string | null>(null);
   const [tab, setTab] = useState<DsKind>('color');
+  // Remove profile asks first in the footer: Esc or Cancel goes back to the link, Remove deletes.
+  const [confirming, setConfirming] = useState(false);
+  const removeLink = useRef<HTMLButtonElement>(null);
+  const cancelRemove = useRef<HTMLButtonElement>(null);
+  const done = useRef<HTMLButtonElement>(null);
+  const stopConfirm = () => { setConfirming(false); requestAnimationFrame(() => removeLink.current?.focus()); };
+  useEffect(() => { if (confirming) cancelRemove.current?.focus(); }, [confirming]);
+  useDialogFocus(true, box, () => (confirming ? stopConfirm() : onClose()));
 
   const load = () => getJson<View>('/api/design-system/view').then(setView).catch((e) => setError((e as Error).message));
   useEffect(() => { void load(); }, []);
@@ -43,7 +53,8 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
       const r = await changeDs(body);
       setView((v) => ({ ds: r.ds, skills: v?.skills ?? [] }));
       if (body.action === 'skills' || body.action === 'starter') void load();
-      setSaid(r.costUsd ? `${done} Cost: $${r.costUsd.toFixed(3)}.` : done);
+      const line = `${done}${keptLine(r.kept)}`;
+      setSaid(r.costUsd ? `${line} Cost: $${r.costUsd.toFixed(3)}.` : line);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -195,11 +206,21 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
           {error && <p className="dse-error" role="alert"><span className="mk blocking" aria-hidden="true" />{error}</p>}
           <p className="sr-only" role="status">{said}</p>
         </div>
-        <div className="dse-foot">
-          {ds ? <button className="dse-link danger" disabled={!!busy} onClick={() => run('clear', { action: 'clear' }, 'Profile removed. Designs and reviews carry on without one.')}>Remove profile</button> : <span />}
-          <span className="dse-said" aria-hidden="true">{said}</span>
-          <button className="primary" onClick={onClose}>Done</button>
-        </div>
+        {confirming ? (
+          <div className="dse-foot dse-confirm" role="group" aria-labelledby={`${titleId}-rm`}>
+            <span id={`${titleId}-rm`} className="dse-confirm-q">Remove the profile? Its sources, found items and principles are deleted. Your rule files stay.</span>
+            <div className="dse-row">
+              <button ref={cancelRemove} onClick={stopConfirm}>Cancel</button>
+              <button className="destructive" disabled={!!busy} onClick={() => void run('clear', { action: 'clear' }, 'Profile removed. Designs and reviews carry on without one.').then(() => { setConfirming(false); requestAnimationFrame(() => done.current?.focus()); })}>Remove profile</button>
+            </div>
+          </div>
+        ) : (
+          <div className="dse-foot">
+            {ds ? <button ref={removeLink} className="dse-link danger" disabled={!!busy} onClick={() => setConfirming(true)}>Remove profile</button> : <span />}
+            <span className="dse-said" aria-hidden="true">{said}</span>
+            <button ref={done} className="primary" onClick={onClose}>Done</button>
+          </div>
+        )}
       </div>
     </div>
   );

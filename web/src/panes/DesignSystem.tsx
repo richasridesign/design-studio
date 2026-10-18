@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getJson, send, useRev, useStore } from '../store';
+import { getJson, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
+import { IconButton } from '../Tip';
 import { Rules } from './Rules';
 import { Section } from '../Section';
 import { FORMATS, type TokenFormat } from '../tokens';
@@ -30,9 +31,9 @@ function ExportTokens({ ds }: { ds: DS }) {
   return (
     <section className="side-section token-export">
       <div className="side-label">Export tokens</div>
-      <div className="seg">
+      <div className="seg" role="group" aria-label="Token format">
         {(Object.keys(FORMATS) as TokenFormat[]).map((k) => (
-          <button key={k} className={k === format ? 'on' : ''} onClick={() => setFormat(k)}>{FORMATS[k].label}</button>
+          <button key={k} aria-pressed={k === format} className={k === format ? 'on' : ''} onClick={() => setFormat(k)}>{FORMATS[k].label}</button>
         ))}
       </div>
       <pre className="token-code" tabIndex={0}>{code}</pre>
@@ -46,7 +47,6 @@ function ExportTokens({ ds }: { ds: DS }) {
 
 export function DesignSystem() {
   const chat = useStore((s) => s.session.id);
-  const running = useStore((s) => s.session.running);
   const figma = useStore((s) => s.session.figma);
   const rev = useRev('design-system.json');
   const [ds, setDs] = useState<DS | null>(null);
@@ -57,10 +57,26 @@ export function DesignSystem() {
   }, [chat, rev]);
 
   const match = (s: string) => !q || s.toLowerCase().includes(q.toLowerCase());
-  const rebuild = () => send({ type: 'prompt', text: '/system' });
   const [editing, setEditing] = useState<false | true | 'code'>(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Reads the file quietly through the Figma plugin, the same read as Read again in the editor. Nothing goes in the chat.
+  const [reading, setReading] = useState(false);
+  const [readSaid, setReadSaid] = useState('');
+  const readFigma = async () => {
+    setReading(true);
+    setReadSaid('');
+    try {
+      const r = await changeDs({ action: 'figma' });
+      setDs(r.ds);
+      const src = r.ds?.sources?.find((x) => x.kind === 'figma');
+      setReadSaid(src && 'error' in src && src.error ? `Could not read the Figma file: ${src.error}` : `Read the Figma file.${r.costUsd ? ` Cost: $${r.costUsd.toFixed(3)}.` : ''}`);
+    } catch (e) {
+      setReadSaid((e as Error).message);
+    } finally {
+      setReading(false);
+    }
+  };
   const start = async (id: string) => {
     setBusy(true);
     setError('');
@@ -107,8 +123,13 @@ export function DesignSystem() {
         </div>
         <div className="ds-meta">
           <span>{[ds.libraries.join(', '), ds.tokens === false ? 'Lo-fi: no token checks' : ''].filter(Boolean).join(' · ') || `${(ds.sources ?? []).length} ${(ds.sources ?? []).length === 1 ? 'source' : 'sources'}`}</span>
-          {figma && <button className="icon-btn" title="Read the Figma file again" aria-label="Read the Figma file again" disabled={running} onClick={rebuild}><Icon name="sync" small /></button>}
+          {figma && (
+            <IconButton className="icon-btn" label={reading ? 'Reading the Figma file' : (ds.sources ?? []).some((x) => x.kind === 'figma') ? 'Read the Figma file again' : 'Read variables and components from Figma'} disabled={reading} onClick={() => void readFigma()}>
+              <Icon name={reading ? 'loading' : 'sync'} small spin={reading} />
+            </IconButton>
+          )}
         </div>
+        <p className="ds-read" role="status">{reading ? 'Reading through the Figma plugin…' : readSaid}</p>
         <input placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
       </section>
       <section className="side-section">
