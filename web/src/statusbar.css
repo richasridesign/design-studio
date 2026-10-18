@@ -15,3 +15,5 @@
 .statusbar .sb-faint { color: var(--fg-faint); }
 .statusbar .sb-limit.warn { color: var(--warn); }
 .statusbar .sb-limit.bad { color: var(--err); }
+.statusbar .sb-link { min-height: 0; height: 24px; padding: 0 4px; margin-left: -12px; background: none; border: 0; color: var(--link); font-size: var(--text-xs); }
+.statusbar .sb-link:hover { text-decoration: underline; }

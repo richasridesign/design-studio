@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useStore } from './store';
+import { useEffect, useRef, useState } from 'react';
+import { send, useStore } from './store';
 import type { PlanLimit } from '../../shared/protocol';
 import { Icon } from './Icon';
 import { SpendPill } from './SpendPill';
@@ -16,6 +16,30 @@ const FIGMA: Record<string, [tone: string, label: string]> = {
 export function figmaState(mcp: { name: string; status: string }[]): [tone: string, label: string] {
   const row = mcp.find((m) => /figma/i.test(m.name));
   return row ? FIGMA[row.status] ?? ['off', 'Off'] : ['off', 'Not set up'];
+}
+
+export const RETRY_MS = 30_000;
+
+export const shouldRetry = (status: string | undefined, last: number, now: number) =>
+  (status === 'needs-auth' || status === 'failed') && now - last >= RETRY_MS;
+
+function useFigmaRetry(row: { name: string; status: string } | undefined) {
+  const last = useRef(0);
+  useEffect(() => {
+    if (!row || !shouldRetry(row.status, 0, RETRY_MS)) return;
+    const retry = () => {
+      const now = Date.now();
+      if (document.visibilityState !== 'visible' || !shouldRetry(row.status, last.current, now)) return;
+      last.current = now;
+      send({ type: 'mcp_reconnect', name: row.name, quiet: true });
+    };
+    window.addEventListener('focus', retry);
+    document.addEventListener('visibilitychange', retry);
+    return () => {
+      window.removeEventListener('focus', retry);
+      document.removeEventListener('visibilitychange', retry);
+    };
+  }, [row?.name, row?.status]);
 }
 
 export function cacheLeft(cache: { at: number; ttlMs: number } | null, now: number) {
@@ -52,12 +76,24 @@ export function StatusBar() {
   }, [left > 0, cache?.at]);
 
   const [tone, label] = figmaState(mcp);
+  const figma = mcp.find((m) => /figma/i.test(m.name));
+  useFigmaRetry(figma);
+  const stuck = figma && (figma.status === 'needs-auth' || figma.status === 'failed');
 
   return (
     <footer className="statusbar desktop-only">
       <button className="sb-item" title="Figma connection, open MCP servers" onClick={openMcp}>
         <span className={`sb-dot ${tone}`} aria-hidden="true" /> Figma: {label}
       </button>
+      {stuck && (
+        <button
+          className="sb-link"
+          title={figma.status === 'needs-auth' ? 'Log in first: run claude in a terminal, type /mcp, pick the Figma plugin. Design Studio also tries again when you come back to this window.' : 'Reconnect Figma now. Design Studio also tries again when you come back to this window.'}
+          onClick={() => { send({ type: 'mcp_reconnect', name: figma.name }); }}
+        >
+          Try again
+        </button>
+      )}
       <span className="spacer" />
       {left > 0 && (
         <span className="sb-item" title="Claude keeps this chat in its prompt cache for a few minutes. Messages sent before it runs out cost less.">

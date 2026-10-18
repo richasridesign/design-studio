@@ -470,7 +470,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         void chat.refreshMcp();
         break;
       case 'mcp_reconnect':
-        void chat.reconnectMcp(String(msg.name));
+        void chat.reconnectMcp(String(msg.name), Boolean(msg.quiet));
         break;
       case 'mcp_toggle':
         void chat.toggleMcp(String(msg.name), Boolean(msg.enabled));

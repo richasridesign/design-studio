@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cacheLeft, figmaState, limitText } from './StatusBar';
+import { RETRY_MS, cacheLeft, figmaState, limitText, shouldRetry } from './StatusBar';
 
 describe('figmaState', () => {
   it('reads the Figma plugin status', () => {
@@ -28,5 +28,14 @@ describe('limitText', () => {
   it('warns near the limit and says when it is reached', () => {
     expect(limitText({ kind: 'seven_day', used: 0.85, resetsAt: null, status: 'allowed' }).tone).toBe('warn');
     expect(limitText({ kind: 'five_hour', used: 1, resetsAt: null, status: 'rejected' })).toMatchObject({ label: '5-hour limit: reached', tone: 'bad' });
+  });
+});
+
+describe('shouldRetry', () => {
+  it('retries a Figma login or failure, at most every 30 seconds', () => {
+    expect(shouldRetry('needs-auth', 0, RETRY_MS)).toBe(true);
+    expect(shouldRetry('failed', 1000, 1000 + RETRY_MS - 1)).toBe(false);
+    expect(shouldRetry('connected', 0, RETRY_MS)).toBe(false);
+    expect(shouldRetry(undefined, 0, RETRY_MS)).toBe(false);
   });
 });
