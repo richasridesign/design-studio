@@ -101,6 +101,28 @@ describe('auto check after chat edits', () => {
     expect(frames).not.toContain('6:1');
   });
 
+  it('puts frames a call created ahead of ids a read named in its script', async () => {
+    // A read names 22 screens in its script, then a call creates two new frames: their ids only come back in its result.
+    const named = Array.from({ length: 22 }, (_, i) => `7:${i + 1}`);
+    vi.mocked(framesContaining).mockImplementationOnce(async (_d, _k, ids) => ids);
+    const s = new AgentSession('/tmp/project', { key: 'AbC123', name: 'Checkout', url: 'https://www.figma.com/design/AbC123' });
+    const handle = (m: unknown) => (s as unknown as { handle: (m: unknown) => void }).handle(m);
+    (s as unknown as { turns: number }).turns = 1;
+    const call = (id: string, code: string, result: string) => {
+      handle({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name: 'mcp__figma__use_figma', input: { code } }] } });
+      handle({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: id, content: result, is_error: false }] } });
+    };
+    call('t1', `return ${JSON.stringify(named)}.map((id) => figma.getNodeById(id)?.name)`, 'names');
+    call('t2', 'const a = figma.createFrame(); a.name = "Toast / Error"; const b = a.clone(); return [a.id, b.id]', '["8:1","8:2"]');
+    handle({ type: 'result', subtype: 'success', uuid: 'u1', result: 'done', total_cost_usd: 0, is_error: false });
+    await flush();
+    const ids = vi.mocked(framesContaining).mock.calls[0][2];
+    expect(ids.slice(0, 2)).toEqual(['8:2', '8:1']);
+    const frames = vi.mocked(runReview).mock.calls[0][0].frames;
+    expect(frames).toHaveLength(AUTO_CHECK_MAX);
+    expect(frames).toEqual(expect.arrayContaining(['8:1', '8:2']));
+  });
+
   it('checks nothing when the edit touched only a section', async () => {
     vi.mocked(framesContaining).mockResolvedValueOnce([]);
     chatTurn('mcp__figma__use_figma', 'AbC123', 'figma.getNodeByIdAsync("5:1")');

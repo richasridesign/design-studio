@@ -17,7 +17,7 @@ import { parseTone, runCopy, runCrit } from './crit.js';
 import { parseBuildArg, runBuildCheck } from './buildcheck.js';
 import { failedAreas, readDesign, readReview, runReview, toFix } from './review.js';
 import { settings } from './settings.js';
-import { TouchedIds, touchedIds } from './touched.js';
+import { TouchedIds, figmaEdits, touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
 import { readChatSteps } from './stages.js';
@@ -69,7 +69,8 @@ export class AgentSession {
 
   private liveText = new Map<string, string>();
   private edits = new Map<string, string>();
-  private figmaUses = new Set<string>();
+  /** Figma calls waiting for their result, by tool use id: true when the call's script creates or changes nodes. */
+  private figmaUses = new Map<string, boolean>();
   private figmaEdited = false;
   private touched = new TouchedIds();
   private liveMsgId = '';
@@ -1132,10 +1133,12 @@ export class AgentSession {
             const file = (block.input as { file_path?: unknown })?.file_path;
             if (EDIT_TOOLS.has(block.name) && typeof file === 'string') this.edits.set(block.id, file);
             if (/use_figma$/.test(block.name)) {
-              this.figmaUses.add(block.id);
-              this.touched.add(touchedIds(JSON.stringify(block.input ?? {})), true);
+              const code = (block.input as { code?: unknown })?.code;
+              const edits = typeof code === 'string' && figmaEdits(code);
+              this.figmaUses.set(block.id, edits);
+              this.touched.add(touchedIds(JSON.stringify(block.input ?? {})), edits ? 'edited' : 'named');
             } else if (block.name.endsWith('__set_status')) {
-              this.touched.add(touchedIds(JSON.stringify((block.input as { nodes?: unknown })?.nodes ?? [])), true);
+              this.touched.add(touchedIds(JSON.stringify((block.input as { nodes?: unknown })?.nodes ?? [])), 'edited');
             }
           }
         }
@@ -1151,9 +1154,11 @@ export class AgentSession {
           const edited = this.edits.get(block.tool_use_id);
           this.edits.delete(block.tool_use_id);
           if (edited && !block.is_error) this.noteFile(path.relative(this.cwd, edited), 'tool');
+          const edits = this.figmaUses.get(block.tool_use_id);
           if (this.figmaUses.delete(block.tool_use_id) && !block.is_error) {
             this.figmaEdited = true;
-            this.touched.add(touchedIds(toolResultText(block)), false);
+            // A call that created or changed nodes returns their ids (new frames have no id in the script): they rank as edited.
+            this.touched.add(touchedIds(toolResultText(block)), edits ? 'edited' : 'returned');
           }
           this.pushEvent({ id: randomUUID(), kind: 'tool_result', toolUseId: block.tool_use_id, text: toolResultText(block).slice(0, 4000), isError: Boolean(block.is_error), at: Date.now() });
         }
