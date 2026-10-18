@@ -47,13 +47,15 @@ export function mcpResult(row: Pick<McpServer, 'status' | 'error'> | undefined):
   return { tone: 'bad', detail: `Figma plugin: Not connected${row.error ? ` (${row.error})` : ''}`, fix: 'Add the Figma plugin to Claude again, then log in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
 }
 
-async function mcp(): Promise<CheckResult> {
+/** Checks the Figma plugin. `refresh` asks Figma again; without it the server's last answer is read, for places that
+ * only follow a check that just ran elsewhere. */
+async function mcp(refresh = true): Promise<CheckResult> {
   try {
     const config = await getJson<{ name: string }[]>('/api/mcp/config');
     if (!config.some((c) => /figma/i.test(c.name))) {
       return { tone: 'bad', detail: 'The Figma plugin is not installed in Claude', fix: 'Add the Figma plugin to Claude, then sign in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
     }
-    const rows = await getJson<McpServer[]>('/api/mcp/probe?refresh=1');
+    const rows = await getJson<McpServer[]>(refresh ? '/api/mcp/probe?refresh=1' : '/api/mcp/probe');
     return mcpResult(rows.find((r) => /figma/i.test(r.name))) ?? { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };
@@ -86,6 +88,8 @@ async function claude(): Promise<CheckResult> {
   }
 }
 
-export const CHECKS: Record<CheckId, () => Promise<CheckResult>> = { mcp, chrome, claude };
+export const CHECKS: Record<CheckId, () => Promise<CheckResult>> = { mcp: () => mcp(), chrome, claude };
+/** The Figma plugin's state from the server's last check, without asking Figma again. */
+export const lastMcp = () => mcp(false);
 
 export const addFigmaToClaude = () => postJson('/api/figma/mcp', {});

@@ -3,7 +3,7 @@ import { approvalReply } from '../../../shared/stages';
 import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
 import { FIX_ASK } from './Stages';
 import { getJson, setUi, useRev, useStore } from '../store';
-import { CHECKS } from '../setupChecks';
+import { CHECKS, lastMcp } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
@@ -62,17 +62,19 @@ function SetupBanner() {
   const [problem, setProblem] = useState<{ tone: 'warn' | 'bad'; text: string; login: boolean } | null>(null);
   useEffect(() => {
     let live = true;
-    const run = () => void CHECKS.mcp().then((r) => {
+    // On open it checks; after a check elsewhere (Settings, the login dialog) it reads that result instead of asking again.
+    const run = (fresh: boolean) => void (fresh ? CHECKS.mcp() : lastMcp()).then((r) => {
       const c = r.tone !== 'ok' && !r.optional ? r : undefined;
       if (!live) return;
       // Needing login, the login lives in the Log in to Figma dialog, so the notice keeps one short line and one action.
       const login = c?.fixId === 'figma-login';
       setProblem(c && c.tone !== 'ok' ? { tone: c.tone, text: login ? `${c.detail}.` : [c.detail, c.fix].filter(Boolean).join('. ').replace(/\.\./g, '.'), login } : null);
     });
-    run();
+    run(true);
     // Try again in the login dialog checks again, so the notice goes once Figma connects.
-    window.addEventListener(RECHECK, run);
-    return () => { live = false; window.removeEventListener(RECHECK, run); };
+    const after = () => run(false);
+    window.addEventListener(RECHECK, after);
+    return () => { live = false; window.removeEventListener(RECHECK, after); };
   }, []);
   if (!problem) return null;
   return (
