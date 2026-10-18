@@ -1,17 +1,17 @@
-/* Each stage has its own pastel tint and vivid accent. Both are decoration: the state stays in the mark's shape and the label. */
-.st-spec { --st-tint: var(--tint-blue); --st-vivid: var(--ink-blue); }
-.st-explore { --st-tint: var(--tint-lavender); --st-vivid: var(--vivid-lavender); }
-.st-decide { --st-tint: var(--tint-amber); --st-vivid: var(--vivid-amber); }
-.st-build { --st-tint: var(--tint-green); --st-vivid: var(--vivid-green); }
-.st-validate { --st-tint: var(--tint-pink); --st-vivid: var(--vivid-pink); }
-.st-ship { --st-tint: var(--tint-peach); --st-vivid: var(--vivid-terracotta); }
+/* Each stage has its own pastel tint, a vivid bar and a deeper ink for the pill outline. Both are decoration: the state stays in the mark's shape and the label. */
+.st-spec { --st-tint: var(--tint-blue); --st-vivid: var(--ink-blue); --st-ink: var(--ink-blue); }
+.st-explore { --st-tint: var(--tint-lavender); --st-vivid: var(--vivid-lavender); --st-ink: var(--ink-lavender); }
+.st-decide { --st-tint: var(--tint-amber); --st-vivid: var(--vivid-amber); --st-ink: var(--ink-orange); }
+.st-build { --st-tint: var(--tint-green); --st-vivid: var(--vivid-green); --st-ink: var(--ink-green); }
+.st-validate { --st-tint: var(--tint-pink); --st-vivid: var(--vivid-pink); --st-ink: var(--ink-pink); }
+.st-ship { --st-tint: var(--tint-peach); --st-vivid: var(--vivid-terracotta); --st-ink: var(--ink-terracotta); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Chat header button: the current stage. */
 .stage-btn {
   margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 12px;
-  border: 1px solid color-mix(in srgb, var(--st-vivid, var(--border)) 55%, transparent); border-radius: var(--radius-pill); background: var(--st-tint, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--st-ink, var(--border)) 45%, transparent); border-radius: var(--radius-pill); background: var(--st-tint, var(--bg));
   font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
 }
 .stage-btn b { font-weight: 600; color: var(--fg); }
@@ -39,7 +39,7 @@
 }
 .stage-rail button:hover { background: var(--bg-hover); color: var(--fg); }
 .stage-rail button { border-radius: var(--radius-pill); }
-.stage-rail .shown button { background: var(--st-tint); color: var(--fg); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-vivid) 55%, transparent); }
+.stage-rail .shown button { background: var(--st-tint); color: var(--fg); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-ink) 45%, transparent); }
 .stage-rail .approved + .stage-line, .stage-rail li.approved .stage-line { background: var(--ok); }
 .stage-rail .later .stage-name { color: var(--fg-muted); }
 .stage-line { flex: 1 1 8px; min-width: 8px; height: 1px; background: var(--border-strong); }
