@@ -281,7 +281,7 @@ export function App() {
           <div className="sidebar-title">{(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}</div>
           {tab === 'more' && (
             <div className="side-switch mobile-only">
-              {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} onClick={() => setView(v.id)}>{v.title}</button>)}
+              {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
               {content.decisions && <button onClick={() => open('decisions')}>Decisions</button>}
               <button onClick={() => setSettings(true)}>Settings</button>
             </div>
