@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
-import { currentOption, modelLabel } from '../../../shared/models';
+import { currentOption, modelLabel, pickerOptions } from '../../../shared/models';
 
 /** Composer pill that switches the model for the next chat turn. */
 export function ModelPicker() {
@@ -42,7 +42,7 @@ export function ModelPicker() {
       </button>
       {open && (
         <div className="cp-modepop" role="menu" aria-label="Model">
-          {models.map((m) => (
+          {pickerOptions(model, models).map((m) => (
             <button key={m.value} role="menuitemradio" aria-checked={m.value === current?.value} className={m.value === current?.value ? 'active' : ''} onClick={() => pick(m.value)}>
               <Icon name={m.value === current?.value ? 'check' : 'blank'} small />
               <span className="cp-modetext"><b>{m.displayName}</b>{m.description && <span>{m.description}</span>}</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentOption, family, modelLabel } from './models';
+import { currentOption, family, modelLabel, pickerOptions } from './models';
 
 const opts = [
   { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5' },
@@ -25,5 +25,11 @@ describe('models', () => {
     expect(modelLabel('default', opts)).toBe('Opus');
     expect(modelLabel('custom', [{ value: 'custom', displayName: 'Custom' }])).toBe('Custom');
     expect(modelLabel(null, [])).toBe('Model');
+    expect(modelLabel(null, opts)).toBe('Opus');
+  });
+  it('lists aliases, plus a pinned current model', () => {
+    const all = [...opts, { value: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6' }];
+    expect(pickerOptions('sonnet', all).map((o) => o.value)).toEqual(['default', 'sonnet', 'haiku']);
+    expect(pickerOptions('claude-sonnet-4-6', all).map((o) => o.value)).toEqual(['default', 'sonnet', 'haiku', 'claude-sonnet-4-6']);
   });
 });
