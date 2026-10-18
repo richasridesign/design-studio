@@ -28,7 +28,10 @@
 .steps-marks .step-mark:not(.done):not(.skipped) { border-width: 1.5px; }
 .steps-marks .step-mark.skipped { border-width: 1.5px; }
 .steps-marks .step-mark.next::after { width: 4px; height: 4px; }
-.steps-marks .step-mark .codicon { font-size: 8px; }
+/* At 12px the marks are too small for an icon glyph, so the check and the dash are drawn. */
+.steps-marks .step-mark .codicon { display: none; }
+.steps-marks .step-mark.done::after { content: ''; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg); }
+.steps-marks .step-mark.skipped::after { content: ''; width: 6px; height: 1.5px; border-radius: 1px; background: var(--fg-muted); }
 .steps-kind { overflow: hidden; text-overflow: ellipsis; }
 @container chathead (max-width: 480px) { .steps-kind { display: none; } }
 @container chathead (max-width: 400px) { .steps-marks { display: none; } }
@@ -39,6 +42,13 @@
   display: grid; gap: 8px; margin: 0 0 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
 }
 .steps-panel ~ .tr { min-height: 144px; }
+/* With the panel open the conversation scrolls right under it: fade the top 24px (one line, kept as padding at the top
+   of the conversation) so a half line never looks cut off. */
+.steps-panel ~ .tr { padding-top: 24px; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px); mask-image: linear-gradient(to bottom, transparent, #000 24px); }
+
+/* Add to Up next (Brief.tsx): a 24px target at least, 36px on a phone like mobile.css. */
+.up-next .step.add .link { min-height: 24px; }
+@media (max-width: 900px) { .up-next .step.add .link { min-height: 36px; } }
 
 /* Kind of work: one line, a select with a drawn arrow 12px from the right, like the 12px text inset on the left. */
 .steps-kind-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--text-sm); line-height: 20px; }
