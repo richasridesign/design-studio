@@ -19,7 +19,7 @@
 .stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--ok); color: #fff; }
 .stage-rail .approved .stage-mark .codicon { font-size: 12px; }
 
-.stage-panel { container-type: inline-size; flex: none; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.stage-panel { container-type: inline-size; flex: none; max-height: min(440px, 40vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 
 /* Rail: six stages joined by lines. Scrolls sideways on narrow screens. */
 .stage-rail { display: flex; align-items: center; margin: 0 0 16px; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
@@ -55,6 +55,9 @@
 .gate-note-field { display: grid; gap: 4px; font-size: var(--text-sm); line-height: 20px; }
 .gate-note-field span { font-weight: 600; }
 .gate-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+/* Approve stays in view while the panel scrolls. */
+.gate-foot { position: sticky; bottom: -16px; z-index: 1; margin-bottom: -16px; padding-bottom: 16px; background: var(--bg); }
+@media (max-width: 900px) { .gate-foot { bottom: -12px; margin-bottom: -12px; padding-bottom: 12px; } }
 .gate-act, .gate-done { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: var(--text-sm); line-height: 20px; }
 .gate-act button { min-height: 36px; }
 .gate-done .link, .gate-act .link { min-height: 24px; }
