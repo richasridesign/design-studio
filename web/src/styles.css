@@ -38,12 +38,12 @@
   --claude-button: var(--accent);
   --serif: ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
   --mono: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
-  --text-xs: 13px;
+  --text-xs: 12px;
   --text-sm: 14px;
   --text-md: 16px;
   --text-lg: 18px;
-  --text-xl: 22px;
-  --text-2xl: 28px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
   --row: 36px;
 
   --side: var(--bg-raised);
