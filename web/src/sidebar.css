@@ -139,3 +139,11 @@
 .sessions.chats .tree .row.live.two > .dot { margin-top: 5px; }
 .sessions.chats .tree .row.recent { padding-left: 48px; }
 .sessions.chats .tree .hint { padding: 8px 12px 8px 48px; }
+
+/* At the 160px default the design system list stacks: swatch on the left, the full name above its value. Names wrap, never cut. */
+.ds .ds-head .ds-name { white-space: normal; overflow-wrap: anywhere; }
+.ds .swatches li { grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; row-gap: 0; align-items: start; }
+.ds .swatches .swatch { grid-row: span 2; align-self: center; }
+.ds .swatches .sw-name { white-space: normal; overflow-wrap: break-word; font-size: var(--text-sm); line-height: 20px; }
+.ds .swatches .sw-value { line-height: 16px; }
+.ds .comp-list .name { overflow-wrap: anywhere; }
