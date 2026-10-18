@@ -14,6 +14,7 @@ import { useOutline } from '../outline';
 import { LongRunButton } from './LongRun';
 import { ModelPicker } from './ModelPicker';
 import { focusChecked, menuKeys } from '../press';
+import { useTip } from '../Tip';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -206,6 +207,8 @@ export function Composer() {
   const commands = useMemo(() => withRecipes(serverCommands, RECIPES, customRecipes.map(toRecipe)), [serverCommands, customRecipes]);
   const [modeOpen, setModeOpen] = useState(false);
   const modePop = useRef<HTMLDivElement>(null);
+  const modeBtn = useRef<HTMLButtonElement>(null);
+  const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
   const [sel, setSel] = useState(0);
@@ -280,7 +283,7 @@ export function Composer() {
     if (!modeOpen) return;
     focusChecked(modePop.current);
     const down = (e: MouseEvent) => { if (!(e.target as Element).closest('.cp-mode')) setModeOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); ta.current?.focus(); } };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); modeBtn.current?.focus(); } };
     document.addEventListener('mousedown', down);
     document.addEventListener('keydown', key);
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
@@ -501,7 +504,7 @@ export function Composer() {
         </div>
         <div className="cp-foot">
           <div className="cp-mode">
-            <button className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
+            <button ref={modeBtn} className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
               <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
             </button>
             {modeOpen && (
@@ -551,7 +554,8 @@ export function Composer() {
       <div className="cp-under">
         {hint && <span className="cp-hint">{hint}</span>}
         <span className="cp-stats">
-          {pct !== null && <span className={level} title={`${context!.toLocaleString()} tokens in context. Compact once it passes ${COMPACT_AT / 1000}k.`}>{pct}% context</span>}
+          {pct !== null && <span {...memoryTip.props} tabIndex={0} className={level} aria-describedby={memoryTip.open ? memoryTip.id : undefined}>Memory used: {pct}%</span>}
+          {memoryTip.tip}
           {edited > 0 && <span>{edited} {edited === 1 ? 'file' : 'files'} edited</span>}
         </span>
       </div>

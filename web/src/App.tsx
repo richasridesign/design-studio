@@ -22,7 +22,8 @@ import { useDialogFocus } from './useDialog';
 import { FilePill } from './AttachFile';
 import { ConnectPopover } from './ConnectPopover';
 import { McpItem, McpPage } from './panes/McpStatus';
-import { StatusBar, runningText } from './StatusBar';
+import { FigmaItem, StatusBar, runningText } from './StatusBar';
+import { IconButton } from './Tip';
 import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
 import { Research } from './panes/Research';
@@ -106,7 +107,7 @@ function Dialog({ title, onClose, extra, wide, children }: { title: string; onCl
       <div ref={box} className={`settings-dialog${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="settings-dialog-head">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-btn" title="Close" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
+          <IconButton label="Close" onClick={onClose}><Icon name="close" /></IconButton>
         </div>
         <div className="settings-dialog-body">{extra && <div id={extra} className="dialog-extra" />}{children}</div>
       </div>
@@ -276,23 +277,28 @@ export function App() {
         <span className={`run-state ${session.running ? 'busy' : ''}`}>
           <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} /> <span className="label">{session.running ? runningText(status) : 'Idle'}</span>
         </span>
-        <span className="mobile-only top-meta"><SpendPill /><McpItem /></span>
-        {canNotify && <button className="icon-btn" title={notifying ? 'Notifications on' : 'Notify me when Claude finishes or needs me'} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></button>}
-        <button className="icon-btn phone-btn" title="Open on phone" onClick={() => setPhone((v) => !v)}><Icon name="device-mobile" /></button>
-        <button className={`icon-btn ${settings ? 'active' : ''}`} title="Settings" onClick={() => setSettings(true)}><Icon name="settings-gear" /></button>
+        <span className="mobile-only top-meta"><ErrorBoundary label="cost"><SpendPill /></ErrorBoundary>{dev ? <McpItem /> : <FigmaItem />}</span>
+        {canNotify && <IconButton label="Notify me" tip={notifying ? 'Notifications on: Claude tells you when it finishes or needs you' : 'Notify me when Claude finishes or needs me'} aria-pressed={notifying} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></IconButton>}
+        <IconButton label="Open on phone" className="icon-btn phone-btn" aria-haspopup="dialog" aria-expanded={phone} onClick={() => setPhone((v) => !v)}><Icon name="device-mobile" /></IconButton>
+        <IconButton label="Settings" tip="Settings (⌘,)" aria-keyshortcuts="Meta+Comma" className={`icon-btn ${settings ? 'active' : ''}`} onClick={() => setSettings(true)}><Icon name="settings-gear" /></IconButton>
         {!connected && <span className="error-text">Disconnected</span>}
       </header>
       <div className="body">
-        <aside className="activitybar desktop-only">
-          {views.map((v) => (
-            <button key={v.id} className={sidebar && view === v.id ? 'active' : ''} title={v.title} onClick={() => showView(v.id)}>
-              <Icon name={v.icon} />
-              {v.id === 'chats' && elsewhere > 0 && <span className="badge">{elsewhere}</span>}
-            </button>
-          ))}
-        </aside>
+        <nav className="activitybar desktop-only" aria-label="Views">
+          {views.map((v) => {
+            const badge = v.id === 'chats' && elsewhere > 0;
+            return (
+              <IconButton key={v.id} label={v.title} place="right" className={`${sidebar && view === v.id ? 'active' : ''}${badge ? ' has-alert' : ''}`} aria-pressed={sidebar && view === v.id}
+                aria-describedby={badge ? 'chats-badge' : undefined} onClick={() => showView(v.id)}>
+                <Icon name={v.icon} />
+                {badge && <span className="badge"><span aria-hidden="true">{elsewhere}</span><span id="chats-badge" className="sr-only">{elsewhere === 1 ? '1 chat needs you' : `${elsewhere} chats need you`}</span></span>}
+              </IconButton>
+            );
+          })}
+        </nav>
 
-        <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() && tab === 'more' ? 'More' : undefined}>
+        {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
+        <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
           <div className="sidebar-title">{(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}</div>
           {tab === 'more' && (
             <div className="side-switch mobile-only">
@@ -307,7 +313,7 @@ export function App() {
         </section>
 
         {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}
-        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={narrow() && isMobileCenter(tab) ? 'Panels' : undefined}>
+        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() || isMobileCenter(tab) ? 'Panels' : undefined}>
           <div className="tabs">
             {/* Tabs for screen readers: arrows move between tabs, Enter or Space opens one. */}
             <div role="tablist" aria-label="Panels" style={{ display: 'contents' }} onKeyDown={tabKeys}>
@@ -320,7 +326,7 @@ export function App() {
               ))}
             </div>
             <span className="spacer" />
-            <button className="icon-btn focus-btn desktop-only" title={focusMode ? 'Exit focus mode (⌘.)' : 'Focus mode (⌘.)'} onClick={toggleFocus}><Icon name={focusMode ? 'screen-normal' : 'screen-full'} small /></button>
+            <IconButton label="Focus mode" tip={focusMode ? 'Exit focus mode (⌘.)' : 'Focus mode (⌘.)'} aria-pressed={focusMode} aria-keyshortcuts="Meta+Period" className="icon-btn focus-btn desktop-only" onClick={toggleFocus}><Icon name={focusMode ? 'screen-normal' : 'screen-full'} small /></IconButton>
           </div>
           <ErrorBoundary label="panel">
           <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`} id="panel-figma" role="tabpanel" aria-labelledby="tab-figma">{shownCenter === 'figma' && <BrowserPane />}</div>
@@ -336,7 +342,7 @@ export function App() {
               <span>{PHASE_LABEL[phase ?? ''] ?? 'No design run'}</span>
               <span className="sep">·</span>
               <span>{session.running ? 'Running' : 'Idle'}</span>
-              <button className="icon-btn" title="Exit focus mode (⌘.)" onClick={toggleFocus}><Icon name="screen-normal" small /></button>
+              <IconButton label="Exit focus mode" tip="Exit focus mode (⌘.)" aria-keyshortcuts="Meta+Period" place="top" onClick={toggleFocus}><Icon name="screen-normal" small /></IconButton>
             </div>
           )}
           {dev && (
@@ -356,14 +362,16 @@ export function App() {
         </main>
       </div>
 
-      <StatusBar />
+      <ErrorBoundary label="status bar">
+        <StatusBar />
+      </ErrorBoundary>
 
-      <nav className="tabbar mobile-only">
+      <nav className="tabbar mobile-only" aria-label="Sections">
         {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['sketch', 'edit', 'Sketch'], ['review', 'checklist', 'Review'], ['more', 'ellipsis', 'More']] as const).filter(([id]) => id === 'chat' || id === 'more' || content[id] || tab === id).map(([id, icon, label]) => (
-          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') { setCenter(id); setOpened(true); } }}>
+          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'decisions') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') { setCenter(id); setOpened(true); } }}>
             <Icon name={icon} />
             <span>{label}</span>
-            {id === 'chat' && pendingCount > 0 && <span className="badge">{pendingCount}</span>}
+            {id === 'chat' && pendingCount > 0 && <span className="badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{pendingCount === 1 ? ', 1 request waiting' : `, ${pendingCount} requests waiting`}</span></span>}
           </button>
         ))}
       </nav>

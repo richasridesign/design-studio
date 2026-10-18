@@ -1,0 +1,11 @@
+/* Shared tooltip for icon-only buttons. Above overlays (10) and popovers (41). */
+.tip {
+  position: fixed; z-index: 1000; max-width: 280px; padding: 4px 8px;
+  font-size: var(--text-xs); line-height: 16px; font-weight: 400; white-space: normal;
+  color: var(--on-accent); background: var(--fg); border-radius: var(--radius-sm, 8px); box-shadow: var(--shadow-md);
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tip { animation: tip-in 0.12s ease-out; }
+}
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }

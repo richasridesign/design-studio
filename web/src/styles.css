@@ -94,6 +94,7 @@
   --yellow: var(--warn);
 }
 * { box-sizing: border-box; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--bg);
@@ -193,7 +194,7 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
   display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 5px;
   border-radius: 8px; background: var(--border-strong); color: var(--fg); font-size: var(--text-xs); line-height: 16px; font-weight: 600; text-transform: none;
 }
-.badge.waiting, .activitybar button[title='Chats'] .badge, .tabbar .badge { background: var(--warn); color: var(--bg); }
+.badge.waiting, .activitybar button.has-alert .badge, .tabbar .badge { background: var(--warn); color: var(--bg); }
 .badge.running { background: var(--accent); color: var(--on-accent); }
 .badge.running::before { content: ''; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: currentColor; }
 
