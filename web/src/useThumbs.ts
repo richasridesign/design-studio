@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getJson } from './store';
+import { api, getJson } from './store';
 
 const cache = new Map<string, { rev: number; url: string | null }>();
 
@@ -15,7 +15,8 @@ export function useThumbs(file: string | undefined, want: Array<[string, number]
     const rev = Math.max(...stale.map(([, r]) => r));
     getJson<Record<string, string | null>>(`/api/figma/thumbs?ids=${ids}&r=${rev}`)
       .then((urls) => {
-        for (const [id, r] of stale) cache.set(`${file}|${id}`, { rev: r, url: urls[id] ?? null });
+        // The server saves thumbnails in the chat folder and sends their paths there.
+        for (const [id, r] of stale) cache.set(`${file}|${id}`, { rev: r, url: urls[id] ? api(urls[id]!) : null });
         if (live) bump((n) => n + 1);
       })
       .catch(() => {});

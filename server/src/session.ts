@@ -22,6 +22,7 @@ import { readRules, rulesBlock } from './rules.js';
 import { readApprovals } from './stages.js';
 import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
+import { refreshOutlineSoon } from './figmaCache.js';
 import { SAMPLE_KEY } from './figma.js';
 import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
 
@@ -508,8 +509,8 @@ export class AgentSession {
       this.system(`Design system profile built: ${r.ds.colors.length} colors, ${r.ds.text.length} text styles, ${r.ds.components.length} components (${Math.round(r.tokens / 1000)}k tokens)`);
     });
     if (cmd === 'audit') return this.background('Checking the whole file', async () => {
-      const { fileOutline } = await import('./figma.js');
-      const frames = (await fileOutline(this.figma!.key)).pages.flatMap((p) => p.frames.map((f) => f.id));
+      const { fileOutline } = await import('./figmaCache.js');
+      const frames = (await fileOutline(this.cwd, this.figma!.key, { fresh: true })).pages.flatMap((p) => p.frames.map((f) => f.id));
       if (!frames.length) return this.system('Audit: the file has no top-level frames');
       const run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset: 'check', areas: [], round: 0, kind: 'audit' });
       this.recordBackground('review', run);
@@ -841,17 +842,19 @@ export class AgentSession {
     this.touched.clear();
     this.figmaUses.clear();
     const key = this.figma?.key;
-    if (!edited || flowing || isActive(this.state.session.longRun) || !key || key === SAMPLE_KEY || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
+    if (!edited || !key || key === SAMPLE_KEY) return;
+    // The saved outline is read again after any run that edited the file; the auto check reads it itself.
+    if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return refreshOutlineSoon(this.cwd, key);
     void this.checkEdited(key, touched);
   }
 
   private async checkEdited(key: string, touched: string[]) {
-    if (!(await settings().catch(() => null))?.autoCheck) return;
+    if (!(await settings().catch(() => null))?.autoCheck) return refreshOutlineSoon(this.cwd, key);
     try {
       this.setStatus('Checking edited frames');
-      const { fileOutline, framesContaining } = await import('./figma.js');
-      const all = (await fileOutline(key)).pages.flatMap((p) => p.frames.map((f) => f.id));
-      const hit = await framesContaining(key, all, touched).catch(() => all.filter((id) => touched.includes(id)));
+      const { fileOutline, framesContaining } = await import('./figmaCache.js');
+      const all = (await fileOutline(this.cwd, key, { fresh: true })).pages.flatMap((p) => p.frames.map((f) => f.id));
+      const hit = await framesContaining(this.cwd, key, all, touched).catch(() => all.filter((id) => touched.includes(id)));
       const frames = hit.length ? hit : all;
       if (!frames.length) return;
       const run = await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit' });

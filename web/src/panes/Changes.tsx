@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getJson, useStore } from '../store';
+import { api, getJson, useStore } from '../store';
 import { ReviewArt, Empty } from './Empty';
 import type { DesignDoc } from '../../../shared/design';
 import { useOutlineVersion, getOutline, type Outline } from '../outline';
@@ -119,7 +119,7 @@ function Compare({ version, frameId, fileKey }: { version: Version; frameId: str
   useEffect(() => {
     setAfter(undefined);
     setError('');
-    getJson<Urls>(`/api/figma/render?ids=${encodeURIComponent(frameId)}`).then((u) => setAfter(u[frameId] ?? null)).catch((e) => setError(e.message));
+    getJson<Urls>(`/api/figma/render?ids=${encodeURIComponent(frameId)}`).then((u) => setAfter(u[frameId] ? api(u[frameId]!) : null)).catch((e) => setError(e.message));
   }, [frameId, fileKey]);
 
   useEffect(() => {

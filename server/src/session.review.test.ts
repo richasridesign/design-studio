@@ -5,7 +5,7 @@ import { withReviews } from './transcript.js';
 const run = { id: 'r1', kind: 'audit', at: 1234, round: 0, preset: 'check', frames: ['1:2'], check: [], results: [], tokens: 0, costUsd: 0 };
 
 vi.mock('./review.js', async (orig) => ({ ...(await orig<typeof import('./review.js')>()), runReview: vi.fn(async (i: { onArea?: (a: string, s: string) => void }) => { i.onArea?.('check', 'pass'); i.onArea?.('all', 'running'); return run; }) }));
-vi.mock('./figma.js', async (orig) => ({ ...(await orig<typeof import('./figma.js')>()), fileOutline: vi.fn(async () => ({ pages: [{ frames: [{ id: '1:2' }] }] })) }));
+vi.mock('./figmaCache.js', async (orig) => ({ ...(await orig<typeof import('./figmaCache.js')>()), fileOutline: vi.fn(async () => ({ pages: [{ frames: [{ id: '1:2' }] }] })), refreshOutlineSoon: vi.fn() }));
 
 describe('review events', () => {
   it('a finished audit emits a review event for the saved run', async () => {

@@ -21,7 +21,8 @@ import { notifyAway } from './notify.js';
 import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
 import { listDir, listFiles, readFileWithOriginal } from './files.js';
-import { FigmaError, attachFolder, chatFolders, fileOutline, folderFor, freshChatFolder, images, isChatFolder, listComments, me, postComment, projectFiles, readFigma, replyComment, SAMPLE_KEY, scratchFolder, teamProjects, versions } from './figma.js';
+import { cachedOutline, fileOutline, refreshOutlineSoon, renderFrame, thumbs } from './figmaCache.js';
+import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isChatFolder, listComments, me, postComment, projectFiles, readFigma, replyComment, SAMPLE_KEY, scratchFolder, teamProjects, versions } from './figma.js';
 import { loadSample, samplePath } from './sample.js';
 import { today } from './spend.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
@@ -215,6 +216,8 @@ lastViewed = await (last?.sessionId ? openSaved(last.sessionId).catch(firstChat)
 
 async function chatForUrl(url: string) {
   const dir = await folderFor(url);
+  const key = (await readFigma(dir))?.key;
+  if (key) refreshOutlineSoon(dir, key);
   const open = [...live.values()].map((l) => l.chat).filter((c) => c.cwd === dir).sort((a, b) => summary(b).lastActive - summary(a).lastActive)[0];
   return open ?? createChat(dir);
 }
@@ -317,10 +320,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/figma/files') return json(await projectFiles(url.searchParams.get('project') ?? ''));
     if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: stageLabel(await readApprovals(f.dir)) }))));
-    if (url.pathname === '/api/figma/outline') return json(await fileOutline(needFigma().key));
-    if (url.pathname === '/api/figma/thumbs') return json(await images(needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean), 0.3, 'png', undefined, url.searchParams.has('r')));
+    // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.
+    if (url.pathname === '/api/figma/outline') return json(await fileOutline(chat.cwd, needFigma().key, { fresh: url.searchParams.get('fresh') === '1' }));
+    if (url.pathname === '/api/figma/thumbs') {
+      const rev = Number(url.searchParams.get('r') ?? 0) || 0;
+      return json(await thumbs(chat.cwd, needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).map((id) => [id, rev])));
+    }
     if (url.pathname === '/api/figma/versions') return json(await versions(needFigma().key));
-    if (url.pathname === '/api/figma/render') return json(await images(needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean), 1, 'png', url.searchParams.get('version') || undefined));
+    if (url.pathname === '/api/figma/render') {
+      const id = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean)[0];
+      return json(id ? { [id]: await renderFrame(chat.cwd, needFigma().key, id) } : {});
+    }
     if (url.pathname === '/api/figma/comments/reply' && req.method === 'POST') {
       const { commentId, message } = await readJsonBody();
       if (!commentId || !String(message ?? '').trim()) throw new FigmaError('A comment and a message are required');
@@ -374,13 +384,9 @@ const server = http.createServer(async (req, res) => {
       const figma = chat.state.session.figma;
       const headers: Record<string, string> = { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'" };
       if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-handoff-report.html"`;
-      // Frame names from the file, so findings and frames never show as raw layer ids. A slow or failed read is skipped.
-      const names = figma
-        ? await Promise.race([
-            fileOutline(figma.key).then((o) => Object.fromEntries(o.pages.flatMap((p) => p.frames.map((f) => [f.id, f.name])))),
-            new Promise<Record<string, string>>((r) => setTimeout(() => r({}), 4000)),
-          ]).catch(() => ({}))
-        : {};
+      // Frame names from the saved outline, so findings and frames never show as raw layer ids. The report never reads Figma.
+      const saved = figma ? await cachedOutline(chat.cwd, figma.key) : null;
+      const names: Record<string, string> = Object.fromEntries((saved?.pages ?? []).flatMap((p) => p.frames.map((f) => [f.id, f.name])));
       res.writeHead(200, headers);
       return void res.end(await buildReport(chat.cwd, figma, summary(chat).title, names));
     }
@@ -491,7 +497,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         const url = String(msg.url ?? '').trim();
         const attach = !chat.figmaFile && isChatFolder(chat.cwd) && path.resolve(chat.cwd) !== path.resolve(CHATS_ROOT, 'scratch');
         if (!attach) chatForUrl(url).then((c) => view(client, c), fail);
-        else attachFolder(chat.cwd, url).then((f) => (chat.setFigma(f), broadcastLive()), fail);
+        else attachFolder(chat.cwd, url).then((f) => (chat.setFigma(f), refreshOutlineSoon(chat.cwd, f.key), broadcastLive()), fail);
         break;
       }
       case 'interrupt':

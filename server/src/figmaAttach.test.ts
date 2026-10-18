@@ -6,11 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const root = await mkdtemp(path.join(os.tmpdir(), 'dv-attach-'));
 vi.mock('./settings.js', () => ({ CHATS_ROOT: root, settings: async () => ({ figmaToken: 'tok' }) }));
 
-const { attachFolder, freshChatFolder, FigmaError } = await import('./figma.js');
+const { attachFolder, freshChatFolder, FigmaError, nameFromUrl } = await import('./figma.js');
 
 afterEach(() => vi.unstubAllGlobals());
-
-const stubName = (name: string) => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ name }) })));
 
 describe('freshChatFolder', () => {
   it('creates a timestamped folder and a different one at the same instant', async () => {
@@ -25,12 +23,19 @@ describe('freshChatFolder', () => {
 });
 
 describe('attachFolder', () => {
-  it('writes figma.json with the looked up name', async () => {
-    stubName('Checkout');
+  it('writes figma.json with the name from the link, without reading Figma', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
     const dir = await freshChatFolder(new Date('2026-01-02T03:04:05Z'));
     const f = await attachFolder(dir, 'https://www.figma.com/design/AbC1234567/Checkout?node-id=1-2');
     expect(f).toEqual({ key: 'AbC1234567', name: 'Checkout', url: 'https://www.figma.com/design/AbC1234567' });
     expect(JSON.parse(await readFile(path.join(dir, 'figma.json'), 'utf8'))).toEqual(f);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('names a file from its link', () => {
+    expect(nameFromUrl('https://www.figma.com/design/AbC1234567/HR-process---V2%20%C3%A9t%C3%A9?node-id=1-2', 'AbC1234567')).toBe('HR process V2 été');
+    expect(nameFromUrl('https://www.figma.com/design/AbC1234567', 'AbC1234567')).toBe('Figma file');
   });
 
   it('rejects links that are not Figma files', async () => {
