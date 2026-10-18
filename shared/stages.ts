@@ -88,8 +88,10 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
       const failing = flows.filter((f) => flowIssues(f) > 0).length;
       // A large file read only in part can hide broken flows, so a clean but partial run does not pass.
       const partial = !!e.flowcheck?.truncated;
+      // Flows named in Scope with no section in the file.
+      const missing = e.flowcheck?.missing ?? [];
       const wired: StageCheck = flows.length
-        ? check('Prototype wired', failing === 0 && !partial, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : partial ? 'Flow check: the file is too large to read in full, so some flows were not checked' : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
+        ? check('Prototype wired', failing === 0 && !partial && !missing.length, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : missing.length ? `Flow check: not found in the file: ${missing.join(', ')}` : partial ? 'Flow check: the file is too large to read in full, so some flows were not checked' : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
         : { label: 'Prototype wired', state: 'unchecked', detail: 'Flow check has not run on this file', open: 'review' };
       if (!run) return [check('Review run', false, 'No review yet', 'review'), wired];
       const open = [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor').length;
