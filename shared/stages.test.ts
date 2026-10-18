@@ -53,6 +53,10 @@ describe('stages', () => {
     expect(s.build.checks.map((c) => [c.state, c.detail])).toEqual([['met', '2 frames'], ['open', '1 of 2 frames']]);
   });
 
+  it('falls back to the frames of the last review', () => {
+    expect(byId({ ...none, review: { runs: [run({ frames: ['1:1', '1:2'] })] } }).build.checks[0]).toMatchObject({ state: 'met', detail: '2 frames' });
+  });
+
   it('counts blocking and major issues and failed house rules, not minor ones', () => {
     const review = { runs: [run({ check: [finding('minor')], results: [{ area: 'accessibility', pass: false, findings: [finding('major')] } as never], rules: [{ rule: 'a', state: 'fail', frames: [] }, { rule: 'b', state: 'pass', frames: [] }] })] };
     const s = byId({ ...none, review });
