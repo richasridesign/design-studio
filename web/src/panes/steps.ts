@@ -1,5 +1,6 @@
 import { editCount, type EditCount } from '../../../shared/edits';
 import type { ChatEvent } from '../../../shared/protocol';
+import { parseReport, type Report } from '../../../shared/longRun';
 
 export type ToolUse = Extract<ChatEvent, { kind: 'tool_use' }>;
 export type ToolResult = Extract<ChatEvent, { kind: 'tool_result' }>;
@@ -14,7 +15,8 @@ export type Item =
   | { kind: 'agent'; id: string; use: ToolUse; result?: ToolResult }
   | { kind: 'done'; id: string; text: string; nodes: Array<[string, number]> }
   | { kind: 'note'; id: string; text: string }
-  | { kind: 'review'; id: string; runAt: number };
+  | { kind: 'review'; id: string; runAt: number }
+  | { kind: 'report'; id: string; report: Report };
 
 export type Block = Item | { kind: 'steps'; id: string; items: Item[]; count: number; ms: number };
 export type Turn = { id: string; blocks: Block[] };
@@ -51,7 +53,7 @@ export function stepLabel(name: string, input: Record<string, unknown>, cwd = ''
     case 'Grep': return { verb: 'Searched', object: `"${s('pattern')}" in ${inDir || 'the project'}` };
     case 'Glob': return { verb: 'Listed', object: inDir ? `${inDir}/${s('pattern')}` : s('pattern') };
     case 'LS': return { verb: 'Listed', object: `${inDir || '.'}/` };
-    case 'Bash': return { verb: 'Ran', object: firstLine(s('command')), mono: true };
+    case 'Bash': return s('description') ? { verb: 'Ran', object: s('description') } : { verb: 'Ran', object: firstLine(s('command')), mono: true };
     case 'WebFetch': return { verb: 'Fetched', object: s('url').replace(/^https?:\/\//, '').replace(/\/$/, '') };
     case 'WebSearch': return { verb: 'Searched the web for', object: `"${s('query')}"` };
     case 'Agent': case 'Task': return { verb: 'Delegated', object: s('description') };
@@ -65,9 +67,33 @@ export function stepLabel(name: string, input: Record<string, unknown>, cwd = ''
   }
   if (name.startsWith('mcp__')) {
     const [, server, ...tool] = name.split('__');
+    const figma = /figma/i.test(server) ? figmaLabel(tool.join('__'), s) : null;
+    if (figma) return figma;
     return { verb: 'Called', object: `${tool.join('__')} (${server})` };
   }
   return { verb: 'Used', object: name };
+}
+
+const nodeOf = (s: (k: string) => string) => (s('nodeId') ? ` ${s('nodeId').replace('-', ':')}` : '');
+
+/** Plain words for Figma tool calls, so a designer reads what happened in the file. */
+function figmaLabel(tool: string, s: (k: string) => string): Label | null {
+  switch (tool) {
+    case 'use_figma': return { verb: 'Worked in', object: s('description') ? `Figma: ${s('description')}` : 'Figma' };
+    case 'get_screenshot': return { verb: 'Took', object: `a screenshot of frame${nodeOf(s)}` };
+    case 'get_metadata': return { verb: 'Read', object: `the layers of${nodeOf(s) || ' the page'}` };
+    case 'get_design_context': return { verb: 'Read', object: `the design of${nodeOf(s) || ' the selection'}` };
+    case 'get_variable_defs': return { verb: 'Read', object: 'the variables' };
+    case 'search_design_system': return { verb: 'Searched', object: `the design system for "${s('query')}"` };
+    case 'get_libraries': return { verb: 'Listed', object: 'the libraries' };
+    case 'upload_assets': return { verb: 'Uploaded', object: 'images to Figma' };
+    case 'generate_figma_design': return { verb: 'Generated', object: 'a design in Figma' };
+    case 'create_new_file': return { verb: 'Created', object: s('fileName') ? `the Figma file "${s('fileName')}"` : 'a Figma file' };
+    case 'get_figjam': return { verb: 'Read', object: 'the FigJam board' };
+    case 'generate_diagram': return { verb: 'Drew', object: 'a diagram in FigJam' };
+    case 'whoami': return { verb: 'Checked', object: 'the Figma account' };
+  }
+  return null;
 }
 
 export function buildTranscript(events: ChatEvent[]): Item[] {
@@ -89,7 +115,11 @@ export function buildTranscript(events: ChatEvent[]): Item[] {
       if (note) items.push({ kind: 'note', id: `${e.id}:note`, text: note });
     }
     else if (e.kind === 'user') items.push(e.phase ? { kind: 'phase', id: e.id, text: e.text } : { kind: 'user', id: e.id, text: e.text, at: e.at, stopping: e.stopping });
-    else if (e.kind === 'assistant') { if (e.text.trim()) items.push({ kind: 'assistant', id: e.id, text: e.text, streaming: e.streaming }); }
+    else if (e.kind === 'assistant') {
+      const report = e.streaming ? null : parseReport(e.text);
+      if (report) items.push({ kind: 'report', id: e.id, report });
+      else if (e.text.trim()) items.push({ kind: 'assistant', id: e.id, text: e.text, streaming: e.streaming });
+    }
     else if (e.kind === 'system') items.push({ kind: 'system', id: e.id, text: e.text });
     else if (e.kind === 'review') items.push({ kind: 'review', id: e.id, runAt: e.runAt });
     else if (e.kind === 'plan') items.push({ kind: 'system', id: e.id, text: e.next.length ? `You changed the next steps (${e.next.length})` : 'You cleared the next steps' });
@@ -134,7 +164,7 @@ export function groupTurns(items: Item[]): Turn[] {
     let final = -1;
     let lastTool = -1;
     seg.forEach((it, i) => {
-      if (it.kind === 'assistant') final = i;
+      if (it.kind === 'assistant' || it.kind === 'report') final = i;
       if (isTool(it) && !isFable(it)) lastTool = i;
     });
     const inside = seg.filter((it, i) => (isTool(it) && !isFable(it)) || (it.kind === 'assistant' && i !== final));
@@ -146,4 +176,28 @@ export function groupTurns(items: Item[]): Turn[] {
     blocks.splice(finalItem ? blocks.indexOf(finalItem) : blocks.length, 0, group);
     return { id: seg[0].id, blocks };
   });
+}
+
+const QUIET = /^(Permission mode:|Session started with|Long run · turn \d+$)/;
+
+/** Per turn: the prompt, done lines, notes, reviews, notices and the latest reply. Tool steps are left out. */
+export function timelineTurns(items: Item[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const it of items) {
+    if (it.kind === 'user' || it.kind === 'phase' || !turns.length) turns.push({ id: it.id, blocks: [] });
+    const blocks = turns[turns.length - 1].blocks;
+    if (isTool(it) || (it.kind === 'system' && QUIET.test(it.text))) continue;
+    if (it.kind === 'assistant') {
+      const prev = blocks.findIndex((b) => b.kind === 'assistant');
+      if (prev >= 0) blocks.splice(prev, 1);
+    }
+    blocks.push(it);
+  }
+  return turns.filter((t) => t.blocks.length);
+}
+
+/** Where to start so only the last `keep` prompts show, and how many earlier prompts that hides. */
+export function recentTurns(turns: Turn[], keep = 3) {
+  const starts = turns.flatMap((t, i) => (t.blocks[0]?.kind === 'user' ? [i] : []));
+  return starts.length > keep ? { from: starts[starts.length - keep], hidden: starts.length - keep } : { from: 0, hidden: 0 };
 }

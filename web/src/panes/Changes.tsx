@@ -3,6 +3,8 @@ import { getJson, useStore } from '../store';
 import { ReviewArt, Empty } from './Empty';
 import type { DesignDoc } from '../../../shared/design';
 import { useOutlineVersion, getOutline, type Outline } from '../outline';
+import { laterSaves, reviewTarget } from './reviewNow';
+import '../reviewNow.css';
 
 type Version = { id: string; at: string; label: string; description: string; user: string; checkpoint: boolean };
 type FrameRow = Outline["pages"][number]["frames"][number];
@@ -25,6 +27,7 @@ export function Changes() {
   const [error, setError] = useState('');
   const [versionId, setVersionId] = useState<string | null>(null);
   const [frameId, setFrameId] = useState<string | null>(null);
+  const list = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     setVersions(null);
@@ -33,11 +36,11 @@ export function Changes() {
     setVersionId(null);
     setFrameId(null);
     if (!figma) return;
-    getJson<Version[]>('/api/figma/versions').then((v) => { setVersions(v); setVersionId(v[0]?.id ?? null); }).catch((e) => setError(e.message));
-    Promise.all([getOutline(figma.key), getJson<DesignDoc>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
+    getJson<Version[]>('/api/figma/versions').then((v) => { setVersions(v); setVersionId((reviewTarget(v) ?? v[0])?.id ?? null); }).catch((e) => setError(e.message));
+    Promise.all([getOutline(figma.key), getJson<DesignDoc | null>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
       .then(([o, d]) => {
         const all = o.pages.flatMap((p) => p.frames);
-        const mine = d.frames.map((f) => all.find((a) => a.id === f.nodeId)).filter((f): f is FrameRow => !!f);
+        const mine = (d?.frames ?? []).map((f) => all.find((a) => a.id === f.nodeId)).filter((f): f is FrameRow => !!f);
         const list = [...new Map([...mine, ...all].map((f) => [f.id, f])).values()];
         setFrames(list);
         setFrameId(list[0]?.id ?? null);
@@ -45,14 +48,23 @@ export function Changes() {
       .catch((e) => setError(e.message));
   }, [figma?.key, chat, v]);
 
+  useEffect(() => {
+    const on = list.current?.querySelector<HTMLElement>('.ch-item.on');
+    const box = list.current;
+    if (!on || !box) return;
+    const a = on.getBoundingClientRect(), b = box.getBoundingClientRect();
+    box.scrollBy({ left: a.left < b.left || a.right > b.right ? a.left - b.left : 0, top: a.top < b.top || a.bottom > b.bottom ? a.top - b.top : 0, behavior: 'smooth' });
+  }, [versionId, versions]);
+
   if (!figma || /access token/i.test(error)) return <Empty art={<ReviewArt />} title="No versions to compare" text={EMPTY} />;
   const version = versions?.find((v) => v.id === versionId);
+  const target = versions ? reviewTarget(versions) : undefined;
+  const later = target ? laterSaves(versions!, target) : 0;
 
   return (
     <div className="changes">
-      <ul className="ch-list" aria-label="Versions">
+      <ul className="ch-list" aria-label="Versions" ref={list}>
         {!versions && !error && [0, 1, 2, 3].map((i) => <li key={i} className="ch-skel" />)}
-        {versions && !versions.length && <li className="muted ch-note">No versions saved yet.</li>}
         {versions?.map((v) => (
           <li key={v.id}>
             <button className={`ch-item ${v.id === versionId ? 'on' : ''}`} onClick={() => setVersionId(v.id)}>
@@ -63,6 +75,7 @@ export function Changes() {
               </span>
               <span className="ch-label">{v.label || v.description || 'Autosave'}</span>
               {v.label && v.description && <span className="muted ch-desc">{v.description}</span>}
+              {v.id === target?.id && <span className="rn-mark"><span className="rn-dot" aria-hidden="true" />Review this</span>}
             </button>
           </li>
         ))}
@@ -73,6 +86,15 @@ export function Changes() {
           <Empty art={<ReviewArt />} title="No versions yet" text={EMPTY} />
         ) : (
           <>
+            {target && (
+              <p className="rn-line">
+                {target.id === versionId ? (
+                  <><b>Reviewing:</b> Claude's last edit, {ago(target.at)}, compared with now{later > 0 && `, with ${later} ${later === 1 ? 'save' : 'saves'} made since`}.</>
+                ) : (
+                  <><b>Claude's last edit:</b> {ago(target.at)}. <button className="rn-link" onClick={() => { setVersionId(target.id); setFrameId(frames[0]?.id ?? null); }}>Review it</button></>
+                )}
+              </p>
+            )}
             <div className="chips ch-frames">
               {frames.map((f) => (
                 <button key={f.id} className={`ch-chip ${f.id === frameId ? 'on' : ''}`} onClick={() => setFrameId(f.id)}>{f.name}</button>

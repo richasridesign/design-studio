@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, notice, send, steer, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Voice, useDictation } from './Voice';
@@ -11,6 +11,10 @@ import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
 import { imageProblem, imagesIn } from './attach';
 import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
+import { LongRunButton } from './LongRun';
+import { ModelPicker } from './ModelPicker';
+import { focusChecked, menuKeys } from '../press';
+import { useTip } from '../Tip';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -73,6 +77,15 @@ export function recentFirst(frames: FrameRef[], recent: string[]): FrameRef[] {
 
 export type SlashCommand = { name: string; description: string; recipe?: Recipe };
 
+// Slash menu order: recipes, then installed skills, each keeping its match order.
+export const recipesFirst = <T extends { item: { recipe?: unknown } }>(rows: T[]) => [...rows.filter((r) => r.item.recipe), ...rows.filter((r) => !r.item.recipe)];
+
+// One short line for a skill description: the first sentence, no dashes used as punctuation.
+export function shortLine(text: string, max = 72) {
+  const first = text.trim().replace(/^\(\w+\)\s*/, '').replace(/\*\*|`/g, '').split(/(?<=[.!?])\s/)[0].replace(/\s+[\u2014\u2013-]\s+/g, ', ').replace(/[\u2014\u2013]/g, ', ');
+  return first.length > max ? `${first.slice(0, max - 1).trimEnd()}…` : first;
+}
+
 export const recipeSlug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export function withRecipes(commands: { name: string; description: string }[], builtin: Recipe[], custom: Recipe[]): SlashCommand[] {
@@ -95,6 +108,18 @@ export function figmaLinkIn(text: string): { url: string; key: string; name: str
   const name = m[2] ? decodeURIComponent(m[2]).replace(/[.,;:!?)\]]+$/, '').replace(/-/g, ' ') : 'this Figma file';
   return { url: m[0].replace(/[.,;:!?)\]]+$/, ''), key: m[1], name };
 }
+
+export function nodeLinksIn(text: string, key: string): { url: string; id: string }[] {
+  const out = new Map<string, { url: string; id: string }>();
+  for (const m of text.matchAll(/https?:\/\/(?:[\w-]+\.)?figma\.com\/(?:design|file|proto)\/([A-Za-z0-9]{10,})[^\s]*?[?&]node-id=(\d+)[-:](\d+)[^\s]*/g)) {
+    if (m[1] !== key) continue;
+    const id = `${m[2]}:${m[3]}`;
+    if (!out.has(id)) out.set(id, { url: m[0].replace(/[.,;:!?)\]]+$/, ''), id });
+  }
+  return [...out.values()];
+}
+
+export const dropLink = (text: string, url: string) => text.split(url).join('').replace(/\(\s*\)/g, '').replace(/[ \t]{2,}/g, ' ').trim();
 
 export function accept(text: string, start: number, caret: number, insert: string) {
   const next = `${text.slice(0, start)}${insert} ${text.slice(caret)}`;
@@ -182,6 +207,8 @@ export function Composer() {
   const commands = useMemo(() => withRecipes(serverCommands, RECIPES, customRecipes.map(toRecipe)), [serverCommands, customRecipes]);
   const [modeOpen, setModeOpen] = useState(false);
   const modePop = useRef<HTMLDivElement>(null);
+  const modeBtn = useRef<HTMLButtonElement>(null);
+  const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
   const [sel, setSel] = useState(0);
@@ -210,18 +237,20 @@ export function Composer() {
   const trigger = useMemo(() => triggerAt(text, at), [text, at]);
   const shell = trigger?.kind === 'shell';
   const popKey = trigger && trigger.kind !== 'shell' ? `${trigger.kind}:${trigger.start}:${trigger.query}` : '';
-  const outline = useOutline(trigger?.kind === 'frame' ? figmaKey : undefined);
+  const nodeLinks = useMemo(() => (figmaKey ? nodeLinksIn(text, figmaKey) : []), [text, figmaKey]);
+  const outline = useOutline(trigger?.kind === 'frame' || nodeLinks.length ? figmaKey : undefined);
   const frames = useMemo(() => outline?.pages.flatMap((p) => p.frames) ?? [], [outline]);
   const frameMode = trigger?.kind === 'frame';
   const recent = useMemo(() => (frameMode ? recentFrameIds(events) : []), [frameMode, events]);
   const items = useMemo(() => {
     if (!trigger || trigger.kind === 'shell' || popKey === dismissed) return [];
-    if (trigger.kind === 'command') return rankCommands(commands, trigger.query, MAX_COMMANDS);
+    if (trigger.kind === 'command') return recipesFirst(rankCommands(commands, trigger.query, MAX_COMMANDS));
     if (trigger.kind === 'frame') return !figmaKey && !trigger.query ? [{ item: ATTACH_ROW, hits: [], score: 0 }] : rankFrames(trigger.query ? frames : recentFirst(frames, recent), trigger.query);
     return rankFiles(files, trigger.query);
   }, [trigger, popKey, dismissed, commands, files, frames, recent, figmaKey]);
   const open = items.length > 0;
   const thumb = useThumbs(trigger?.kind === 'frame' ? figmaKey : undefined, trigger?.kind === 'frame' ? items.map((r) => [(r.item as FrameRef).id, 0]) : []);
+  const nodeThumb = useThumbs(nodeLinks.length ? figmaKey : undefined, nodeLinks.map((l) => [l.id, 0]));
   const history = useMemo(() => buildHistory(events, stored), [events, stored]);
   const ghost = !open && !shell && at === text.length ? ghostFor(text, history) : '';
   const found = useMemo(() => figmaLinkIn(text), [text]);
@@ -252,15 +281,16 @@ export function Composer() {
 
   useEffect(() => {
     if (!modeOpen) return;
+    focusChecked(modePop.current);
     const down = (e: MouseEvent) => { if (!(e.target as Element).closest('.cp-mode')) setModeOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); ta.current?.focus(); } };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); modeBtn.current?.focus(); } };
     document.addEventListener('mousedown', down);
     document.addEventListener('keydown', key);
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
   }, [modeOpen]);
 
   useEffect(() => {
-    pop.current?.children[sel]?.scrollIntoView({ block: 'nearest' });
+    pop.current?.querySelectorAll('[role=option]')[sel]?.scrollIntoView({ block: 'nearest' });
   }, [sel]);
 
   useLayoutEffect(() => {
@@ -379,6 +409,18 @@ export function Composer() {
     apply('');
   };
 
+  const startLongRun = (until: number, cap: number) => {
+    const t = text.trim();
+    if (!t || running) return;
+    send({ type: 'long_run_start', text: t, until, cap, images: imgs.length ? imgs.map((i) => i.ref) : undefined });
+    clearImgs();
+    const next = remember(t, stored);
+    setStored(next);
+    try { localStorage.setItem(STORED_KEY, JSON.stringify(next)); } catch {}
+    setHist(null);
+    apply('');
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
     const el = e.currentTarget;
@@ -393,7 +435,8 @@ export function Composer() {
     if (ghost && (e.key === 'Tab' || e.key === 'ArrowRight') && el.selectionStart === text.length) { e.preventDefault(); apply(text + ghost); return; }
     if (e.key === 'ArrowUp' && (text === '' || onEntry) && !text.slice(0, el.selectionStart).includes('\n')) { e.preventDefault(); stepHistory(1); return; }
     if (e.key === 'ArrowDown' && onEntry && !text.slice(el.selectionEnd).includes('\n')) { e.preventDefault(); stepHistory(-1); return; }
-    if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
+    // Option+M cycles the mode. Shift+Tab stays free to move focus back out of the message box.
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyM') { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
@@ -418,6 +461,21 @@ export function Composer() {
             <button className="icon-btn" title="Dismiss" aria-label="Dismiss" onClick={() => setSkipLink(link.url)}><Icon name="close" small /></button>
           </div>
         )}
+        {nodeLinks.length > 0 && !shell && (
+          <div className="cp-nodes" aria-label="Frames in this message">
+            {nodeLinks.map((l) => {
+              const name = frames.find((f) => f.id === l.id)?.name ?? `Frame ${l.id}`;
+              const src = nodeThumb(l.id);
+              return (
+                <span key={l.id} className="cp-node" title={l.url}>
+                  {src ? <img src={src} alt="" /> : <span className="cp-node-ph"><Icon name="file-media" small /></span>}
+                  <span className="cp-node-name">{name}</span>
+                  <button className="icon-btn" title="Remove this frame link" aria-label={`Remove ${name}`} onClick={() => setText((t) => dropLink(t, l.url))}><Icon name="close" small /></button>
+                </span>
+              );
+            })}
+          </div>
+        )}
         {(imgs.length > 0 || busy > 0) && !shell && (
           <div className="cp-imgs">
             {imgs.map((i) => (
@@ -433,6 +491,7 @@ export function Composer() {
           <div ref={mirror} className="cp-mirror" aria-hidden><span className="cp-typed">{text}</span><span className="cp-ghost">{ghost}</span></div>
           <textarea
             ref={ta}
+            aria-label="Message to Claude"
             value={text}
             rows={1}
             placeholder={placeholder}
@@ -445,11 +504,11 @@ export function Composer() {
         </div>
         <div className="cp-foot">
           <div className="cp-mode">
-            <button className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (Shift+Tab to cycle)" onClick={() => setModeOpen((o) => !o)}>
+            <button ref={modeBtn} className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
               <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
             </button>
             {modeOpen && (
-              <div ref={modePop} className="cp-modepop" role="menu">
+              <div ref={modePop} className="cp-modepop" role="menu" aria-label="Mode" onKeyDown={menuKeys}>
                 {FLOW_MODES.map((m) => (
                   <button key={m} role="menuitemradio" aria-checked={flow.mode === m} className={flow.mode === m ? 'active' : ''} onClick={() => { setMode(m); if (m !== 'design') setModeOpen(false); }}>
                     <Icon name={MODE_INFO[m].icon} small />
@@ -470,6 +529,8 @@ export function Composer() {
               </div>
             )}
           </div>
+          {!shell && flow.mode === 'chat' && <ModelPicker />}
+          {!shell && <LongRunButton text={text} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
           <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="file-media" small /></button>
@@ -493,26 +554,33 @@ export function Composer() {
       <div className="cp-under">
         {hint && <span className="cp-hint">{hint}</span>}
         <span className="cp-stats">
-          {pct !== null && <span className={level} title={`${context!.toLocaleString()} tokens in context. Compact once it passes ${COMPACT_AT / 1000}k.`}>{pct}% context</span>}
+          {pct !== null && <span {...memoryTip.props} tabIndex={0} className={level} aria-describedby={memoryTip.open ? memoryTip.id : undefined}>Memory used: {pct}%</span>}
+          {memoryTip.tip}
           {edited > 0 && <span>{edited} {edited === 1 ? 'file' : 'files'} edited</span>}
         </span>
       </div>
       {open && (
-        <ul ref={pop} className="cp-pop" role="listbox">
+        <ul ref={pop} id="cp-pop" tabIndex={0} className="cp-pop" role="listbox" aria-label={frameMode ? "Frames" : trigger?.kind === "file" ? "Files" : "Commands"}>
           {items.map((r, i) => {
             if (trigger?.kind === 'command') {
-              const c = r.item as { name: string; description: string };
+              const c = r.item as SlashCommand;
+              const group = c.recipe ? 'Recipes' : 'Skills';
+              const head = i === 0 || Boolean((items[i - 1].item as SlashCommand).recipe) !== Boolean(c.recipe);
+              const detail = c.recipe ? (c.name === c.recipe.id ? c.recipe.title : c.description) : shortLine(c.description);
               return (
-                <li key={c.name} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
-                  <span className="cp-name">/{hl(c.name, r.hits)}</span>
-                  <span className="cp-detail">{c.description}</span>
-                </li>
+                <Fragment key={c.name}>
+                  {head && <li className="cp-group" role="presentation">{group}</li>}
+                  <li id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={c.recipe?.blurb || c.description} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+                    <span className="cp-name">/{hl(c.name, r.hits)}</span>
+                    <span className="cp-detail">{detail}</span>
+                  </li>
+                </Fragment>
               );
             }
             if (trigger?.kind === 'frame') {
               const f = r.item as FrameRef;
               return (
-                <li key={f.id} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+                <li key={f.id} id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
                   {f === ATTACH_ROW ? <Icon name="file-media" small /> : <span className="cp-thumb">{thumb(f.id) && <img src={thumb(f.id)!} alt="" />}</span>}
                   <span className="cp-name">{hl(f.name, r.hits)}</span>
                   <span className="cp-detail">{f.page}</span>
@@ -522,7 +590,7 @@ export function Composer() {
             const f = r.item as string;
             const base = f.lastIndexOf('/') + 1;
             return (
-              <li key={f} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={f} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+              <li key={f} id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={f} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
                 <FileIcon name={f} />
                 <span className="cp-name">{hl(f.slice(base), r.hits, base)}</span>
                 <span className="cp-detail">{hl(f.slice(0, Math.max(base - 1, 0)), r.hits)}</span>

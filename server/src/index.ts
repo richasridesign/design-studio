@@ -1,7 +1,11 @@
 import { allowedHost, allowedOrigin } from './origin.js';
 import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
+import { readScope, updateScope } from './scope.js';
+import { readTriage, updateTriage } from './triage.js';
+import { splitRun } from '../../shared/triage.js';
 import { readRecipes, writeRecipes } from './recipes.js';
+import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,16 +22,19 @@ import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
 import { listDir, listFiles, readFileWithOriginal } from './files.js';
 import { FigmaError, attachFolder, chatFolders, fileOutline, folderFor, freshChatFolder, images, isChatFolder, listComments, me, postComment, projectFiles, readFigma, replyComment, SAMPLE_KEY, scratchFolder, teamProjects, versions } from './figma.js';
-import { loadSample } from './sample.js';
+import { loadSample, samplePath } from './sample.js';
 import { today } from './spend.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
 import { readBuildChecks } from './buildcheck.js';
+import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { markPosted, readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
-import { buildReport, reportSlug } from './report.js';
+import { briefLede, buildReport, reportSlug } from './report.js';
+import { changeStage, readApprovals, readStages } from './stages.js';
+import { stageLabel } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -264,8 +271,11 @@ const server = http.createServer(async (req, res) => {
       return json({ ok: true });
     }
     if (url.pathname === '/api/sample' && req.method === 'POST') {
+      // An open sample chat keeps its files: reloading would rewrite run times its review cards point at.
+      const opened = [...live.values()].map((l) => l.chat).find((c) => c.cwd === samplePath());
+      if (opened) return json({ id: opened.id, cwd: opened.cwd });
       const dir = await loadSample();
-      const open = [...live.values()].map((l) => l.chat).find((c) => c.cwd === dir) ?? (await createChat(dir));
+      const open = await createChat(dir);
       return json({ id: open.id, cwd: dir });
     }
     if (url.pathname === '/api/attach' && req.method === 'POST') return json({ ref: await saveImage(chat.cwd, String(req.headers['content-type'] ?? ''), await readBinary(req)) });
@@ -273,6 +283,20 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/recipes') return json(await readRecipes());
     if (url.pathname === '/api/rules' && req.method === 'POST') return json(await writeRules(chat.cwd, await readJsonBody()));
     if (url.pathname === '/api/rules') return json(await readRules(chat.cwd));
+    if (url.pathname === '/api/decisions') {
+      const key = url.searchParams.get('key') || figma?.key || '';
+      return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
+    }
+    if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
+    if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
+    if (url.pathname === '/api/stages') {
+      if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
+      // The written brief (plan.md) wins over the first message, so the gate and the report agree.
+      const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
+      const brief = (plan && briefLede(plan)) || (chat.state.events.find((e) => e.kind === 'user')?.text ?? null);
+      const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
+      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) }));
+    }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));
     if (url.pathname === '/api/settings') return json(publicSettings(await settings()));
@@ -287,7 +311,7 @@ const server = http.createServer(async (req, res) => {
       return json(teamId ? await teamProjects(teamId) : []);
     }
     if (url.pathname === '/api/figma/files') return json(await projectFiles(url.searchParams.get('project') ?? ''));
-    if (url.pathname === '/api/figma/folders') return json((await chatFolders()).filter((f) => f.figma).map((f) => ({ cwd: f.dir, ...f.figma })));
+    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: stageLabel(await readApprovals(f.dir)) }))));
     if (url.pathname === '/api/figma/outline') return json(await fileOutline(needFigma().key));
     if (url.pathname === '/api/figma/thumbs') return json(await images(needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean), 0.3, 'png', undefined, url.searchParams.has('r')));
     if (url.pathname === '/api/figma/versions') return json(await versions(needFigma().key));
@@ -307,8 +331,8 @@ const server = http.createServer(async (req, res) => {
       return json({ result: await focusFigma(needFigma().key, String(nodeId), true) });
     }
     if (url.pathname === '/api/sketch/pick' && req.method === 'POST') {
-      const { screen, direction } = await readJsonBody();
-      return json(await pickDirection(chat.cwd, String(screen), String(direction)));
+      const { screen, direction, reason } = await readJsonBody();
+      return json(await pickDirection(chat.cwd, String(screen), String(direction), reason));
     }
     if (url.pathname === '/api/sketch/board' && req.method === 'POST') {
       await writeBoard(chat.cwd, (await readJsonBody()).elements);
@@ -318,15 +342,20 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/sketch') return json(await readSketch(chat.cwd).catch((err) => ({ error: (err as Error).message })));
     if (url.pathname === '/api/review/post' && req.method === 'POST') {
       const f = needFigma();
-      const { ids } = await readJsonBody();
+      const { ids, runId } = await readJsonBody();
       const doc = await readReview(chat.cwd);
-      const all = doc.runs.flatMap((r) => [...r.check, ...r.results.flatMap((x) => x.findings)]);
-      const chosen = all.filter((x) => Array.isArray(ids) && ids.includes(x.id) && !doc.posted?.includes(x.id));
+      // Finding ids repeat across rounds, so only the named run counts, and findings closed by hand stay out.
+      const run = doc.runs.find((r) => r.id === runId);
+      if (!run) return json({ error: 'Review run not found' }, 404);
+      const open = splitRun(run, await readTriage(chat.cwd)).open;
+      const chosen = open.filter((x) => Array.isArray(ids) && ids.includes(x.id) && !doc.posted?.includes(x.id));
       for (const x of chosen) await postComment(f.key, `[Design Studio · ${x.area} · ${x.severity}] ${x.rule}\nFix: ${x.fix}`, x.node);
       await markPosted(chat.cwd, chosen.map((x) => x.id));
       return json({ posted: chosen.length });
     }
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
+    if (url.pathname === '/api/flowcheck' && req.method === 'POST') return json({ run: await runFlowCheck({ dir: chat.cwd, fileKey: needFigma().key }) });
+    if (url.pathname === '/api/flowcheck') return json({ runs: await readFlowChecks(chat.cwd) });
     if (url.pathname === '/api/crit') return json({ runs: await readCrit(chat.cwd) });
     if (url.pathname === '/api/copy/apply' && req.method === 'POST') {
       const { runId, nodeIds, edits } = await readJsonBody();
@@ -339,9 +368,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/report') {
       const figma = chat.state.session.figma;
       const headers: Record<string, string> = { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'" };
-      if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-design-report.html"`;
+      if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-handoff-report.html"`;
       res.writeHead(200, headers);
-      return void res.end(await buildReport(chat.cwd, figma));
+      return void res.end(await buildReport(chat.cwd, figma, summary(chat).title));
     }
     if (url.pathname === '/api/review') return json(await readReview(chat.cwd));
     if (url.pathname === '/api/design') return json(await readDesign(chat.cwd));
@@ -371,6 +400,7 @@ const server = http.createServer(async (req, res) => {
       return json({ hostname: os.hostname(), urls: ips.map((ip) => `http://${ip}:${port}`) });
     }
 
+    if (url.pathname.startsWith('/api/')) return json({ error: 'Not found' }, 404);
     if (DEV_WEB) {
       res.writeHead(302, { location: `http://${(req.headers.host ?? 'localhost').replace(/:\d+$/, '')}:${DEV_WEB}${url.pathname}${url.search}` });
       return res.end();
@@ -383,7 +413,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (err) {
-    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError ? err.status : 500);
+    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof DecisionError ? err.status : 500);
   }
 });
 
@@ -425,10 +455,13 @@ wss.on('connection', (ws: WebSocket, req) => {
         chat.answerQuestion(msg.id, msg.answers);
         break;
       case 'permission':
-        chat.answerPermission(msg.id, msg.allow, msg.always);
+        chat.answerPermission(msg.id, msg.allow, msg.always, typeof msg.note === 'string' ? msg.note : undefined);
         break;
       case 'set_permission_mode':
         void chat.setPermissionMode(msg.mode);
+        break;
+      case 'set_model':
+        void chat.setModel(String(msg.model));
         break;
       case 'set_flow':
         chat.updateFlow(msg.patch ?? {});
@@ -437,7 +470,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         chat.continueFlow();
         break;
       case 'flow_pick':
-        pickDirection(chat.cwd, String(msg.screen), String(msg.direction)).catch(fail);
+        pickDirection(chat.cwd, String(msg.screen), String(msg.direction), msg.reason).catch(fail);
         break;
       case 'new_chat':
         (msg.url?.trim() ? chatForUrl(msg.url) : freshChatFolder().then(createChat)).then((c) => view(client, c), fail);
@@ -451,6 +484,15 @@ wss.on('connection', (ws: WebSocket, req) => {
       }
       case 'interrupt':
         void chat.interrupt();
+        break;
+      case 'long_run_start':
+        void chat.startLongRun(String(msg.text ?? ''), Number(msg.until), Number(msg.cap), msg.images);
+        break;
+      case 'long_run_stop':
+        void chat.stopLongRun();
+        break;
+      case 'long_run_clear':
+        chat.clearLongRun();
         break;
       case 'close': {
         const target = live.get(msg.id)?.chat;
@@ -470,7 +512,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         void chat.refreshMcp();
         break;
       case 'mcp_reconnect':
-        void chat.reconnectMcp(String(msg.name));
+        void chat.reconnectMcp(String(msg.name), Boolean(msg.quiet));
         break;
       case 'mcp_toggle':
         void chat.toggleMcp(String(msg.name), Boolean(msg.enabled));

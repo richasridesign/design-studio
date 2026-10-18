@@ -37,7 +37,7 @@
   .composer-foot .keys { display: none; }
   .composer-foot .pill, .composer-foot .icon-btn { height: 36px; min-width: 36px; }
   .tabbar .codicon.icon { font-size: 20px; }
-  .more-sheet-overlay { position: fixed; inset: 0; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 50; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px; background: rgba(31, 30, 27, 0.35); }
+  .more-sheet-overlay { position: fixed; inset: 0; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 50; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px; background: var(--overlay); }
   .more-sheet { width: min(300px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding: 4px; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); }
   .more-sheet > button { flex: none; height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 12px; font-size: var(--text-lg); color: var(--fg); background: transparent; border: 0; border-radius: var(--radius-sm); text-align: left; }
   .more-sheet > button > span:not(.badge):not(.more-meta) { flex: 1; }
@@ -97,4 +97,14 @@
   .workbench:is([data-tab='figma'], [data-tab='sketch'], [data-tab='review']) .editor-group > .tabs { display: none; }
   .side-switch { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .side-switch > button { flex: none; white-space: nowrap; }
+  /* The section switch already names the view, so the title would repeat it. */
+  .workbench[data-tab='more'] .sidebar-title { display: none; }
+  .workbench[data-tab='more'] .side-switch { padding-top: 12px; }
+}
+
+/* "Attach Figma file" does not fit beside the spend, MCP and icon buttons on a phone, so the empty pill is an
+   icon button named by its aria-label and title. Cutting the text would leave "Attach Fi…". */
+@media (max-width: 480px) {
+  .topbar .file-pill.no-file { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .topbar .file-pill.no-file .file-label, .topbar .file-pill.no-file .codicon-chevron-down { display: none; }
 }

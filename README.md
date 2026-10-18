@@ -12,8 +12,13 @@ npm install
 ./start.sh
 ```
 
-`start.sh` builds and opens `dist/DesignStudio.app`, a menu bar app that runs the server on :7778, the web app on :5174
-and a Chrome relay on :7780. It uses the Claude Code CLI you have installed and its login.
+`start.sh` builds and opens `dist/DesignStudio.app`. It runs the server on :7778, the web app on :5174 and a Chrome
+relay on :7780, and restarts them if they stop. It uses the Claude Code CLI you have installed and its login.
+
+The app opens Design Studio in its own window and shows in the Dock while the window is open. Close the window and
+it keeps running in the menu bar. The menu bar icon has "Open Design Studio" (Cmd+O), "Open in browser", Keep Mac
+awake, Open at login and logs. Links to other sites open in your browser. Quit from the menu bar or with Cmd+Q
+stops the server too.
 
 | Command | |
 | --- | --- |
@@ -28,8 +33,9 @@ button where one exists.
 
 1. **Figma token.** Add a Figma personal access token with read access to files and write access to comments.
    Design Studio uses it for the file list, frames, thumbnails, the design system check and comments.
-2. **Claude's Figma tools.** "Add Figma to Claude" adds the remote Figma MCP server (`https://mcp.figma.com/mcp`) to
-   your Claude config. Sign in once: run `claude`, type `/mcp`, pick figma and authenticate.
+2. **Claude's Figma tools.** Design Studio uses the official Figma plugin for Claude Code (`figma@claude-plugins-official`),
+   the same connection and sign-in as the Claude CLI. "Add Figma plugin" installs it. Sign in once: run `claude`, type
+   `/mcp`, pick plugin:figma:figma and authenticate.
 3. **Chrome.** The Figma tab shows your own Chrome, where you are logged in to Figma. Click Connect Chrome there and
    allow remote debugging. Give DesignStudio.app Full Disk Access once. The relay reads Chrome's DevToolsActivePort
    file, which macOS protects. The web page and your phone never need this permission.
@@ -38,7 +44,7 @@ If the token or the Figma tools are missing, a new chat shows a one-line banner.
 
 ## Modes
 
-The pill at the left of the composer sets the mode. Shift+Tab cycles Chat, Design and Review.
+The pill at the left of the composer sets the mode. Option+M cycles Chat, Design and Review.
 
 | Mode | What a message does |
 | --- | --- |
@@ -47,7 +53,7 @@ The pill at the left of the composer sets the mode. Shift+Tab cycles Chat, Desig
 | Review | Reviewers check the frames you name or the attached file. Nothing is edited |
 
 Design mode adds options to the pill menu: "Stop after sketch" waits for you to pick a direction, and "Review depth"
-is Quick or Full. The composer has a coral ring in Design mode.
+is Quick or Full. The composer gets a dark outline in Design mode and a grey one in Review mode.
 
 ## Attach a Figma file
 
@@ -180,7 +186,7 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 
 | Keys | Action |
 | --- | --- |
-| Shift+Tab | Cycle the composer mode |
+| Option+M | Cycle the composer mode |
 | Cmd+Shift+P or F1 | Command palette |
 | Cmd+O | Attach a Figma file |
 | Cmd+B | Toggle sidebar |
@@ -199,4 +205,3 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 Each Figma file gets a folder under `~/Design Studio` with the plan, sketches, the design system profile, review
 results and reference images. Settings are in `~/.designstudio/settings.json`.
 
-See [PLAN.md](PLAN.md) for the design decisions and what is still open.

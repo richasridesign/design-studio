@@ -15,10 +15,12 @@
 .rules-box h3 .saved { font-weight: 400; color: var(--fg-faint); }
 .rules-box textarea {
   font: inherit; font-size: var(--text-md); line-height: 20px; padding: 8px 10px; min-height: 96px; resize: none; overflow: hidden;
-  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--input-border); border-radius: var(--radius, 8px);
 }
-.rules-box textarea:focus { outline: none; border-color: var(--border-strong); }
-.rules-box .hint { font-size: var(--text-xs); color: var(--fg-faint); margin: 0; }
+.rules-box textarea:focus { outline: none; border-color: var(--focus); }
+.rules-box .checked { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.rules-box .checked .link { min-height: 24px; line-height: 20px; }
+.rules-box .hint { font-size: var(--text-xs); color: var(--fg-faint); margin: 0; padding: 0; }
 .rules-box button.suggest { align-self: flex-start; }
 .rules-box button.suggest { padding: 5px 10px; font-size: var(--text-sm); background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm, 4px); }
 .rules-box button.suggest:hover { background: var(--bg-hover); }

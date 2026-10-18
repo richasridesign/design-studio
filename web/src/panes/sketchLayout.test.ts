@@ -20,4 +20,11 @@ describe('layoutSketch', () => {
     expect(els.some((e) => e.type === 'text' && String(e.text).includes('Cards  ✓ chosen'))).toBe(true);
     expect(els.every((e) => (e.customData as { generated: boolean }).generated)).toBe(true);
   });
+
+  it('tags each direction so the canvas can zoom to it', () => {
+    const els = layoutSketch(doc);
+    const b = els.filter((e) => (e.customData as { dir?: string }).dir === 'home:b');
+    expect(b.some((e) => e.type === 'rectangle' && e.x === 510)).toBe(true);
+    expect(els.filter((e) => (e.customData as { dir?: string }).dir === 'home:a').every((e) => e.x < 510)).toBe(true);
+  });
 });

@@ -1,0 +1,20 @@
+/* How to log in to the Figma plugin, opened from the status bar, the welcome notice and Settings. */
+.rs-dialog.fl-dialog { width: min(520px, 100%); }
+.fl-dialog .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fl-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.fl-lead, .fl-alt { margin: 0; }
+.fl-alt { color: var(--fg-muted); }
+.fl-alt .link { font-size: inherit; line-height: inherit; }
+.fl-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.fl-steps li { padding-left: 4px; }
+.fl-cmd { display: inline-flex; align-items: center; gap: 4px; margin: 0 4px; padding: 0 0 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-sunken); vertical-align: middle; }
+.fl-cmd code { font-family: var(--mono); font-size: var(--text-xs); line-height: 20px; color: var(--fg); }
+.fl-cmd .icon-btn { width: 28px; height: 28px; }
+.fl-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
+.fl-status { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+@media (max-width: 900px) {
+  .fl-body { padding: 12px 16px; }
+  .fl-foot { padding: 12px 16px 16px; }
+  .fl-foot .primary { min-height: 44px; }
+}
+.statusbar .sb-help + .sb-link { margin-left: -4px; }

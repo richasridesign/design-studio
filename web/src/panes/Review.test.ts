@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, areaRows, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize, unposted } from './reviewRuns';
+import { ago, areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize, unposted } from './reviewRuns';
 import type { CopyRun, CritRun, Finding, ReviewRun } from '../../../shared/design';
 
 const finding = (severity: Finding['severity']): Finding => ({ id: severity, area: 'color', severity, rule: 'r', fix: 'f', node: '1:2' }) as Finding;
@@ -60,7 +60,14 @@ describe('review card helpers', () => {
 
   it('lists the check first and marks failed reviewers', () => {
     const run = review('a', 1, { check: [finding('major')], results: [{ area: 'all', pass: false, summary: '', findings: [], tokens: 0, costUsd: 0, error: 'boom' }] });
-    expect(areaRows(run)).toEqual([{ key: 'check', name: 'Design system check', pass: false, failed: false }, { key: 'all', name: 'All areas', pass: false, failed: true }]);
+    expect(areaRows(run)).toEqual([{ key: 'check', name: 'Design system check', pass: false, failed: false, tone: 'major' }, { key: 'all', name: 'All areas', pass: false, failed: true, tone: 'error' }]);
+  });
+
+  it('keeps red for blocking findings and errors', () => {
+    expect(areaTone(false, false, [finding('major'), finding('blocking')])).toBe('blocking');
+    expect(areaTone(false, false, [finding('major')])).toBe('major');
+    expect(areaTone(true, false, [finding('minor')])).toBe('pass');
+    expect(areaTone(false, true, [])).toBe('error');
   });
 
   it('skips posted and minor findings', () => {
@@ -92,5 +99,20 @@ describe('retryPrompt', () => {
   });
   it('is null when nothing failed', () => {
     expect(retryPrompt(review('a', 1))).toBeNull();
+  });
+});
+
+describe('house rules', () => {
+  const rule = (state: 'pass' | 'fail' | 'unchecked') => ({ rule: 'r', state, frames: [] });
+  it('adds failed rules to the summary', () => {
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { rules: [rule('fail'), rule('pass')] }) })).toBe('1 rule failed');
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { check: [finding('major')], rules: [rule('fail'), rule('fail')] }) })).toBe('0 blocking, 1 major, 2 rules failed');
+    expect(summarize({ kind: 'review', id: 'a', at: 1, tokens: 0, run: review('a', 1, { rules: [rule('pass')] }) })).toBe('No issues');
+  });
+  it('picks the card tone', () => {
+    expect(rulesTone({ rules: [rule('pass'), rule('pass')] })).toBe('pass');
+    expect(rulesTone({ rules: [rule('pass'), rule('fail')] })).toBe('major');
+    expect(rulesTone({ rules: [rule('pass'), rule('unchecked')] })).toBe('unchecked');
+    expect(rulesTone({ rules: [rule('unchecked')], rulesError: 'x' })).toBe('error');
   });
 });

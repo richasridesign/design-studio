@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getJson, useRev, useStore } from './store';
 
-export type CanvasContent = { figma: boolean; sketch: boolean; review: boolean };
+export type CanvasContent = { figma: boolean; sketch: boolean; review: boolean; decisions: boolean };
 
 export const hasSketch = (doc: unknown, board: unknown) =>
   (!!doc && typeof doc === 'object' && !('error' in doc)) || (Array.isArray(board) && board.length > 0);
@@ -34,5 +34,6 @@ export function useCanvasContent(): CanvasContent {
     return () => { live = false; };
   }, [chat, phase, reviewRev]);
 
-  return { figma, sketch, review };
+  // The decision log on the Decisions tab starts with sketch picks, before a Figma file is attached.
+  return { figma, sketch, review, decisions: figma || sketch };
 }

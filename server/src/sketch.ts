@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { SKETCH_ITEMS, type SketchDirection, type SketchDoc, type SketchItem, type SketchScreen } from '../../shared/design.js';
+import { REASON_MAX, SKETCH_ITEMS, type SketchDirection, type SketchDoc, type SketchItem, type SketchScreen } from '../../shared/design.js';
 
 export const SKETCH_FILE = 'sketch.json';
 
 const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : d);
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const id = (v: unknown, fallback: string) => (str(v, 40).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || fallback);
+const cleanReason = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, REASON_MAX) : '');
 
 export function parseSketch(raw: unknown): SketchDoc {
   const doc = raw as { screens?: unknown };
@@ -28,7 +29,14 @@ export function parseSketch(raw: unknown): SketchDoc {
       return { id: id(d.id, String.fromCharCode(97 + j)), name: str(d.name, 60) || `Direction ${String.fromCharCode(65 + j)}`, rationale: str(d.rationale, 300), w, h, items };
     });
     const chosen = typeof s.chosen === 'string' && directions.some((d: SketchDirection) => d.id === s.chosen) ? s.chosen : undefined;
-    return { id: id(s.id, `screen-${i + 1}`), name: str(s.name, 80) || `Screen ${i + 1}`, directions, chosen, chosenBy: chosen ? (s.chosenBy === 'designer' ? 'designer' : 'claude') : undefined };
+    const screen: SketchScreen = { id: id(s.id, `screen-${i + 1}`), name: str(s.name, 80) || `Screen ${i + 1}`, directions, chosen, chosenBy: chosen ? (s.chosenBy === 'designer' ? 'designer' : 'claude') : undefined };
+    if (chosen) {
+      const reason = cleanReason(s.reason);
+      if (reason) screen.reason = reason;
+      if (Array.isArray(s.rejected)) screen.rejected = s.rejected.filter((r: unknown) => typeof r === 'string' && r.trim()).slice(0, 4).map((r: string) => str(r, 60));
+      if (typeof s.at === 'number' && Number.isFinite(s.at)) screen.at = s.at;
+    }
+    return screen;
   });
   return { screens };
 }
@@ -44,12 +52,23 @@ export async function writeSketch(dir: string, doc: SketchDoc) {
   await renderAll(dir, doc);
 }
 
-export async function pickDirection(dir: string, screen: string, direction: string) {
+/**
+ * The designer picks a direction, optionally with a one-line reason.
+ * Picking another direction drops the old reason unless a new one comes with it.
+ * Picking the same direction again (confirming Claude's pick, or editing the reason) keeps the time unless the picker changes.
+ */
+export async function pickDirection(dir: string, screen: string, direction: string, reason?: unknown, now = Date.now()) {
   const doc = await readSketch(dir);
   const s = doc?.screens.find((x) => x.id === screen);
   if (!doc || !s || !s.directions.some((d) => d.id === direction)) throw new Error('No such sketch direction');
+  const same = s.chosen === direction;
+  const next = reason === undefined ? (same ? s.reason ?? '' : '') : cleanReason(reason);
+  if (!same || s.chosenBy !== 'designer' || !s.at) s.at = now;
   s.chosen = direction;
   s.chosenBy = 'designer';
+  s.rejected = s.directions.filter((d) => d.id !== direction).map((d) => d.name);
+  if (next) s.reason = next;
+  else delete s.reason;
   await writeSketch(dir, doc);
   return doc;
 }

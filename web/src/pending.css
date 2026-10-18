@@ -47,8 +47,8 @@ button.pd-btn {
 button.pd-btn:hover { background: var(--bg-hover); }
 button.pd-btn:disabled { opacity: 0.5; cursor: default; }
 button.pd-btn:disabled:hover { background: transparent; }
-button.pd-btn.primary { background: var(--accent); border-color: var(--accent); }
-button.pd-btn.primary:hover { background: var(--accent); filter: brightness(1.1); }
+button.pd-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.pd-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .pd kbd { font: 11px/1 var(--mono, Menlo, monospace); color: inherit; opacity: 0.5; }
 
 .pd-options { display: flex; flex-direction: column; margin: 0 -8px; }

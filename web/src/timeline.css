@@ -1,0 +1,90 @@
+.chat-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
+.seg.chat-view { padding: 3px; gap: 4px; border-radius: var(--radius-sm); }
+.seg.chat-view button {
+  min-height: 24px; padding: 0 12px; border-radius: calc(var(--radius-sm) - 4px);
+  font-size: var(--text-sm); line-height: 16px;
+}
+.seg.chat-view button:not(.on):hover { background: transparent; color: var(--fg); }
+
+/* A new prompt starts a new turn in both views: 32px above it. */
+.tr > .tr-user-wrap:not(:first-child), .tr > .tr-phase:not(:first-child) { margin-top: 32px; }
+.tl-earlier { font-size: var(--text-sm); }
+.tl-earlier .link { line-height: 20px; }
+
+.tr-reply.clamp { max-height: calc(6 * 24px); overflow: hidden; }
+.tr-reply.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent);
+}
+.tr-assistant .tr-more { display: block; margin-top: 4px; font-size: var(--text-sm); line-height: 20px; }
+
+.tl-side { display: inline-flex; align-items: center; gap: 8px; }
+.tl-steps-toggle {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 4px; border: 0;
+  background: transparent; font-size: var(--text-sm); line-height: 16px; color: var(--fg-muted);
+}
+.tl-steps-toggle:hover { background: transparent; color: var(--fg); }
+
+@media (max-width: 900px) {
+  .chat-head { padding-top: 8px; }
+  .seg.chat-view button { min-height: 36px; font-size: var(--text-md); }
+  .tl-earlier .link, .tr-assistant .tr-more, .tl-steps-toggle { min-height: 36px; font-size: var(--text-md); }
+}
+
+/* First-run state of a chat: title, one line, setup actions, then prompt suggestions as rows. */
+.tl-welcome { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 4px; }
+.tl-welcome h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: var(--text-xl); line-height: 28px; }
+.tl-welcome p { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.tl-welcome .error-text { margin: 0; color: var(--err); }
+.tl-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
+.tl-start .tl-attach {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; min-height: 36px; padding: 0 16px;
+  border: 1px solid var(--border-strong); background: var(--bg-elevated); font-size: var(--text-sm); font-weight: 500;
+}
+.tl-start .tl-attach:hover { background: var(--bg-hover); }
+.tl-start .link { min-height: 36px; font-size: var(--text-sm); }
+.tl-suggest-label { margin-top: 16px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+/* Prompt suggestions are white pills that hug their text. The arrow sits on a pastel disc (sky, sage, lavender), inset 4px all round so the corners stay concentric. */
+.tl-suggest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.tl-suggest li { max-width: 100%; }
+.tl-suggest button {
+  max-width: 100%; min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 3px 3px 3px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated);
+  font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
+}
+.tl-suggest button > span { flex: 1; min-width: 0; }
+.tl-suggest button > .codicon { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--tint-blue); color: var(--fg); }
+.tl-suggest li:nth-child(3n+2) button > .codicon { background: var(--tint-green); }
+.tl-suggest li:nth-child(3n) button > .codicon { background: var(--tint-lavender); }
+.tl-suggest button:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+@media (max-width: 900px) {
+  .tl-welcome p, .tl-suggest button, .tl-start .tl-attach, .tl-start .link { font-size: var(--text-md); line-height: 24px; }
+  .tl-suggest button { min-height: 44px; padding-block: 7px; border-radius: var(--radius-lg); }
+  .tl-start .tl-attach { height: 44px; }
+}
+
+/* Timeline content shares the header and composer edges; on desktop the scrollbar sits in the card padding. */
+@media (min-width: 901px) {
+  .brief-status { overflow: visible; }
+  .brief .brief-status > .tr { margin-right: -12px; padding-right: 12px; }
+}
+@media (max-width: 900px) { .brief .brief-status > .tr { padding-right: 0; } }
+.tl-foot .tl-now::before { content: none; }
+.tl-foot .tl-now .text .when { font-size: inherit; color: var(--fg-muted); font-variant-numeric: normal; }
+
+/* Idle line: the mark shares the 16px icon column of the rows above, text on the 24px edge. */
+.brief .tl-foot { padding: 4px 0 12px; }
+.tl-foot .tl-now { grid-template-columns: 16px minmax(0, 1fr) auto auto; line-height: 20px; }
+.tl-foot .tl-now .mark { width: 16px; height: 20px; }
+.tl-foot .steps { padding-left: 24px; }
+@media (min-width: 901px) { .tl-foot .step { min-height: 24px; } }
+@media (max-width: 900px) { .tl-foot .tl-now { line-height: 24px; } .tl-foot .tl-now .mark { height: 24px; } }
+
+/* Run card sits in the timeline flow: same padding and fill as the review card, rows on a 24px rhythm. */
+.tr .run-card { margin: 0; padding: 12px 16px; gap: 8px; line-height: 20px; }
+.tr .run-head { line-height: 20px; }
+.tr .run-rows { gap: 4px; }
+.tr .run-rows li { min-height: 20px; line-height: 20px; }
+
+/* Frame thumbnails under a done line: 8px apart, on the text edge. */
+.tr .tl-thumbs { gap: 8px; padding: 4px 0; }

@@ -15,7 +15,7 @@ export class FigmaError extends Error {
 
 export async function figmaGet<T = any>(route: string, init: RequestInit = {}): Promise<T> {
   const { figmaToken } = await settings();
-  if (!figmaToken) throw new FigmaError('Add a Figma personal access token in Settings first', 412);
+  if (!figmaToken) throw new FigmaError('No Figma personal access token is saved. Add one in Settings, under Figma access.', 412);
   const res = await fetch(`${API}${route}`, { ...init, headers: { 'X-Figma-Token': figmaToken, 'content-type': 'application/json', ...init.headers } });
   const body = await res.json().catch(() => null);
   if (!res.ok) {

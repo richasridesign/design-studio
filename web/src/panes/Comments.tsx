@@ -94,7 +94,7 @@ export function Comments() {
     load();
   }, [load]);
 
-  if (!figma) return <Empty art={<ReviewArt />} title="Attach a Figma file" text="Attach a file to see its comments." action={{ label: 'Attach a Figma file', onClick: attachFigma }} />;
+  if (!figma) return <Empty art={<ReviewArt />} title="No Figma file yet" text="Attach a Figma file to see its comments." action={{ label: 'Attach Figma file', onClick: attachFigma }} />;
   if (/access token/i.test(error)) return <Empty art={<ReviewArt />} title="Add a Figma token" text="Comments are read with your Figma personal access token." action={{ label: 'Open Settings', onClick: () => command('page:settings') }} />;
 
   const open = (threads ?? []).filter((t) => !t.resolved_at);

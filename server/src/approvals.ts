@@ -71,10 +71,11 @@ export class Approvals {
     w?.resolve({ behavior: 'allow', updatedInput: { ...w.input, answers } });
   }
 
-  answerPermission(id: string, allow: boolean, always?: boolean) {
+  answerPermission(id: string, allow: boolean, always?: boolean, note?: string) {
     const w = this.finish(id);
     if (!w) return;
-    if (!allow) w.resolve({ behavior: 'deny', message: 'User denied this action in the Design Studio UI.' });
+    const said = note?.trim().slice(0, 4000);
+    if (!allow) w.resolve({ behavior: 'deny', message: said ? `The designer wants changes before you go on: ${said}` : 'User denied this action in the Design Studio UI.' });
     else w.resolve({ behavior: 'allow', updatedInput: w.input, updatedPermissions: always ? w.suggestions : undefined });
   }
 

@@ -51,8 +51,7 @@ export function profileMarkdown(ds: DesignSystem) {
 }
 
 export async function buildProfile(dir: string, figma: FigmaFile, signal?: AbortSignal) {
-  const { servers } = await figmaMcp();
-  const name = Object.keys(servers)[0];
+  const { servers, plugins, name } = await figmaMcp();
   const frames = await fileOutline(figma.key).then((o) => o.pages.flatMap((p) => p.frames).slice(0, 6).map((f) => `${f.id} ${f.name} (${f.page})`)).catch(() => [] as string[]);
   const prompt = [
     `Build a design system profile for the Figma file ${figma.name} (${figma.url}, file key ${figma.key}).`,
@@ -68,6 +67,7 @@ export async function buildProfile(dir: string, figma: FigmaFile, signal?: Abort
     schema: SCHEMA,
     tools: [],
     mcp: servers,
+    plugins,
     allowed: [`mcp__${name}`],
     maxTurns: 30,
     signal,

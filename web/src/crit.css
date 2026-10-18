@@ -22,9 +22,9 @@
 .copy-table .reason { color: var(--fg-muted); font-size: var(--text-xs); min-width: 140px; }
 .copy-table .before { white-space: normal; overflow-wrap: anywhere; }
 .copy-table textarea { width: 100%; min-width: 160px; resize: none; overflow: hidden; font: inherit; line-height: 1.4; display: block; }
-.node-chip, .findings .link, .f-body .link { background: var(--figma-soft); color: color-mix(in srgb, var(--figma) 70%, black); font-family: var(--mono, ui-monospace, monospace); font-size: var(--text-xs); line-height: 18px; padding: 0 6px; border-radius: 4px; border: 0; text-decoration: none; cursor: pointer; }
+.node-chip, .findings .link, .f-body .link { background: var(--figma-soft); color: var(--figma-ink); font-family: var(--mono, ui-monospace, monospace); font-size: var(--text-xs); line-height: 20px; padding: 0 8px; border-radius: 4px; border: 0; text-decoration: none; cursor: pointer; }
+.findings .link, .f-body .link { align-self: flex-start; margin-top: 4px; width: auto; max-width: 100%; min-height: 0; height: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node-chip:hover, .findings .link:hover, .f-body .link:hover { background: var(--figma-soft); text-decoration: underline; }
 @media (max-width: 900px) {
   .crit-grid { grid-template-columns: 1fr; }
-  .review-bar .export-report { display: none; }
 }
