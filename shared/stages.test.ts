@@ -88,6 +88,8 @@ describe('steps', () => {
     const review = { runs: [run({ round: 2, at: 10 })] };
     expect(stages({ ...none, review }, empty, 'review')[0]).toMatchObject({ state: 'todo', round: 2 });
     expect(markStep(empty, 'validate', 'again', 11, undefined, 2).marks.validate).toEqual({ state: 'todo', at: 11, round: 3 });
+    // The review round never leaks into the other steps.
+    expect(markStep(empty, 'spec', 'done', 11, undefined, 2).marks.spec).toEqual({ state: 'done', at: 11 });
   });
 
   it('opens Review again on its own when a newer review run comes in', () => {

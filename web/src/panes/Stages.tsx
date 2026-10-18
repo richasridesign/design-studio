@@ -140,11 +140,11 @@ export function StepsPanel({ view, error, change, reload }: ReturnType<typeof us
     <section className="steps-panel" id="steps-panel" aria-label="Steps" onKeyDown={closeOnEscape}>
       <div className="steps-kind-row">
         <label htmlFor="steps-kind">Kind of work</label>
-        <select id="steps-kind" value={current} aria-describedby={view.guessed && view.kind ? 'steps-guess' : undefined} onChange={(e) => change({ action: 'kind', kind: e.target.value as ChatKind | 'none' })}>
+        <select id="steps-kind" value={current} aria-describedby={view.kind ? 'steps-guess' : undefined} onChange={(e) => change({ action: 'kind', kind: e.target.value as ChatKind | 'none' })}>
           {KIND_CHOICES.map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
         </select>
-        {view.guessed && view.kind && <span className="steps-hint" id="steps-guess">Guessed from your first message</span>}
       </div>
+      {view.kind && <p className="steps-hint" id="steps-guess">{view.guessed ? 'Guessed from your first message. ' : ''}A guide, not a gate: take the steps in any order.</p>}
       {view.kind ? (
         <ol className="steps-list">
           {view.steps.map((s) => (
@@ -159,7 +159,6 @@ export function StepsPanel({ view, error, change, reload }: ReturnType<typeof us
       )}
       {/* Scope matters to every kind of work, so it stays in reach when the list has no Plan step. */}
       {!hasSpec && <div className="steps-scope"><ScopeBox onChange={reload} /></div>}
-      {view.kind && <p className="steps-hint">A guide, not a gate: take the steps in any order.</p>}
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
   );
