@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RETRY_MS, cacheLeft, figmaState, limitText, shouldRetry } from './StatusBar';
+import { RETRY_MS, cacheLeft, figmaState, limitText, runningText, shouldRetry } from './StatusBar';
 
 describe('figmaState', () => {
   it('reads the Figma plugin status', () => {
@@ -37,5 +37,19 @@ describe('shouldRetry', () => {
     expect(shouldRetry('failed', 1000, 1000 + RETRY_MS - 1)).toBe(false);
     expect(shouldRetry('connected', 0, RETRY_MS)).toBe(false);
     expect(shouldRetry(undefined, 0, RETRY_MS)).toBe(false);
+  });
+});
+
+describe('runningText', () => {
+  it('says Working until the first step reports', () => {
+    expect(runningText('Idle')).toBe('Working');
+    expect(runningText('')).toBe('Working');
+    expect(runningText('Editing Figma')).toBe('Editing Figma');
+  });
+});
+
+describe('limitText without a usage figure', () => {
+  it('says OK instead of a vague phrase', () => {
+    expect(limitText({ kind: 'five_hour', used: null, resetsAt: null, status: 'allowed' }).label).toBe('5-hour limit: OK');
   });
 });

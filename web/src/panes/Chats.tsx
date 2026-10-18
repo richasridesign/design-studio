@@ -6,6 +6,7 @@ import { type ChatEvent, type LiveChat, type SavedSession } from '../../../share
 import { replyLine } from '../../../shared/edits';
 import '../chats.css';
 import { press } from '../press';
+import { runningText } from '../StatusBar';
 
 type Folder = { cwd: string; key: string; name: string; url: string };
 type Group = { cwd: string; name: string; open: LiveChat[]; recent: SavedSession[] };
@@ -121,7 +122,7 @@ export function Chats() {
 }
 
 function line(c: LiveChat, events: ChatEvent[] | null) {
-  return c.pending ? 'Needs you' : c.running ? c.status : c.last ?? (events ? replyLine(events) : '') ?? '';
+  return c.pending ? 'Needs you' : c.running ? runningText(c.status) : c.last ?? (events ? replyLine(events) : '') ?? '';
 }
 
 function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onClose: () => void }) {
@@ -146,6 +147,7 @@ function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onC
 
 function ago(t: number) {
   const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'now';
   if (m < 60) return `${m}m`;
   if (m < 60 * 24) return `${Math.round(m / 60)}h`;
   return `${Math.round(m / 1440)}d`;

@@ -47,11 +47,14 @@ export function cacheLeft(cache: { at: number; ttlMs: number } | null, now: numb
   return Math.max(0, cache.at + cache.ttlMs - now);
 }
 
+// While a turn runs the server status can still read Idle until the first step reports.
+export const runningText = (status: string) => (!status || status === 'Idle' ? 'Working' : status);
+
 const KIND: Record<string, string> = { five_hour: '5-hour limit', seven_day: 'Weekly limit', seven_day_opus: 'Weekly Opus limit', seven_day_sonnet: 'Weekly Sonnet limit' };
 
 export function limitText(l: PlanLimit) {
   const name = KIND[l.kind] ?? 'Plan limit';
-  const used = l.status === 'rejected' ? 'reached' : l.used === null ? 'in use' : `${Math.round(l.used * 100)}% used`;
+  const used = l.status === 'rejected' ? 'reached' : l.used === null ? 'OK' : `${Math.round(l.used * 100)}% used`;
   const at = l.resetsAt ? new Date(l.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const tone = l.status === 'rejected' ? 'bad' : l.status === 'allowed_warning' || (l.used ?? 0) >= 0.8 ? 'warn' : '';
   return { label: `${name}: ${used}`, resets: at && `resets ${at}`, tone };
