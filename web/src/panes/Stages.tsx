@@ -78,7 +78,8 @@ export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boo
   const now = currentStage(list);
   const i = now ? list.indexOf(now) + 1 : list.length;
   return (
-    <button className={`stage-btn ${now?.state ?? 'approved'} st-${now?.id ?? 'ship'}`} aria-expanded={open} aria-controls="stage-panel" title={open ? 'Hide stages' : 'Show stages and what passes each gate'} onClick={onToggle}>
+    <button className={`stage-btn ${now?.state ?? 'approved'} st-${now?.id ?? 'ship'}`} aria-expanded={open} aria-controls="stage-panel" title={open ? 'Hide stages' : 'Show stages and what passes each gate'} onClick={onToggle}
+      onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.preventDefault(); onToggle(); } }}>
       <span className="stage-mark" aria-hidden="true" />
       <span>{now ? <><span className="stage-long">Stage {i} of {list.length}: </span><span className="stage-short" aria-hidden="true">{i}/{list.length} </span><b>{now.name}</b></> : <b>All stages approved</b>}</span>
       <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
