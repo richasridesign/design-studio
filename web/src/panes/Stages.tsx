@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { currentStage, type Stage, type StageCheck, type StageId, type StageOpen } from '../../../shared/stages';
+import { insertPrompt } from './Files';
 import '../stages.css';
 
 const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open report', attach: 'Attach file' };
@@ -10,6 +11,25 @@ function go(to: StageOpen) {
   if (to === 'report') window.open(api('/api/report'), '_blank');
   else if (to === 'attach') window.dispatchEvent(new Event('designstudio:attach'));
   else window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: `page:${to}` } }));
+}
+
+const PLAN_ASK = 'Plan this before building: screens, buttons, copy and states. Wait for my approval.';
+
+/** The one thing to do next in a stage that is not ready yet. Fills the message box, never sends. */
+export function nextStep(stage: Stage, brief: string): { label: string; run: () => void } | null {
+  const missing = (label: string) => stage.checks.find((c) => c.label === label)?.state === 'open';
+  const about = brief ? ` ${brief}` : '';
+  switch (stage.id) {
+    case 'spec':
+      if (missing('Figma file attached')) return { label: 'Attach a Figma file', run: () => go('attach') };
+      return missing('Brief written') ? { label: 'Describe the work in the message box', run: () => document.querySelector<HTMLTextAreaElement>('.cp textarea')?.focus() } : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
+    case 'explore': return { label: 'Sketch directions', run: () => insertPrompt(`/sketch${about}`) };
+    // Decide and the decisions check already link to where the work happens.
+    case 'decide': return null;
+    case 'build': return missing('Frames in Figma') ? { label: 'Design it in Figma', run: () => insertPrompt(`/design${about}`) } : null;
+    case 'validate': return { label: 'Run a review', run: () => insertPrompt('/review') };
+    case 'ship': return null;
+  }
 }
 
 function ago(at: number) {
@@ -55,6 +75,8 @@ export function StagePanel({ list, error, change }: ReturnType<typeof useStages>
   const now = currentStage(list);
   const [picked, setPicked] = useState<StageId | null>(null);
   const shown = list.find((s) => s.id === picked) ?? now ?? list[list.length - 1];
+  const spec = list.find((s) => s.id === 'spec')?.checks[0];
+  const brief = spec?.state === 'met' ? spec.detail : '';
   return (
     <section className="stage-panel" id="stage-panel" aria-label="Stages">
       <ol className="stage-rail">
@@ -69,14 +91,15 @@ export function StagePanel({ list, error, change }: ReturnType<typeof useStages>
           </li>
         ))}
       </ol>
-      <Gate stage={shown} current={shown === now} onChange={change} />
+      <Gate stage={shown} current={shown === now} brief={brief} onChange={change} />
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
   );
 }
 
-function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void }) {
+function Gate({ stage, current, brief, onChange }: { stage: Stage; current: boolean; brief: string; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void }) {
   const open = stage.checks.filter((c) => c.state === 'open').length;
+  const next = nextStep(stage, brief);
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState('');
   useEffect(() => { setNoting(false); setNote(''); }, [stage.id]);
@@ -86,6 +109,7 @@ function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; on
         <b>{stage.name}</b>
         <span className="muted">{stage.goal}</span>
       </div>
+      {current && stage.state === 'open' && next && <p className="gate-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
       <div className="gate-label">Passes when</div>
       <ul className="gate-checks">{stage.checks.map((c) => <Check key={c.label} c={c} />)}</ul>
       {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}

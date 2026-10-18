@@ -38,6 +38,8 @@
 .gate-head { display: grid; gap: 4px; }
 .gate-head b { font-size: var(--text-md); line-height: 24px; }
 .gate-head .muted, .gate-foot .muted { font-size: var(--text-sm); line-height: 20px; }
+.gate-next { margin: 0; font-size: var(--text-sm); line-height: 20px; }
+.gate-next .link { min-height: 24px; font-size: var(--text-sm); }
 .gate-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
 .gate-checks { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .gate-check { display: grid; grid-template-columns: 16px 1fr auto; align-items: start; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
@@ -67,6 +69,6 @@
   .stage-btn { min-height: 36px; font-size: var(--text-md); }
   .stage-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .stage-short { display: inline; }
-  .stage-rail button, .gate-check .link, .gate-done .link { min-height: 36px; }
+  .stage-rail button, .gate-check .link, .gate-done .link, .gate-act .link, .gate-next .link { min-height: 36px; }
   .stage-panel { padding: 12px; }
 }
