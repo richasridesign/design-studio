@@ -69,7 +69,7 @@ function Welcome({ fileName }: { fileName: string | null }) {
     <div className="tl-welcome">
       <SetupBanner />
       <h2>What are we working on?</h2>
-      <p>Ask Claude about a design. Design mode (Shift+Tab) plans, sketches, designs and reviews it.</p>
+      <p>Ask Claude about a design. Design mode (⌥M) plans, sketches, designs and reviews it.</p>
       {attach && (
         <div className="tl-start">
           <button className="tl-attach" onClick={() => window.dispatchEvent(new Event('designstudio:attach'))}><Icon name="file-media" small />{attach.label}</button>

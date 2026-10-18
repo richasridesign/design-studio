@@ -27,7 +27,7 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
       [['↑'], 'Previous message'],
       [['Tab'], 'Accept suggestion'],
       [['Esc'], 'Close suggestions'],
-      [['⇧', 'Tab'], 'Switch mode: Chat, Design, Review'],
+      [['⌥', 'M'], 'Switch mode: Chat, Design, Review'],
       [['/'], 'Commands and recipes, e.g. /copy tone:formal'],
       [['@'], 'Files in the chat folder'],
       [['#'], 'Frames in the attached file'],
