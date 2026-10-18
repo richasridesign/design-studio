@@ -1,15 +1,15 @@
-.cp { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; --cp-ring: var(--border-strong); }
+.cp { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; --cp-ring: var(--input-border); }
 .cp[data-mode='design'] { --cp-ring: var(--accent); }
 .cp[data-mode='review'] { --cp-ring: var(--fg-muted); }
 
 .cp-card {
   position: relative; display: flex; flex-direction: column;
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  background: var(--bg-raised); border: 1px solid var(--input-border); border-radius: var(--radius, 8px);
   transition: border-color 0.12s;
 }
 /* Focus is always the focus blue, whatever the mode; the mode colour shows at rest. */
 .cp .cp-card:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
-.cp:not([data-mode='chat']) .cp-card { border-color: color-mix(in srgb, var(--cp-ring) 45%, var(--border)); }
+.cp:not([data-mode='chat']) .cp-card { border-color: color-mix(in srgb, var(--cp-ring) 45%, var(--input-border)); }
 
 .cp-text { position: relative; }
 .cp-card textarea, .cp-mirror {
