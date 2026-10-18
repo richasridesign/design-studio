@@ -133,15 +133,18 @@ export function splitFrameLinks(text: string, key: string): { links: string[]; r
 export const withFrameLinks = (links: string[], text: string) => (links.length ? `${links.join(' ')} ${text}`.trim() : text);
 
 /**
- * Text another pane puts in the message box. Never twice: what is already there stays as it is. A slash command goes
- * first and replaces a command line already at the top, so a second click on Review does not make "/review /review".
+ * Text another pane puts in the message box. Never twice, and never loses what she typed: the same command already at
+ * the top leaves the box as it is (a second Review click does not make "/review /review"), another command swaps only
+ * the command word, and a command before plain text goes first.
  */
 export function insertInto(text: string, add: string): string {
   const a = add.trim();
   if (!a || text.includes(a)) return text;
   if (a.startsWith('/')) {
-    const [first, ...rest] = text.split('\n');
-    if (first.trimStart().startsWith('/')) return `${[a, ...rest].join('\n').trimEnd()} `;
+    const lead = /^\s*(\/\S+)/.exec(text);
+    const word = a.split(/\s+/)[0];
+    if (lead && lead[1] === word) return text;
+    if (lead) return `${word}${text.trimStart().slice(lead[1].length)}`;
     return text.trim() ? `${a} ${text.trimStart()}` : `${a} `;
   }
   const tail = `${add.trimEnd()} `;
