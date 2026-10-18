@@ -18,6 +18,14 @@ export default function SketchCanvas({ doc, board, onBoard }: { doc: SketchDoc |
   };
 
   useEffect(() => {
+    if (!ready) return;
+    // Excalidraw's menu button is icon-only with no name: give it one, and a tooltip.
+    const menu = document.querySelector<HTMLButtonElement>('.excalidraw .main-menu-trigger');
+    menu?.setAttribute('aria-label', 'Canvas menu');
+    menu?.setAttribute('title', 'Canvas menu');
+  }, [ready]);
+
+  useEffect(() => {
     if (!ready || !api.current) return;
     let alive = true;
     (async () => {
