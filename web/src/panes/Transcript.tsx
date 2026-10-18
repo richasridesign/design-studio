@@ -9,6 +9,7 @@ import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
+import { Confirm } from '../Confirm';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
@@ -325,7 +326,10 @@ function ReviewCard({ runAt }: { runAt: number }) {
   const chat = useStore((s) => s.session.id);
   const hasFile = useStore((s) => !!s.session.figma);
   const figmaKey = useStore((s) => s.session.figma?.key);
+  const fileName = useStore((s) => s.session.figma?.name) ?? 'the Figma file';
   const [copied, setCopied] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const postBtn = useRef<HTMLButtonElement>(null);
   const rev = useRev('review.json');
   const [doc, setDoc] = useState<ReviewDoc | null>(null);
   const [posting, setPosting] = useState(false);
@@ -382,12 +386,24 @@ function ReviewCard({ runAt }: { runAt: number }) {
       {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review. <button className="link" onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
       <div className="tr-review-actions">
         <button onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }))}>Open Review</button>
-        {hasFile && pending.length > 0 && <button className="link" disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={post}>Post {pending.length} to Figma</button>}
+        {hasFile && pending.length > 0 && <button ref={postBtn} className="link" disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={() => setAsking(true)}>Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {retryPrompt(run) && <button className="link" title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
         {canGoDeeper(run) && <button className="link" onClick={() => insertPrompt('/review full')}>Review deeper</button>}
-        {note && <span className="tr-review-note">{note}</span>}
+        {note && <span className="tr-review-note" role="status">{note}</span>}
       </div>
+      {asking && (
+        <Confirm
+          safe
+          icon="comment"
+          title={`Post ${pending.length} ${pending.length === 1 ? 'comment' : 'comments'} to Figma?`}
+          detail={`Each finding becomes a comment on its frame in ${fileName}.`}
+          warning="Everyone with access to the file sees them."
+          action={`Post ${pending.length}`}
+          run={post}
+          onClose={() => { setAsking(false); requestAnimationFrame(() => postBtn.current?.focus()); }}
+        />
+      )}
     </div>
   );
 }
