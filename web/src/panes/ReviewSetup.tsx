@@ -5,9 +5,8 @@ import { shownPreset } from './reviewRuns';
 
 /** What one review costs and how many fix rounds follow, in one plain line. */
 export function costLine(preset: ShownPreset, areas: Area[], fixRounds: number) {
-  if (preset === 'focused' && !areas.length) return 'Tick at least one area for a Focused review.';
   const rounds = fixRoundsFor(preset, fixRounds);
-  const who = preset === 'quick' ? (areas.length ? 'One reviewer covers the ticked areas' : 'Nothing ticked, so one reviewer covers all five areas') : preset === 'focused' ? `${areas.length} ${areas.length === 1 ? 'reviewer' : 'reviewers'}, one per area` : 'Five reviewers, one per area';
+  const who = preset === 'quick' || !areas.length ? (areas.length ? 'One reviewer covers the ticked areas' : 'Nothing ticked, so one reviewer covers all five areas') : preset === 'focused' ? `${areas.length} ${areas.length === 1 ? 'reviewer' : 'reviewers'}, one per area` : 'Five reviewers, one per area';
   return `${who}. Cost per review: ${roundCost(preset, areas)}. Fix rounds: ${rounds === 1 ? '1' : `up to ${rounds}`}.`;
 }
 

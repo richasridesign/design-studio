@@ -136,7 +136,8 @@ function profileFor(ds: DesignSystem | null, area: Area | 'all') {
 export function reviewersFor(preset: ReviewPreset, areas: Area[], onlyFailed: Area[] | null): Array<Area | 'all'> {
   if (preset === 'check') return [];
   // Quick is one reviewer covering the ticked areas (all five when none are ticked).
-  if (preset === 'quick') return onlyFailed && onlyFailed.length === 0 ? [] : ['all'];
+  // Focused with nothing ticked runs as Quick, so a review never ends with no reviewer.
+  if (preset === 'quick' || (preset === 'focused' && !areas.length)) return onlyFailed && onlyFailed.length === 0 ? [] : ['all'];
   const base = preset === 'full' ? [...AREAS] : AREAS.filter((a) => areas.includes(a));
   return onlyFailed ? base.filter((a) => onlyFailed.includes(a)) : base;
 }
@@ -263,7 +264,7 @@ export function frameOf(docs: Array<{ document: any }>, id: string): string | un
 
 export function failedAreas(run: ReviewRun): Area[] {
   const out = new Set<Area>();
-  for (const r of run.results) for (const f of r.findings) if (f.severity !== 'minor' && f.area !== 'check') out.add(f.area as Area);
+  for (const r of run.results) for (const f of r.findings) if (f.severity !== 'minor' && f.area !== 'check' && !f.decide) out.add(f.area as Area);
   return AREAS.filter((a) => out.has(a));
 }
 

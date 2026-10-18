@@ -11,6 +11,9 @@ export const hasReview = (doc: unknown) => {
   return Array.isArray(runs) && runs.length > 0;
 };
 
+/** The Review tab also shows when a decision waits for her, so a chat with no review can still reach the list. */
+export const hasOpenAwaiting = (items: unknown) => Array.isArray(items) && items.some((i) => (i as { state?: unknown } | null)?.state === 'open');
+
 export function useCanvasContent(): CanvasContent {
   const chat = useStore((s) => s.session.id);
   const phase = useStore((s) => s.session.flow.phase);
@@ -30,7 +33,9 @@ export function useCanvasContent(): CanvasContent {
 
   useEffect(() => {
     let live = true;
-    getJson<unknown>('/api/review').then(hasReview, () => false).then((v) => live && setReview(v));
+    const runs = getJson<unknown>('/api/review').then(hasReview, () => false);
+    const waiting = getJson<unknown>('/api/awaiting').then(hasOpenAwaiting, () => false);
+    Promise.all([runs, waiting]).then(([a, b]) => live && setReview(a || b));
     return () => { live = false; };
   }, [chat, phase, reviewRev]);
 

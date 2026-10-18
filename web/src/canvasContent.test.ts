@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasReview, hasSketch } from './canvasContent';
+import { hasOpenAwaiting, hasReview, hasSketch } from './canvasContent';
 
 describe('hasSketch', () => {
   it('counts a sketch doc', () => expect(hasSketch({ screens: [] }, [])).toBe(true));
@@ -22,5 +22,13 @@ describe('hasReview', () => {
   it('ignores bad shapes', () => {
     expect(hasReview(null)).toBe(false);
     expect(hasReview({ error: 'x' })).toBe(false);
+  });
+});
+
+describe('hasOpenAwaiting', () => {
+  it('needs an open item', () => {
+    expect(hasOpenAwaiting([{ state: 'approved' }, { state: 'open' }])).toBe(true);
+    expect(hasOpenAwaiting([{ state: 'parked' }])).toBe(false);
+    expect(hasOpenAwaiting({ error: 'x' })).toBe(false);
   });
 });

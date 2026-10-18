@@ -18,6 +18,7 @@ describe('reviewersFor', () => {
     expect(reviewersFor('full', [], ['visual'])).toEqual(['visual']);
   });
   it('skips quick re-review when nothing failed', () => expect(reviewersFor('quick', [], [])).toEqual([]));
+  it('runs focused with nothing ticked as quick', () => expect(reviewersFor('focused', [], null)).toEqual(['all']));
 });
 
 describe('review results', () => {
@@ -34,6 +35,7 @@ describe('review results', () => {
   it('leaves findings that need her decision out of the fix round', () => {
     const shared = { ...run, results: [{ ...run.results[0], findings: [{ ...run.results[0].findings[0], decide: 'text/muted token' }] }] };
     expect(toFix(shared).map((f) => f.id)).toEqual(['c']);
+    expect(failedAreas(shared)).toEqual([]);
   });
 });
 

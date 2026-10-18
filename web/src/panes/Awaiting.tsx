@@ -61,11 +61,13 @@ export function Awaiting() {
                     <div><dt>Touches:</dt> <dd>{item.impact}</dd></div>
                   </dl>
                   <div className="aw-foot">
-                    <button className="aw-approve" onClick={() => set(item, 'approved')}>Approve</button>
+                    {local
+                      ? <button className="aw-approve" onClick={() => set(item, 'approved')}>Approve</button>
+                      : <span className="aw-hint">Approve from a chat on {item.fileName || 'that file'}.</span>}
                     <button className="triage-link" onClick={() => set(item, 'parked')}>Park</button>
                     <button className="triage-link" onClick={() => set(item, 'rejected')}>Reject</button>
                     <span className="aw-where">
-                      {AREA_NAMES[item.area as keyof typeof AREA_NAMES] ?? 'Code scan'} ·{' '}
+                      {item.area === 'long_run' ? 'Long run' : AREA_NAMES[item.area as keyof typeof AREA_NAMES] ?? 'Code scan'} ·{' '}
                       {local
                         ? <button className="node-chip" title="Show in Figma" onClick={() => showNode(item.node)}>{label(item.node, item.nodeName)}</button>
                         : <a className="node-chip" href={nodeUrl(item.fileKey, item.node)} target="_blank" rel="noreferrer">{item.fileName || 'Other file'}</a>}
