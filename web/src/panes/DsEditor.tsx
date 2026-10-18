@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { getJson, postJson, useStore } from '../store';
+import { getJson, postJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { IconButton } from '../Tip';
 import { useDialogFocus } from '../useDialog';
@@ -43,6 +43,8 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
       const r = await changeDs(body);
       setView((v) => ({ ds: r.ds, skills: v?.skills ?? [] }));
       if (body.action === 'skills' || body.action === 'starter') void load();
+      // A starter sets this chat's review areas (Lo-fi reviews flow and copy only). She can tick others on the Review tab.
+      if (body.action === 'starter' && r.ds?.areas) send({ type: 'set_flow', patch: { areas: r.ds.areas } });
       setSaid(r.costUsd ? `${done} Cost: $${r.costUsd.toFixed(3)}.` : done);
     } catch (e) {
       setError((e as Error).message);

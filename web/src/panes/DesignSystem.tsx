@@ -64,7 +64,12 @@ export function DesignSystem() {
   const start = async (id: string) => {
     setBusy(true);
     setError('');
-    try { setDs((await changeDs({ action: 'starter', id })).ds); if (id === 'code') setEditing('code'); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try {
+      const next = (await changeDs({ action: 'starter', id })).ds;
+      setDs(next);
+      if (next?.areas) send({ type: 'set_flow', patch: { areas: next.areas } });
+      if (id === 'code') setEditing('code');
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const editor = editing && <DsEditor focus={editing === 'code' ? 'code' : undefined} onClose={() => { setEditing(false); getJson<DS | null>('/api/design-system').then(setDs).catch(() => {}); }} />;
 
