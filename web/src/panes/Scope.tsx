@@ -55,6 +55,7 @@ function ScopeEdit({ scope, change }: { scope: Scope; change: (c: ScopeChange) =
     <div className="scope-edit" id="scope-edit">
       <p className="muted">Claude keeps every flow here and keeps parked features out. Each review checks the parked ones.</p>
       <div className="scope-label">Flows in scope</div>
+      {!scope.flows.length && <p className="muted">None yet. Add each flow the work must keep.</p>}
       {scope.flows.length > 0 && (
         <ul className="scope-list">
           {scope.flows.map((f) => (
@@ -105,7 +106,8 @@ function ParkForm({ name: start, onPark, onCancel }: { name: string; onPark: (c:
   const keys = (e: React.KeyboardEvent) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onCancel(); };
   return (
     <div className="scope-park" role="group" aria-label={start ? `Park ${start}` : 'Park a feature'}>
-      {start ? <div className="scope-label">Park {start}</div> : (
+      <div className="scope-label">{start ? `Park ${start}` : 'Park a feature'}</div>
+      {!start && (
         <label className="field"><span>Feature<span aria-hidden="true"> *</span></span><input autoFocus required value={name} maxLength={80} placeholder="For example: Gift cards" onChange={(e) => setName(e.target.value)} onKeyDown={keys} /></label>
       )}
       <label className="field"><span>Why it is parked<span aria-hidden="true"> *</span></span><input autoFocus={!!start} required value={why} maxLength={200} placeholder="For example: not in the MVP" onChange={(e) => setWhy(e.target.value)} onKeyDown={keys} /></label>

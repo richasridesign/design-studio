@@ -19,7 +19,7 @@
 .stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--ok); color: #fff; }
 .stage-rail .approved .stage-mark .codicon { font-size: 12px; }
 
-.stage-panel { container-type: inline-size; flex: none; max-height: min(440px, 40vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.stage-panel { container-type: inline-size; flex: none; max-height: min(560px, 60vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 
 /* Rail: six stages joined by lines. Scrolls sideways on narrow screens. */
 .stage-rail { display: flex; align-items: center; margin: 0 0 16px; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
@@ -41,6 +41,8 @@
 .gate-next { margin: 0; font-size: var(--text-sm); line-height: 20px; }
 .gate-next .link { min-height: 24px; font-size: var(--text-sm); }
 .gate-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+/* The count of open checks sits with the list it counts, so the two always agree on screen. */
+.gate-open { font-weight: 400; }
 .gate-checks { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .gate-check { display: grid; grid-template-columns: 16px 1fr auto; align-items: start; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
 .gate-check:first-child { border-top: 0; }
