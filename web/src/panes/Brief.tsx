@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { IconButton } from '../Tip';
 import { Pending } from './Pending';
 import { Composer } from './Chat';
 import { RunCard } from './RunCard';
@@ -60,7 +61,7 @@ export function Brief() {
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
   const stages = useStages();
   const steps = useStepsOpen();
-  // Claude's own to-do list: shown when it has items, hidden when empty (Add a step lives with the items).
+  // Up next, Claude's own list of what it does after this turn: shown when it has items, hidden when empty (Add to Up next lives with the items).
   const hasSteps = next.length > 0 || adding;
   const answerTo = useMemo(() => replyToAnswer(events), [events]);
   const [, tick] = useState(0);
@@ -97,13 +98,6 @@ export function Brief() {
                 {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {time(lastReply.at)}</span>}
                 {state === 'running' && toolLine && <span className={`tool ${toolLine.mono ? 'mono' : ''}`} title={toolLine.object}>{toolLine.verb} {toolLine.object}</span>}
               </span>
-              <span className="tl-side">
-                {hasSteps && (
-                  <button className="tl-steps-toggle" aria-expanded={stepsOpen} title={stepsOpen ? "Hide Claude's to-do list" : "Show Claude's to-do list"} onClick={toggleSteps}>
-                    {next.length ? `Up next · ${next.length}` : 'Up next'}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
-                  </button>
-                )}
-              </span>
               <ReadAloud />
             </div>
             {quick.length > 0 && (
@@ -113,17 +107,27 @@ export function Brief() {
                 ))}
               </div>
             )}
-            {hasSteps && stepsOpen && (
-              <ul className="steps">
-                {next.map((t, i) => (
-                  <Step key={`${i}:${t}`} text={t} onSave={(v) => setNext(next.map((x, j) => (j === i ? v : x)).filter(Boolean))} onDrop={() => setNext(next.filter((_, j) => j !== i))} />
-                ))}
-                {adding ? (
-                  <Step text="" editing onSave={(v) => { setAdding(false); if (v) setNext([...next, v]); }} onDrop={() => setAdding(false)} />
-                ) : (
-                  <li className="step add"><button className="link" onClick={() => setAdding(true)}><Icon name="add" small /> Add a step</button></li>
+            {/* Up next: what Claude plans to do after this turn. "Steps" is kept for the workflow in the chat head. */}
+            {hasSteps && (
+              <section className="up-next" aria-labelledby="up-next-h">
+                <h3 className="up-next-h" id="up-next-h">
+                  <button className="up-next-toggle" aria-expanded={stepsOpen} aria-controls="up-next-list" title={stepsOpen ? 'Hide what Claude does next' : 'Show what Claude does next'} onClick={toggleSteps}>
+                    Up next{next.length > 0 && <span className="badge">{next.length}</span>}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
+                  </button>
+                </h3>
+                {stepsOpen && (
+                  <ul className="steps" id="up-next-list">
+                    {next.map((t, i) => (
+                      <UpNextItem key={`${i}:${t}`} text={t} onSave={(v) => setNext(next.map((x, j) => (j === i ? v : x)).filter(Boolean))} onDrop={() => setNext(next.filter((_, j) => j !== i))} />
+                    ))}
+                    {adding ? (
+                      <UpNextItem text="" editing onSave={(v) => { setAdding(false); if (v) setNext([...next, v]); }} onDrop={() => setAdding(false)} />
+                    ) : (
+                      <li className="step add"><button className="link" onClick={() => setAdding(true)}><Icon name="add" small /> Add to Up next</button></li>
+                    )}
+                  </ul>
                 )}
-              </ul>
+              </section>
             )}
           </div>}
         </Transcript>
@@ -145,7 +149,7 @@ export function Brief() {
   );
 }
 
-function Step({ text, editing = false, onSave, onDrop }: { text: string; editing?: boolean; onSave: (v: string) => void; onDrop: () => void }) {
+function UpNextItem({ text, editing = false, onSave, onDrop }: { text: string; editing?: boolean; onSave: (v: string) => void; onDrop: () => void }) {
   const [edit, setEdit] = useState(editing);
   const [value, setValue] = useState(text);
   if (edit) {
@@ -155,7 +159,8 @@ function Step({ text, editing = false, onSave, onDrop }: { text: string; editing
         <input
           autoFocus
           value={value}
-          placeholder="Describe the step"
+          placeholder="What should Claude do next?"
+          aria-label={text ? `Edit: ${text}` : 'Add to Up next'}
           onChange={(e) => setValue(e.target.value)}
           onBlur={done}
           onKeyDown={(e) => {
@@ -170,8 +175,8 @@ function Step({ text, editing = false, onSave, onDrop }: { text: string; editing
     <li className="step">
       <span className="text" onClick={() => { if (!touch()) setEdit(true); }}>{text}</span>
       <span className="acts">
-        <button className="icon-btn" title="Edit step" onClick={() => setEdit(true)}><Icon name="edit" small /></button>
-        <button className="icon-btn" title="Remove step" onClick={onDrop}><Icon name="close" small /></button>
+        <IconButton label={`Edit: ${text}`} tip="Edit" place="top" onClick={() => setEdit(true)}><Icon name="edit" small /></IconButton>
+        <IconButton label={`Remove from Up next: ${text}`} tip="Remove from Up next" place="top" onClick={onDrop}><Icon name="close" small /></IconButton>
       </span>
     </li>
   );

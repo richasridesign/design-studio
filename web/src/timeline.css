@@ -18,17 +18,19 @@
 }
 .tr-assistant .tr-more { display: block; margin-top: 4px; font-size: var(--text-sm); line-height: 20px; }
 
-.tl-side { display: inline-flex; align-items: center; gap: 8px; }
-.tl-steps-toggle {
-  display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 4px; border: 0;
-  background: transparent; font-size: var(--text-sm); line-height: 16px; color: var(--fg-muted);
+/* Up next: Claude's list of what it does after this turn, headed by its own toggle, in line with the list text. */
+.up-next { padding: 8px 0 0 24px; }
+.up-next-h { margin: 0; font-size: var(--text-sm); line-height: 20px; font-weight: 600; }
+.up-next-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 24px; padding: 0; border: 0;
+  background: transparent; font: inherit; color: var(--fg);
 }
-.tl-steps-toggle:hover { background: transparent; color: var(--fg); }
+.up-next-toggle:hover { background: transparent; text-decoration: underline; text-underline-offset: 2px; }
 
 @media (max-width: 900px) {
   .chat-head { padding-top: 8px; }
   .seg.chat-view button { min-height: 36px; font-size: var(--text-md); }
-  .tl-earlier .link, .tr-assistant .tr-more, .tl-steps-toggle { min-height: 36px; font-size: var(--text-md); }
+  .tl-earlier .link, .tr-assistant .tr-more, .up-next-toggle { min-height: 36px; font-size: var(--text-md); }
 }
 
 /* First-run state of a chat: title, one line, setup actions, then prompt suggestions as rows. */
@@ -76,7 +78,7 @@
 .brief .tl-foot { padding: 4px 0 12px; }
 .tl-foot .tl-now { grid-template-columns: 16px minmax(0, 1fr) auto auto; line-height: 20px; }
 .tl-foot .tl-now .mark { width: 16px; height: 20px; }
-.tl-foot .steps { padding-left: 24px; }
+.tl-foot .steps { padding-left: 0; }
 @media (min-width: 901px) { .tl-foot .step { min-height: 24px; } }
 @media (max-width: 900px) { .tl-foot .tl-now { line-height: 24px; } .tl-foot .tl-now .mark { height: 24px; } }
 
@@ -97,7 +99,7 @@
 }
 .quick-replies .qr:hover { background: var(--bg-hover); color: var(--fg); }
 .quick-replies .qr.answer { border-color: var(--fg); color: var(--fg); font-weight: 600; }
-@media (max-width: 900px) { .quick-replies { padding-left: 0; } .quick-replies .qr { min-height: 44px; font-size: var(--text-md); } }
+@media (max-width: 900px) { .quick-replies, .up-next { padding-left: 0; } .quick-replies .qr { min-height: 44px; font-size: var(--text-md); } }
 /* The running line names the last step in words (Worked in Figma: Swap dialogs); only paths and commands keep the code font. */
 .tl-foot .tl-now .tool { font-family: inherit; }
 .tl-foot .tl-now .tool.mono { font-family: var(--mono); }
