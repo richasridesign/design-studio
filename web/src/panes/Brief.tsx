@@ -10,7 +10,7 @@ import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
-import { StageButton, StagePanel, useStages } from './Stages';
+import { StepsButton, StepsPanel, useStages, useStepsOpen } from './Stages';
 
 export function nextSteps(events: ChatEvent[]) {
   let next: string[] = [];
@@ -24,7 +24,6 @@ export function nextSteps(events: ChatEvent[]) {
 
 const VIEW_KEY = 'designstudio.chatView';
 const STEPS_KEY = 'designstudio.nextSteps';
-const STAGES_KEY = 'designstudio.stages';
 
 function load(key: string) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -56,8 +55,7 @@ export function Brief() {
   const pick = (v: ChatView) => { setView(v); save(VIEW_KEY, v); };
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
   const stages = useStages();
-  const [stagesOpen, setStagesOpen] = useState(() => load(STAGES_KEY) === '1');
-  const toggleStages = () => { setStagesOpen(!stagesOpen); save(STAGES_KEY, stagesOpen ? '0' : '1'); };
+  const steps = useStepsOpen();
   const hasSteps = next.length > 0 || adding || running;
   const [, tick] = useState(0);
   const setNext = (list: string[]) => send({ type: 'plan', next: list });
@@ -71,18 +69,16 @@ export function Brief() {
   return (
     <div className="brief">
       <div className="brief-status">
-        {/* The stages show from the first visit, so a new chat already reads Spec and its first step. */}
-        {(events.length > 0 || stages.list) && (
+        {/* Steps wait for the first message: it says what kind of work the chat is. */}
+        {events.length > 0 && (
           <div className="chat-head">
-            {events.length > 0 && (
-              <div className="seg chat-view" role="group" aria-label="Chat view">
-                {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
-              </div>
-            )}
-            {stages.list && <StageButton list={stages.list} open={stagesOpen} onToggle={toggleStages} />}
+            <div className="seg chat-view" role="group" aria-label="Chat view">
+              {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
+            </div>
+            {stages.view && <StepsButton view={stages.view} open={steps.open} onToggle={steps.toggle} />}
           </div>
         )}
-        {stagesOpen && stages.list && <StagePanel {...stages} list={stages.list} />}
+        {events.length > 0 && steps.open && stages.view && <StepsPanel {...stages} view={stages.view} />}
         <Transcript view={view}>
           <RunCard />
           {(events.length > 0 || running) && <div className="tl-foot">

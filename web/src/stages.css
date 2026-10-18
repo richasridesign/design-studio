@@ -1,106 +1,99 @@
-/* Each stage has its own pastel tint, a vivid bar and a deeper ink for the pill outline. Both are decoration: the state stays in the mark's shape and the label. */
-.st-spec { --st-tint: var(--tint-blue); --st-vivid: var(--ink-blue); --st-ink: var(--ink-blue); }
-.st-explore { --st-tint: var(--tint-lavender); --st-vivid: var(--vivid-lavender); --st-ink: var(--ink-lavender); }
-.st-decide { --st-tint: var(--tint-amber); --st-vivid: var(--vivid-amber); --st-ink: var(--ink-orange); }
-.st-build { --st-tint: var(--tint-green); --st-vivid: var(--vivid-green); --st-ink: var(--ink-green); }
-.st-validate { --st-tint: var(--tint-pink); --st-vivid: var(--vivid-pink); --st-ink: var(--ink-pink); }
-.st-ship { --st-tint: var(--tint-peach); --st-vivid: var(--vivid-terracotta); --st-ink: var(--ink-terracotta); }
-
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Chat header button: the current stage. */
-.stage-btn {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 12px;
-  border: 1px solid color-mix(in srgb, var(--st-ink, var(--border)) 45%, transparent); border-radius: var(--radius-pill); background: var(--st-tint, var(--bg));
+/* Steps: a guide per chat. Neutral marks that differ by shape: ring = to do, ring with a dot = next,
+   filled with a check = done, dashed ring with a dash = not needed. The label says the state too. */
+.step-mark {
+  flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--fg-muted); color: var(--on-accent);
+}
+.step-mark.next::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg); }
+.step-mark.next { border-color: var(--fg); }
+.step-mark.done { border: 0; background: var(--fg); }
+.step-mark.skipped { border: 2px dashed var(--fg-muted); color: var(--fg-muted); }
+.step-mark .codicon { font-size: 12px; }
+
+/* The compact line in the chat header. The chat keeps its room: the list opens only on click. */
+.chat-head { container: chathead / inline-size; }
+.steps-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; padding: 0 8px 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated);
+  font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); white-space: nowrap;
+}
+.steps-btn:hover { background: var(--bg-hover); color: var(--fg); }
+.steps-btn b { font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; }
+.steps-btn.plain { border-color: transparent; background: transparent; padding-left: 8px; }
+.steps-btn.plain:hover { background: var(--bg-hover); }
+.steps-marks { display: inline-flex; gap: 4px; }
+.steps-marks .step-mark { width: 12px; height: 12px; }
+.steps-marks .step-mark:not(.done):not(.skipped) { border-width: 1.5px; }
+.steps-marks .step-mark.skipped { border-width: 1.5px; }
+.steps-marks .step-mark.next::after { width: 4px; height: 4px; }
+.steps-marks .step-mark .codicon { font-size: 8px; }
+.steps-kind { overflow: hidden; text-overflow: ellipsis; }
+@container chathead (max-width: 480px) { .steps-kind { display: none; } }
+
+/* The panel scrolls on its own and stays short, so the conversation keeps most of the column. */
+.steps-panel {
+  flex: 0 1 auto; min-height: 0; max-height: clamp(240px, 45%, 520px); overflow-y: auto; overscroll-behavior: contain;
+  display: grid; gap: 12px; margin: 0 0 12px; padding: 12px 16px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
+}
+.steps-panel ~ .tr { min-height: 144px; }
+
+.steps-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.steps-kinds button {
+  min-height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: transparent;
   font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
 }
-.stage-btn b { font-weight: 600; color: var(--fg); }
-.stage-btn { white-space: nowrap; }
-.stage-short { display: none; }
-.stage-btn:hover { background: color-mix(in srgb, var(--st-tint, var(--bg)) 92%, var(--fg)); color: var(--fg); }
+.steps-kinds button:hover { background: var(--bg-hover); color: var(--fg); }
+.steps-kinds button.on { border-color: var(--fg); background: var(--fg); color: var(--on-accent); font-weight: 600; }
+.steps-hint { margin: 0; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
 
-/* Marks differ by shape as well as colour, all drawn in the stage's own ink: ring with a centre dot = current, filled = ready,
-   filled with a check = approved, thin ring = later. Every ink is at least 3:1 on white and on its tint, and the label says the state too. */
-.stage-mark { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--st-ink, var(--warn)); }
-.stage-btn.open .stage-mark::after, .stage-rail .open .stage-mark::after, .gate-head.open .stage-mark::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--st-ink, var(--warn)); }
-.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark, .gate-head.ready .stage-mark { background: var(--st-ink, var(--fg)); }
-.stage-btn.approved .stage-mark { background: var(--st-ink, var(--ok)); }
-.stage-rail .later .stage-mark { border-width: 1px; border-color: color-mix(in srgb, var(--st-ink) 80%, var(--bg-elevated)); }
-.gate-head.later .stage-mark { border-width: 1px; }
-.stage-rail .approved .stage-mark, .gate-head.approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--st-ink); color: #fff; }
-.stage-rail .approved .stage-mark .codicon, .gate-head.approved .stage-mark .codicon { font-size: 12px; }
-
-/* The panel takes at most about 40% of the chat column and scrolls on its own, so at least three lines of the conversation stay in view. */
-.stage-panel { container-type: inline-size; flex: 0 1 auto; min-height: 0; max-height: clamp(280px, 40%, 560px); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
-
-.stage-panel ~ .tr { min-height: 144px; }
-/* Scope and states sit under the gate's checks, split by the same rule as the checks. */
-.gate .scope, .gate .smap { margin: 0; padding: 12px 0 4px; border-bottom: 0; border-top: 1px solid var(--border); }
-
-/* Rail: six stages joined by lines. Scrolls sideways on narrow screens. */
-.stage-rail { display: flex; align-items: center; margin: 0 0 16px; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
-.stage-rail li { display: flex; align-items: center; flex: 1 0 auto; }
-.stage-rail li:last-child { flex: none; }
-.stage-rail button {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
+.steps-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.step-row { border-top: 1px solid var(--border); }
+.step-row:first-child { border-top: 0; }
+.step-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 44px; }
+.step-toggle {
+  flex: 1 1 160px; min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; margin-left: -8px;
+  border: 0; border-radius: var(--radius-sm); background: transparent; font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
 }
-.stage-rail button:hover { background: var(--bg-hover); color: var(--fg); }
-.stage-rail button { border-radius: var(--radius-pill); }
-.stage-rail .shown button { background: var(--st-tint); color: var(--fg); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-ink) 45%, transparent); }
-.stage-rail li.approved .stage-line { height: 2px; background: var(--st-ink); }
-.stage-rail .later .stage-name { color: var(--fg-muted); }
-.stage-line { flex: 1 1 8px; min-width: 8px; height: 1px; background: var(--border-strong); }
+.step-toggle:hover { background: var(--bg-hover); }
+.step-name { font-weight: 600; }
+.step-row.skipped .step-name { font-weight: 400; color: var(--fg-muted); }
+.step-meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }
+.step-acts { display: inline-flex; align-items: center; gap: 12px; margin-left: auto; font-size: var(--text-sm); line-height: 20px; }
+.step-acts .link { min-height: 24px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
+.step-btn { min-height: 32px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 
-.gate { display: grid; gap: 8px; }
-/* The stage name and goal sit on a soft band in the stage's tint, fading to white. Text keeps --fg and --fg-muted (6:1 or more on every tint). */
-.gate-head {
-  display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--radius-sm);
-  background: linear-gradient(110deg, var(--st-tint, var(--bg-raised)) 0%, color-mix(in srgb, var(--st-tint, var(--bg-raised)) 35%, var(--bg-elevated)) 100%);
-}
-.gate-state { display: inline-flex; align-items: center; gap: 8px; min-height: 16px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
-.gate-head:not(.approved) .gate-state .stage-mark { margin: 0 2px; }
-.gate-head b { font-family: var(--serif); font-weight: 500; font-size: var(--text-lg); line-height: 24px; }
-.gate-head .muted, .gate-foot .muted { font-size: var(--text-sm); line-height: 20px; }
-.gate-next { margin: 0; font-size: var(--text-sm); line-height: 20px; }
-.gate-next .link { min-height: 24px; font-size: var(--text-sm); }
-.gate-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
-/* The count of open checks sits with the list it counts, so the two always agree on screen. */
-.gate-open { font-weight: 400; }
-.gate-checks { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.gate-check { display: grid; grid-template-columns: 16px 1fr auto; align-items: start; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
-.gate-check:first-child { border-top: 0; }
-.gate-icon { display: grid; place-items: center; width: 16px; height: 20px; }
-.gate-check.met .gate-icon { color: var(--ok); }
-.gate-check.open .gate-icon i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--warn); }
-.gate-check.unchecked .gate-icon { color: var(--fg-muted); }
-.gate-text { display: grid; gap: 0; font-size: var(--text-sm); line-height: 20px; min-width: 0; }
-.gate-text .muted { overflow-wrap: anywhere; }
-.gate-check .link { min-height: 20px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
-.gate-note { margin: 0; font-size: var(--text-sm); line-height: 20px; }
-.gate-note-field { display: grid; gap: 4px; font-size: var(--text-sm); line-height: 20px; }
-.gate-note-field > span:first-child { font-weight: 600; }
-.gate-req { font-size: var(--text-xs); line-height: 16px; }
-.gate-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
-/* Approve stays in view while the panel scrolls. */
-.gate-foot { position: sticky; bottom: -16px; z-index: 1; margin-bottom: -16px; padding-bottom: 16px; background: var(--bg-elevated); }
-@media (max-width: 900px) { .gate-foot { bottom: -12px; margin-bottom: -12px; padding-bottom: 12px; } }
-.gate-act, .gate-done { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: var(--text-sm); line-height: 20px; }
-.gate-act button { min-height: 36px; }
-.gate-done .link, .gate-act .link { min-height: 24px; }
-
-/* Tight columns: only the stage on show keeps its name; the others read out to screen readers. */
-@container (max-width: 600px) {
-  .stage-rail li:not(.shown) .stage-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .stage-rail li:not(.shown) button { padding: 0 6px; }
-}
+.step-body { display: grid; gap: 8px; padding: 0 0 12px 24px; font-size: var(--text-sm); line-height: 20px; }
+.step-goal, .step-next, .step-note { margin: 0; }
+.step-goal { color: var(--fg-muted); }
+/* Out of date is worth a look, so it takes the attention colour, with words saying why. */
+.step-stale { color: var(--warn); }
+.step-stale-note { margin: 0; padding-left: 12px; border-left: 2px solid var(--warn); }
+.step-next .link, .step-add-note { min-height: 24px; font-size: var(--text-sm); line-height: 20px; justify-self: start; }
+.step-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+.step-checks { display: grid; margin: 0; padding: 0; list-style: none; }
+.step-check { display: grid; grid-template-columns: 16px 1fr auto; align-items: start; gap: 12px; padding: 4px 0; }
+.step-check-icon { display: grid; place-items: center; width: 16px; height: 20px; color: var(--fg-muted); }
+.step-check.met .step-check-icon { color: var(--ok); }
+/* Not yet is a plain ring: information, not a warning. */
+.step-check.open .step-check-icon i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--fg-muted); }
+.step-check-text { display: grid; min-width: 0; }
+.step-check-text .muted { overflow-wrap: anywhere; }
+.step-check .link { min-height: 20px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
+.step-note-field { display: grid; gap: 4px; }
+.step-note-field > span:first-child { font-weight: 600; }
+.step-note-help { font-size: var(--text-xs); line-height: 16px; }
+/* Scope and states sit inside the step that uses them, under a light rule. */
+.step-body .scope, .step-body .smap { margin: 0; padding: 8px 0 0; border-bottom: 0; border-top: 1px solid var(--border); }
+.steps-scope .scope { margin: 0; padding: 12px 0 0; border-bottom: 0; border-top: 1px solid var(--border); }
 
 @media (max-width: 900px) {
-  .stage-btn { min-height: 36px; font-size: var(--text-md); }
-  .stage-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .stage-short { display: inline; }
-  .stage-rail button, .gate-check .link, .gate-done .link, .gate-act .link, .gate-next .link { min-height: 36px; }
-  .stage-panel { padding: 12px; }
+  .steps-btn { min-height: 36px; font-size: var(--text-md); }
+  .steps-kinds button, .step-btn { min-height: 36px; }
+  .step-acts .link, .step-next .link, .step-add-note, .step-check .link { min-height: 36px; }
+  .steps-panel { padding: 12px; }
+  .step-body { padding-left: 0; }
 }
 
 /* Scope: flows the work keeps and parked features, between the rail and the gate. */

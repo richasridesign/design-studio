@@ -3,12 +3,12 @@ import { getJson, useRev, useStore } from '../store';
 import { ago } from './reviewRuns';
 import { decisionLog, whoLabel } from '../../../shared/decisionLog';
 import type { SketchDoc } from '../../../shared/design';
-import type { Stage, StageApprovals } from '../../../shared/stages';
+import type { StageApprovals, StagesView } from '../../../shared/stages';
 
 const openSketch = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } }));
 const fullDate = (at: number) => new Date(at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-/** Sketch picks and stage approvals with a note, newest first. */
+/** Sketch picks and steps marked done with a note, newest first. */
 export function DecisionLog() {
   const chat = useStore((s) => s.session.id);
   const sketchRev = useRev('sketch.json');
@@ -24,8 +24,9 @@ export function DecisionLog() {
 
   useEffect(() => {
     let live = true;
-    getJson<Stage[]>('/api/stages')
-      .then((list) => live && setApprovals(Object.fromEntries(list.filter((s) => s.approval).map((s) => [s.id, s.approval]))))
+    // Every step marked done in this file's folder, like the sketch picks it sits beside.
+    getJson<StagesView>('/api/stages')
+      .then((v) => live && setApprovals(v.approvals ?? {}))
       .catch(() => live && setApprovals({}));
     return () => { live = false; };
   }, [chat, stagesRev]);
@@ -36,7 +37,7 @@ export function DecisionLog() {
     <section className="dec-group" aria-labelledby="dlog-title">
       <h3 id="dlog-title">Decision log {rows.length > 0 && <span className="dec-count">{rows.length} {rows.length === 1 ? 'decision' : 'decisions'}</span>}</h3>
       {rows.length === 0 ? (
-        <p className="dec-empty">No decisions yet. Your sketch picks and stage approvals with a note show up here.</p>
+        <p className="dec-empty">No decisions yet. Your sketch picks and the notes you leave when you mark a step done show up here.</p>
       ) : (
         <ul className="dec-list">
           {rows.map((r) => (

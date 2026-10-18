@@ -4,8 +4,8 @@ import { Icon } from '../Icon';
 import { AREA_NAMES, FLOW_ACTIVE, PRESET_INFO, type FlowPhase, type FlowState, type ReviewerState } from '../../../shared/design';
 import { PHASE_STAGE, STAGE_INFO } from '../../../shared/stages';
 
-// Rows use the stage names from the Stages panel; the phase is the row's sub-line.
-const STEPS: Array<{ label: string; phases: FlowPhase[] }> = (['spec', 'explore', 'decide', 'build', 'validate'] as const).map((id) => ({
+// Rows use the step names from the Steps panel; the phase is the row's sub-line.
+const STEPS: Array<{ label: string; phases: FlowPhase[] }> = (['spec', 'explore', 'build', 'validate'] as const).map((id) => ({
   label: STAGE_INFO[id].name,
   phases: (Object.keys(PHASE_STAGE) as Array<keyof typeof PHASE_STAGE>).filter((p) => PHASE_STAGE[p].stage === id),
 }));
@@ -26,7 +26,7 @@ export function runRows(flow: FlowState): { title: string; rows: RunRow[]; token
     : phase === 'review' ? `Review ${flow.round} · ${PRESET_INFO[flow.preset].label}`
     : cap(PHASE_STAGE[phase as keyof typeof PHASE_STAGE].doing);
   // A sketch run stops once a direction is picked.
-  const steps = flow.kind === 'sketch' ? STEPS.slice(0, 3) : STEPS;
+  const steps = flow.kind === 'sketch' ? STEPS.slice(0, 2) : STEPS;
   const rows = steps.map((s, i): RunRow => (i < at ? { label: s.label, state: 'done' } : i === at ? { label: s.label, state: 'now', detail, ...(s.label === STAGE_INFO.validate.name && flow.reviewers?.length ? { subs: flow.reviewers.map((r) => ({ label: areaLabel(r.area), state: r.state })) } : {}) } : { label: s.label, state: 'idle' }));
   return { title: flow.kind === 'sketch' ? 'Sketch run' : 'Design run', rows, tokens: flow.tokens, waiting: phase === 'pick' || phase === 'file' };
 }
