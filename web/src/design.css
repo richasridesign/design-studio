@@ -201,7 +201,13 @@
 .set-nav { position: sticky; top: 0; z-index: 1; display: flex; gap: 4px; margin: -24px -24px 0; padding: 12px 24px; background: var(--bg-raised); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
 .set-nav a { flex: none; display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--text-sm); text-decoration: none; white-space: nowrap; }
 .set-nav a:hover { background: var(--bg-hover); color: var(--fg); }
-.set-nav a[aria-current] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.set-nav a[aria-current] { background: var(--tint-lavender); color: var(--fg); font-weight: 600; }
+/* Phones: the tabs scroll sideways, so the right edge fades out to show there is more. */
+@media (max-width: 600px) {
+  .set-nav { padding-right: 48px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+  /* Check sits under the row's text: the ghost button's own padding moves out to the left. */
+  .check-actions > .ghost:first-child { margin-left: -14px; }
+}
 .mcp-state { gap: 8px; }
 .set-card h2 { font-weight: 600; margin: 0; font-size: var(--text-md); }
 .set-card p { margin: 0; }
@@ -268,7 +274,7 @@
 
 .overlay.settings-overlay { align-items: center; padding: 16px; background: var(--overlay); }
 .settings-dialog { width: min(760px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden; }
-.settings-dialog-head { font-family: var(--serif); font-size: var(--text-lg); display: flex; align-items: center; justify-content: space-between; height: 48px; flex: none; padding: 0 8px 0 16px; font-weight: 600; color: var(--text-strong); border-bottom: 1px solid var(--border); }
+.settings-dialog-head { font-family: var(--serif); font-size: var(--text-lg); display: flex; align-items: center; justify-content: space-between; height: 48px; flex: none; padding: 0 12px 0 16px; font-weight: 600; color: var(--text-strong); border-bottom: 1px solid var(--border); }
 .settings-dialog-head h2 { margin: 0; font: inherit; }
 .settings-dialog-body { flex: 1; min-height: 0; overflow-y: auto; }
 .settings-dialog.wide { width: min(1080px, 100%); height: min(760px, 100%); }
