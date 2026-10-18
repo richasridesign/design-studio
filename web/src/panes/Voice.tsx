@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useStore } from '../store';
 import { Icon } from '../Icon';
+import { fixTerms } from './voiceTerms';
 
 type Result = { isFinal: boolean; 0: { transcript: string } };
 type Recognition = {
@@ -51,7 +52,7 @@ export function Voice({ onText, onSubmit }: { onText: (text: string, final: bool
     let pending = '';
     r.onresult = (e) => {
       const rest = Array.from(e.results).slice(done);
-      pending = rest.map((x) => x[0].transcript).join('').trim();
+      pending = fixTerms(rest.map((x) => x[0].transcript).join('').trim());
       const final = rest.every((x) => x.isFinal);
       if (final) done = e.results.length;
       handlers.current.onText(pending, final);
