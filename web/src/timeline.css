@@ -7,10 +7,10 @@
 .seg.chat-view button:not(.on):hover { background: transparent; color: var(--fg); }
 
 .tr.timeline > .tr-user-wrap:not(:first-child), .tr.timeline > .tr-phase:not(:first-child) { margin-top: 32px; }
-.tl-earlier { padding: 0 2px; font-size: var(--text-sm); }
+.tl-earlier { font-size: var(--text-sm); }
 .tl-earlier .link { line-height: 20px; }
 
-.tr-reply.clamp { max-height: calc(6 * 1.6em); overflow: hidden; }
+.tr-reply.clamp { max-height: calc(6 * 24px); overflow: hidden; }
 .tr-reply.clipped {
   -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
   mask-image: linear-gradient(to bottom, #000 60%, transparent);
