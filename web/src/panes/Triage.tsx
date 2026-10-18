@@ -82,7 +82,7 @@ export function CloseForm({ rule, onSave, onCancel }: { rule: string; onSave: (s
 }
 
 /** Findings closed by hand, collapsed at the bottom of a run. Each one can be reopened. */
-export function ClosedGroup({ closed, grouped, onReopen, headRef }: { closed: Array<ClosedFinding & { key: string }>; grouped: (f: ClosedFinding) => boolean; onReopen: (key: string) => void; headRef: React.RefObject<HTMLButtonElement | null> }) {
+export function ClosedGroup({ closed, grouped, onReopen, headRef }: { closed: Array<ClosedFinding & { key: string }>; grouped: (f: ClosedFinding) => boolean; onReopen: (key: string, rule: string) => void; headRef: React.RefObject<HTMLButtonElement | null> }) {
   const [open, setOpen] = useState(false);
   const bodyId = `closed-${useId()}`;
   if (!closed.length) return null;
@@ -104,7 +104,7 @@ export function ClosedGroup({ closed, grouped, onReopen, headRef }: { closed: Ar
                 <div className="f-fix">{[`Was: ${SEV[f.severity] ?? f.severity}`, f.triage.why && `Why: ${f.triage.why}`, `Closed: ${day(f.triage.at)}`].filter(Boolean).join(' · ')}</div>
                 <div className="f-foot">
                   <button className="link" onClick={() => showNode(f.node)}>{grouped(f) ? `${AREA_NAMES[f.area as Area] ?? f.area} · ` : ''}{f.nodeName ?? f.node}</button>
-                  <button className="triage-link" aria-label={`Reopen finding: ${f.rule}`} onClick={() => onReopen(f.key)}>Reopen</button>
+                  <button className="triage-link" aria-label={`Reopen finding: ${f.rule}`} onClick={() => onReopen(f.key, f.rule)}>Reopen</button>
                 </div>
               </div>
             </li>

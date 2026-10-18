@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeTriage, cleanTriage, closedTally, openIssues, splitRun, triageKey } from './triage.js';
+import { changeTriage, cleanTriage, closedTally, openIssues, openRun, splitRun, triageKey } from './triage.js';
 import type { Finding, ReviewRun } from './design.js';
 
 const f = (id: string, severity: Finding['severity'] = 'major'): Finding => ({ id, area: 'check', node: '1:1', severity, rule: 'x', fix: 'y' });
@@ -39,5 +39,6 @@ describe('triage', () => {
     expect(s.closed.map((x) => [x.id, x.triage.state])).toEqual([['a', 'wontfix'], ['c', 'fixed']]);
     expect(closedTally(s.closed)).toBe("1 fixed, 1 won't fix");
     expect(closedTally([])).toBe('');
+    expect(openRun(run(), t).check.map((x) => x.id)).toEqual(['b']);
   });
 });
