@@ -120,31 +120,38 @@
 
 /* Review */
 .review-page { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 16px; }
-.review-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.review-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.review-bar > button, .review-bar > a { min-height: 36px; }
+.review-bar a.ghost { display: inline-flex; align-items: center; justify-content: center; width: 36px; border-radius: var(--radius-sm); color: var(--fg-muted); }
+.review-bar a.ghost:hover { background: var(--bg-hover); color: var(--fg); }
+/* Same 36px height as the buttons beside it. */
+.review-bar .seg, .set-card .seg { padding: 2px; }
+.review-bar .seg button, .set-card .seg button { min-height: 30px; padding: 0 12px; }
 .review-bar .spacer { flex: 1; }
 .review-bar select { font: inherit; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg); }
 .review-summary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .review-summary .link { min-height: 24px; }
 .run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 .run-list > li + li { border-top: 1px solid var(--border); }
-.run-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; background: none; text-align: left; min-height: 40px; }
+.run-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 16px; background: none; text-align: left; min-height: 40px; }
 .run-row:hover { background: var(--bg-hover); }
 .run-kind { font-weight: 600; min-width: 52px; }
 .run-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); font-size: var(--text-sm); }
 .run-detail { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
 .run-dev { background: var(--bg-sunken); border-radius: var(--radius); }
-.review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
 .area-card { background: var(--bg-sunken); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 8px; }
-.area-card header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
-.area-card.pass header > .codicon:first-child { color: var(--ok); }
-.area-card.blocking header > .codicon:first-child, .area-card.error header > .codicon:first-child { color: var(--err); }
-.area-card.major header > .codicon:first-child { color: var(--warn); }
+.area-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.area-head:hover { background: var(--bg-hover); }
+.area-card.pass .area-head > .codicon:first-child { color: var(--ok); }
+.area-card.blocking .area-head > .codicon:first-child, .area-card.error .area-head > .codicon:first-child { color: var(--err); }
+.area-card.major .area-head > .codicon:first-child { color: var(--warn); }
 .area-card.focused { outline: 2px solid var(--accent); outline-offset: 2px; }
-.area-title { flex: 1; min-width: 0; }
+.area-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .area-title .t { font-weight: 600; font-size: var(--text-lg); }
 .area-title .s { color: var(--fg-muted); font-size: var(--text-sm); }
 .findings { list-style: none; margin: 0; padding: 0 16px 12px; display: flex; flex-direction: column; }
-.findings li { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.findings li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
 /* Severity: dot + label. Shape differs per level (circle, square, ring) so colour is never the only cue. */
 .sev { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
 .sev::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
@@ -157,8 +164,8 @@
   .sev { height: 20px; }
 }
 /* House rules: Passed is a green check, Failed an amber square, Not checked a grey ring. */
-.area-card.unchecked header > .codicon:first-child { color: var(--fg-muted); }
-.area-card header:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.area-card.unchecked .area-head > .codicon:first-child { color: var(--fg-muted); }
+.area-head:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .rule-state { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
 .rule-state:not(.pass)::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
 .rule-state.pass .codicon { color: var(--ok); width: 8px; overflow: visible; display: inline-flex; justify-content: center; }

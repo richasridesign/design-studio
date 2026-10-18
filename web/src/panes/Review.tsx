@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { api, getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { AREAS, AREA_NAMES, PRESET_INFO, type Area, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewRun, reviewChecklist } from '../../../shared/design';
-import { showNode, insertPrompt } from './Files';
+import { attachFigma, showNode, insertPrompt } from './Files';
 import { Empty, ReviewArt } from './Empty';
 import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
@@ -14,6 +14,7 @@ import { rulesLine, type RuleResult } from '../../../shared/rules';
 import { frameName, useOutline } from '../outline';
 
 const SEV: Record<Finding['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
+const SEV_ORDER: Record<Finding['severity'], number> = { blocking: 0, major: 1, minor: 2 };
 const TONE_ICON: Record<RulesTone, string> = { pass: 'pass-filled', major: 'warning', blocking: 'error', error: 'error', unchecked: 'circle-large-outline' };
 const RULE_STATE: Record<RuleResult['state'], string> = { pass: 'Passed', fail: 'Failed', unchecked: 'Not checked' };
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -65,7 +66,9 @@ export function Review({ dev = false }: { dev?: boolean }) {
         <a className="ghost" href={api('/api/report?download=1')} download aria-label="Download report" title="Download report"><Icon name="cloud-download" /></a>
       </div>
       <FlowCheck />
-      {!rows.length && hasFigma && <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />}
+      {!rows.length && (hasFigma
+        ? <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />
+        : <Empty art={<ReviewArt />} title="Nothing to review yet" text="Reviews check the frames in a Figma file. Attach one to start." secondary={{ label: 'Attach a Figma file', onClick: attachFigma }} />)}
       {!!rows.length && (
         <ul className="run-list">
           {rows.map((row, i) => {
@@ -181,20 +184,24 @@ function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt
     setOpen(true);
     ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [focusAt]);
-  const shown = grouped ? [...findings].sort((a, b) => AREAS.indexOf(a.area as Area) - AREAS.indexOf(b.area as Area)) : findings;
+  const bodyId = `area-${useId()}`;
+  // Blocking first, then major, then minor; the design system check keeps its areas together within each level.
+  const shown = [...findings].sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || (grouped ? AREAS.indexOf(a.area as Area) - AREAS.indexOf(b.area as Area) : 0));
   return (
     <section ref={ref} className={`area-card ${pass ? 'pass' : 'fail'} ${tone}${focusAt ? ' focused' : ''}`}>
-      <header role="button" tabIndex={0} aria-expanded={open} onClick={() => setOpen((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <Icon name={TONE_ICON[tone]} />
-        <div className="area-title">
-          <div className="t">{title}</div>
-          <div className="s">{sub}</div>
-        </div>
-        {tokens > 0 && <span className="chip" title="Tokens this reviewer used">{k(tokens)}</span>}
-        <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
+      <header>
+        <button type="button" className="area-head" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}>
+          <Icon name={TONE_ICON[tone]} />
+          <span className="area-title">
+            <span className="t">{title}</span>
+            <span className="s">{sub}</span>
+          </span>
+          {tokens > 0 && <span className="chip" title="Tokens this reviewer used">{k(tokens)}</span>}
+          <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
+        </button>
       </header>
       {open && findings.length > 0 && (
-        <ul className="findings">
+        <ul className="findings" id={bodyId}>
           {shown.slice(0, 60).map((f) => (
             <li key={f.id} className={f.severity}>
               <span className={`sev ${f.severity}`}>{SEV[f.severity]}</span>
@@ -208,7 +215,7 @@ function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt
           {shown.length > 60 && <li className="muted">…and {shown.length - 60} more</li>}
         </ul>
       )}
-      {open && children}
+      {open && children && <div id={findings.length ? undefined : bodyId}>{children}</div>}
     </section>
   );
 }
