@@ -22,7 +22,8 @@ export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; 
   full: { label: 'Full', detail: 'Check plus all six area reviewers in parallel', fixRounds: 2 },
 };
 
-export const MODELS = { plan: 'claude-opus-5-5', work: 'claude-sonnet-5-5' } as const;
+// read: the cheap model that only drives Figma plugin reads (it never sees the file content).
+export const MODELS = { plan: 'claude-opus-5-5', work: 'claude-sonnet-5-5', read: 'claude-haiku-5-5' } as const;
 
 export type FlowPhase = 'plan' | 'sketch' | 'pick' | 'file' | 'system' | 'design' | 'review' | 'fix' | 'done' | 'stopped';
 export type FlowKind = 'design' | 'sketch';
