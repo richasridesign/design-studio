@@ -37,8 +37,9 @@ export type TypedAnswer =
 export function typedAnswer(text: string, pending: PendingRequest | undefined): TypedAnswer | null {
   const t = text.trim();
   if (!t || !pending) return null;
-  // Her words go once, as a free answer to the whole card, never copied into every question.
-  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: { [pending.questions.map((q) => q.question).join(' / ')]: t } };
+  // Her words go once, never copied into every question. They sit under the first question: Claude Code prints
+  // only answers keyed by a real question, so a made-up key would be dropped and Claude would see no answer.
+  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: pending.questions.length ? { [pending.questions[0].question]: t } : {} };
   if (pending.toolName !== 'ExitPlanMode') return null;
   if (plainGo(t)) return { type: 'permission', id: pending.id, allow: true };
   return { type: 'permission', id: pending.id, allow: goWithNote(t), note: t };
