@@ -224,7 +224,7 @@ const closedRow = (d: Data) => (f: ClosedFinding) => {
 
 const resolvedRuleRow = (d: Data) => (r: ResolvedRule) => {
   const why = r.triage.why ? `Why: ${r.triage.why}. ` : '';
-  const frames = r.frames.length ? ` (${r.frames.map((id) => nodeLink(d, id, nodeName(d, id))).join(', ')})` : '';
+  const frames = r.frames.length ? `<br><small>Failed on ${r.frames.map((id) => nodeLink(d, id, nodeName(d, id))).join(', ')}</small>` : '';
   return `<li>${st(TRIAGE_STATUS[r.triage.state], TRIAGE_LABEL[r.triage.state])} <strong>House rule</strong>: ${esc(r.rule)}${frames}<br><small>${esc(`Was: Failed. ${why}Resolved: ${day(r.triage.at)}`)}</small></li>`;
 };
 
@@ -365,7 +365,7 @@ function summary(d: Data, frames: string[]) {
       const tile = (kind: Severity, count: number) => `<li class="tile"><span class="num">${count}</span>${st(count ? kind : 'none', SEV_LABEL[kind])}</li>`;
       lines.push(`<ul class="tiles">${tile('blocking', n('blocking'))}${tile('major', n('major'))}${tile('minor', minor)}</ul>`);
       const facts2: string[] = [];
-      if (closed.length || resolved.length) facts2.push(`<li>${st('fixed', 'Resolved by hand:')} ${esc(closedTally([...closed, ...resolved]))}</li>`);
+      if (closed.length || resolved.length) facts2.push(`<li>${st('none', 'Resolved by hand:')} ${esc(closedTally([...closed, ...resolved]))}</li>`);
       const rules = triagedRules(d.run, d.triage) ?? [];
       if (rules.length) {
         const r = rulesSummary(rules);
@@ -486,7 +486,7 @@ footer p { margin: 0; }
 @media (max-width: 600px) {
   .page { padding: 32px 16px 64px; }
   /* Frame names stay on one line, cut with an ellipsis; the full name is in the tooltip. */
-  .rows a.node { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; overflow-wrap: normal; }
+  .rows a.node { display: inline-block; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; overflow-wrap: normal; }
   h1 { font-size: 28px; line-height: 36px; }
   .summary { padding: 16px; }
   .tile { padding: 8px 12px; }
