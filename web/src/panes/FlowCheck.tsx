@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { FLOW_RULES, FLOW_RULE_LABEL, flowFixPrompt, flowIssues, flowLabel, type FlowCheckRun, type FlowFinding, type FlowResult } from '../../../shared/flowcheck';
-import { attachFigma, insertPrompt, showNode } from './Files';
+import { attachFigma, insertPrompt, showNode } from './composerEvents';
 import { Empty, ReviewArt } from './Empty';
 import { ago } from '../ago';
 import { useOutline } from '../outline';

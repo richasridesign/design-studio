@@ -4,7 +4,7 @@ import { Icon } from '../Icon';
 import { AREA_NAMES, type Area } from '../../../shared/design';
 import { TRIAGE_LABEL, TRIAGE_STATES, needsWhy, type ClosedFinding, type ResolvedRule, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
 import { frameName, useOutline } from '../outline';
-import { showNode } from './Files';
+import { showNode } from './composerEvents';
 import '../marks';
 
 const day = (at: number) => new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

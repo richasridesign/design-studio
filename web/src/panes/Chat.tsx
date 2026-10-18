@@ -2,7 +2,7 @@ import { useMemo, type MouseEvent } from 'react';
 import { Marked } from 'marked';
 import { useStore } from '../store';
 import { frameName, useOutline } from '../outline';
-import { showNode } from './Files';
+import { showNode } from './composerEvents';
 
 export { Composer } from './Composer';
 

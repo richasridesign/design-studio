@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, useStore } from '../store';
 import { Icon } from '../Icon';
-import { insertPrompt } from './Files';
+import { insertPrompt } from './composerEvents';
 import type { DesignDoc, ReviewDoc } from '../../../shared/design';
 import { stageFrames } from '../../../shared/stages';
 import { missingPrompt, stateMap, type MappedScreen } from '../../../shared/stateMap';

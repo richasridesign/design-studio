@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Empty, SketchArt } from './Empty';
-import { insertPrompt } from './Files';
+import { insertPrompt } from './composerEvents';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { REASON_MAX, type SketchDoc, type SketchScreen } from '../../../shared/design';
 import { dirKey } from './sketchLayout';

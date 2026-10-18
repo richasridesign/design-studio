@@ -4,7 +4,7 @@ import { Icon } from '../Icon';
 import { ago } from '../ago';
 import { CHAT_KINDS, KIND_INFO, REPEATS, stepLine, type ChatKind, type Stage, type StageCheck, type StageId, type StageOpen, type StagesView, type StepAction } from '../../../shared/stages';
 import { RECIPES } from '../../../shared/recipes';
-import { focusComposer, insertPrompt } from './Files';
+import { focusComposer, insertPrompt } from './composerEvents';
 import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
 import { IconButton } from '../Tip';

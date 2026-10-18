@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getJson, getState, postJson, send } from './store';
-import { insertPrompt } from './panes/Files';
+import { insertPrompt } from './panes/composerEvents';
 import { RECIPES, recipePrompt, toRecipe, type CustomRecipe, type Recipe } from '../../shared/recipes';
 import { figmaNodeUrl } from '../../shared/design';
 import { getOutline } from './outline';

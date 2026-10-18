@@ -14,7 +14,7 @@ import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
 import { StepsButton, StepsPanel, StepsSheet, useStages, useStepsOpen } from './Stages';
 import { stepLabel } from './steps';
-import { insertPrompt } from './Files';
+import { insertPrompt } from './composerEvents';
 import { quickReplies, replyToAnswer } from './quickReplies';
 
 export function nextSteps(events: ChatEvent[]) {

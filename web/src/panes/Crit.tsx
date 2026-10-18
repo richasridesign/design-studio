@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { postJson } from '../store';
 import { Icon } from '../Icon';
 import { PERSONAS, PERSONA_NAMES, copyTable, critMarkdown, type CopyItem, type CopyRun, type CritRun, type Persona } from '../../../shared/design';
-import { showNode, insertPrompt } from './Files';
+import { showNode, insertPrompt } from './composerEvents';
 
 const PERSONA_ICON: Record<Persona, string> = { 'new-user': 'person', 'power-user': 'zap', accessibility: 'eye', product: 'target' };
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));

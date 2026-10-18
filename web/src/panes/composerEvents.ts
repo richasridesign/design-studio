@@ -7,5 +7,3 @@ export const insertPrompt = (text: string) => window.dispatchEvent(new CustomEve
 export const focusComposer = () => window.dispatchEvent(new Event('designstudio:compose'));
 export const attachFigma = () => window.dispatchEvent(new Event('designstudio:attach'));
 export const showNode = (nodeId: string) => postJson('/api/figma/focus', { nodeId }).catch(() => {});
-
-export const openFigmaTab = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } }));
