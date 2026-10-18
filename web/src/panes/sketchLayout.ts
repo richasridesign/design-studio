@@ -36,26 +36,31 @@ function item(it: SketchItem, ox: number, oy: number): Skeleton[] {
   }
 }
 
+/** The tag on every element of one direction, so the canvas can zoom to it. */
+export const dirKey = (screen: string, direction: string) => `${screen}:${direction}`;
+
 export function layoutSketch(doc: SketchDoc): Skeleton[] {
   const out: Skeleton[] = [];
   let oy = 0;
   for (const s of doc.screens) {
-    out.push({ type: 'text', x: 0, y: oy, text: s.name, fontSize: 36, strokeColor: INK });
+    out.push({ type: 'text', x: 0, y: oy, text: s.name, fontSize: 36, strokeColor: INK, customData: { screen: s.id } });
     let ox = 0;
     let rowH = 0;
     for (const [i, d] of s.directions.entries()) {
       const chosen = s.chosen === d.id;
       const top = oy + HEAD;
+      const from = out.length;
       out.push({ type: 'text', x: ox, y: top - 44, text: `${String.fromCharCode(65 + i)} · ${d.name}${chosen ? '  ✓ chosen' : ''}`, fontSize: 20, strokeColor: chosen ? '#5b4fe0' : INK });
       out.push({ type: 'rectangle', x: ox, y: top, width: d.w, height: d.h, strokeColor: chosen ? '#5b4fe0' : INK, strokeWidth: chosen ? 4 : 2, backgroundColor: '#ffffff', fillStyle: 'solid', roughness: 0 });
       for (const it of d.items) out.push(...item(it, ox, top));
       if (d.rationale) out.push({ type: 'text', x: ox, y: top + d.h + 16, text: wrap(d.rationale, Math.max(24, Math.floor(d.w / 9))), fontSize: 16, strokeColor: SOFT });
+      for (let k = from; k < out.length; k++) out[k] = { ...out[k], customData: { screen: s.id, dir: dirKey(s.id, d.id) } };
       ox += d.w + GAP_X;
       rowH = Math.max(rowH, d.h);
     }
     oy += HEAD + rowH + GAP_Y;
   }
-  return out.map((e) => ({ ...e, customData: { generated: true } }));
+  return out.map((e) => ({ ...e, customData: { ...(e.customData as object), generated: true } }));
 }
 
 function wrap(text: string, width: number) {
