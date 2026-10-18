@@ -423,7 +423,7 @@ button.link:hover { background: transparent; text-decoration: underline; }
   background: var(--brief-bg); color: var(--fg-muted);
 }
 .tl-now .when { text-align: right; font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tl-now .icon-btn { width: 20px; height: 20px; }
+.tl-now .icon-btn { width: 24px; height: 24px; }
 .tl-thumbs { grid-column: 2; display: flex; gap: 6px; padding: 4px 0 2px; }
 .tl-thumbs:empty { display: none; }
 .tl-thumbs button { padding: 0; height: 64px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); overflow: hidden; cursor: pointer; }
@@ -446,7 +446,7 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .step .text:hover { color: var(--fg); }
 .step .acts { display: flex; opacity: 0; }
 .step:hover .acts, .step:focus-within .acts { opacity: 1; }
-.step .icon-btn { width: 20px; height: 20px; }
+.step .icon-btn { width: 24px; height: 24px; }
 .step input { flex: 1; min-width: 0; height: 22px; font-size: var(--text-sm); }
 .step.add::before { display: none; }
 .step.add .link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
