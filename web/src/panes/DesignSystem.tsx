@@ -67,7 +67,6 @@ export function DesignSystem() {
     try {
       const next = (await changeDs({ action: 'starter', id })).ds;
       setDs(next);
-      if (next?.areas) send({ type: 'set_flow', patch: { areas: next.areas } });
       if (id === 'code') setEditing('code');
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };

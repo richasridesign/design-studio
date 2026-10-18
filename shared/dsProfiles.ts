@@ -1,7 +1,7 @@
 // Design system profiles: starters she can pick in one click, items found in a Figma file or a tokens file, and
 // her rule files. Everything here is optional: designs and reviews work without a profile.
 
-import { AREAS, type Area, type DesignSystem, type DsColor, type DsComponent, type DsFrom, type DsSource, type DsText } from './design.js';
+import { AREAS, toAreas, type Area, type DesignSystem, type DsColor, type DsComponent, type DsFrom, type DsSource, type DsText } from './design.js';
 
 export type StarterId = 'nordic' | 'code' | 'lofi';
 export type Starter = { id: StarterId; name: string; detail: string };
@@ -324,4 +324,14 @@ export function skillFoldersFor(ds: DesignSystem | null, areas: Area[], folders:
     const a = skillArea(f);
     return a !== null && areas.includes(a);
   });
+}
+
+/**
+ * The areas a review covers: the ones she ticked in this chat, else the profile's own areas (Lo-fi reviews flow
+ * and copy only), else the chat's default from Settings.
+ */
+export function reviewAreas(flow: Area[], chosen: boolean, profileAreas: unknown): Area[] {
+  if (chosen) return flow;
+  const own = toAreas(profileAreas);
+  return own.length ? own : flow;
 }

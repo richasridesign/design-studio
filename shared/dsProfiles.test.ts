@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankProfile, dropItem, mergeFound, parseCssTokens, parseFigmaKit, parseJsonTokens, restoreItem, skillArea, skillFoldersFor, starterProfile, toHex, withSource, withoutSource } from './dsProfiles';
+import { blankProfile, dropItem, mergeFound, parseCssTokens, parseFigmaKit, parseJsonTokens, restoreItem, reviewAreas, skillArea, skillFoldersFor, starterProfile, toHex, withSource, withoutSource } from './dsProfiles';
 
 describe('starters', () => {
   it('Nordic reads her rule files and keeps her type scale', () => {
@@ -82,5 +82,14 @@ describe('rule files', () => {
     expect(skillFoldersFor(ds, ['accessibility'], folders)).toEqual(['accessibility-review']);
     expect(skillFoldersFor(ds, ['visual', 'writing'], folders)).toEqual(['ux-writing-review']);
     expect(skillFoldersFor(starterProfile('lofi', 1), ['writing'], folders)).toEqual([]);
+  });
+});
+
+describe('reviewAreas', () => {
+  it('uses her ticks, else the profile areas, else the chat default', () => {
+    expect(reviewAreas(['system', 'visual'], true, ['writing'])).toEqual(['system', 'visual']);
+    expect(reviewAreas(['system', 'visual'], false, ['writing', 'interaction'])).toEqual(['interaction', 'writing']);
+    expect(reviewAreas(['system'], false, undefined)).toEqual(['system']);
+    expect(reviewAreas(['system'], false, [])).toEqual(['system']);
   });
 });
