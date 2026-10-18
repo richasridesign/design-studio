@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { AREAS, AREA_NAMES, MODELS, type Area, type AreaResult, type DesignDoc, type DesignSystem, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { checkFrames } from './check.js';
 import { readRules, rulesBlock } from './rules.js';
+import { allRules, MAX_CHECKED_RULES, ruleResults } from '../../shared/rules.js';
 import { download, images, nodes } from './figma.js';
 import { lean } from './lean.js';
 
@@ -45,6 +46,42 @@ const SCHEMA = {
     },
   },
 };
+
+const RULES_SCHEMA = {
+  ...SCHEMA,
+  required: [...SCHEMA.required, 'rules'],
+  properties: {
+    ...SCHEMA.properties,
+    rules: {
+      type: 'array',
+      maxItems: MAX_CHECKED_RULES,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['n', 'state', 'frames'],
+        properties: {
+          n: { type: 'integer', description: 'The house rule number' },
+          state: { type: 'string', enum: ['pass', 'fail'] },
+          frames: { type: 'array', items: { type: 'string' }, description: 'Frame ids where the rule fails, empty when it passes' },
+        },
+      },
+    },
+  },
+};
+
+/** One reviewer checks the house rules, so the others do not pay for it or disagree. */
+export function rulesReviewer(reviewers: Array<Area | 'all'>): Area | 'all' | null {
+  return reviewers.includes('all') ? 'all' : reviewers.includes('brief') ? 'brief' : reviewers[0] ?? null;
+}
+
+export function rulesPrompt(rules: string[], frames: string[]) {
+  const shown = rules.slice(0, MAX_CHECKED_RULES);
+  return [
+    'House rules from the designer. Check every rule below on these frames, whatever your area.',
+    ...shown.map((r, i) => `${i + 1}. ${r}`),
+    `For each rule you can judge, return its number, pass or fail, and for a fail the frame ids where it fails, from: ${frames.join(', ')}. Leave a rule out when the outline and screenshots cannot tell you.`,
+  ].join('\n');
+}
 
 const SYSTEM = 'You review UI designs made in Figma against a design system and a brief. You get an outline of the frames, screenshots to look at with the Read tool, and the results of an automatic check. Report only real problems a senior product designer would fix, most important first. Do not repeat what the automatic check already found. Use node ids from the outline.';
 
@@ -140,6 +177,10 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
 
   const reviewers = reviewersFor(input.preset, input.areas, input.onlyFailed ?? null);
   if (reviewers.length && docs.length) {
+    const rules = await readRules(dir);
+    const ruleList = allRules(rules);
+    const checker = ruleList.length ? rulesReviewer(reviewers) : null;
+    let verdicts: unknown;
     input.onProgress?.('Taking screenshots');
     const shotDir = path.join(dir, 'review', 'shots');
     await mkdir(shotDir, { recursive: true });
@@ -160,7 +201,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
     run.results = await Promise.all(reviewers.map(async (area) => {
       input.onArea?.(area, 'running');
       try {
-        const r = await reviewOne(area, { dir, plan, ds, outlines, shots, check: run.check, signal: input.signal });
+        const { verdicts: v, ...r } = await reviewOne(area, { dir, plan, ds, outlines, shots, check: run.check, rules: area === checker ? ruleList : null, rulesText: rulesBlock(rules), frames: docs.map((d) => d.id), signal: input.signal });
+        if (area === checker) verdicts = v;
         input.onArea?.(area, r.error ? 'error' : r.pass ? 'pass' : 'fail');
         return r;
       } catch (err) {
@@ -168,6 +210,11 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
         throw err;
       }
     }));
+    if (checker) {
+      run.rules = ruleResults(ruleList, verdicts, docs.map((d) => d.id));
+      const failed = run.results.find((r) => r.area === checker)?.error;
+      if (failed || verdicts === undefined) run.rulesError = failed ?? 'The reviewer did not check the rules';
+    }
   }
   run.tokens = run.results.reduce((n, r) => n + r.tokens, 0);
   run.costUsd = run.results.reduce((n, r) => n + r.costUsd, 0);
@@ -175,7 +222,9 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   return run;
 }
 
-async function reviewOne(area: Area | 'all', c: { dir: string; plan: string; ds: DesignSystem | null; outlines: string; shots: string[]; check: Finding[]; signal?: AbortSignal }): Promise<AreaResult> {
+type ReviewOneInput = { dir: string; plan: string; ds: DesignSystem | null; outlines: string; shots: string[]; check: Finding[]; rules: string[] | null; rulesText: string; frames: string[]; signal?: AbortSignal };
+
+async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaResult & { verdicts?: unknown }> {
   const areas = area === 'all' ? [...AREAS] : [area];
   const prompt = [
     area === 'all' ? 'Review these frames across all areas below. Tag each finding with its area.' : `You are the ${AREA_NAMES[area]} reviewer. Review only this area.`,
@@ -192,12 +241,12 @@ async function reviewOne(area: Area | 'all', c: { dir: string; plan: string; ds:
     `Outline of the frames:\n${c.outlines}`,
     '',
     `Return at most ${MAX_FINDINGS} findings.`,
-    rulesBlock(await readRules(c.dir)),
+    c.rules ? rulesPrompt(c.rules, c.frames) : c.rulesText,
   ].join('\n');
-  const r = await lean<{ pass: boolean; summary: string; findings: Array<Omit<Finding, 'id'>> }>(prompt, { cwd: c.dir, model: MODELS.work, system: SYSTEM, schema: SCHEMA, maxTurns: 10, signal: c.signal });
+  const r = await lean<{ pass: boolean; summary: string; findings: Array<Omit<Finding, 'id'>>; rules?: unknown }>(prompt, { cwd: c.dir, model: MODELS.work, system: SYSTEM, schema: c.rules ? RULES_SCHEMA : SCHEMA, maxTurns: 10, signal: c.signal });
   if (!r.data) return { area, pass: false, summary: 'The reviewer did not return a result', findings: [], tokens: r.tokens, costUsd: r.costUsd, error: r.error };
   const findings = r.data.findings.slice(0, MAX_FINDINGS).map((f, i) => ({ ...f, area: (AREAS.includes(f.area as Area) ? f.area : area === 'all' ? 'brief' : area) as Area, id: `${area}:${i}:${f.node}` }));
-  return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd };
+  return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd, ...(c.rules ? { verdicts: r.data.rules } : {}) };
 }
 
 export function failedAreas(run: ReviewRun): Area[] {
