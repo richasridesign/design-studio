@@ -44,22 +44,22 @@
 .tl-start .tl-attach:hover { background: var(--bg-hover); }
 .tl-start .link { min-height: 36px; font-size: var(--text-sm); }
 .tl-suggest-label { margin-top: 16px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
-/* Prompt suggestions are white pills that hug their text. The arrow sits on a pastel disc (sky, sage, lavender), inset 6px all round so the corners stay concentric. */
+/* Prompt suggestions are white pills that hug their text. The arrow sits on a pastel disc (sky, sage, lavender), inset 4px all round so the corners stay concentric. */
 .tl-suggest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .tl-suggest li { max-width: 100%; }
 .tl-suggest button {
-  max-width: 100%; min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 4px 5px 4px 16px;
+  max-width: 100%; min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 3px 3px 3px 16px;
   border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated);
   font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
 }
 .tl-suggest button > span { flex: 1; min-width: 0; }
-.tl-suggest button > .codicon { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--tint-blue); color: var(--fg); }
+.tl-suggest button > .codicon { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--tint-blue); color: var(--fg); }
 .tl-suggest li:nth-child(3n+2) button > .codicon { background: var(--tint-green); }
 .tl-suggest li:nth-child(3n) button > .codicon { background: var(--tint-lavender); }
-.tl-suggest button:hover { border-color: var(--border-strong); background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
+.tl-suggest button:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
 @media (max-width: 900px) {
   .tl-welcome p, .tl-suggest button, .tl-start .tl-attach, .tl-start .link { font-size: var(--text-md); line-height: 24px; }
-  .tl-suggest button { min-height: 44px; padding-block: 8px; border-radius: var(--radius-lg); }
+  .tl-suggest button { min-height: 44px; padding-block: 7px; border-radius: var(--radius-lg); }
   .tl-start .tl-attach { height: 44px; }
 }
 
