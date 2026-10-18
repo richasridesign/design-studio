@@ -37,5 +37,15 @@ describe('designPrompt', () => {
     expect(p).toContain("saveVersionHistoryAsync('Design Studio: Bob s checkout')");
     expect(p).toContain('sketches/home--b.svg');
     expect(p).toContain('Home: Cards. scannable');
+    expect(p).toContain('Picked over List.');
+  });
+
+  it("passes on the designer's reason and the directions it was picked over", () => {
+    const sketch = { screens: [{ id: 'home', name: 'Home', chosen: 'a', chosenBy: 'designer' as const, reason: 'Long lists scan faster', rejected: ['Cards', 'Map'], directions: [
+      { id: 'a', name: 'List', rationale: 'dense', w: 390, h: 844, items: [] },
+      { id: 'b', name: 'Cards', rationale: 'scannable', w: 390, h: 844, items: [] },
+      { id: 'c', name: 'Map', rationale: 'spatial', w: 390, h: 844, items: [] },
+    ] }] };
+    expect(designPrompt(sketch, true, 'x')).toContain('- Home: List. dense. The designer picked it over Cards, Map. Why: Long lists scan faster.');
   });
 });

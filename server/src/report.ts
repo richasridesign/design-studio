@@ -5,6 +5,8 @@ import { readSketch } from './sketch.js';
 import { readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
 import { rulesLine, type RuleResult } from '../../shared/rules.js';
+import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
+import { readApprovals } from './stages.js';
 
 const MAX_SHOTS = 8;
 const MAX_SHOT_BYTES = 1.5 * 1024 * 1024;
@@ -85,6 +87,17 @@ async function sketches(dir: string) {
     if (figs.length) blocks.push(`<h3>${esc(s.name)}</h3><div class="grid">${figs.join('')}</div>`);
   }
   return blocks.length ? section('Sketches', blocks.join('')) : '';
+}
+
+async function decisions(dir: string) {
+  const rows = decisionLog(await readSketch(dir).catch(() => null), await readApprovals(dir));
+  if (!rows.length) return '';
+  const items = rows.map((r) => {
+    const when = r.at ? `, ${new Date(r.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '';
+    const lines = [r.over.length ? `Over: ${r.over.join(', ')}` : '', r.why ? `Why: ${r.why}` : ''].filter(Boolean).map((l) => `<br>${esc(l)}`).join('');
+    return `<li><strong>${esc(r.title)}</strong>: ${esc(r.choice)}${lines}<br><small>${esc(whoLabel(r, 'the designer'))}${esc(when)}</small></li>`;
+  });
+  return section('Decision log', `<ul class="findings">${items.join('')}</ul>`);
 }
 
 async function shotFor(dir: string, nodeId: string) {
@@ -192,6 +205,6 @@ export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design')
 export async function buildReport(dir: string, figma: FigmaFile | null): Promise<string> {
   const title = figma?.name || path.basename(dir);
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const body = (await Promise.all([brief(dir), sketches(dir), design(dir, figma), review(dir, figma), crit(dir), copy(dir)])).join('\n');
+  const body = (await Promise.all([brief(dir), sketches(dir), decisions(dir), design(dir, figma), review(dir, figma), crit(dir), copy(dir)])).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} design report</title><style>${STYLE}</style></head><body><main><h1>${esc(title)}</h1><p class="meta">Design report, ${esc(date)}</p>${body}</main></body></html>`;
 }
