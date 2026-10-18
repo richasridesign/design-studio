@@ -173,6 +173,51 @@ export function untilFrom(hhmm: string, now: number): number | null {
   return d.getTime();
 }
 
+/** Where an overnight request ends when it names no time. */
+export const OVERNIGHT_END = '04:00';
+
+const NUMS: Record<string, number> = { an: 1, a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+/** Words that may follow a bare "until 5", so "until 5 flows are done" does not read as a time. */
+const AFTER_BARE = /^(?:$|[.,;:!?)]|o'?clock\b|tonight\b|tomorrow\b|in the morning\b|and\b|then\b)/;
+
+/** The sooner of h:mm and (h+12):mm after now, for a time said without am or pm. */
+const sooner = (h: number, m: number, now: number) => {
+  const pad = (x: number) => String(x).padStart(2, '0');
+  const a = untilFrom(`${pad(h % 24)}:${pad(m)}`, now);
+  const b = untilFrom(`${pad((h + 12) % 24)}:${pad(m)}`, now);
+  return a !== null && b !== null ? Math.min(a, b) : a ?? b;
+};
+
+/**
+ * When a message asks Claude to work until a time or overnight ("run all this until 4 AM", "overnight", "loop until 5",
+ * "for 3 hours"), the end time it names, or null for an ordinary message. The composer offers a long run with it.
+ */
+export function askedEnd(text: string, now: number): number | null {
+  const t = text.toLowerCase().replace(/\s+/g, ' ');
+  for (const m of t.matchAll(/\b(until|till|til|by) (\d{1,2})(?::(\d{2}))? ?(a\.?m\.?|p\.?m\.?)?(?=$|[\s.,;:!?)])/g)) {
+    const [, word, hs, ms, ap] = m;
+    const h = +hs;
+    const min = ms ? +ms : 0;
+    if (min > 59) continue;
+    if (ap) {
+      if (h < 1 || h > 12) continue;
+      const h24 = (h % 12) + (ap.startsWith('p') ? 12 : 0);
+      return untilFrom(`${String(h24).padStart(2, '0')}:${String(min).padStart(2, '0')}`, now);
+    }
+    if (h > 23) continue;
+    // "by 2" is too often a count ("by 2 reviewers"); a bare hour needs "until" and nothing that reads as a count.
+    if (!ms && (word === 'by' || !AFTER_BARE.test(t.slice((m.index ?? 0) + m[0].length).trimStart()))) continue;
+    return h >= 1 && h <= 12 ? sooner(h, min, now) : untilFrom(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, now);
+  }
+  const hours = /\bfor (?:the next )?(\d{1,2}|an|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) hours?\b/.exec(t);
+  if (hours) {
+    const n = /^\d+$/.test(hours[1]) ? +hours[1] : NUMS[hours[1]];
+    if (n >= 1 && n <= 24) return now + n * 3600_000;
+  }
+  if (/\bovernight\b|\ball night\b|\bwhile i (?:sleep|am asleep|'m asleep|am away|'m away)\b/.test(t)) return untilFrom(OVERNIGHT_END, now);
+  return null;
+}
+
 export const hhmm = (ms: number) => {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;

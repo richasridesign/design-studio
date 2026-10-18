@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, longRunPrompt, nodeLink, plainLine, reportQuestions, parseReport, roundFrom, stallReason, untilFrom, usedPct, windowPct, withLimit, type LongRun } from './longRun.js';
+import { askedEnd, decide, longRunPrompt, nodeLink, plainLine, reportQuestions, parseReport, roundFrom, stallReason, untilFrom, usedPct, windowPct, withLimit, type LongRun } from './longRun.js';
 import type { PlanLimit } from './protocol.js';
 
 const now = 1_000_000;
@@ -153,5 +153,35 @@ describe('report questions for the Awaiting list', () => {
     expect(reportQuestions(decide, 'Chat9')).toEqual([{ text: 'Move it? Toast', fileKey: 'Ab1', node: '3:4' }, { text: 'Rename the tab?', fileKey: 'Chat9', node: '' }]);
     expect(reportQuestions(['Rename the tab?'], null)).toEqual([]);
     expect(reportQuestions(['Rename the tab?'], 'sample')).toEqual([]);
+  });
+});
+
+describe('askedEnd', () => {
+  const late = new Date(2026, 9, 18, 23, 0).getTime();
+  const noon = new Date(2026, 9, 18, 12, 0).getTime();
+  const at = (y: number, mo: number, d: number, h: number, m = 0) => new Date(y, mo, d, h, m).getTime();
+  it('reads an end time with am or pm', () => {
+    expect(askedEnd('Run all this until 4 AM', late)).toBe(at(2026, 9, 19, 4));
+    expect(askedEnd('fix the toasts till 6:30pm', noon)).toBe(at(2026, 9, 18, 18, 30));
+    expect(askedEnd('done by 7 a.m. please', late)).toBe(at(2026, 9, 19, 7));
+  });
+  it('takes the sooner of morning and evening for a bare hour', () => {
+    expect(askedEnd('loop until 5', late)).toBe(at(2026, 9, 19, 5));
+    expect(askedEnd('loop until 5', noon)).toBe(at(2026, 9, 18, 17));
+    expect(askedEnd('keep going until 05:00', noon)).toBe(at(2026, 9, 18, 17));
+    expect(askedEnd('keep going until 17:00', late)).toBe(at(2026, 9, 19, 17));
+  });
+  it('reads overnight and hours', () => {
+    expect(askedEnd('Review every flow overnight', late)).toBe(at(2026, 9, 19, 4));
+    expect(askedEnd('work on it while I sleep', noon)).toBe(at(2026, 9, 19, 4));
+    expect(askedEnd('review for 3 hours', noon)).toBe(noon + 3 * 3600_000);
+    expect(askedEnd('keep at it for the next two hours', noon)).toBe(noon + 2 * 3600_000);
+  });
+  it('ignores counts and plain messages', () => {
+    expect(askedEnd('keep fixing until 5 flows are done', late)).toBeNull();
+    expect(askedEnd('split the work by 2 reviewers', late)).toBeNull();
+    expect(askedEnd('until the end of the list', late)).toBeNull();
+    expect(askedEnd('make the toast 24px from the top', late)).toBeNull();
+    expect(askedEnd('until 25 is wrong', late)).toBeNull();
   });
 });
