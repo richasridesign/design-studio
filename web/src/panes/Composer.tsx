@@ -96,6 +96,18 @@ export function figmaLinkIn(text: string): { url: string; key: string; name: str
   return { url: m[0].replace(/[.,;:!?)\]]+$/, ''), key: m[1], name };
 }
 
+export function nodeLinksIn(text: string, key: string): { url: string; id: string }[] {
+  const out = new Map<string, { url: string; id: string }>();
+  for (const m of text.matchAll(/https?:\/\/(?:[\w-]+\.)?figma\.com\/(?:design|file|proto)\/([A-Za-z0-9]{10,})[^\s]*?[?&]node-id=(\d+)[-:](\d+)[^\s]*/g)) {
+    if (m[1] !== key) continue;
+    const id = `${m[2]}:${m[3]}`;
+    if (!out.has(id)) out.set(id, { url: m[0].replace(/[.,;:!?)\]]+$/, ''), id });
+  }
+  return [...out.values()];
+}
+
+export const dropLink = (text: string, url: string) => text.split(url).join('').replace(/\(\s*\)/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+
 export function accept(text: string, start: number, caret: number, insert: string) {
   const next = `${text.slice(0, start)}${insert} ${text.slice(caret)}`;
   return { text: next, caret: start + insert.length + 1 };
@@ -210,7 +222,8 @@ export function Composer() {
   const trigger = useMemo(() => triggerAt(text, at), [text, at]);
   const shell = trigger?.kind === 'shell';
   const popKey = trigger && trigger.kind !== 'shell' ? `${trigger.kind}:${trigger.start}:${trigger.query}` : '';
-  const outline = useOutline(trigger?.kind === 'frame' ? figmaKey : undefined);
+  const nodeLinks = useMemo(() => (figmaKey ? nodeLinksIn(text, figmaKey) : []), [text, figmaKey]);
+  const outline = useOutline(trigger?.kind === 'frame' || nodeLinks.length ? figmaKey : undefined);
   const frames = useMemo(() => outline?.pages.flatMap((p) => p.frames) ?? [], [outline]);
   const frameMode = trigger?.kind === 'frame';
   const recent = useMemo(() => (frameMode ? recentFrameIds(events) : []), [frameMode, events]);
@@ -222,6 +235,7 @@ export function Composer() {
   }, [trigger, popKey, dismissed, commands, files, frames, recent, figmaKey]);
   const open = items.length > 0;
   const thumb = useThumbs(trigger?.kind === 'frame' ? figmaKey : undefined, trigger?.kind === 'frame' ? items.map((r) => [(r.item as FrameRef).id, 0]) : []);
+  const nodeThumb = useThumbs(nodeLinks.length ? figmaKey : undefined, nodeLinks.map((l) => [l.id, 0]));
   const history = useMemo(() => buildHistory(events, stored), [events, stored]);
   const ghost = !open && !shell && at === text.length ? ghostFor(text, history) : '';
   const found = useMemo(() => figmaLinkIn(text), [text]);
@@ -416,6 +430,21 @@ export function Composer() {
             <span>{hasFile ? `Open ${link.name} in its own chat?` : `Attach ${link.name}?`}</span>
             <button className="primary" onClick={() => { if (hasFile) carry.current = { text, from: chatId, at: Date.now() }; send({ type: 'set_figma', url: link.url }); }}>{hasFile ? 'Open' : 'Attach'}</button>
             <button className="icon-btn" title="Dismiss" aria-label="Dismiss" onClick={() => setSkipLink(link.url)}><Icon name="close" small /></button>
+          </div>
+        )}
+        {nodeLinks.length > 0 && !shell && (
+          <div className="cp-nodes" aria-label="Frames in this message">
+            {nodeLinks.map((l) => {
+              const name = frames.find((f) => f.id === l.id)?.name ?? `Frame ${l.id}`;
+              const src = nodeThumb(l.id);
+              return (
+                <span key={l.id} className="cp-node" title={l.url}>
+                  {src ? <img src={src} alt="" /> : <span className="cp-node-ph"><Icon name="file-media" small /></span>}
+                  <span className="cp-node-name">{name}</span>
+                  <button className="icon-btn" title="Remove this frame link" aria-label={`Remove ${name}`} onClick={() => setText((t) => dropLink(t, l.url))}><Icon name="close" small /></button>
+                </span>
+              );
+            })}
           </div>
         )}
         {(imgs.length > 0 || busy > 0) && !shell && (
