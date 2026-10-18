@@ -545,7 +545,7 @@ export function Composer() {
         </span>
       </div>
       {open && (
-        <ul ref={pop} className="cp-pop" role="listbox">
+        <ul ref={pop} className="cp-pop" role="listbox" aria-label={frameMode ? "Frames" : trigger?.kind === "file" ? "Files" : "Commands"}>
           {items.map((r, i) => {
             if (trigger?.kind === 'command') {
               const c = r.item as { name: string; description: string };
