@@ -41,15 +41,18 @@ const texts = (await figma.getLocalTextStylesAsync()).slice(0, 120).map((s) => (
 const components = [];
 for (const page of figma.root.children) {
   if (components.length >= 200) break;
-  await page.loadAsync();
-  for (const n of page.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] })) {
+  try { await page.loadAsync(); } catch (e) { continue; }
+  let found = [];
+  try { found = page.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] }); } catch (e) { found = []; }
+  for (const n of found) {
     if (components.length >= 200) break;
     if (n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET') continue;
+    // A set with variant errors throws on its definitions; skip its variants, never the whole read.
     let variants = [];
     if (n.type === 'COMPONENT_SET') {
-      variants = Object.entries(n.componentPropertyDefinitions).filter(([, d]) => d.type === 'VARIANT').map(([k, d]) => k + ': ' + (d.variantOptions || []).join(' / '));
+      try { variants = Object.entries(n.componentPropertyDefinitions).filter(([, d]) => d.type === 'VARIANT').map(([k, d]) => k + ': ' + (d.variantOptions || []).join(' / ')); } catch (e) { variants = []; }
     }
-    components.push({ name: n.name, key: n.key, variants, description: n.description || '' });
+    try { components.push({ name: n.name, key: n.key, variants, description: n.description || '' }); } catch (e) { components.push({ name: n.name, key: '', variants, description: '' }); }
   }
 }
 return { file: figma.root.name, variables, paints, texts, components };`;

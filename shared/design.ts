@@ -65,7 +65,7 @@ export const DEFAULT_FIX_ROUNDS = 3;
 export const fixRoundsFor = (preset: ReviewPreset, setting: number) => PRESET_INFO[preset].fixRounds ?? Math.min(4, Math.max(1, Math.round(setting) || DEFAULT_FIX_ROUNDS));
 
 /** How many model reviewers a run starts. */
-export const reviewerCount = (preset: ReviewPreset, areas: Area[]) => (preset === 'check' ? 0 : preset === 'quick' ? 1 : preset === 'full' ? AREAS.length : areas.length);
+export const reviewerCount = (preset: ReviewPreset, areas: Area[]) => (preset === 'check' ? 0 : preset === 'quick' ? 1 : preset === 'full' ? AREAS.length : Math.max(1, areas.length));
 
 /** Measured: one Sonnet reviewer on a few frames costs about 5 cents; reading 6 frames costs about half a cent. */
 export const REVIEWER_USD = 0.05;
