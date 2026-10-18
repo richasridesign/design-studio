@@ -93,7 +93,7 @@ const clock = (ms: number) => {
 export function FigmaItem() {
   const [tone, label] = shownState(useFigmaRows());
   return (
-    <button className="mcp-item figma-item" aria-label={`Figma: ${label}`} onClick={openMcp}>
+    <button className="mcp-item figma-item" aria-label={`Figma: ${label}`} title={`Figma: ${label}`} onClick={openMcp}>
       <span className={`sb-dot ${tone}`} aria-hidden="true" /> <span className="label">Figma</span>
     </button>
   );
