@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accept, dropLink, figmaLinkIn, nodeLinksIn, splitFrameLinks, withFrameLinks, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
+import { accept, insertInto, dropLink, figmaLinkIn, nodeLinksIn, splitFrameLinks, withFrameLinks, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
 import { RECIPES, toRecipe } from '../../../shared/recipes';
 import type { ChatEvent } from '../../../shared/protocol';
 
@@ -78,6 +78,23 @@ describe('accept', () => {
   it('replaces the token under the caret and adds a space', () => {
     expect(accept('/comp', 0, 5, '/compact')).toEqual({ text: '/compact ', caret: 9 });
     expect(accept('fix @sto please', 4, 8, '@src/store.ts')).toEqual({ text: 'fix @src/store.ts  please', caret: 18 });
+  });
+});
+
+describe('insertInto', () => {
+  it('never adds the same text twice', () => {
+    expect(insertInto('/review ', '/review ')).toBe('/review ');
+    expect(insertInto('Fix the issues ', 'Fix the issues')).toBe('Fix the issues ');
+  });
+  it('puts a command first and replaces a command line at the top', () => {
+    expect(insertInto('', '/review ')).toBe('/review ');
+    expect(insertInto('look at the cart', '/review')).toBe('/review look at the cart');
+    expect(insertInto('/review check 1:2', '/review full')).toBe('/review full ');
+    expect(insertInto('/sketch\nthe empty state', '/design')).toBe('/design\nthe empty state ');
+  });
+  it('appends plain text after what is there', () => {
+    expect(insertInto('Hello', 'About "x": ')).toBe('Hello About "x": ');
+    expect(insertInto('', 'About "x": ')).toBe('About "x": ');
   });
 });
 
