@@ -1,4 +1,4 @@
-/* Calm neutral palettes. Light is :root, dark overrides it on html[data-theme='dark'] (see theme.ts). */
+/* Calm neutral light palette. */
 :root {
   color-scheme: light;
   --bg: #ffffff;
@@ -58,36 +58,6 @@
   --green: var(--ok);
   --red: var(--err);
   --yellow: var(--warn);
-}
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #141414;
-  --bg-raised: #1b1b1b;
-  --bg-sunken: #222222;
-  --bg-elevated: #2a2a2a;
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --border: #2a2a2a;
-  --border-strong: #3a3a3a;
-  --fg: #ededed;
-  --fg-muted: #a8a8a8;
-  --fg-faint: #8f8f8f;
-  --accent: #ededed;
-  --accent-hover: #d4d4d4;
-  --accent-soft: rgba(237, 237, 237, 0.08);
-  --on-accent: #141414;
-  --btn: #2c2c2c;
-  --btn-hover: #363636;
-  --focus: #7aa2ff;
-  --overlay: rgba(0, 0, 0, 0.6);
-  --figma-soft: rgba(13, 153, 255, 0.16);
-  --figma-ink: #6cc0ff;
-  --link: #7aa2ff;
-  --ok: #4cc38a;
-  --warn: #e0a64a;
-  --err: #f87171;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --input: var(--bg-raised);
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }

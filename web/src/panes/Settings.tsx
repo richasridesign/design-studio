@@ -4,7 +4,6 @@ import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, type CheckId, type CheckResult } from '../setupChecks';
 import { PRESET_INFO, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
-import { ThemeSegment } from '../ThemeToggle';
 import { figmaState } from '../StatusBar';
 
 type McpInfo = { configured: boolean; status: { status: string; error?: string } | null };
@@ -133,15 +132,6 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="set-card" id="set-appearance">
-        <h2>Appearance</h2>
-        <div className="field">
-          <span>Theme</span>
-          <ThemeSegment />
-          <span className="muted small">System follows your computer's light or dark setting.</span>
-        </div>
-      </section>
-
       <CheckSetup />
 
       <section className="set-card" id="set-runs">
@@ -180,7 +170,7 @@ function McpState({ status }: { status?: string }) {
   return <span className="inline mcp-state"><span className={`mcp-dot ${tone}`} aria-hidden />{label}</span>;
 }
 
-const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma access'], ['set-appearance', 'Appearance'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models']];
+const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma access'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models']];
 
 const scroller = (el: HTMLElement | null): HTMLElement | null => {
   for (let p = el?.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;

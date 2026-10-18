@@ -1,9 +1,8 @@
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type MutableRefObject } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
-import { syntaxHighlighting } from '@codemirror/language';
+import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { unifiedMergeView } from '@codemirror/merge';
-import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { json } from '@codemirror/lang-json';
@@ -91,8 +90,7 @@ function Editor({ file, diff, wrap, changesOnly, viewRef }: EditorProps) {
       lineNumbers(),
       EditorView.editable.of(false),
       EditorState.readOnly.of(true),
-      EditorView.theme({}, { dark: true }),
-      syntaxHighlighting(oneDarkHighlightStyle),
+      syntaxHighlighting(defaultHighlightStyle),
       lang(file.path),
       wrap ? EditorView.lineWrapping : [],
       diff ? unifiedMergeView({ original: file.original, mergeControls: false, collapseUnchanged: changesOnly ? { margin: 3, minSize: 4 } : undefined }) : [],
