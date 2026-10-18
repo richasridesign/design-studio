@@ -40,7 +40,8 @@ const check = (label: string, met: boolean, detail: string, open?: StageOpen): S
 
 function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
   const screens = e.sketch?.screens ?? [];
-  const frames = e.design?.frames ?? [];
+  // Older chats only list frames on their review runs.
+  const frames = e.design?.frames.length ? e.design.frames : (e.review?.runs.at(-1)?.frames ?? []).map((nodeId) => ({ nodeId }));
   switch (id) {
     case 'spec':
       return [

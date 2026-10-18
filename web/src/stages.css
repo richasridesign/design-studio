@@ -1,0 +1,69 @@
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Chat header button: the current stage. */
+.stage-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg);
+  font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
+}
+.stage-btn b { font-weight: 600; color: var(--fg); }
+.stage-btn { white-space: nowrap; }
+.stage-short { display: none; }
+.stage-btn:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* Marks differ by shape as well as colour: ring = in progress, filled = ready, check = approved, hollow grey = later. */
+.stage-mark { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--warn); }
+.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark { border-color: var(--fg); background: var(--fg); }
+.stage-btn.approved .stage-mark { border-color: var(--ok); background: var(--ok); }
+.stage-rail .later .stage-mark { border-color: var(--border-strong); }
+.stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--ok); color: #fff; }
+.stage-rail .approved .stage-mark .codicon { font-size: 12px; }
+
+.stage-panel { container-type: inline-size; flex: none; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+
+/* Rail: six stages joined by lines. Scrolls sideways on narrow screens. */
+.stage-rail { display: flex; align-items: center; margin: 0 0 16px; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
+.stage-rail li { display: flex; align-items: center; flex: 1 0 auto; }
+.stage-rail li:last-child { flex: none; }
+.stage-rail button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
+}
+.stage-rail button:hover { background: var(--bg-hover); color: var(--fg); }
+.stage-rail .shown button { background: var(--bg-sunken); color: var(--fg); font-weight: 600; }
+.stage-rail .later .stage-name { color: var(--fg-muted); }
+.stage-line { flex: 1 1 8px; min-width: 8px; height: 1px; background: var(--border-strong); }
+
+.gate { display: grid; gap: 8px; }
+.gate-head { display: grid; gap: 4px; }
+.gate-head b { font-size: var(--text-md); line-height: 24px; }
+.gate-head .muted, .gate-foot .muted { font-size: var(--text-sm); line-height: 20px; }
+.gate-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+.gate-checks { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.gate-check { display: grid; grid-template-columns: 16px 1fr auto; align-items: start; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.gate-check:first-child { border-top: 0; }
+.gate-icon { display: grid; place-items: center; width: 16px; height: 20px; }
+.gate-check.met .gate-icon { color: var(--ok); }
+.gate-check.open .gate-icon i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--warn); }
+.gate-check.unchecked .gate-icon { color: var(--fg-muted); }
+.gate-text { display: grid; gap: 0; font-size: var(--text-sm); line-height: 20px; min-width: 0; }
+.gate-text .muted { overflow-wrap: anywhere; }
+.gate-check .link { min-height: 20px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
+.gate-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+.gate-act, .gate-done { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: var(--text-sm); line-height: 20px; }
+.gate-act button { min-height: 36px; }
+.gate-done .link { min-height: 24px; }
+
+/* Tight columns: only the stage on show keeps its name; the others read out to screen readers. */
+@container (max-width: 600px) {
+  .stage-rail li:not(.shown) .stage-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .stage-rail li:not(.shown) button { padding: 0 6px; }
+}
+
+@media (max-width: 900px) {
+  .stage-btn { min-height: 36px; font-size: var(--text-md); }
+  .stage-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .stage-short { display: inline; }
+  .stage-rail button, .gate-check .link, .gate-done .link { min-height: 36px; }
+  .stage-panel { padding: 12px; }
+}
