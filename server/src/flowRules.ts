@@ -284,6 +284,8 @@ function hoverFindings(screen: any, maps: Maps, add: Adder) {
 }
 
 // Toasts sit 24px from the top of the screen, centred, as the top layer. 1px of slack covers rounding.
+const FLOATING = /\b(tooltip|popover|menu|dropdown)\b/i;
+
 function toastFindings(screen: any, maps: Maps, add: Adder) {
   const s = screen.absoluteBoundingBox;
   if (!s) return;
@@ -303,7 +305,9 @@ function toastFindings(screen: any, maps: Maps, add: Adder) {
     const off: string[] = [];
     if (Math.abs(dy - 24) > 1) off.push(`${Math.round(dy)}px from the top of the screen`);
     if (Math.abs(dx) > 1) off.push(`${Math.round(Math.abs(dx))}px ${dx < 0 ? 'left' : 'right'} of centre`);
-    if (top.includes(t) && top[top.length - 1] !== t) off.push('under layers drawn after it');
+    // Tooltips and menus draw above everything by her own rule, and a layer that does not touch the toast hides nothing.
+    const above = top.slice(top.indexOf(t) + 1).filter((c) => !FLOATING.test(label(c, maps)) && (!c.absoluteBoundingBox || intersects(c.absoluteBoundingBox, b)));
+    if (top.includes(t) && above.length) off.push(`under ${describe(above[0])}`);
     if (off.length) add(t, 'toast', `${describe(t)} sits ${off.join(', ')}.`, 'Place the toast 24px from the top of the screen, centred, as the top layer.');
   }
 }
@@ -416,6 +420,9 @@ function noteFindings(f: Flow, add: Adder) {
 }
 
 export const isParkedSection = (name: string, path: string[]) => [...path, name].some((n) => namedLike(n, 'parked'));
+
+/** True when the read stopped inside this section's own layers (sub-sections are flows of their own). */
+const cutShort = (n: any): boolean => !!n.cut || kids(n).some((c) => c.type !== 'SECTION' && cutShort(c));
 
 export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
   const flows: Flow[] = [];
@@ -559,6 +566,11 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'parked' });
       continue;
     }
+    // The plugin read stops at a layer cap: a section it cut short would show stickies and links as missing.
+    if (cutShort(f.node)) {
+      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'cut' });
+      continue;
+    }
     const list = found.get(f.ref.id) ?? [];
     if (!f.screens.length && !list.length && !f.leaf) continue;
     const counts: Partial<Record<FlowRule, number>> = {};
@@ -574,7 +586,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
   return { flows: results, unchecked: decisions ? [] : ['no-stickies'], missing };
 }
 
-type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; L?: number; u?: 0 | 1; c?: Compact[] };
+type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; L?: number; u?: 0 | 1; k?: 1; c?: Compact[] };
 export type PluginPayload = { flowcheck: 1; document: Compact; components: Record<string, any>; componentSets: Record<string, any>; nodes: number; truncated: boolean };
 
 /** Turns the script's short keys into the node shape checkFlows reads (Plugin API `reactions`, REST-like box and ids). */
@@ -590,6 +602,7 @@ export function expandNode(c: Compact): any {
     o.textLength = c.L;
     o.bullets = c.u === 1;
   }
+  if (c.k) o.cut = true;
   if (c.c) o.children = c.c.map(expandNode);
   return o;
 }

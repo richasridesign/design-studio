@@ -287,7 +287,11 @@ describe('new screen rules', () => {
     expect(rules(s([text('Body'), toast('t1', 520, 24)]))).toEqual([]);
     expect(rules(s([text('Body'), toast('t1', 520.4, 24.6)]))).toEqual([]);
     const off = s([toast('t2', 900, 820), text('Body')]);
-    expect(off.flows[0].findings.map((f) => [f.rule, f.severity, f.message])).toEqual([['toast', 'minor', 'Toast "Saved" sits 820px from the top of the screen, 380px right of centre, under layers drawn after it.']]);
+    expect(off.flows[0].findings.map((f) => [f.rule, f.severity, f.message])).toEqual([['toast', 'minor', 'Toast "Saved" sits 820px from the top of the screen, 380px right of centre, under "Body".']]);
+    // A tooltip drawn above it, or a layer that does not touch it, hides nothing.
+    const tip = { id: 'tp', type: 'INSTANCE', name: 'Tooltip · Activate disabled', componentId: 'c:tip', ...box(0, 600, 120, 32), children: [] };
+    const far = { id: 'fr', type: 'FRAME', name: 'Footer', ...box(0, 700, 1440, 80), children: [] };
+    expect(rules(s([text('Body'), toast('t1', 520, 24), tip, far]))).toEqual([]);
   });
 
   it('flags notes over 230 characters with no bullets, outside screens, stickies and the changelog', () => {

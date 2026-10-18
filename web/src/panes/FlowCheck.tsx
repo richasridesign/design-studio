@@ -32,6 +32,7 @@ const screensText = (n: number) => `${n} ${n === 1 ? 'screen' : 'screens'}`;
 function counts(flow: FlowResult) {
   // Parked sections are frozen references, so no rule runs on them.
   if (flow.skipped === 'parked') return flow.screens ? `Reason: Parked · ${screensText(flow.screens)}` : 'Reason: Parked';
+  if (flow.skipped === 'cut') return 'Reason: Not fully read, the file is over the 20,000 layer limit';
   if (flow.state === 'unchecked') return 'No screens in this section';
   const parts = FLOW_RULES.filter((r) => flow.counts[r]).map((r) => `${FLOW_RULE_LABEL[r]} ${flow.counts[r]}`);
   return parts.length ? parts.join(' · ') : screensText(flow.screens);
@@ -140,7 +141,7 @@ export function FlowCheck() {
       {run && !busy && (
         <div className="fc-meta" role="status">
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
-          {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers, so some screens were not read.</span>}
+          {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers. It reads LATEST and Parked first, and skips sections it could not finish.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Ask Claude to fix'}</button>}
         </div>

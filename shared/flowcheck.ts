@@ -51,8 +51,9 @@ export type FlowResult = {
   findings: FlowFinding[];
   // Findings beyond the stored cap. Counts always cover every finding.
   more: number;
-  // Why the whole section was skipped. Parked sections are frozen references, so no rule runs on them.
-  skipped?: 'parked';
+  // Why the whole section was skipped. Parked sections are frozen references, so no rule runs on them. Cut: the
+  // plugin read reached its layer cap inside this section.
+  skipped?: 'parked' | 'cut';
 };
 
 export type FlowCheckRun = {
