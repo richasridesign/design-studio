@@ -305,7 +305,8 @@ export function App() {
           </ErrorBoundary>
         </section>
 
-        <section className="editor-group pane code">
+        {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}
+        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={narrow() && isMobileCenter(tab) ? 'Panels' : undefined}>
           <div className="tabs">
             {/* Tabs for screen readers: arrows move between tabs, Enter or Space opens one. */}
             <div role="tablist" aria-label="Panels" style={{ display: 'contents' }} onKeyDown={tabKeys}>
