@@ -75,6 +75,8 @@ export function FlowCheck() {
   const [error, setError] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [asked, setAsked] = useState(false);
+  // Without a Figma token the server reads the file through the Figma plugin, which is slower.
+  const [viaPlugin, setViaPlugin] = useState(false);
 
   useEffect(() => {
     setRun(null);
@@ -88,6 +90,8 @@ export function FlowCheck() {
   const check = async () => {
     setBusy(true);
     setError('');
+    const token = await getJson<{ figmaToken?: string }>('/api/settings').then((s) => !!s.figmaToken, () => true);
+    setViaPlugin(!token);
     try {
       const r = await postJson<{ run: FlowCheckRun }>('/api/flowcheck', {});
       setRun(r.run);
@@ -118,13 +122,16 @@ export function FlowCheck() {
           <h2 id="fc-title">Flow check</h2>
           <p>Clicks, hovers, close icons, tooltips, old links, overlaps and stickies in each section. Free.</p>
         </div>
-        <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? 'Checking…' : 'Run flow check'}</button>
+        <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? (viaPlugin ? 'Checking through the Figma plugin…' : 'Checking…') : 'Run flow check'}</button>
       </div>
       {error && <p className="fc-error" role="alert">{error}</p>}
-      {busy && <p className="fc-meta" role="status">Reading every section from Figma. Large files take up to a minute.</p>}
+      {/* "About a minute" through the plugin is an assumption to confirm on a real file: one Claude call plus the plugin read. */}
+      {busy && <p className="fc-meta" role="status">{viaPlugin ? 'Checking through the Figma plugin, about a minute.' : 'Reading every section from Figma. Large files take up to a minute.'}</p>}
       {run && !busy && (
         <div className="fc-meta" role="status">
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
+          {run.via === 'plugin' && <span className="fc-note">Read through the Figma plugin.</span>}
+          {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers, so some screens were not read.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Ask Claude to fix'}</button>}
         </div>
