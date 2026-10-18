@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanDecisions, draftPrompt, isValidKey, matchDecisions, mergeDecisions, parseDecisions, stickyPrompt, wordCount, type DecisionDoc } from './decisions';
+import { cleanDecisions, draftPrompt, fills, isValidKey, matchDecisions, mergeDecisions, parseDecisions, stickyPrompt, wordCount, type DecisionDoc } from './decisions';
 
 const screens = [{ id: '1:2', name: 'Home' }, { id: '1:3', name: 'Activate' }, { id: '2:1', name: 'Activate' }];
 
@@ -38,9 +38,11 @@ describe('matchDecisions', () => {
 
 describe('mergeDecisions', () => {
   const base: DecisionDoc = { '1:2': { name: 'Home', items: [{ decision: 'Old', why: 'Kept' }, { decision: '', why: '' }] } };
-  it('overwrites only the fields that came back', () => {
-    const out = mergeDecisions(base, [{ n: 1, screen: 'Home', id: '1:2', decision: 'New', why: '' }, { n: 2, screen: 'Home', id: '1:2', decision: 'Two', why: 'Because' }]);
-    expect(out['1:2'].items).toEqual([{ decision: 'New', why: 'Kept' }, { decision: 'Two', why: 'Because' }]);
+  it('fills empty fields and never replaces written text', () => {
+    const entries = [{ n: 1 as const, screen: 'Home', id: '1:2', decision: 'New', why: 'Other' }, { n: 2 as const, screen: 'Home', id: '1:2', decision: 'Two', why: 'Because' }];
+    const out = mergeDecisions(base, entries);
+    expect(out['1:2'].items).toEqual([{ decision: 'Old', why: 'Kept' }, { decision: 'Two', why: 'Because' }]);
+    expect(entries.some((e) => Object.values(fills(out, e)).some(Boolean))).toBe(false);
     expect(base['1:2'].items[0].decision).toBe('Old');
   });
   it('uses the frame name when given', () => {

@@ -3,7 +3,7 @@ import { getJson, getState, postJson, send, steer, useStore } from '../store';
 import { getOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
 import { attachFigma } from './Files';
-import { WARN_WORDS, draftPrompt, filled, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';
+import { WARN_WORDS, draftPrompt, filled, fills, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';
 import '../decisions.css';
 
 type Frame = Outline['pages'][number]['frames'][number];
@@ -38,7 +38,7 @@ function useDraft(screens: Screen[]) {
       const parsed = parseDecisions(e.text);
       if (!parsed.length) continue;
       const { matched, unmatched } = matchDecisions(parsed, screens);
-      return { id: e.id, matched, unmatched, count: new Set(matched.map((m) => m.id)).size };
+      return { id: e.id, matched, unmatched };
     }
     return null;
   }, [events, screens]);
@@ -129,7 +129,8 @@ export function Decisions() {
     update(mergeDecisions(doc, draft.matched, names));
     setApplied(draft.id);
   };
-  const showDraft = draft && draft.id !== applied && draft.count > 0;
+  const fresh = draft ? new Set(draft.matched.filter((e) => Object.values(fills(doc, e)).some(Boolean)).map((e) => e.id)).size : 0;
+  const showDraft = draft && draft.id !== applied && fresh > 0;
 
   return (
     <div className="dec-page" onBlur={flush}>
@@ -143,7 +144,7 @@ export function Decisions() {
 
       {showDraft ? (
         <p className="dec-line" role="status">
-          <span>Claude's draft is ready: {draft.count} {draft.count === 1 ? 'screen' : 'screens'}{draft.unmatched.length > 0 && `, ${draft.unmatched.length} not matched (${draft.unmatched.join(', ')})`}.</span>
+          <span>Claude's draft is ready: {fresh} {fresh === 1 ? 'screen' : 'screens'}{draft.unmatched.length > 0 && `, ${draft.unmatched.length} not matched (${draft.unmatched.join(', ')})`}.</span>
           <button className="link" onClick={applyDraft}>Apply draft</button>
         </p>
       ) : asked && draft?.id !== applied ? (
