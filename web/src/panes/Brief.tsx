@@ -86,11 +86,11 @@ export function Brief() {
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
-                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : lastReply ? 'Idle · last reply' : 'Idle'}
+                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : 'Idle'}
+                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}> · Last reply: {time(lastReply.at)}</span>}
                 {state === 'running' && lastTool?.kind === 'tool_use' && <span className="tool">{lastTool.summary}</span>}
               </span>
               <span className="tl-side">
-                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>{time(lastReply.at)}</span>}
                 {hasSteps && (
                   <button className="tl-steps-toggle" aria-expanded={stepsOpen} title={stepsOpen ? 'Hide the next steps' : 'Show the next steps'} onClick={toggleSteps}>
                     {next.length ? `${next.length} next ${next.length === 1 ? 'step' : 'steps'}` : 'Next steps'}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
@@ -165,7 +165,9 @@ function Step({ text, editing = false, onSave, onDrop }: { text: string; editing
 
 function time(at: number) {
   const ago = Date.now() - at;
-  if (ago < 60000) return 'now';
-  if (ago < 3600000) return `${Math.floor(ago / 60000)}m`;
-  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (ago < 60000) return 'just now';
+  if (ago < 3600000) return `${Math.floor(ago / 60000)} min ago`;
+  const d = new Date(at);
+  const clock = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  return d.toDateString() === new Date().toDateString() ? `at ${clock}` : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
 }

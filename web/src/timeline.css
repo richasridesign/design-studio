@@ -58,3 +58,12 @@
   .tl-suggest button { min-height: 44px; }
   .tl-start .tl-attach { height: 44px; }
 }
+
+/* Timeline content shares the header and composer edges; on desktop the scrollbar sits in the card padding. */
+@media (min-width: 901px) {
+  .brief-status { overflow: visible; }
+  .brief .brief-status > .tr { margin-right: -12px; padding-right: 12px; }
+}
+@media (max-width: 900px) { .brief .brief-status > .tr { padding-right: 0; } }
+.tl-foot .tl-now::before { content: none; }
+.tl-foot .tl-now .text .when { font-size: inherit; color: var(--fg-muted); font-variant-numeric: normal; }
