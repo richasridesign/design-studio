@@ -36,6 +36,17 @@ export const CHROME_CHECKBOX = 'Allow remote debugging for this browser instance
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/**
+ * The Figma plugin row as a check result. Check setup shows this for the plugin before it is run, from the same status
+ * the Figma card and the status bar show, so the two never disagree. Still connecting: no result yet.
+ */
+export function mcpResult(row: Pick<McpServer, 'status' | 'error'> | undefined): CheckResult | undefined {
+  if (!row || row.status === 'pending') return undefined;
+  if (row.status === 'connected') return { tone: 'ok', detail: 'Figma plugin: Connected. Claude can edit your file.' };
+  if (row.status === 'needs-auth') return { tone: 'warn', detail: 'Figma plugin: Needs login', fix: 'Log in once. Figma opens in your browser to approve it.', fixLabel: 'Log in to Figma', fixId: 'figma-login' };
+  return { tone: 'bad', detail: `Figma plugin: Not connected${row.error ? ` (${row.error})` : ''}`, fix: 'Add the Figma plugin to Claude again, then log in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
+}
+
 async function mcp(): Promise<CheckResult> {
   try {
     const config = await getJson<{ name: string }[]>('/api/mcp/config');
@@ -43,11 +54,7 @@ async function mcp(): Promise<CheckResult> {
       return { tone: 'bad', detail: 'The Figma plugin is not installed in Claude', fix: 'Add the Figma plugin to Claude, then sign in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
     }
     const rows = await getJson<McpServer[]>('/api/mcp/probe?refresh=1');
-    const row = rows.find((r) => /figma/i.test(r.name));
-    if (!row) return { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
-    if (row.status === 'connected') return { tone: 'ok', detail: 'Figma plugin: Connected. Claude can edit your file.' };
-    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'Figma plugin: Needs login', fix: 'Log in once. Figma opens in your browser to approve it.', fixLabel: 'Log in to Figma', fixId: 'figma-login' };
-    return { tone: 'bad', detail: `Figma plugin: Not connected${row.error ? ` (${row.error})` : ''}`, fix: 'Add the Figma plugin to Claude again, then log in once.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
+    return mcpResult(rows.find((r) => /figma/i.test(r.name))) ?? { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };
   }

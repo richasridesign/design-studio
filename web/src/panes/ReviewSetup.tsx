@@ -29,6 +29,9 @@ export function DepthSeg() {
   );
 }
 
+/** Settings sends this after each save. The dev tools switch and the Review tab's cost line read the settings again. */
+export const SETTINGS_CHANGED = 'designstudio:settings';
+
 export const openReviewTab = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }));
 
 /** The chat's review depth as a line with a link to the Review tab, where it is changed. For the message box's mode menu. */
@@ -50,7 +53,13 @@ export function ReviewAreas() {
   const saved = useStore((s) => s.session.flow.areas);
   const areas = tickedAreas(saved);
   const [fixRounds, setFixRounds] = useState(3);
-  useEffect(() => { getJson<Settings>('/api/settings').then((s) => setFixRounds(s.fixRounds ?? 3), () => {}); }, []);
+  // Read again whenever Settings saves, so the cost line follows a change made there.
+  useEffect(() => {
+    const load = () => getJson<Settings>('/api/settings').then((s) => setFixRounds(s.fixRounds ?? 3), () => {});
+    load();
+    window.addEventListener(SETTINGS_CHANGED, load);
+    return () => window.removeEventListener(SETTINGS_CHANGED, load);
+  }, []);
 
   const toggle = (a: Area) => send({ type: 'set_flow', patch: { areas: areas.includes(a) ? areas.filter((x) => x !== a) : AREAS.filter((x) => x === a || areas.includes(x)) } });
 
