@@ -29,7 +29,7 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
     figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
     // The Fix button on the Steps panel asks in plain words; the file name lives here, out of the designer's message.
-    'Review findings and failed house rules the designer closed by hand on the Review tab (fixed, won\'t fix or parked) are listed in triage.json in the chat folder. Skip them when you fix issues from a review.',
+    'Review findings and failed house rules the designer closed by hand on the Review tab (fixed, won\'t fix or parked) are listed in triage.json in the chat folder. Skip them when you fix issues from a review. Leave the findings that wait for the designer\'s decision (they have a decide note in review.json): the designer decides those, so do not fix them.',
     'For anything in a web browser, use the Claude in Chrome tools. They drive the designer\'s own Chrome, where they are logged in to Figma.',
     rules,
   ].filter(Boolean).join('\n\n');
