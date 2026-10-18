@@ -89,7 +89,7 @@ export function Chats() {
         <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />
       </div>
       <div className="tree">
-        <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void openSample()}>
+        <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void openSample()} {...press(() => sampleBusy || void openSample())}>
           <span className="twistie"><Icon name="play" small /></span>
           <span className="name">Sample tour</span>
         </div>
@@ -105,7 +105,7 @@ export function Chats() {
             </div>
             {g.open.map((c) => <LiveRow key={c.id} c={c} selected={c.id === viewing} onClose={() => close(c)} />)}
             {(query ? g.recent : g.recent.slice(0, RECENT)).map((s) => (
-              <div key={s.sessionId} className="row session recent" title={s.title} onClick={() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); }}>
+              <div key={s.sessionId} className="row session recent" title={s.title} onClick={() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); }} {...press(() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); })}>
                 <span className="name">{opening === s.sessionId ? 'Opening… ' : ''}{s.title}</span>
                 <span className="when">{ago(s.lastModified)}</span>
               </div>
@@ -119,6 +119,17 @@ export function Chats() {
   );
 }
 
+// Keyboard access for a clickable row part: Enter or Space acts like a click.
+const press = (fn: () => void) => ({
+  role: 'button',
+  tabIndex: 0,
+  onKeyDown: (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    fn();
+  },
+});
+
 function line(c: LiveChat, events: ChatEvent[] | null) {
   return c.pending ? 'Needs you' : c.running ? c.status : c.last ?? (events ? replyLine(events) : '') ?? '';
 }
@@ -129,7 +140,7 @@ function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onC
   return (
     <div className={`row session live ${text ? 'two' : ''} ${selected ? 'selected' : ''}`} title={c.title} onClick={() => selected || send({ type: 'view', id: c.id })}>
       <span className={`dot ${c.pending ? 'waiting' : c.running ? 'running' : 'idle'}`} />
-      <span className="lines">
+      <span className="lines" aria-current={selected || undefined} {...press(() => selected || send({ type: 'view', id: c.id }))}>
         <span className="l1">
           <span className="name">{c.title}</span>
           <span className="when">{c.pending ? 'needs you' : c.running ? '' : ago(c.lastActive)}</span>
