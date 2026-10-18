@@ -302,19 +302,6 @@ button.send {
 button.send:hover { background: var(--accent-hover); }
 button.send:disabled { opacity: 0.35; cursor: default; }
 
-.statusbar {
-  height: 22px; flex: none; background: var(--statusbar); border-top: 1px solid var(--border);
-  display: flex; align-items: center; font-size: var(--text-sm); color: var(--fg-muted); padding: 0 6px;
-}
-.statusbar .item { display: flex; align-items: center; gap: 4px; padding: 0 6px; height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
-.statusbar .item:hover { background: var(--bg-hover); color: var(--fg); }
-.statusbar .item.project { color: var(--fg); font-weight: 500; padding: 0 8px; }
-.statusbar .item.project .codicon { color: var(--claude); }
-.statusbar .item.busy { color: var(--fg); }
-.statusbar .item.busy .codicon { color: var(--accent); }
-.statusbar .item.idle .codicon { color: var(--ok); }
-.statusbar .item.status-text, .statusbar .item.muted { color: var(--fg-muted); }
-.statusbar .item.error { background: var(--err); color: var(--bg); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 6px; z-index: 10; }
