@@ -1,11 +1,11 @@
-/* Review pane: closing a finding by hand (triage). */
+/* Review pane: resolving a finding or a failed house rule by hand (triage). */
 .findings .f-body { flex: 1; }
 .findings .f-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
 .findings .f-foot .link { margin-top: 0; align-self: center; }
 
 /* A quiet text link: no border, underline on hover. */
-.triage-link { background: transparent; border: 0; padding: 0; min-height: 24px; height: auto; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.triage-link:hover { background: transparent; text-decoration: underline; }
+.findings .f-foot .triage-link { background: transparent; border: 0; padding: 0; min-height: 28px; height: 28px; display: inline-flex; align-items: center; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.findings .f-foot .triage-link:hover { background: transparent; text-decoration: underline; text-decoration-thickness: 2px; }
 
 .triage-form { display: grid; gap: 12px; margin-top: 8px; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .triage-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -19,16 +19,15 @@
 .triage-foot { display: flex; align-items: center; gap: 12px; }
 .triage-foot button { min-height: 36px; }
 
-/* Closed by hand: a full-width card under the area cards. */
+/* Resolved by hand: a full-width card under the area cards. */
 .triage-closed .area-title .t { font-size: var(--text-md); }
-/* Closed state: shape + label. Fixed is a check-like filled circle, Won't fix a dash, Parked a hollow square. */
+/* Resolved state: mark + label (shared/marks.ts). Fixed is a green check, Won't fix a grey slash, Parked a hollow square. */
 .tri { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
-.tri::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
-.tri.fixed::before { background: var(--ok); border-radius: 50%; }
-.tri.wontfix::before { height: 2px; background: var(--fg-muted); }
-.tri.parked::before { border: 2px solid var(--fg-muted); border-radius: 1px; }
 @media (max-width: 600px) {
   .tri { height: 20px; }
-  .triage-link { min-height: 36px; }
+  .findings .f-foot .triage-link { min-height: 36px; height: 36px; }
 }
 .review-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Frame chips in a finding's foot line up with the Resolve link; long names are cut with an ellipsis, the full name is in the tooltip. */
+.findings .f-foot .link { display: block; height: 28px; line-height: 28px; }
+@media (max-width: 600px) { .findings .f-foot .link { height: 36px; line-height: 36px; } }

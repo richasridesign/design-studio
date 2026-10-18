@@ -1,9 +1,10 @@
-// Triage: the designer closes a review finding by hand (Fixed, Won't fix or Parked) with a why and a date.
+// Triage: the designer resolves a review finding or a failed house rule by hand (Fixed, Won't fix or Parked) with a why and a date.
 // A finding's key is its run id plus its id. Reviewer ids carry the finding's index, so the same id in a later
 // round can point at a different finding. Triage therefore applies only to the run it was made on, and every
 // new round starts with every finding open.
 
 import type { Finding, ReviewRun } from './design.js';
+import type { RuleResult } from './rules.js';
 
 export const TRIAGE_STATES = ['fixed', 'wontfix', 'parked'] as const;
 export type TriageState = (typeof TRIAGE_STATES)[number];
@@ -25,6 +26,8 @@ const text = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s
 const isState = (v: unknown): v is TriageState => TRIAGE_STATES.includes(v as TriageState);
 
 export const triageKey = (run: Pick<ReviewRun, 'id'>, f: Pick<Finding, 'id'>) => `${run.id}:${f.id}`;
+/** A failed house rule's key: its run plus the rule text, cleaned the same way changeTriage cleans every key. */
+export const ruleKey = (run: Pick<ReviewRun, 'id'>, rule: string) => text(`${run.id}:rule:${rule}`, KEY_MAX);
 
 export function cleanTriage(input: unknown): Triage {
   const out: Triage = {};
@@ -74,9 +77,22 @@ export function splitFindings(run: ReviewRun, findings: Finding[], triage: Triag
 
 export const splitRun = (run: ReviewRun, triage: Triage | null | undefined) => splitFindings(run, allFindings(run), triage);
 
-/** The run with closed findings left out, for counts that must agree with the open list. */
+/** House rules with each failed rule's triage attached. A resolved rule no longer counts as failed (see rulesSummary). */
+export const triagedRules = (run: Pick<ReviewRun, 'id' | 'rules'>, triage: Triage | null | undefined): RuleResult[] | undefined =>
+  run.rules?.map((r) => {
+    const t = r.state === 'fail' ? triage?.[ruleKey(run, r.rule)] : undefined;
+    return t ? { ...r, triage: t } : r;
+  });
+
+export type ResolvedRule = RuleResult & { triage: TriageEntry; key: string };
+/** Failed house rules resolved by hand, with their keys for Reopen. */
+export const resolvedRules = (run: Pick<ReviewRun, 'id' | 'rules'>, triage: Triage | null | undefined): ResolvedRule[] =>
+  (triagedRules(run, triage) ?? []).filter((r): r is RuleResult & { triage: TriageEntry } => !!r.triage).map((r) => ({ ...r, key: ruleKey(run, r.rule) }));
+
+/** The run with resolved findings left out and resolved rules marked, for counts that must agree with the open list. */
 export const openRun = (run: ReviewRun, triage: Triage | null | undefined): ReviewRun => ({
   ...run,
+  ...(run.rules ? { rules: triagedRules(run, triage) } : {}),
   check: splitFindings(run, run.check, triage).open,
   results: run.results.map((r) => {
     const findings = splitFindings(run, r.findings, triage).open;

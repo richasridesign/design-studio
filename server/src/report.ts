@@ -9,7 +9,8 @@ import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
 import { readApprovals } from './stages.js';
 import { readScope } from './scope.js';
 import { readTriage } from './triage.js';
-import { TRIAGE_LABEL, closedTally, splitFindings, splitRun, type ClosedFinding, type Triage, type TriageState } from '../../shared/triage.js';
+import { TRIAGE_LABEL, closedTally, resolvedRules, splitFindings, splitRun, triagedRules, type ClosedFinding, type ResolvedRule, type Triage, type TriageState } from '../../shared/triage.js';
+import { markCss } from '../../shared/marks.js';
 import { readFlowChecks } from './flowcheck.js';
 import { STAGE_IDS, STAGE_INFO, stageLabel, type StageApprovals } from '../../shared/stages.js';
 import { FLOW_RULE_LABEL, flowIssues, type FlowCheckRun, type FlowRule } from '../../shared/flowcheck.js';
@@ -90,8 +91,8 @@ const day = (at: number) => new Date(at).toLocaleDateString('en-GB', { day: 'num
 const dayTime = (at: number) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const read = (file: string) => readFile(file, 'utf8').catch(() => null);
 
-/** A status: a shape plus a label. The shape differs per kind, so it never relies on colour alone. */
-type Status = 'blocking' | 'major' | 'minor' | 'pass' | 'fail' | 'error' | 'none' | 'current' | 'wontfix' | 'parked';
+/** A status: a shape plus a label, from the shared marks (shared/marks.ts), so the report and the app agree. */
+type Status = 'blocking' | 'major' | 'minor' | 'pass' | 'fail' | 'error' | 'none' | 'current' | 'fixed' | 'wontfix' | 'parked';
 const st = (kind: Status, label: string) => `<span class="st ${kind}">${esc(label)}</span>`;
 const SEV_LABEL: Record<Severity, string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
 
@@ -108,14 +109,26 @@ type Data = {
   approvals: StageApprovals;
   design: DesignDoc | null;
   run: ReviewRun | undefined;
-  /** Findings closed by hand. Keys from older runs are ignored. */
+  /** Findings and failed house rules resolved by hand. Keys from older runs are ignored. */
   triage: Triage;
+  /** Frame names from the Figma file, by node id, for findings and frames with no name of their own. */
+  names: Record<string, string>;
   flow: FlowCheckRun | undefined;
   crit: CritRun | undefined;
   copy: CopyRun | undefined;
 };
 
-const nodeLink = (d: Data, id: string, label: string) => (d.figma && safeId(id) ? `<a href="${esc(figmaNodeUrl(d.figma.key, id))}">${esc(label)}</a>` : esc(label));
+/**
+ * A layer's label: its own name, else its frame's name, never a raw layer id. Findings from a model reviewer
+ * have no name, so a run of one frame names that frame.
+ */
+function nodeName(d: Data, id: string, given?: string): string {
+  const frame = (x: string) => d.design?.frames.find((f) => f.nodeId === x && f.name)?.name ?? d.names[x];
+  const only = d.run?.frames.length === 1 ? frame(d.run.frames[0]) : undefined;
+  return given || frame(id) || only || (d.figma ? 'Open in Figma' : 'Unnamed layer');
+}
+
+const nodeLink = (d: Data, id: string, label: string) => (d.figma && safeId(id) ? `<a class="node" href="${esc(figmaNodeUrl(d.figma.key, id))}" title="${esc(label)}">${esc(label)}</a>` : esc(label));
 
 function brief(d: Data): Section | null {
   return d.plan ? { id: 'brief', title: 'Brief', body: markdown(d.plan, { dropTitle: true }) } : null;
@@ -177,7 +190,7 @@ async function shotFor(dir: string, nodeId: string) {
 
 async function design(d: Data): Promise<Section | null> {
   // Older chats only list frames on their review runs, so the summary count and this list agree.
-  const frames = d.design?.frames.length ? d.design.frames : (d.run?.frames ?? []).map((nodeId) => ({ nodeId, screen: '', state: '', name: `Layer ${nodeId}` }));
+  const frames = d.design?.frames.length ? d.design.frames : (d.run?.frames ?? []).map((nodeId, i) => ({ nodeId, screen: '', state: '', name: d.names[nodeId] ?? `Frame ${i + 1}` }));
   if (!frames.length) return null;
   let shots = 0;
   const figs: string[] = [];
@@ -200,19 +213,25 @@ const SEV_ORDER: Record<Severity, number> = { blocking: 0, major: 1, minor: 2 };
 const bySeverity = (a: Finding, b: Finding) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity];
 
 const findingRow = (d: Data) => (f: Finding) =>
-  `<li>${st(f.severity, SEV_LABEL[f.severity] ?? f.severity)} <strong>${nodeLink(d, f.node, f.nodeName || `Layer ${f.node}`)}</strong>: ${esc(f.rule)}<br><small>Fix: ${esc(f.fix)}</small></li>`;
+  `<li>${st(f.severity, SEV_LABEL[f.severity] ?? f.severity)} <strong>${nodeLink(d, f.node, nodeName(d, f.node, f.nodeName))}</strong>: ${esc(f.rule)}<br><small>Fix: ${esc(f.fix)}</small></li>`;
 
-const TRIAGE_STATUS: Record<TriageState, Status> = { fixed: 'pass', wontfix: 'wontfix', parked: 'parked' };
+const TRIAGE_STATUS: Record<TriageState, Status> = { fixed: 'fixed', wontfix: 'wontfix', parked: 'parked' };
 
 const closedRow = (d: Data) => (f: ClosedFinding) => {
   const why = f.triage.why ? `Why: ${f.triage.why}. ` : '';
-  return `<li>${st(TRIAGE_STATUS[f.triage.state], TRIAGE_LABEL[f.triage.state])} <strong>${nodeLink(d, f.node, f.nodeName || `Layer ${f.node}`)}</strong>: ${esc(f.rule)}<br><small>${esc(`Was: ${SEV_LABEL[f.severity] ?? f.severity}. ${why}Closed: ${day(f.triage.at)}`)}</small></li>`;
+  return `<li>${st(TRIAGE_STATUS[f.triage.state], TRIAGE_LABEL[f.triage.state])} <strong>${nodeLink(d, f.node, nodeName(d, f.node, f.nodeName))}</strong>: ${esc(f.rule)}<br><small>${esc(`Was: ${SEV_LABEL[f.severity] ?? f.severity}. ${why}Resolved: ${day(f.triage.at)}`)}</small></li>`;
+};
+
+const resolvedRuleRow = (d: Data) => (r: ResolvedRule) => {
+  const why = r.triage.why ? `Why: ${r.triage.why}. ` : '';
+  const frames = r.frames.length ? ` (${r.frames.map((id) => nodeLink(d, id, nodeName(d, id))).join(', ')})` : '';
+  return `<li>${st(TRIAGE_STATUS[r.triage.state], TRIAGE_LABEL[r.triage.state])} <strong>House rule</strong>: ${esc(r.rule)}${frames}<br><small>${esc(`Was: Failed. ${why}Resolved: ${day(r.triage.at)}`)}</small></li>`;
 };
 
 const RULE_STATE: Record<RuleResult['state'], [Status, string]> = { pass: ['pass', 'Passed'], fail: ['fail', 'Failed'], unchecked: ['none', 'Not checked'] };
 
 const ruleRow = (d: Data) => (r: RuleResult) => {
-  const frames = r.state === 'fail' && r.frames.length ? `<br><small>Fails on ${r.frames.map((id) => nodeLink(d, id, id)).join(', ')}</small>` : '';
+  const frames = r.state === 'fail' && r.frames.length ? `<br><small>Fails on ${r.frames.map((id) => nodeLink(d, id, nodeName(d, id))).join(', ')}</small>` : '';
   return `<li>${st(...RULE_STATE[r.state])} ${esc(r.rule)}${frames}</li>`;
 };
 
@@ -226,11 +245,11 @@ function flowPart(d: Data) {
   const issues = checked.reduce((n, f) => n + flowIssues(f), 0);
   const rows = flows.map((f) => {
     const n = flowIssues(f);
-    const status = f.state === 'unchecked' ? st('none', 'Not checked') : n ? st('fail', plural(n, 'issue')) : st('pass', 'Passed');
+    const status = f.state === 'unchecked' ? st('none', 'Not checked') : n ? st('major', plural(n, 'issue')) : st('pass', 'Passed');
     return `<li>${nodeLink(d, f.id, f.name)} ${status}${n ? `<br><small>${esc(flowCounts(f.counts))}</small>` : ''}</li>`;
   });
   const partial = d.flow!.truncated ? '<p class="meta">The file is too large to read in full, so some flows were not checked.</p>' : '';
-  return `<h3>Prototype check <small>${issues ? plural(issues, 'issue') : 'No issues'}, ${esc(dayTime(d.flow!.at))}</small></h3>${partial}<ul class="rows">${rows.join('')}</ul>`;
+  return `<h3>Flow check <small>${issues ? plural(issues, 'issue') : 'No issues'}, ${esc(dayTime(d.flow!.at))}</small></h3>${partial}<ul class="rows">${rows.join('')}</ul>`;
 }
 
 function review(d: Data): Section | null {
@@ -245,18 +264,23 @@ function review(d: Data): Section | null {
     if (run.checkError) parts.push(`<p>${st('error', 'Error')} Design system check: ${esc(run.checkError)}</p>`);
     if (check.length) parts.push(`<h3>Design system check <small>${plural(check.length, 'finding')}</small></h3><ul class="rows">${[...check].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
     if (run.rulesError) parts.push(`<p>${st('error', 'Error')} House rules: ${esc(run.rulesError)}</p>`);
-    if (run.rules?.length) parts.push(`<h3>House rules <small>${esc(rulesLine(run.rules))}</small></h3><ul class="rows">${run.rules.map(ruleRow(d)).join('')}</ul>`);
+    // Failed rules resolved by hand move to Resolved by hand, like findings.
+    const rules = triagedRules(run, d.triage) ?? [];
+    if (rules.length) parts.push(`<h3>House rules <small>${esc(rulesLine(rules))}</small></h3><ul class="rows">${rules.filter((r) => !r.triage).map(ruleRow(d)).join('')}</ul>`);
     const passed = run.results.filter((r) => !r.error && r.pass && !r.findings.length);
     for (const r of run.results.filter((x) => !passed.includes(x))) {
       const name = r.area === 'all' ? 'All areas' : AREA_NAMES[r.area];
-      parts.push(`<h3>${esc(name)} ${r.error ? st('error', 'Error') : r.pass ? st('pass', 'Passed') : st('fail', 'Needs work')}</h3>`);
-      if (r.error || r.summary) parts.push(`<p>${esc(r.error || r.summary)}</p>`);
       const rest = open(r.findings);
+      // A failing area takes the mark of its worst open finding, so Needs work never reuses another meaning.
+      const worst: Status = rest.some((f) => f.severity === 'blocking') ? 'blocking' : rest.some((f) => f.severity === 'major') ? 'major' : 'minor';
+      parts.push(`<h3>${esc(name)} ${r.error ? st('error', 'Error') : r.pass ? st('pass', 'Passed') : st(worst, 'Needs work')}</h3>`);
+      if (r.error || r.summary) parts.push(`<p>${esc(r.error || r.summary)}</p>`);
       if (rest.length) parts.push(`<ul class="rows">${[...rest].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
     }
     if (passed.length) parts.push(`<p class="passed">${st('pass', 'Passed')} ${esc(passed.map((r) => (r.area === 'all' ? 'All areas' : AREA_NAMES[r.area])).join(', '))}</p>`);
     const { closed } = splitRun(run, d.triage);
-    if (closed.length) parts.push(`<h3>Closed by hand <small>${esc(closedTally(closed))}</small></h3><ul class="rows">${[...closed].sort(bySeverity).map(closedRow(d)).join('')}</ul>`);
+    const resolved = resolvedRules(run, d.triage);
+    if (closed.length || resolved.length) parts.push(`<h3>Resolved by hand <small>${esc(closedTally([...closed, ...resolved]))}</small></h3><ul class="rows">${[...closed].sort(bySeverity).map(closedRow(d)).join('')}${resolved.map(resolvedRuleRow(d)).join('')}</ul>`);
     if (!run.check.length && !run.rules?.length && !run.results.length && !run.checkError) parts.push('<p>No findings.</p>');
   }
   parts.push(flow);
@@ -333,23 +357,25 @@ function summary(d: Data, frames: string[]) {
   if (frames.length || d.run || d.flow) {
     const lines: string[] = [];
     if (d.run) {
-      // Findings closed by hand do not count as open, as in the Validate gate.
+      // Findings and rules resolved by hand do not count as open, as in the Validate gate.
       const { open, closed } = splitRun(d.run, d.triage);
+      const resolved = resolvedRules(d.run, d.triage);
       const n = (s: Severity) => open.filter((f) => f.severity === s).length;
       const minor = n('minor');
       const tile = (kind: Severity, count: number) => `<li class="tile"><span class="num">${count}</span>${st(count ? kind : 'none', SEV_LABEL[kind])}</li>`;
       lines.push(`<ul class="tiles">${tile('blocking', n('blocking'))}${tile('major', n('major'))}${tile('minor', minor)}</ul>`);
       const facts2: string[] = [];
-      if (closed.length) facts2.push(`<li>${st('none', 'Closed by hand:')} ${esc(closedTally(closed))}</li>`);
-      if (d.run.rules?.length) {
-        const r = rulesSummary(d.run.rules);
-        facts2.push(`<li>${r.failed ? st('fail', 'House rules:') : st('pass', 'House rules:')} ${esc(rulesLine(d.run.rules))}</li>`);
+      if (closed.length || resolved.length) facts2.push(`<li>${st('fixed', 'Resolved by hand:')} ${esc(closedTally([...closed, ...resolved]))}</li>`);
+      const rules = triagedRules(d.run, d.triage) ?? [];
+      if (rules.length) {
+        const r = rulesSummary(rules);
+        facts2.push(`<li>${r.failed ? st('fail', 'House rules:') : st('pass', 'House rules:')} ${esc(rulesLine(rules))}</li>`);
       }
       if (d.flow?.flows.length) facts2.push(`<li>${flowLine(d.flow)}</li>`);
-      else facts2.push(`<li>${st('none', 'Prototype check:')} Not run yet</li>`);
+      else facts2.push(`<li>${st('none', 'Flow check:')} Not run yet</li>`);
       lines.push(`<ul class="lines">${facts2.join('')}</ul>`);
     } else {
-      lines.push(`<ul class="lines"><li>${st('none', 'Review:')} Not run yet</li><li>${d.flow?.flows.length ? flowLine(d.flow) : `${st('none', 'Prototype check:')} Not run yet`}</li></ul>`);
+      lines.push(`<ul class="lines"><li>${st('none', 'Review:')} Not run yet</li><li>${d.flow?.flows.length ? flowLine(d.flow) : `${st('none', 'Flow check:')} Not run yet`}</li></ul>`);
     }
     if (d.run || d.flow?.flows.length) lines.push('<p><a href="#review">See every issue in Review</a></p>');
     issues = `<h3>Open issues</h3>${lines.join('')}`;
@@ -364,15 +390,15 @@ function flowLine(run: FlowCheckRun) {
   const checked = run.flows.filter((f) => f.state !== 'unchecked');
   const failing = checked.filter((f) => flowIssues(f) > 0);
   const issues = failing.reduce((n, f) => n + flowIssues(f), 0);
-  if (!checked.length) return `${st('none', 'Prototype check:')} No flows checked`;
+  if (!checked.length) return `${st('none', 'Flow check:')} No flows checked`;
   // A large file read only in part can hide broken flows, so a clean partial run is not a pass (as in the Validate gate).
   const partial = run.truncated ? ', some flows not checked: the file is too large to read in full' : '';
   // Flows named in Scope but not in the file keep the check open, as in the Validate gate.
   const missing = run.missing?.length ? `. Not found in the file: ${run.missing.join(', ')}` : '';
-  if (failing.length) return `${st('fail', 'Prototype check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
-  if (missing) return `${st('fail', 'Prototype check:')} ${esc(`No issues in ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
-  if (partial) return `${st('none', 'Prototype check:')} ${esc(`No issues found${partial}`)}`;
-  return `${st('pass', 'Prototype check:')} ${esc(checked.length === 1 ? 'The flow passed' : `All ${checked.length} flows passed`)}`;
+  if (failing.length) return `${st('major', 'Flow check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
+  if (missing) return `${st('fail', 'Flow check:')} ${esc(`No issues in ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
+  if (partial) return `${st('none', 'Flow check:')} ${esc(`No issues found${partial}`)}`;
+  return `${st('pass', 'Flow check:')} ${esc(checked.length === 1 ? 'The flow passed' : `All ${checked.length} flows passed`)}`;
 }
 
 const STYLE = `
@@ -426,15 +452,7 @@ nav.toc small { margin-left: 4px; }
 .lines { list-style: none; padding: 0; }
 
 .st { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; line-height: 20px; color: var(--text); white-space: nowrap; }
-.st::before { content: ''; flex: none; width: 12px; height: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.st.blocking::before, .st.error::before { background: var(--red); border-radius: 2px; }
-.st.major::before, .st.fail::before { background: var(--amber); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.st.minor::before { border: 2px solid var(--muted); border-radius: 50%; }
-.st.pass::before { background: var(--green); border-radius: 50%; }
-.st.none::before { background: linear-gradient(var(--muted), var(--muted)) center / 12px 2px no-repeat; }
-.st.current::before { background: var(--text); transform: rotate(45deg) scale(0.8); }
-.st.wontfix::before { background: linear-gradient(45deg, transparent 5px, var(--muted) 5px, var(--muted) 7px, transparent 7px), linear-gradient(-45deg, transparent 5px, var(--muted) 5px, var(--muted) 7px, transparent 7px); }
-.st.parked::before { border: 2px solid var(--muted); border-radius: 2px; }
+${markCss('st', { error: 'var(--red)', warn: 'var(--amber)', ok: 'var(--green)', muted: 'var(--muted)', ink: 'var(--text)' })}
 h3 .st { margin-left: 8px; vertical-align: 2px; font-family: system-ui, sans-serif; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
@@ -467,6 +485,8 @@ footer p { margin: 0; }
 }
 @media (max-width: 600px) {
   .page { padding: 32px 16px 64px; }
+  /* Frame names stay on one line, cut with an ellipsis; the full name is in the tooltip. */
+  .rows a.node { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; overflow-wrap: normal; }
   h1 { font-size: 28px; line-height: 36px; }
   .summary { padding: 16px; }
   .tile { padding: 8px 12px; }
@@ -494,7 +514,7 @@ footer p { margin: 0; }
 
 export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'design';
 
-async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
+async function load(dir: string, figma: FigmaFile | null, names: Record<string, string>): Promise<Data> {
   const [plan, researchMd, scopeDoc, sketch, approvals, designDoc, reviewDoc, flows, critRuns, copyRuns] = await Promise.all([
     read(path.join(dir, 'plan.md')),
     read(path.join(dir, 'research.md')),
@@ -509,6 +529,7 @@ async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
   ]);
   const triage = await readTriage(dir);
   return {
+    names,
     dir,
     figma,
     plan: plan?.trim() ?? '',
@@ -525,11 +546,14 @@ async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
   };
 }
 
-/** `chatTitle` names a report that has no Figma file yet, instead of the chat's folder name. */
-export async function buildReport(dir: string, figma: FigmaFile | null, chatTitle?: string): Promise<string> {
+/**
+ * `chatTitle` names a report that has no Figma file yet, instead of the chat's folder name.
+ * `names` maps frame ids to names from the file outline, for older chats whose frames and findings have no names.
+ */
+export async function buildReport(dir: string, figma: FigmaFile | null, chatTitle?: string, names: Record<string, string> = {}): Promise<string> {
   const title = figma?.name || chatTitle?.trim() || path.basename(dir);
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const d = await load(dir, figma);
+  const d = await load(dir, figma, names);
   // Older chats only list frames on their review runs.
   const frames = d.design?.frames.length ? d.design.frames.map((f) => f.nodeId) : (d.run?.frames ?? []);
   const sections = (await Promise.all([brief(d), research(d), scope(d), sketches(d), decisions(d), design(d), review(d), crit(d), copy(d)])).filter((s): s is Section => !!s);

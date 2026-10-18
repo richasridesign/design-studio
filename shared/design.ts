@@ -191,7 +191,7 @@ const SEVERITY_ORDER: Severity[] = ['blocking', 'major', 'minor'];
 export function reviewChecklist(run: Pick<ReviewRun, 'check' | 'results' | 'frames' | 'rules'>, fileKey: string | null) {
   const findings = [...run.check, ...run.results.flatMap((r) => r.findings)].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const lines = findings.map((f) => `- [ ] **${f.severity}** ${f.nodeName ?? f.node}: ${f.rule.replace(/\.$/, '')}. Fix: ${f.fix}${fileKey && f.node ? ` (${figmaNodeUrl(fileKey, f.node)})` : ''}`);
-  const failed = (run.rules ?? []).filter((r) => r.state === 'fail');
+  const failed = (run.rules ?? []).filter((r) => r.state === 'fail' && !r.triage);
   const where = (ids: string[]) => (ids.length ? `: fails on ${ids.map((id) => (fileKey ? figmaNodeUrl(fileKey, id) : id)).join(', ')}` : '');
   const rules = failed.map((r) => `- [ ] **house rule** ${r.rule.replace(/\.$/, '')}${where(r.frames)}`);
   const n = run.frames.length;

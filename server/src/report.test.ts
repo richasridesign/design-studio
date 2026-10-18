@@ -1,5 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
+import { ruleKey } from '../../shared/triage.js';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { briefLede, buildReport, esc, markdown, safeId } from './report.js';
@@ -115,14 +116,14 @@ describe('buildReport', () => {
     expect(top).toContain('<span class="num">2</span><span class="st major">Major</span>');
     expect(top).toContain('<span class="num">1</span><span class="st minor">Minor</span>');
     expect(top).toContain('House rules:</span> 0 of 1 passed');
-    expect(top).toContain('Prototype check:</span> 2 issues in 1 of 2 flows');
+    expect(top).toContain('Flow check:</span> 2 issues in 1 of 2 flows');
     expect(html).toContain('<nav class="toc" aria-label="Contents">');
     expect(html).not.toContain('<h3>Shop</h3>');
     // "Cart / Default" already names the state.
     expect(html).not.toContain('State: Default');
   });
 
-  it('counts only open findings and lists the ones closed by hand with state, why and date', async () => {
+  it('counts only open findings and lists the ones resolved by hand with state, why and date', async () => {
     const f = (id: string, severity: string, rule = 'r') => ({ id, area: 'color', node: '1:2', severity, rule, fix: 'x' });
     await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [f('a', 'blocking', 'Low contrast'), f('b', 'minor')], results: [{ area: 'color', pass: false, summary: 's', findings: [f('c', 'major', 'Two primaries'), f('d', 'major')], tokens: 0, costUsd: 0 }], tokens: 0, costUsd: 0 }] }));
     const at = Date.UTC(2026, 9, 18, 12);
@@ -131,27 +132,45 @@ describe('buildReport', () => {
     const top = html.slice(html.indexOf('<section id="summary"'), html.indexOf('<section id="design"'));
     expect(top).toContain('<span class="num">0</span><span class="st none">Blocking</span>');
     expect(top).toContain('<span class="num">1</span><span class="st major">Major</span>');
-    expect(top).toContain("Closed by hand:</span> 1 fixed, 1 won&#39;t fix");
+    expect(top).toContain("Resolved by hand:</span> 1 fixed, 1 won&#39;t fix");
     const review = html.slice(html.indexOf('<section id="review"'));
     expect(review).toContain('<h3>Design system check <small>1 finding</small></h3>');
-    expect(review).toContain("<h3>Closed by hand <small>1 fixed, 1 won&#39;t fix</small></h3>");
-    expect(review).toContain('<span class="st pass">Fixed</span>');
+    expect(review).toContain("<h3>Resolved by hand <small>1 fixed, 1 won&#39;t fix</small></h3>");
+    expect(review).toContain('<span class="st fixed">Fixed</span>');
     expect(review).toContain('<span class="st wontfix">Won&#39;t fix</span>');
-    expect(review).toContain('Why: Brand &lt;rule&gt;. Closed: 18 Oct 2026');
+    expect(review).toContain('Why: Brand &lt;rule&gt;. Resolved: 18 Oct 2026');
     expect(review.match(/Two primaries/g)).toHaveLength(1);
+  });
+
+  it('counts a failed house rule resolved by hand as resolved, and names layers by their frame', async () => {
+    const f = { id: 'all:0:5:6', area: 'color', node: '5:6', severity: 'major', rule: 'Two primaries', fix: 'x' };
+    const rules = [{ rule: 'One  primary button', state: 'fail', frames: ['1:2'] }, { rule: 'No em dashes', state: 'pass', frames: [] }];
+    await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [], results: [{ area: 'all', pass: false, summary: 's', findings: [f], tokens: 9000, costUsd: 0.1 }], rules, tokens: 9000, costUsd: 0.1 }] }));
+    const at = Date.UTC(2026, 9, 18, 12);
+    await writeFile(path.join(dir, 'triage.json'), JSON.stringify({ [ruleKey({ id: 'r' }, 'One  primary button')]: { state: 'parked', why: 'Next release', at } }));
+    const html = await buildReport(dir, figma, undefined, { '1:2': 'Cart / Error' });
+    const top = html.slice(html.indexOf('<section id="summary"'), html.indexOf('<section id="design"'));
+    expect(top).toContain('<span class="st pass">House rules:</span> 1 of 2 passed, 1 resolved by hand');
+    expect(top).toContain('Resolved by hand:</span> 1 parked');
+    const review = html.slice(html.indexOf('<section id="review"'));
+    expect(review).toContain('<span class="st parked">Parked</span> <strong>House rule</strong>: One  primary button');
+    expect(review).toContain('Was: Failed. Why: Next release. Resolved: 18 Oct 2026');
+    // A model finding with no name takes its frame's name, never a raw layer id; no token counts in the report.
+    expect(review).toContain('title="Cart / Error">Cart / Error</a></strong>: Two primaries');
+    expect(html).not.toMatch(/Layer \d|tokens|Prototype check/);
   });
 
   it('says the review has not run instead of showing zero issues', async () => {
     await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2', name: 'Cart <main>' }] }));
     const html = await buildReport(dir, figma);
     expect(html).toContain('Review:</span> Not run yet');
-    expect(html).toContain('Prototype check:</span> Not run yet');
+    expect(html).toContain('Flow check:</span> Not run yet');
     expect(html).not.toContain('class="tiles"');
     expect(html).not.toContain('<h2>Review</h2>');
     // No screenshot: the frame is a linked row, not an empty card.
     const design = html.slice(html.indexOf('<section id="design"'));
     expect(design).not.toContain('<figure');
-    expect(design).toContain(`<li><a href="https://www.figma.com/design/${figma.key}?node-id=1-2">Cart &lt;main&gt;</a>`);
+    expect(design).toContain(`<li><a class="node" href="https://www.figma.com/design/${figma.key}?node-id=1-2" title="Cart &lt;main&gt;">Cart &lt;main&gt;</a>`);
     expect(design).toContain('<small>State: Default</small>');
   });
 
@@ -161,7 +180,7 @@ describe('buildReport', () => {
       { id: '9:1', name: 'Checkout', path: [], page: 'P', screens: 3, state: 'pass', counts: {}, unchecked: [], findings: [], more: 0 },
     ] }] }));
     const html = await buildReport(dir, figma);
-    expect(html).toContain('<span class="st fail">Prototype check:</span> No issues in 1 flow. Not found in the file: Search');
+    expect(html).toContain('<span class="st fail">Flow check:</span> No issues in 1 flow. Not found in the file: Search');
     expect(html).not.toContain('The flow passed');
   });
 
@@ -171,7 +190,7 @@ describe('buildReport', () => {
       { id: '9:1', name: 'Checkout', path: [], page: 'P', screens: 3, state: 'pass', counts: {}, unchecked: [], findings: [], more: 0 },
     ] }] }));
     const html = await buildReport(dir, figma);
-    expect(html).toContain('<span class="st none">Prototype check:</span> No issues found, some flows not checked');
+    expect(html).toContain('<span class="st none">Flow check:</span> No issues found, some flows not checked');
     expect(html).toContain('some flows were not checked.</p>');
     expect(html).not.toContain('The flow passed');
   });
@@ -182,7 +201,8 @@ describe('buildReport', () => {
     const html = await buildReport(dir, figma);
     expect(html).toContain('<dt>Frames:</dt><dd>2 frames</dd>');
     expect(html).toContain('<h2>Design</h2>');
-    expect(html).toContain(`<a href="https://www.figma.com/design/${figma.key}?node-id=12-4">Layer 12:4</a>`);
+    expect(html).toContain(`<a class="node" href="https://www.figma.com/design/${figma.key}?node-id=12-4" title="Frame 2">Frame 2</a>`);
+    expect(html).not.toMatch(/Layer \d/);
     // A persona with nothing to say leaves no empty heading, and no Crit section at all.
     expect(html).not.toContain('<h2>Crit</h2>');
   });

@@ -163,37 +163,24 @@
 .area-card { background: var(--bg-sunken); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 8px; }
 .area-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .area-head:hover { background: var(--bg-hover); }
-.area-card.pass .area-head > .codicon:first-child { color: var(--ok); }
-.area-card.blocking .area-head > .codicon:first-child, .area-card.error .area-head > .codicon:first-child { color: var(--err); }
-.area-card.major .area-head > .codicon:first-child { color: var(--warn); }
+.area-mark { flex: none; width: 16px; justify-content: center; }
 .area-card.focused { outline: 2px solid var(--accent); outline-offset: 2px; }
 .area-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .area-title .t { font-weight: 600; font-size: var(--text-lg); }
 .area-title .s { color: var(--fg-muted); font-size: var(--text-sm); }
 .findings { list-style: none; margin: 0; padding: 0 16px 12px; display: flex; flex-direction: column; }
 .findings li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
-/* Severity: dot + label. Shape differs per level (circle, square, ring) so colour is never the only cue. */
+/* Severity: mark + label. The marks come from shared/marks.ts (web/src/marks.ts), the same as the timeline card and the report. */
 .sev { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
-.sev::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
-.sev.blocking::before { background: var(--err); border-radius: 50%; }
-.sev.major::before { background: var(--warn); border-radius: 1px; }
 .sev.minor { color: var(--fg-muted); }
-.sev.minor::before { border: 2px solid var(--fg-muted); border-radius: 50%; }
 @media (max-width: 600px) {
   .findings li { flex-direction: column; gap: 4px; }
   .sev { height: 20px; }
 }
-/* House rules: Passed is a green check, Failed an amber square, Not checked a grey ring. */
-.area-card.unchecked .area-head > .codicon:first-child { color: var(--fg-muted); }
+/* House rules: Passed is a green check, Failed a red X, Not checked a grey dash (shared/marks.ts). */
 .area-head:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .rule-state { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
-.rule-state:not(.pass)::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
-.rule-state.pass .codicon { color: var(--ok); width: 8px; overflow: visible; display: inline-flex; justify-content: center; }
-.rule-state.fail::before { background: var(--warn); border-radius: 1px; }
 .rule-state.unchecked { color: var(--fg-muted); }
-.rule-state.unchecked::before { border: 2px solid var(--fg-muted); border-radius: 50%; }
-.rule-frames { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
-.rule-frames .link { margin-top: 0; }
 .rule-list .f-rule { overflow-wrap: anywhere; }
 @media (max-width: 600px) { .rule-state { height: 20px; } }
 .f-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
