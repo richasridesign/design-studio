@@ -8,6 +8,7 @@ import { allRules, MAX_CHECKED_RULES, ruleResults } from '../../shared/rules.js'
 import { readFrames, readingText, type Loaded } from './frameRead.js';
 import { lean } from './lean.js';
 import { awaitFindings } from './awaiting.js';
+import { skillRulesFor } from './dsSources.js';
 
 export const REVIEW_FILE = 'review.json';
 const MAX_FINDINGS = 8;
@@ -221,6 +222,8 @@ type ReviewOneInput = { dir: string; plan: string; ds: DesignSystem | null; outl
 
 async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaResult & { verdicts?: unknown }> {
   const areas = area !== 'all' ? [area] : c.covers.length ? c.covers : [...AREAS];
+  // Her rule files, read now so an edit applies to the next review. Missing or turned off: nothing is added.
+  const skills = await skillRulesFor(c.ds, areas).catch(() => '');
   const prompt = [
     area === 'all' ? 'Review these frames across the areas below. Tag each finding with its area.' : `You are the ${AREA_NAMES[area]} reviewer. Review only this area.`,
     ...areas.map((a) => `- ${GUIDE[a]}`),
@@ -229,6 +232,7 @@ async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaRes
     '',
     `Design system profile:\n${profileFor(c.ds, area)}`,
     '',
+    ...(skills ? [`The designer's own rules for ${areas.length > 1 ? 'these areas' : 'this area'}. Report a frame that breaks one, and name the rule:\n${skills}`, ''] : []),
     `Automatic check already found ${c.check.length} issues${c.check.length ? `: ${c.check.slice(0, 30).map((f) => `${f.node} ${f.rule}`).join('; ')}` : ''}.`,
     '',
     c.shots.length ? `Screenshots to look at with Read:\n${c.shots.join('\n')}` : 'No screenshots are available; use the outline.',

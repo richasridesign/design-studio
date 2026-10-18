@@ -36,6 +36,7 @@ import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
 import { readAwaiting, updateAwaiting } from './awaiting.js';
 import { readProfile } from './profile.js';
+import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
 import { approvalReply } from '../../shared/stages.js';
@@ -389,7 +390,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/review') return json(await readReview(chat.cwd));
     if (url.pathname === '/api/design') return json(await readDesign(chat.cwd));
-    if (url.pathname === '/api/design-system') return json(await readProfile(chat.cwd));
+    if (url.pathname === '/api/design-system') return json(req.method === 'POST' ? await changeDesignSystem(chat.cwd, chat.state.session.figma, await readJsonBody()) : await readProfile(chat.cwd));
+    if (url.pathname === '/api/design-system/view') return json(await designSystemView(chat.cwd));
     if (url.pathname.startsWith('/api/chat-file/')) {
       const file = inside(chat.cwd, decodeURIComponent(url.pathname.slice('/api/chat-file/'.length)));
       const data = file && (await readFile(file).catch(() => null));
