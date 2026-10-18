@@ -5,6 +5,7 @@ import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
 import { replyLine } from '../../../shared/edits';
 import '../chats.css';
+import { press } from '../press';
 
 type Folder = { cwd: string; key: string; name: string; url: string };
 type Group = { cwd: string; name: string; open: LiveChat[]; recent: SavedSession[] };
@@ -118,17 +119,6 @@ export function Chats() {
     </div>
   );
 }
-
-// Keyboard access for a clickable row part: Enter or Space acts like a click.
-const press = (fn: () => void) => ({
-  role: 'button',
-  tabIndex: 0,
-  onKeyDown: (e: React.KeyboardEvent) => {
-    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
-    e.preventDefault();
-    fn();
-  },
-});
 
 function line(c: LiveChat, events: ChatEvent[] | null) {
   return c.pending ? 'Needs you' : c.running ? c.status : c.last ?? (events ? replyLine(events) : '') ?? '';

@@ -10,6 +10,7 @@ import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
 import { MakeRule } from './MakeRule';
+import { press } from '../press';
 import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
 import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
@@ -126,7 +127,7 @@ function Steps({ b, cwd, thumb, live }: { b: Extract<Block, { kind: 'steps' }>; 
   const dur = duration(b.ms);
   return (
     <div className={`tr-steps ${open ? 'open' : ''}`}>
-      <div className="tr-steps-head" onClick={() => setOpen((v) => !v)}>
+      <div className="tr-steps-head" aria-expanded={open} onClick={() => setOpen((v) => !v)} {...press(() => setOpen((v) => !v))}>
         <span className="tr-mark">{live ? <Icon name="loading" small spin /> : <Icon name={open ? 'chevron-down' : 'chevron-right'} small />}</span>
         <span className="tr-text">{live ? latest(b.items, cwd) : `${b.count} ${b.count === 1 ? 'step' : 'steps'}`}</span>
         <span className="tr-dur">{live ? `${b.count}` : dur}</span>
@@ -220,7 +221,7 @@ function Step({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd: st
   const state = !result ? 'pending' : result.isError ? 'err' : 'ok';
   const dur = result ? duration(result.at - use.at) : '';
   return (
-    <div className={`tr-step tr-act ${state} ${open ? 'open' : ''}`} onClick={() => setOpen((v) => !v)}>
+    <div className={`tr-step tr-act ${state} ${open ? 'open' : ''}`} aria-expanded={open} onClick={() => setOpen((v) => !v)} {...press(() => setOpen((v) => !v))}>
       <span className="tr-mark">{state === 'pending' ? <Icon name="loading" small spin /> : <i className="tr-hex" />}</span>
       <span className="tr-text" title={object}>{verb} <span className={`tr-obj ${mono ? 'mono' : ''}`}>{object}</span></span>
       <span className="tr-dur">{dur}</span>
@@ -245,7 +246,7 @@ function FileCard({ it, cwd }: { it: Extract<Item, { kind: 'file' }>; cwd: strin
   const cut = rel.lastIndexOf('/');
   const name = rel.slice(cut + 1);
   return (
-    <div className={`tr-file tr-act ${it.error ? 'err' : ''}`} title={rel} onClick={() => setUi({ openFile: rel, follow: false })}>
+    <div className={`tr-file tr-act ${it.error ? 'err' : ''}`} title={rel} aria-label={`Open ${rel}`} onClick={() => setUi({ openFile: rel, follow: false })} {...press(() => setUi({ openFile: rel, follow: false }))}>
       <FileIcon name={name} />
       <span className="tr-path"><span className="tr-dir">{cut >= 0 ? rel.slice(0, cut + 1) : ''}</span>{name}</span>
       {it.error ? (
@@ -262,7 +263,7 @@ function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
   const desc = typeof use.input.description === 'string' && use.input.description ? use.input.description : 'Sub-agent';
   const dur = result ? duration(result.at - use.at) : '';
   return (
-    <div className={`tr-agent tr-act ${!result ? 'running' : result.isError ? 'err' : 'done'} ${open ? 'open' : ''}`} onClick={() => result && setOpen((v) => !v)}>
+    <div className={`tr-agent tr-act ${!result ? 'running' : result.isError ? 'err' : 'done'} ${open ? 'open' : ''}`} onClick={() => result && setOpen((v) => !v)} {...(result ? { 'aria-expanded': open, ...press(() => setOpen((v) => !v)) } : {})}>
       <span className="tr-mark"><i className="tr-ring" /></span>
       <span className="tr-text" title={desc}>
         {desc}
