@@ -21,7 +21,7 @@ import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { SAMPLE_KEY } from './figma.js';
-import { CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
+import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
 
 type Step = { phase: FlowPhase; model: string; mode: string; label: string; prompt: string };
 
@@ -66,6 +66,7 @@ export class AgentSession {
   private resumedAuto = false;
   private lastError = false;
   private lrErrors = 0;
+  private reportSeen = false;
 
   constructor(public cwd: string, private figma: FigmaFile | null, private resume?: string) {
     this.state = {
@@ -131,6 +132,7 @@ export class AgentSession {
 
   close() {
     this.closed = true;
+    this.endLongRun('stopped', 'ended');
     this.work?.abort();
     this.listeners.clear();
     this.approvals.denyAll();
@@ -187,7 +189,7 @@ export class AgentSession {
           const last = nodes.at(-1);
           if (last) this.onFocus(last);
         },
-        canUseTool: (toolName, input, opts) => this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
+        canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
         beforeFigma: async (input) => this.beforeFigma(input),
         afterTool: async (input) => this.afterTool(input),
       }),
@@ -383,6 +385,7 @@ export class AgentSession {
     const images = await loadImages(this.cwd, refs);
     const run: LongRun = { until: Math.min(until, now + 24 * 3600_000), cap: Math.round(cap), startedAt: now, turns: 1, state: 'running' };
     this.lrErrors = 0;
+    this.reportSeen = false;
     this.setSession({ longRun: run });
     this.pushEvent({ id: randomUUID(), kind: 'user', text: withRefs(task, images.refs), at: now });
     this.enqueue(withRefs(longRunPrompt(task, run.until, run.cap), images.refs), images.blocks);
@@ -416,7 +419,9 @@ export class AgentSession {
     const run = this.state.session.longRun;
     if (!run || !isActive(run)) return null;
     this.lrErrors = this.lastError ? this.lrErrors + 1 : 0;
-    const d = decide(run, { now: Date.now(), limit: this.state.session.limit, errorStreak: this.lrErrors, reported: !this.lastError && parseReport(this.lastResult) !== null });
+    const reported = this.reportSeen || (!this.lastError && parseReport(this.lastResult) !== null);
+    this.reportSeen = false;
+    const d = decide(run, { now: Date.now(), limit: this.state.session.limit, errorStreak: this.lrErrors, reported });
     switch (d.action) {
       case 'continue':
         this.setLongRun({ turns: run.turns + 1 });
@@ -576,6 +581,11 @@ export class AgentSession {
   }
 
   private planSaved = false;
+
+  private longRunTool(toolName: string): Promise<PermissionResult> | null {
+    if (toolName !== 'AskUserQuestion' || !isActive(this.state.session.longRun)) return null;
+    return Promise.resolve({ behavior: 'deny', message: ASK_DENIED });
+  }
 
   continueFlow() {
     if (this.state.session.flow.phase !== 'pick' || this.state.session.running) return;
@@ -846,6 +856,7 @@ export class AgentSession {
       this.system(`Session error: ${String(err)}`);
     } finally {
       this.turns = 0;
+      this.endLongRun('stopped', 'ended');
       this.setSession({ running: false, stopping: false });
     }
   }
@@ -916,6 +927,7 @@ export class AgentSession {
         if (msg.parent_tool_use_id) return;
         this.setSession({ cache: cacheFrom(msg.message.usage, Date.now(), this.state.session.cache), context: contextFrom(msg.message.usage) ?? this.state.session.context });
         for (const block of msg.message.content) {
+          if (block.type === 'text' && isActive(this.state.session.longRun) && parseReport(block.text)) this.reportSeen = true;
           if (block.type === 'server_tool_use' && block.name === 'advisor') this.pushEvent(advisorEvent(block.id, Date.now()));
           if (block.type === 'tool_use') {
             this.pushEvent(toolUseEvent(block.id, block.name, block.input, Date.now()));

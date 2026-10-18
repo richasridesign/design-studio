@@ -36,6 +36,23 @@ describe('long run loop', () => {
     expect(s.state.session.running).toBe(false);
   });
 
+  it('is done when an earlier text block held the report and the turn ends with a short line', () => {
+    const { s, sent, end } = session();
+    (s as unknown as { handle: (m: unknown) => void }).handle({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'text', text: REPORT }] } });
+    end('Report above.');
+    expect(sent).toEqual([]);
+    expect(s.state.session.longRun).toMatchObject({ state: 'done' });
+  });
+
+  it('denies questions during a long run so the run does not wait for you', async () => {
+    const { s } = session();
+    const tool = (s as unknown as { longRunTool: (n: string) => Promise<{ behavior: string }> | null }).longRunTool.bind(s);
+    expect(await tool('AskUserQuestion')).toMatchObject({ behavior: 'deny' });
+    expect(tool('Bash')).toBeNull();
+    s.state.session.longRun = null;
+    expect(tool('AskUserQuestion')).toBeNull();
+  });
+
   it('asks for the report once when time is up, then stops', () => {
     const { s, sent, end } = session({ until: Date.now() - 1 });
     end();

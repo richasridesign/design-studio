@@ -84,6 +84,10 @@ describe('parseReport', () => {
     const r = parseReport('## fixed:\n- a\n## NEEDS YOUR DECISION\n- b\n## Not checked\n- c')!;
     expect(r).toMatchObject({ fixed: ['a'], decide: ['b'], unchecked: ['c'] });
   });
+  it('accepts counts after headings, other heading levels and plural decisions', () => {
+    expect(parseReport('# Fixed (2)\n- a\n- b\n#### Needs your decisions: 1\n- c\n## Not checked 0\n- None')).toMatchObject({ fixed: ['a', 'b'], decide: ['c'], unchecked: [] });
+    expect(parseReport('## **Fixed** - 1\n- a\n## Needs your decision\n- b\n## Not checked\n- c')!.fixed).toEqual(['a']);
+  });
   it('stops a section at an unrelated heading', () => {
     const r = parseReport('## Fixed\n- a\n## Needs your decision\n- b\n## Not checked\n- c\n## Notes\n- extra')!;
     expect(r.unchecked).toEqual(['c']);
