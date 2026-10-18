@@ -164,9 +164,9 @@ describe('withRecipes', () => {
   const server = [{ name: 'design', description: 'Plan' }, { name: 'crit', description: 'Server crit' }, { name: 'copy', description: 'Server copy' }, { name: 'audit', description: 'Audit' }];
   const names = (l: { name: string }[]) => l.map((c) => c.name);
 
-  it('lists the six recipes and keeps one entry for names a server command shares', () => {
+  it('lists the seven recipes and keeps one entry for names a server command shares', () => {
     const list = withRecipes(server, RECIPES, []);
-    expect(names(list)).toEqual(['brief', 'states', 'responsive', 'copy', 'copy tone:neutral', 'copy tone:formal', 'crit', 'handoff', 'design', 'audit']);
+    expect(names(list)).toEqual(['brief', 'research', 'states', 'responsive', 'copy', 'copy tone:neutral', 'copy tone:formal', 'crit', 'handoff', 'design', 'audit']);
     expect(list.find((c) => c.name === 'crit')).toMatchObject({ description: RECIPES.find((r) => r.id === 'crit')!.blurb, recipe: { id: 'crit' } });
   });
 

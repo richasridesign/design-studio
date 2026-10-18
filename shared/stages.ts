@@ -23,7 +23,7 @@ export type Approval = { at: number; note?: string };
 export type StageApprovals = Partial<Record<StageId, Approval>>;
 
 /** Where a check's evidence lives in the app. */
-export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach';
+export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach' | 'research';
 export type StageCheck = { label: string; state: 'met' | 'open' | 'unchecked'; detail: string; open?: StageOpen };
 export type StageState = 'approved' | 'ready' | 'open' | 'later';
 export type Stage = { id: StageId; name: string; goal: string; state: StageState; checks: StageCheck[]; approval?: Approval };
@@ -33,6 +33,8 @@ export type StageEvidence = {
   figma: boolean;
   /** Older callers and tests leave it out. */
   scope?: Scope | null;
+  /** research.md from the Research first recipe. */
+  research?: string | null;
   sketch: SketchDoc | null;
   design: DesignDoc | null;
   review: ReviewDoc | null;
@@ -52,6 +54,9 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
     case 'spec':
       return [
         check('Brief written', !!e.brief?.trim(), e.brief?.trim() ? short(e.brief) : 'Describe the work in the chat'),
+        e.research?.trim()
+          ? check('Research written', true, researchSummary(e.research), 'research')
+          : { label: 'Research written', state: 'unchecked', detail: 'Optional: use the Research first recipe' },
         check('Flows in scope named', !!e.scope?.flows.length, e.scope?.flows.length ? scopeSummary(e.scope) : 'Name the flows this work must keep'),
         check('Figma file attached', e.figma, e.figma ? 'Attached' : 'Attach the file Claude designs in', e.figma ? undefined : 'attach'),
       ];
@@ -96,6 +101,21 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
     case 'ship':
       return [check('Handoff report', frames.length > 0, frames.length ? 'Frames, decisions and review in one page' : 'Nothing to hand off yet', frames.length ? 'report' : undefined)];
   }
+}
+
+/** "4 references, 3 options" from the Looked at and Options sections of research.md. */
+export function researchSummary(md: string) {
+  const bullets = (title: RegExp) => {
+    const lines = md.split('\n');
+    const start = lines.findIndex((l) => /^#{1,3}\s/.test(l) && title.test(l));
+    if (start < 0) return 0;
+    const end = lines.findIndex((l, i) => i > start && /^#{1,3}\s/.test(l));
+    return lines.slice(start + 1, end < 0 ? undefined : end).filter((l) => /^\s*(?:[-*]|\d+[.)])\s+\S/.test(l) && !/^\s{2,}/.test(l)).length;
+  };
+  const refs = bullets(/looked at/i);
+  const options = bullets(/options/i);
+  const parts = [refs && plural(refs, 'reference'), options && plural(options, 'option')].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'Findings written';
 }
 
 const short = (t: string) => {
