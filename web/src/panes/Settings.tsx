@@ -5,7 +5,7 @@ import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, type CheckId, type C
 import { PRESET_INFO, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
 import { figmaState } from '../StatusBar';
-import { RECHECK, openFigmaLogin } from '../FigmaLogin';
+import { Command, RECHECK, openFigmaLogin } from '../FigmaLogin';
 
 type McpInfo = { configured: boolean; status: { status: string; error?: string } | null };
 
@@ -33,12 +33,12 @@ function CheckSetup() {
   };
   const busy = CHECK_IDS.some((id) => rows[id]?.busy);
   return (
-    <section className="set-card" id="set-checks">
+    <section className="set-card" id="set-checks" aria-labelledby="set-checks-h">
       <div className="inline check-head">
-        <h2>Check setup</h2>
+        <h2 id="set-checks-h" className="sr-only">Check setup</h2>
+        <p className="muted">Tests each connection without using any model tokens.</p>
         <button className="primary" disabled={busy} onClick={all}>Run all checks</button>
       </div>
-      <p className="muted">Tests each connection without using any model tokens.</p>
       {fixErr && <div className="error-text">{fixErr}</div>}
       <ul className="check-list">
         {CHECK_IDS.map((id) => {
@@ -52,6 +52,11 @@ function CheckSetup() {
                 <span className="check-title">{CHECK_TITLES[id]}</span>
                 <span className="muted">{row?.busy ? 'Checking…' : r ? r.detail : 'Not checked'}</span>
                 {r && r.tone !== 'ok' && !row?.busy && r.fix && <span className="check-fix">How to fix: {r.fix}</span>}
+                {r && r.tone !== 'ok' && !row?.busy && r.steps && (
+                  <ol className="fl-steps check-steps">
+                    {r.steps.map((st, i) => <li key={i}>{st.text}{st.cmd && <> <Command id={`chk-${id}-${i}`} text={st.cmd} /></>}{st.after && ` ${st.after}`}</li>)}
+                  </ol>
+                )}
               </div>
               <div className="check-actions">
                 {r && r.tone !== 'ok' && !row?.busy && r.fixId && <button onClick={() => void fix(id, r.fixId!)}>{r.fixLabel}</button>}
@@ -93,7 +98,8 @@ export function Settings() {
     try {
       await postJson('/api/figma/mcp', {});
       setMcp(await getJson<McpInfo>('/api/figma/mcp'));
-      setMsg('Figma added to Claude. Sign in once: run claude in a terminal, type /mcp, pick figma and authenticate.');
+      setMsg('Figma added to Claude. Log in once to finish.');
+      openFigmaLogin();
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -104,8 +110,8 @@ export function Settings() {
     <div className="settings-page">
       <SectionNav />
       {msg && <div className="banner"><Icon name="info" small /> <span>{msg}</span></div>}
-      <section className="set-card" id="set-figma">
-        <h2>Figma access</h2>
+      <section className="set-card" id="set-figma" aria-labelledby="set-figma-h">
+        <h2 id="set-figma-h" className="sr-only">Figma access</h2>
         <p className="muted">Reads files, frames and thumbnails, and posts review comments, with your own token.</p>
         <label className="field">
           <span>Personal access token</span>
@@ -118,61 +124,86 @@ export function Settings() {
         <label className="field">
           <span>Team ID, for the team files list (optional)</span>
           <div className="inline">
-            <input defaultValue={s.teamId} placeholder="From figma.com/files/team/<id>" onBlur={(e) => e.target.value !== s.teamId && save({ teamId: e.target.value })} />
+            <input defaultValue={s.teamId} inputMode="numeric" placeholder="For example: 1234567890" aria-describedby="set-team-help" onBlur={(e) => e.target.value !== s.teamId && save({ teamId: e.target.value })} />
           </div>
+          <span className="muted small" id="set-team-help">In Figma, open your team's page. The team ID is the number after /team/ in the address.</span>
         </label>
         <div className="field">
-          <span>Claude's Figma tools</span>
-          {mcp?.configured ? (
-            <>
-              <McpState status={mcp.status?.status} />
-              {mcp.status?.status === 'needs-auth' && <span className="muted">The Figma plugin needs you to log in. <button className="link" onClick={openFigmaLogin}>How to log in</button></span>}
-            </>
-          ) : (
-            <div className="inline"><span className="muted">Not set up yet.</span><button onClick={addMcp}>Add Figma to Claude</button></div>
+          <span>Figma plugin in Claude</span>
+          {mcp?.configured ? <McpState status={mcp.status?.status} /> : (
+            <div className="inline"><span className="muted">Figma plugin: Not added yet</span><button onClick={addMcp}>Add Figma to Claude</button></div>
           )}
+          <span className="muted small">Lets Claude edit your Figma file.</span>
         </div>
       </section>
 
       <CheckSetup />
 
-      <section className="set-card" id="set-runs">
-        <h2>Design runs</h2>
-        <Toggle label="Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
+      <section className="set-card" id="set-runs" aria-labelledby="set-runs-h">
+        <h2 id="set-runs-h" className="sr-only">Design runs</h2>
+        <p className="muted small">Defaults for new chats. Change them for one chat in the mode menu of the message box.</p>
+        <Toggle label="Default: Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
         <Toggle label="Check frames after Claude edits Figma" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
         <div className="field">
-          <span>Default review</span>
-          <div className="seg" role="radiogroup" aria-label="Default review">
+          <span>Default: Review depth</span>
+          <div className="seg" role="radiogroup" aria-label="Default review depth">
             {(['quick', 'full'] as const).map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
           </div>
-          <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}. New chats start with this.</span>
+          <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}.</span>
         </div>
       </section>
 
-      <section className="set-card" id="set-models">
-        <h2>Models</h2>
+      <section className="set-card" id="set-models" aria-labelledby="set-models-h">
+        <h2 id="set-models-h" className="sr-only">Models</h2>
         <p className="muted">Design runs: Opus 5.5 writes the plan, Sonnet 5.5 sketches, designs, fixes and reviews. Chat: pick the model next to the mode in the message box.</p>
+      </section>
+
+      <section className="set-card" id="set-usage" aria-labelledby="set-usage-h">
+        <h2 id="set-usage-h" className="sr-only">Usage</h2>
         <label className="field">
-          <span>Daily budget (USD), 0 = off</span>
+          <span>Daily budget: $ (leave empty for no limit)</span>
           <div className="inline">
-            <input type="number" min={0} step={1} defaultValue={s.dailyBudgetUsd} onBlur={(e) => Number(e.target.value) !== s.dailyBudgetUsd && save({ dailyBudgetUsd: Number(e.target.value) })} />
+            <input type="number" min={0} step={1} inputMode="decimal" placeholder="No limit" aria-describedby="set-budget-help" defaultValue={s.dailyBudgetUsd || ''} onBlur={(e) => Number(e.target.value) !== s.dailyBudgetUsd && save({ dailyBudgetUsd: Number(e.target.value) })} />
           </div>
-          <span className="muted small">The spend pill turns yellow at 80% and red above 100% of this.</span>
+          <span className="muted small" id="set-budget-help">The spend pill turns yellow at 80% and red above 100% of this.</span>
         </label>
+      </section>
+
+      <section className="set-card" id="set-advanced" aria-labelledby="set-advanced-h">
+        <h2 id="set-advanced-h" className="sr-only">Advanced</h2>
         <Toggle label="Developer tools" detail="Show the chat folder's files and a terminal" on={s.devTools} set={(v) => save({ devTools: v }).then(() => window.dispatchEvent(new Event('designstudio:settings')))} />
       </section>
     </div>
   );
 }
 
+/** The plugin's state, from the open chat when Claude runs, else from a check run here: on open, on Check now, and when the login dialog checks again. */
 function McpState({ status }: { status?: string }) {
-  const [tone, label] = status ? figmaState([{ name: 'figma', status }]) : ['off', 'Set up, not checked yet'];
-  return <span className="inline mcp-state"><span className={`mcp-dot ${tone}`} aria-hidden />{label}</span>;
+  const [checked, setChecked] = useState<CheckResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const check = () => {
+    setBusy(true);
+    void CHECKS.mcp().then((r) => { setChecked(r); setBusy(false); });
+  };
+  useEffect(() => {
+    if (!status) check();
+    window.addEventListener(RECHECK, check);
+    return () => window.removeEventListener(RECHECK, check);
+  }, []);
+  const PROBED: Record<CheckResult['tone'], [string, string]> = { ok: ['ok', 'Connected'], warn: ['warn', 'Needs login'], bad: ['bad', 'Not connected'] };
+  const [tone, label] = busy ? ['wait', 'Checking'] : checked ? PROBED[checked.tone] : status ? figmaState([{ name: 'figma', status }]) : ['off', 'Not checked yet'];
+  return (
+    <span className="inline mcp-state">
+      <span className={`mcp-dot ${tone}`} aria-hidden /><span role="status">Figma plugin: {label}</span>
+      {tone === 'warn' && <button className="link" onClick={openFigmaLogin}>How to log in</button>}
+      {!busy && <button className="link" onClick={check}>Check now</button>}
+    </span>
+  );
 }
 
-const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma access'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models']];
+const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma access'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models'], ['set-usage', 'Usage'], ['set-advanced', 'Advanced']];
 
 const scroller = (el: HTMLElement | null): HTMLElement | null => {
   for (let p = el?.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;

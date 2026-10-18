@@ -475,7 +475,7 @@ function figmaTab(fileKey: string) {
 
 export async function openUrl(url: string) {
   if (!cdp) await connect();
-  if (!cdp) throw new Error('Chrome is not connected. Open the Figma tab and press Connect Chrome.');
+  if (!cdp) throw new Error('Design Studio cannot see Chrome yet. Open the Figma tab and press Allow in Chrome.');
   const { targetId } = await call('Target.createTarget', { url });
   pinned = targetId;
   pick();
@@ -519,7 +519,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function screenshotUrl(url: string, width: number): Promise<Buffer> {
   if (!cdp) await connect();
-  if (!cdp) throw new Error('Chrome is not connected. Open the Figma tab and press Connect Chrome.');
+  if (!cdp) throw new Error('Design Studio cannot see Chrome yet. Open the Figma tab and press Allow in Chrome.');
   const { targetId } = await call('Target.createTarget', { url: 'about:blank', background: true, width, height: 900 });
   hidden.add(targetId);
   if (tabs.delete(targetId)) pick();

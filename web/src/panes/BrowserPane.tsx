@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import { useStore, postJson } from '../store';
 import { Empty, BrowserArt } from './Empty';
 import { FigmaFile } from './FigmaFile';
+import { ALLOW_CHROME, CHROME_CHECKBOX, CHROME_REASONS } from '../setupChecks';
 
 type Tab = { id: string; title: string; url: string };
 type State = { state: 'off' | 'connecting' | 'on'; reason: string; retry?: boolean };
@@ -202,16 +203,6 @@ export function BrowserPane() {
   );
 }
 
-const REASONS: Record<string, string> = {
-  nofda: 'macOS blocks Design Studio from finding Chrome until Design Studio has Full Disk Access.',
-  nochrome: 'Chrome is not running.',
-  disabled: 'Chrome is running, but remote debugging is off.',
-  denied: 'Chrome refused the connection.',
-  timeout: 'Chrome did not answer in time.',
-  closed: 'The connection to Chrome closed.',
-  server: 'The Design Studio server is not reachable.',
-};
-
 function Connect({ state, onSetup }: { state: State; onSetup: () => void }) {
   return <FigmaFile chrome={<ChromeLine state={state} onSetup={onSetup} />} />;
 }
@@ -224,21 +215,30 @@ function ChromeLine({ state, onSetup }: { state: State; onSetup: () => void }) {
   const connecting = state.state === 'connecting';
   return (
     <section className="ff-chrome" aria-labelledby="ff-chrome-title">
-      <h3 id="ff-chrome-title" className="ff-chrome-title">See it live in Chrome</h3>
+      <h3 id="ff-chrome-title" className="ff-chrome-title">Watch Claude work in your Figma tab</h3>
       <p className="ff-chrome-text">
-        {connecting ? 'Connecting to Chrome. If Chrome asks to allow remote debugging, click Allow.' : REASONS[state.reason] ?? state.reason}
+        {connecting ? 'Asking Chrome. If Chrome asks, click Allow.' : <>Design Studio can show your Figma tab from Chrome here. {CHROME_REASONS[state.reason] ?? 'Chrome is not linked yet'}.</>}
       </p>
       {!connecting && (
-        <button className="ff-chrome-btn" onClick={() => { setAsked(true); onSetup(); }}>
-          {fda ? 'Open Full Disk Access settings' : 'Connect Chrome'}
-        </button>
+        <>
+          {/* Chrome runs on the computer, so a phone can only point there. */}
+          <p className="ff-chrome-text ff-chrome-phone">Connect from your computer: open Design Studio on your Mac and press {ALLOW_CHROME} on the Figma tab.</p>
+          <button className="ff-chrome-btn" onClick={() => { setAsked(true); onSetup(); }}>
+            {fda ? 'Open Full Disk Access settings' : ALLOW_CHROME}
+          </button>
+        </>
       )}
       {asked && (
-        <p className="ff-chrome-text" role="status">
-          {fda
-            ? 'Drag Design Studio from the Finder window into the Full Disk Access list and turn it on. Design Studio connects on its own; if it does not, quit and reopen it from the menu bar.'
-            : 'In the Chrome tab that opened, tick "Allow remote debugging for this browser instance", then click Allow. Design Studio connects on its own.'}
-        </p>
+        fda ? (
+          <p className="ff-chrome-text" role="status">Drag Design Studio from the Finder window into the Full Disk Access list and turn it on. Design Studio connects on its own; if it does not, quit and reopen it from the menu bar.</p>
+        ) : (
+          <div role="status">
+            <ol className="ff-chrome-steps">
+              <li>In the Chrome tab that opened, tick "{CHROME_CHECKBOX}".</li>
+              <li>Click Allow. Design Studio connects on its own.</li>
+            </ol>
+          </div>
+        )
       )}
     </section>
   );

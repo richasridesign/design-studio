@@ -40,7 +40,12 @@
 .mcp-card.skeleton { height: 96px; border-color: var(--border); animation: mcp-shimmer 1.4s ease-in-out infinite; }
 @keyframes mcp-shimmer { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.8; } }
 .mcp-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.mcp-card-name { font-size: var(--text-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mcp-card-name { font-size: var(--text-md); font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.mcp-login { margin: 0 0 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--text-sm); }
+.mcp-login .link { min-height: 24px; }
+.mcp-more { margin-top: 12px; }
+.mcp-more summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; min-height: 24px; display: flex; align-items: center; }
+.mcp-more .mcp-kv { margin-top: 8px; }
 .mcp-card-cmd { font-size: var(--text-xs); color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mcp-card-foot { display: flex; align-items: center; gap: 10px; font-size: var(--text-xs); color: var(--fg-muted); white-space: nowrap; min-width: 0; }
 .mcp-card-foot > * { flex: none; }
@@ -70,7 +75,7 @@
   background: var(--bg-raised); border-left: 1px solid var(--border);
 }
 .mcp-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.mcp-detail-head h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mcp-detail-head h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
 .mcp-detail-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 .mcp-detail-acts button, .mcp-detail-acts a {
   height: 26px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-sm); text-decoration: none;

@@ -8,7 +8,8 @@ import { figmaState } from './StatusBar';
 import './research.css';
 import './figmalogin.css';
 
-function Command({ id, text }: { id: string; text: string }) {
+/** A command she types, with a Copy button. */
+export function Command({ id, text }: { id: string; text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(text).then(() => {
