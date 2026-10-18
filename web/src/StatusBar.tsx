@@ -99,10 +99,11 @@ export function StatusBar() {
       </button>
       {figma?.status === 'needs-auth' && <button className="sb-link sb-help" onClick={() => setHelp(true)}>How to log in</button>}
       {help && figma && <FigmaLogin name={figma.name} tone={tone} label={label} onClose={closeHelp} onRetry={retry} />}
-      {stuck && (
+      {/* Needing login, Try again lives in the How to log in dialog, so the footer keeps one action. */}
+      {stuck && figma.status !== 'needs-auth' && (
         <button
           className="sb-link"
-          title={figma.status === 'needs-auth' ? 'Log in first: run claude in a terminal, type /mcp, pick the Figma plugin. Design Studio also tries again when you come back to this window.' : 'Reconnect Figma now. Design Studio also tries again when you come back to this window.'}
+          title="Reconnect Figma now. Design Studio also tries again when you come back to this window."
           onClick={retry}
         >
           Try again
