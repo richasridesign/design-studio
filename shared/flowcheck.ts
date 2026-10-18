@@ -45,7 +45,17 @@ export type FlowResult = {
   more: number;
 };
 
-export type FlowCheckRun = { id: string; at: number; fileKey: string; flows: FlowResult[]; unchecked: FlowRule[] };
+export type FlowCheckRun = {
+  id: string;
+  at: number;
+  fileKey: string;
+  flows: FlowResult[];
+  unchecked: FlowRule[];
+  // How the file was read: the REST API with a token, or the Figma plugin. Older runs have neither.
+  via?: 'rest' | 'plugin';
+  // The plugin read stops at a layer cap on very large files.
+  truncated?: boolean;
+};
 
 export const flowIssues = (f: FlowResult) => Object.values(f.counts).reduce((n, c) => n + (c ?? 0), 0);
 
