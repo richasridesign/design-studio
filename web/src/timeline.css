@@ -1,7 +1,7 @@
 .chat-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
-.seg.chat-view { padding: 4px; gap: 4px; border-radius: var(--radius-sm); }
+.seg.chat-view { padding: 3px; gap: 4px; border-radius: var(--radius-sm); }
 .seg.chat-view button {
-  min-height: 22px; padding: 0 12px; border-radius: calc(var(--radius-sm) - 4px);
+  min-height: 24px; padding: 0 12px; border-radius: calc(var(--radius-sm) - 4px);
   font-size: var(--text-sm); line-height: 16px;
 }
 .seg.chat-view button:not(.on):hover { background: transparent; color: var(--fg); }

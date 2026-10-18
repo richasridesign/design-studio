@@ -102,6 +102,8 @@ input, textarea {
   font: inherit;
   width: 100%;
 }
+/* Single-line inputs share the 36px control height; components can still override. */
+input:where(:not([type=checkbox], [type=radio], [type=range])) { height: 36px; padding-block: 0; padding-inline: 16px; }
 input::placeholder, textarea::placeholder { color: var(--fg-faint); }
 input:focus, textarea:focus { outline: none; border-color: var(--focus); }
 textarea { resize: none; }
