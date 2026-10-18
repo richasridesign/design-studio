@@ -3,6 +3,7 @@ import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
+import { splitRun } from '../../shared/triage.js';
 import { readRecipes, writeRecipes } from './recipes.js';
 import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
@@ -341,10 +342,13 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/sketch') return json(await readSketch(chat.cwd).catch((err) => ({ error: (err as Error).message })));
     if (url.pathname === '/api/review/post' && req.method === 'POST') {
       const f = needFigma();
-      const { ids } = await readJsonBody();
+      const { ids, runId } = await readJsonBody();
       const doc = await readReview(chat.cwd);
-      const all = doc.runs.flatMap((r) => [...r.check, ...r.results.flatMap((x) => x.findings)]);
-      const chosen = all.filter((x) => Array.isArray(ids) && ids.includes(x.id) && !doc.posted?.includes(x.id));
+      // Finding ids repeat across rounds, so only the named run counts, and findings closed by hand stay out.
+      const run = doc.runs.find((r) => r.id === runId);
+      if (!run) return json({ error: 'Review run not found' }, 404);
+      const open = splitRun(run, await readTriage(chat.cwd)).open;
+      const chosen = open.filter((x) => Array.isArray(ids) && ids.includes(x.id) && !doc.posted?.includes(x.id));
       for (const x of chosen) await postComment(f.key, `[Design Studio · ${x.area} · ${x.severity}] ${x.rule}\nFix: ${x.fix}`, x.node);
       await markPosted(chat.cwd, chosen.map((x) => x.id));
       return json({ posted: chosen.length });

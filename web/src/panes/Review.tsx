@@ -155,7 +155,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
   const post = async () => {
     setPosting(true);
     try {
-      const r = await postJson<{ posted: number }>('/api/review/post', { ids: pending.map((f) => f.id) });
+      const r = await postJson<{ posted: number }>('/api/review/post', { runId: run.id, ids: pending.map((f) => f.id) });
       setNote(`Posted ${r.posted} ${r.posted === 1 ? 'comment' : 'comments'} in Figma`);
       onDoc(await getJson<ReviewDoc>('/api/review'));
     } catch (e) {
