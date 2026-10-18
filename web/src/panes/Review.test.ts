@@ -52,7 +52,7 @@ describe('ago', () => {
 
 describe('review card helpers', () => {
   it('labels runs and offers a deeper review only for quick and check presets', () => {
-    expect(runLabel(review('a', 1))).toBe('Review 1 · Quick');
+    expect(runLabel(review('a', 1))).toBe('Review 1 · Depth: Quick');
     expect(runLabel(review('a', 1, { kind: 'audit' }))).toBe('File audit');
     expect(canGoDeeper(review('a', 1))).toBe(true);
     expect(canGoDeeper(review('a', 1, { preset: 'full' }))).toBe(false);

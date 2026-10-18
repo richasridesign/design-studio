@@ -144,9 +144,9 @@
 .review-bar > button, .review-bar > a { min-height: 36px; }
 .review-bar a.ghost { display: inline-flex; align-items: center; justify-content: center; width: 36px; border-radius: var(--radius-sm); color: var(--fg-muted); }
 .review-bar a.ghost:hover { background: var(--bg-hover); color: var(--fg); }
-/* Same 36px height as the buttons beside it. */
-.review-bar .seg, .set-card .seg { padding: 2px; }
-.review-bar .seg button, .set-card .seg button { min-height: 30px; padding: 0 12px; }
+/* Same 36px height as the buttons beside it: 1px border, 1px padding, 32px buttons. */
+.review-bar .seg, .set-card .seg { padding: 1px; }
+.review-bar .seg button, .set-card .seg button { min-height: 32px; padding: 0 12px; }
 .review-bar .spacer { flex: 1; }
 /* Handoff report and its download read as one peach pill: the stage's end product, quieter than the primary Review. */
 .review-bar > button.ghost:has(+ .report-download) { background: var(--tint-peach); color: var(--fg); border-radius: var(--radius-pill) 0 0 var(--radius-pill); padding: 0 8px 0 16px; }
@@ -163,7 +163,7 @@
 .run-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); font-size: var(--text-sm); }
 .run-detail { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
 .run-dev { background: var(--bg-sunken); border-radius: var(--radius); }
-.review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: stretch; }
 .area-card { background: var(--bg-sunken); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 8px; }
 .area-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .area-head:hover { background: var(--bg-hover); }
@@ -208,6 +208,7 @@
   .check-actions > .ghost:first-child { margin-left: -14px; }
 }
 .mcp-state { gap: 8px; }
+.mcp-state .link { min-height: 24px; }
 .set-card h2 { font-weight: 600; margin: 0; font-size: var(--text-md); }
 .set-card p { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; }

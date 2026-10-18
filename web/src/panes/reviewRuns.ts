@@ -43,7 +43,7 @@ export function ago(at: number, now = Date.now()): string {
   return 'just now';
 }
 
-export const runLabel = (run: ReviewRun) => (run.kind === 'audit' ? 'File audit' : run.kind === 'verify' ? 'Final check' : `Review ${run.round} · ${PRESET_INFO[run.preset].label}`);
+export const runLabel = (run: ReviewRun) => (run.kind === 'audit' ? 'File audit' : run.kind === 'verify' ? 'Final check' : `Review ${run.round} · Depth: ${PRESET_INFO[run.preset].label}`);
 
 // Red is kept for blocking findings and reviewer errors; an area with only major findings is a warning.
 export type AreaTone = 'pass' | 'major' | 'blocking' | 'error';

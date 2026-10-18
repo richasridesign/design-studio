@@ -256,7 +256,7 @@ function AreaCard({ title, sub, tone, tokens, dev = false, frames, findings, gro
               <div className="f-body">
                 <div className="f-rule">{f.rule}</div>
                 <div className="f-fix">{f.fix}</div>
-                {f.decide && <div className="f-decide"><b>Your call:</b> touches {f.decide}. Waiting in Awaiting your decision, fix rounds skip it.</div>}
+                {f.decide && <div className="f-decide"><b>Your call:</b> touches {f.decide.charAt(0).toLowerCase() + f.decide.slice(1).replace(/\.$/, '')}. It waits for your decision, and fix rounds skip it.</div>}
                 <div className="f-foot">
                   <button className="link" title="Show in Figma" onClick={() => showNode(f.node)}>{grouped ? `${AREA_NAMES[f.area as Area] ?? f.area} · ` : ''}{label(f.node, f.nodeName)}</button>
                   {triage && closing !== f.id && <button ref={(el) => { triggers.current[f.id] = el; }} className="triage-link" aria-label={`Resolve finding: ${f.rule}`} onClick={() => setClosing(f.id)}>Resolve</button>}

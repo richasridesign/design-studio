@@ -10,15 +10,34 @@ export function costLine(preset: ShownPreset, areas: Area[], fixRounds: number) 
   return `${who}. Cost per review: ${roundCost(preset, areas)}. Fix rounds: ${rounds === 1 ? '1' : `up to ${rounds}`}.`;
 }
 
-/** Review depth for this chat. */
+/**
+ * Review depth for this chat's next review. The one place to change it for a chat: the message box's mode menu shows it
+ * with a link here, and Settings sets the default for new chats. Labelled "Next review" so it never reads as the depth of
+ * a run listed below.
+ */
 export function DepthSeg() {
   const preset = useStore((s) => shownPreset(s.session.flow.preset));
   return (
-    <div className="seg" role="radiogroup" aria-label="Review depth">
-      {SHOWN_PRESETS.map((p) => (
-        <button key={p} role="radio" aria-checked={preset === p} className={preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => send({ type: 'set_flow', patch: { preset: p } })}>{PRESET_INFO[p].label}</button>
-      ))}
+    <div className="rs-depth">
+      <span id="rs-depth-l">Next review:</span>
+      <div className="seg" role="radiogroup" aria-labelledby="rs-depth-l">
+        {SHOWN_PRESETS.map((p) => (
+          <button key={p} role="radio" aria-checked={preset === p} className={preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => send({ type: 'set_flow', patch: { preset: p } })}>{PRESET_INFO[p].label}</button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+export const openReviewTab = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }));
+
+/** The chat's review depth as a line with a link to the Review tab, where it is changed. For the message box's mode menu. */
+export function DepthLink() {
+  const preset = useStore((s) => shownPreset(s.session.flow.preset));
+  return (
+    <span className="rs-depth-link">
+      Review depth: {PRESET_INFO[preset].label} <button type="button" className="link" onClick={openReviewTab}>Change on the Review tab</button>
+    </span>
   );
 }
 
