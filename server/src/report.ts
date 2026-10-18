@@ -217,7 +217,8 @@ function flowPart(d: Data) {
     const status = f.state === 'unchecked' ? st('none', 'Not checked') : n ? st('fail', plural(n, 'issue')) : st('pass', 'Passed');
     return `<li>${nodeLink(d, f.id, f.name)} ${status}${n ? `<br><small>${esc(flowCounts(f.counts))}</small>` : ''}</li>`;
   });
-  return `<h3>Prototype check <small>${issues ? plural(issues, 'issue') : 'No issues'}, ${esc(dayTime(d.flow!.at))}</small></h3><ul class="rows">${rows.join('')}</ul>`;
+  const partial = d.flow!.truncated ? '<p class="meta">The file is too large to read in full, so some flows were not checked.</p>' : '';
+  return `<h3>Prototype check <small>${issues ? plural(issues, 'issue') : 'No issues'}, ${esc(dayTime(d.flow!.at))}</small></h3>${partial}<ul class="rows">${rows.join('')}</ul>`;
 }
 
 function review(d: Data): Section | null {
@@ -346,9 +347,11 @@ function flowLine(run: FlowCheckRun) {
   const failing = checked.filter((f) => flowIssues(f) > 0);
   const issues = failing.reduce((n, f) => n + flowIssues(f), 0);
   if (!checked.length) return `${st('none', 'Prototype check:')} No flows checked`;
-  return failing.length
-    ? `${st('fail', 'Prototype check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}`)}`
-    : `${st('pass', 'Prototype check:')} ${esc(checked.length === 1 ? 'The flow passed' : `All ${checked.length} flows passed`)}`;
+  // A large file read only in part can hide broken flows, so a clean partial run is not a pass (as in the Validate gate).
+  const partial = run.truncated ? ', some flows not checked: the file is too large to read in full' : '';
+  if (failing.length) return `${st('fail', 'Prototype check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}${partial}`)}`;
+  if (partial) return `${st('none', 'Prototype check:')} ${esc(`No issues found${partial}`)}`;
+  return `${st('pass', 'Prototype check:')} ${esc(checked.length === 1 ? 'The flow passed' : `All ${checked.length} flows passed`)}`;
 }
 
 const STYLE = `
