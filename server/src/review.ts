@@ -249,7 +249,7 @@ async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaRes
     ...f,
     area: (areas.includes(f.area as Area) ? f.area : areas[0]) as Area,
     id: `${area}:${i}:${f.node}`,
-    ...(global ? { decide: impact?.trim() || 'Something shared beyond these frames' } : {}),
+    ...(global ? { decide: impact?.trim() || 'something shared beyond these frames' } : {}),
   }));
   return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd, ...(c.rules ? { verdicts: r.data.rules } : {}) };
 }

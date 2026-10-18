@@ -39,7 +39,8 @@ export function useFigmaRows(): McpServer[] | null {
   return none ? probed : live;
 }
 
-const shownState = (rows: McpServer[] | null): [tone: string, label: string] => (rows ? figmaState(rows) : ['wait', 'Checking']);
+/** The Figma state the status bar and Settings both show. */
+export const shownState = (rows: McpServer[] | null): [tone: string, label: string] => (rows ? figmaState(rows) : ['wait', 'Checking']);
 
 export const RETRY_MS = 30_000;
 
@@ -80,7 +81,7 @@ export function limitText(l: PlanLimit) {
   const used = l.status === 'rejected' ? 'reached' : l.used === null ? 'OK' : `${Math.round(l.used * 100)}% used`;
   const at = l.resetsAt ? new Date(l.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const tone = l.status === 'rejected' ? 'bad' : l.status === 'allowed_warning' || (l.used ?? 0) >= 0.8 ? 'warn' : '';
-  return { label: `${name}: ${used}`, resets: at && `resets ${at}`, tone };
+  return { label: `${name}: ${used}`, resets: at && `Resets: ${at}`, tone };
 }
 
 const clock = (ms: number) => {

@@ -4,8 +4,8 @@ import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, type CheckId, type CheckResult } from '../setupChecks';
 import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
-import { costLine } from './ReviewSetup';
-import { figmaState } from '../StatusBar';
+import { costLine, openReviewTab } from './ReviewSetup';
+import { shownState, useFigmaRows } from '../StatusBar';
 import { Command, RECHECK, openFigmaLogin } from '../FigmaLogin';
 
 type McpInfo = { configured: boolean; status: { status: string; error?: string } | null };
@@ -116,7 +116,7 @@ export function Settings() {
         <p className="muted">Design Studio reads and edits your file through the Figma plugin in Claude. No token needed.</p>
         <div className="field">
           <span>Figma plugin in Claude</span>
-          {mcp?.configured ? <McpState status={mcp.status?.status} /> : (
+          {mcp?.configured ? <McpState /> : (
             <div className="inline"><span className="muted">Figma plugin: Not added yet</span><button onClick={addMcp}>Add Figma to Claude</button></div>
           )}
           <span className="muted small">Lets Claude read and edit your Figma file.</span>
@@ -127,7 +127,7 @@ export function Settings() {
 
       <section className="set-card" id="set-runs" aria-labelledby="set-runs-h">
         <h2 id="set-runs-h" className="sr-only">Design runs</h2>
-        <p className="muted small">Defaults for new chats. Change them for one chat in the mode menu of the message box.</p>
+        <p className="muted small">Defaults for new chats. For one chat, change Stop after sketch in the mode menu of the message box, and review depth and areas on the <button className="link" onClick={openReviewTab}>Review tab</button>.</p>
         <Toggle label="Default: Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
         <div className="field">
           <span>Default: Review depth</span>
@@ -155,7 +155,7 @@ export function Settings() {
           <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. Quick fixes once. Shared changes wait for you.</span>
           <span className="muted small">{costLine(shownPreset(s.preset), s.areas, s.fixRounds)}</span>
         </div>
-        <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
+        <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
         <Toggle label="Check frames after Claude edits Figma" detail="Runs the code scan on the frames Claude touched in a chat turn. Reading them from Figma costs under a cent" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
       </section>
@@ -184,21 +184,21 @@ export function Settings() {
   );
 }
 
-/** The plugin's state, from the open chat when Claude runs, else from a check run here: on Check now, and when the login dialog checks again. */
-function McpState({ status }: { status?: string }) {
-  const [checked, setChecked] = useState<CheckResult | null>(null);
+/**
+ * The plugin's state, from the same source as the status bar: the open chat's live status once Claude runs,
+ * else the server's last check. Check now checks again and both update.
+ */
+function McpState() {
   const [busy, setBusy] = useState(false);
+  const rows = useFigmaRows();
+  const [tone, label] = busy ? ['wait', 'Checking'] : shownState(rows);
   const check = () => {
     setBusy(true);
-    void CHECKS.mcp().then((r) => { setChecked(r); setBusy(false); });
+    void CHECKS.mcp().then(() => {
+      window.dispatchEvent(new Event(RECHECK));
+      setBusy(false);
+    });
   };
-  useEffect(() => {
-    // Not on open: from here the probe cannot see the login Claude keeps, so it could say Needs login to someone logged in.
-    window.addEventListener(RECHECK, check);
-    return () => window.removeEventListener(RECHECK, check);
-  }, []);
-  const PROBED: Record<CheckResult['tone'], [string, string]> = { ok: ['ok', 'Connected'], warn: ['warn', 'Needs login'], bad: ['bad', 'Not connected'] };
-  const [tone, label] = busy ? ['wait', 'Checking'] : checked ? PROBED[checked.tone] : status ? figmaState([{ name: 'figma', status }]) : ['off', 'Not checked yet'];
   return (
     <span className="inline mcp-state">
       <span className={`mcp-dot ${tone}`} aria-hidden /><span role="status">Figma plugin: {label}</span>
