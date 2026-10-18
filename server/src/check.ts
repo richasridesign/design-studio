@@ -6,27 +6,33 @@ const HAND_BUILT = /\b(button|btn|input|text ?field|checkbox|radio|toggle|switch
 const MAX = 200;
 
 type Rgba = { r: number; g: number; b: number; a: number };
-type Ctx = { components: Record<string, any>; spacing: Set<number>; radius: Set<number> | null; out: Finding[] };
+/** Smallest click target, from WCAG 2.2 target size (2.5.8). */
+export const MIN_TARGET = 24;
+/** tokens false (a lo-fi profile): designs need not use variables, styles or library components. */
+type Ctx = { components: Record<string, any>; spacing: Set<number>; radius: Set<number> | null; type: Set<number> | null; tokens: boolean; out: Finding[] };
 
 const RULE_AREA: Record<string, Area> = {
-  'color-unbound': 'color',
-  'text-unstyled': 'typography',
+  'color-unbound': 'system',
+  'text-unstyled': 'system',
+  'local-component': 'system',
+  'hand-built': 'system',
   'text-too-small': 'accessibility',
   contrast: 'accessibility',
   'target-size': 'accessibility',
-  'local-component': 'components',
-  'hand-built': 'components',
-  'spacing-off-scale': 'spacing',
-  'radius-off-scale': 'spacing',
-  'no-auto-layout': 'spacing',
+  'spacing-off-scale': 'visual',
+  'radius-off-scale': 'visual',
+  'no-auto-layout': 'visual',
+  'type-off-scale': 'visual',
+  'em-dash': 'writing',
 };
 
 export function ruleArea(rule: string): Area {
-  return RULE_AREA[rule.split(':')[0]] ?? 'components';
+  return RULE_AREA[rule.split(':')[0]] ?? 'system';
 }
 
 function add(ctx: Ctx, node: any, rule: string, severity: Severity, text: string, fix: string) {
   if (ctx.out.length >= MAX) return;
+  if (!ctx.tokens && ruleArea(rule) === 'system') return;
   ctx.out.push({ id: `check:${rule}:${node.id}`, area: ruleArea(rule), node: node.id, nodeName: node.name, severity, rule: text, fix });
 }
 
@@ -67,6 +73,8 @@ function walk(node: any, ctx: Ctx, bg: Rgba, depth: number, inInstance: boolean)
     const bold = (node.style?.fontWeight ?? 400) >= 700;
     if (!inInstance && !node.styles?.text && !node.boundVariables?.fontSize && !node.boundVariables?.fontFamily) add(ctx, node, 'text-unstyled', 'major', `Text "${String(node.characters ?? '').slice(0, 40)}" has no text style (${size}px)`, 'Apply a library text style');
     if (size && size < 12) add(ctx, node, 'text-too-small', 'major', `Text is ${size}px, below the 12px minimum`, 'Use a text style of at least 12px');
+    else if (size && ctx.type && !inInstance && !ctx.type.has(size)) add(ctx, node, 'type-off-scale', 'minor', `Text is ${size}px, off the type scale (${[...ctx.type].sort((a, b) => a - b).join('/')})`, 'Use a size from the type scale');
+    if (String(node.characters ?? '').includes('\u2014')) add(ctx, node, 'em-dash', 'minor', `Text "${String(node.characters).slice(0, 40)}" uses an em dash`, 'Use a comma, colon, period or parentheses');
     if (fills.length && !inInstance) {
       const ratio = contrast(paintColor(fills[0]), bg);
       const large = size >= 24 || (bold && size >= 18.66);
@@ -76,7 +84,7 @@ function walk(node: any, ctx: Ctx, bg: Rgba, depth: number, inInstance: boolean)
   }
 
   if (box && depth > 0 && (CONTROL.test(node.name ?? '') || (node.reactions?.length ?? 0) > 0) && ['INSTANCE', 'FRAME', 'COMPONENT'].includes(node.type)) {
-    if (box.width < 44 || box.height < 44) add(ctx, node, 'target-size', 'major', `Tap target ${Math.round(box.width)}x${Math.round(box.height)}px is under 44px`, 'Make the target at least 44x44px, padding counts');
+    if (box.width < MIN_TARGET || box.height < MIN_TARGET) add(ctx, node, 'target-size', 'major', `Click target ${Math.round(box.width)}x${Math.round(box.height)}px is under ${MIN_TARGET}px`, `Make the target at least ${MIN_TARGET}x${MIN_TARGET}px (32px in dense UI, 44px on touch), padding counts`);
   }
 
   if (node.type === 'INSTANCE' && !inInstance) {
@@ -99,11 +107,19 @@ function walk(node: any, ctx: Ctx, bg: Rgba, depth: number, inInstance: boolean)
   for (const child of node.children ?? []) walk(child, ctx, nextBg, depth + 1, inInstance || node.type === 'INSTANCE');
 }
 
+/** The profile's text sizes, when it has at least three, so a file with one odd style does not flag everything. */
+export function typeScale(ds: DesignSystem | null): Set<number> | null {
+  const sizes = new Set((ds?.text ?? []).map((t) => Number(t.size)).filter((n) => n > 0));
+  return sizes.size >= 3 ? sizes : null;
+}
+
 export function checkFrames(frames: Array<{ document: any; components?: Record<string, any> }>, ds: DesignSystem | null): Finding[] {
   const ctx: Ctx = {
     components: Object.assign({}, ...frames.map((f) => f.components ?? {})),
     spacing: new Set(ds?.spacing?.length ? ds.spacing : DEFAULT_SPACING),
     radius: ds?.radius?.length ? new Set(ds.radius) : null,
+    type: typeScale(ds),
+    tokens: ds?.tokens !== false,
     out: [],
   };
   for (const f of frames) walk(f.document, ctx, { r: 1, g: 1, b: 1, a: 1 }, 0, false);

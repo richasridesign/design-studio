@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { AREAS, DEFAULT_SETTINGS, PRESETS, type Settings } from '../../shared/design.js';
+import { DEFAULT_FIX_ROUNDS, DEFAULT_SETTINGS, LEGACY_AREAS, PRESETS, toAreas, type Settings } from '../../shared/design.js';
 
 export const HOME = path.join(os.homedir(), '.designstudio');
 export const CHATS_ROOT = process.env.DESIGN_STUDIO_ROOT ?? path.join(os.homedir(), 'DesignStudio');
@@ -21,14 +21,19 @@ export function clean(s: Settings): Settings {
   return {
     stopAfterSketch: Boolean(s.stopAfterSketch),
     preset: PRESETS.includes(s.preset) ? s.preset : DEFAULT_SETTINGS.preset,
-    areas: Array.isArray(s.areas) ? AREAS.filter((a) => s.areas.includes(a)) : DEFAULT_SETTINGS.areas,
+    // Old files hold the old default of three of the six old areas, which no screen let her change: they get all five.
+    areas: Array.isArray(s.areas) && !s.areas.some((a) => (LEGACY_AREAS as readonly string[]).includes(a)) ? toAreas(s.areas) : DEFAULT_SETTINGS.areas,
     askBeforeEdit: Boolean(s.askBeforeEdit),
     followClaude: s.followClaude !== false,
     autoCheck: s.autoCheck !== false,
     devTools: Boolean(s.devTools),
     dailyBudgetUsd: Math.max(0, Number(s.dailyBudgetUsd) || 0),
+    fixRounds: Math.min(4, Math.max(1, Math.round(Number(s.fixRounds)) || DEFAULT_FIX_ROUNDS)),
   };
 }
+
+/** The settings already loaded, for code that cannot wait. The session loads them when it starts. */
+export const loadedSettings = (): Settings => cached ?? DEFAULT_SETTINGS;
 
 export async function saveSettings(patch: Partial<Settings>) {
   const current = await settings();

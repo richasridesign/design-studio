@@ -16,4 +16,12 @@ describe('settings from an older file', () => {
   it('ignores a token sent by an older page', () => {
     expect(clean({ ...DEFAULT_SETTINGS, ...({ figmaToken: 'figd_new' } as any) })).toEqual(DEFAULT_SETTINGS);
   });
+
+  it('gives an old file all five areas, keeps a new choice, and clamps fix rounds', () => {
+    const s = clean({ ...DEFAULT_SETTINGS, areas: ['components', 'accessibility', 'brief'] as any, fixRounds: 9 });
+    expect(s.areas).toEqual(['system', 'interaction', 'visual', 'writing', 'accessibility']);
+    expect(clean({ ...DEFAULT_SETTINGS, areas: ['writing', 'system'] }).areas).toEqual(['system', 'writing']);
+    expect(s.fixRounds).toBe(4);
+    expect(clean({ ...DEFAULT_SETTINGS, fixRounds: undefined as any }).fixRounds).toBe(3);
+  });
 });

@@ -1,26 +1,77 @@
 import type { RuleResult } from './rules.js';
 
-export const AREAS = ['color', 'typography', 'spacing', 'components', 'accessibility', 'brief'] as const;
+/** Review areas, in Richa's order from her design-process skill file. */
+export const AREAS = ['system', 'interaction', 'visual', 'writing', 'accessibility'] as const;
 export type Area = (typeof AREAS)[number];
+/** Area ids from before the five areas. Old review.json files and the sample chat still carry them. */
+export const LEGACY_AREAS = ['color', 'typography', 'spacing', 'components', 'brief'] as const;
+export type LegacyArea = (typeof LEGACY_AREAS)[number];
+export type AnyArea = Area | LegacyArea;
 
-export const AREA_NAMES: Record<Area, string> = {
+export const AREA_NAMES: Record<AnyArea, string> = {
+  system: 'Design system',
+  interaction: 'Interaction',
+  visual: 'Visual craft',
+  writing: 'UX writing',
+  accessibility: 'Accessibility',
   color: 'Color',
   typography: 'Typography',
   spacing: 'Spacing and layout',
   components: 'Components',
-  accessibility: 'Accessibility',
   brief: 'Brief',
 };
 
+/** One short line per area, shown next to its tick box. */
+export const AREA_DETAIL: Record<Area, string> = {
+  system: 'Components, variants, tokens and drift',
+  interaction: 'Wiring, hover, states and flow',
+  visual: 'Grid, spacing, alignment and equal heights',
+  writing: 'Terms, labels, counts and punctuation',
+  accessibility: 'WCAG 2.2 AA: contrast, targets, focus and labels',
+};
+
+/** Where each old area went, so saved settings keep their meaning. */
+export const LEGACY_TO_AREA: Record<LegacyArea, Area> = { color: 'system', typography: 'visual', spacing: 'visual', components: 'system', brief: 'interaction' };
+
+/** Ticked areas in her order, old ids mapped to new ones, unknown ids dropped. */
+export function toAreas(list: unknown): Area[] {
+  if (!Array.isArray(list)) return [];
+  const want = new Set(list.map((a) => (AREAS as readonly unknown[]).includes(a) ? a : LEGACY_TO_AREA[a as LegacyArea]).filter(Boolean));
+  return AREAS.filter((a) => want.has(a));
+}
+
 export const PRESETS = ['check', 'quick', 'focused', 'full'] as const;
 export type ReviewPreset = (typeof PRESETS)[number];
+/** The presets the designer picks from. Check runs on its own after edits and as the final check. */
+export const SHOWN_PRESETS = ['quick', 'focused', 'full'] as const;
+export type ShownPreset = (typeof SHOWN_PRESETS)[number];
 
-export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; fixRounds: number }> = {
-  check: { label: 'Check', detail: 'Design system check only, no reviewers', fixRounds: 1 },
-  quick: { label: 'Quick', detail: 'Check plus one reviewer covering all areas', fixRounds: 1 },
-  focused: { label: 'Focused', detail: 'Check plus one reviewer per area you tick', fixRounds: 1 },
-  full: { label: 'Full', detail: 'Check plus all six area reviewers in parallel', fixRounds: 2 },
+/** fixRounds null: the run uses the Fix rounds setting. */
+export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; fixRounds: number | null }> = {
+  check: { label: 'Check', detail: 'Code scan only, no reviewers', fixRounds: 1 },
+  quick: { label: 'Quick', detail: 'Code scan, then one reviewer covering the ticked areas. Fixes once', fixRounds: 1 },
+  focused: { label: 'Focused', detail: 'Code scan, then one reviewer per ticked area', fixRounds: null },
+  full: { label: 'Full', detail: 'Code scan, then one reviewer for each of the five areas', fixRounds: null },
 };
+
+export const FIX_ROUNDS = [1, 2, 3, 4] as const;
+export const DEFAULT_FIX_ROUNDS = 3;
+
+/** How many fix rounds a design run makes before the final check. */
+export const fixRoundsFor = (preset: ReviewPreset, setting: number) => PRESET_INFO[preset].fixRounds ?? Math.min(4, Math.max(1, Math.round(setting) || DEFAULT_FIX_ROUNDS));
+
+/** How many model reviewers a run starts. */
+export const reviewerCount = (preset: ReviewPreset, areas: Area[]) => (preset === 'check' ? 0 : preset === 'quick' ? 1 : preset === 'full' ? AREAS.length : areas.length);
+
+/** Measured: one Sonnet reviewer on a few frames costs about 5 cents; reading 6 frames costs about half a cent. */
+export const REVIEWER_USD = 0.05;
+export const READ_USD = 0.005;
+
+/** A rough cost for one review round, before any fix rounds. */
+export function roundCost(preset: ReviewPreset, areas: Area[], perReviewer = REVIEWER_USD) {
+  const usd = READ_USD + reviewerCount(preset, areas) * perReviewer;
+  return usd < 0.01 ? 'under a cent' : `about $${usd.toFixed(2)}`;
+}
 
 // read: the cheap model that only drives Figma plugin reads (it never sees the file content).
 export const MODELS = { plan: 'claude-opus-5-5', work: 'claude-sonnet-5-5', read: 'claude-haiku-5-5' } as const;
@@ -43,22 +94,24 @@ export type FlowState = {
   reviewers?: ReviewerState[];
 };
 
-export type ReviewerState = { area: Area | 'all' | 'check'; state: 'running' | 'pass' | 'fail' | 'error' };
+export type ReviewerState = { area: AnyArea | 'all' | 'check'; state: 'running' | 'pass' | 'fail' | 'error' };
 
 export type Severity = 'blocking' | 'major' | 'minor';
 
 export type Finding = {
   id: string;
-  area: Area | 'check';
+  area: AnyArea | 'check';
   node: string;
   nodeName?: string;
   severity: Severity;
   rule: string;
   fix: string;
+  /** Set when fixing it changes something shared (a token, a component, a feature, other screens): the designer decides, the fix round skips it. */
+  decide?: string;
 };
 
 export type AreaResult = {
-  area: Area | 'all';
+  area: AnyArea | 'all';
   pass: boolean;
   summary: string;
   findings: Finding[];
@@ -98,9 +151,18 @@ export type SketchDoc = { screens: SketchScreen[] };
 export type DesignFrame = { screen: string; state: string; nodeId: string; name?: string };
 export type DesignDoc = { page?: string; frames: DesignFrame[] };
 
-export type DsColor = { name: string; value: string; variable?: string };
-export type DsText = { name: string; family?: string; size?: number; weight?: number | string; lineHeight?: number | string };
-export type DsComponent = { name: string; key?: string; variants?: string[]; description?: string };
+/** Where an item came from: a starter profile, the Figma file, a tokens file in code, or added by hand. */
+export type DsFrom = 'starter' | 'figma' | 'code' | 'hand';
+export type DsColor = { name: string; value: string; variable?: string; from?: DsFrom };
+export type DsText = { name: string; family?: string; size?: number; weight?: number | string; lineHeight?: number | string; from?: DsFrom };
+export type DsComponent = { name: string; key?: string; variants?: string[]; description?: string; from?: DsFrom };
+
+export type DsSource =
+  | { kind: 'figma'; key: string; name: string; at: number; error?: string }
+  | { kind: 'code'; path: string; at: number; error?: string }
+  /** Rule files are read live at review time, never copied, so they cannot drift. off: file names turned off. */
+  | { kind: 'skills'; dir: string; off: string[] };
+
 export type DesignSystem = {
   builtAt: number;
   libraries: string[];
@@ -109,7 +171,19 @@ export type DesignSystem = {
   spacing: number[];
   radius: number[];
   components: DsComponent[];
+  /** Short principles, one per line. Designs and reviews follow them. */
   rules: string[];
+  /** The fields below are missing on profiles built before sources and starters. */
+  name?: string;
+  starter?: string;
+  note?: string;
+  sources?: DsSource[];
+  /** false: designs need not use variables, styles or library components (lo-fi), so the code scan skips those checks. */
+  tokens?: boolean;
+  /** Areas this profile reviews by default. */
+  areas?: Area[];
+  /** Items the designer dropped, as "kind:name", so a refresh does not bring them back. */
+  dropped?: string[];
 };
 
 export type FigmaFile = { key: string; name: string; url: string };
@@ -123,17 +197,20 @@ export type Settings = {
   autoCheck: boolean;
   devTools: boolean;
   dailyBudgetUsd: number;
+  /** Fix rounds in a design run for Focused and Full. Quick fixes once. */
+  fixRounds: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   stopAfterSketch: false,
   preset: 'quick',
-  areas: ['components', 'accessibility', 'brief'],
+  areas: [...AREAS],
   askBeforeEdit: false,
   followClaude: true,
   autoCheck: true,
   devTools: false,
   dailyBudgetUsd: 0,
+  fixRounds: DEFAULT_FIX_ROUNDS,
 };
 
 export const flowOff = (s: Pick<Settings, 'preset' | 'areas' | 'stopAfterSketch'> = DEFAULT_SETTINGS): FlowState => ({

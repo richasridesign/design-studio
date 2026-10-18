@@ -1,5 +1,6 @@
-import { PRESET_INFO, type FigmaFile, type Finding, type FlowKind, type ReviewPreset, type SketchDoc } from '../../shared/design.js';
+import { fixRoundsFor, type FigmaFile, type Finding, type FlowKind, type ReviewPreset, type SketchDoc } from '../../shared/design.js';
 import { chosenSummary } from './sketch.js';
+import { loadedSettings } from './settings.js';
 
 export const CHECKPOINT = 'saveVersionHistoryAsync';
 
@@ -84,20 +85,21 @@ export function fixPrompt(findings: Finding[], round: number) {
     `Phase 4: fix, round ${round}. The review found these problems in the Design Studio frames:`,
     list.join('\n'),
     findings.length > 40 ? `…and ${findings.length - 40} more of the same kinds.` : '',
-    `Save a version first (use_figma with \`await figma.${CHECKPOINT}('Design Studio: review fixes ${round}')\`), then fix them in Figma. Leave everything else as it is. Update design.json if frames change. Finish with a short summary of what you fixed and anything you left alone and why.`,
+    `Save a version first (use_figma with \`await figma.${CHECKPOINT}('Design Studio: review fixes ${round}')\`), then fix them in Figma. Leave everything else as it is. Do not change shared variables, main components or styles, and do not remove features: those changes wait for the designer. Update design.json if frames change. Finish with a short summary of what you fixed and anything you left alone and why.`,
   ].filter(Boolean).join('\n\n');
 }
 
 export type AfterReview = { next: 'fix' | 'review' | 'verify' | 'done'; fixes: Finding[] };
 
-export function afterReview(preset: ReviewPreset, fixesDone: number, toFix: Finding[]): AfterReview {
+/** rounds: the Fix rounds setting. Quick and Check fix once whatever it says. */
+export function afterReview(preset: ReviewPreset, fixesDone: number, toFix: Finding[], rounds = loadedSettings().fixRounds): AfterReview {
   if (toFix.length === 0) return { next: 'done', fixes: [] };
-  if (fixesDone < PRESET_INFO[preset].fixRounds) return { next: 'fix', fixes: toFix };
+  if (fixesDone < fixRoundsFor(preset, rounds)) return { next: 'fix', fixes: toFix };
   return { next: 'done', fixes: toFix };
 }
 
-export function afterFix(preset: ReviewPreset, fixesDone: number): 'review' | 'verify' {
-  return fixesDone < PRESET_INFO[preset].fixRounds ? 'review' : 'verify';
+export function afterFix(preset: ReviewPreset, fixesDone: number, rounds = loadedSettings().fixRounds): 'review' | 'verify' {
+  return fixesDone < fixRoundsFor(preset, rounds) ? 'review' : 'verify';
 }
 
 export function parseCommand(text: string): { cmd: 'design' | 'sketch' | 'review' | 'audit' | 'system' | 'crit' | 'copy' | 'buildcheck'; arg: string } | null {

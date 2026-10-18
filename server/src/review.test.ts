@@ -9,12 +9,12 @@ vi.mock('./rules.js', async (orig) => ({ ...(await orig<typeof import('./rules.j
 vi.mock('./lean.js', () => ({ lean: vi.fn(async () => ({ data: { pass: true, summary: 'ok', findings: [] }, tokens: 1, costUsd: 0, text: '' })) }));
 
 describe('reviewersFor', () => {
-  it('runs no model for check', () => expect(reviewersFor('check', ['color'], null)).toEqual([]));
+  it('runs no model for check', () => expect(reviewersFor('check', ['system'], null)).toEqual([]));
   it('runs one combined reviewer for quick', () => expect(reviewersFor('quick', [], null)).toEqual(['all']));
-  it('runs ticked areas for focused', () => expect(reviewersFor('focused', ['brief', 'color'], null)).toEqual(['color', 'brief']));
-  it('runs all six for full, then only failed ones', () => {
-    expect(reviewersFor('full', [], null)).toHaveLength(6);
-    expect(reviewersFor('full', [], ['spacing'])).toEqual(['spacing']);
+  it('runs ticked areas for focused, in her order', () => expect(reviewersFor('focused', ['accessibility', 'system'], null)).toEqual(['system', 'accessibility']));
+  it('runs all five for full, then only failed ones', () => {
+    expect(reviewersFor('full', [], null)).toEqual(['system', 'interaction', 'visual', 'writing', 'accessibility']);
+    expect(reviewersFor('full', [], ['visual'])).toEqual(['visual']);
   });
   it('skips quick re-review when nothing failed', () => expect(reviewersFor('quick', [], [])).toEqual([]));
 });
@@ -22,13 +22,13 @@ describe('reviewersFor', () => {
 describe('review results', () => {
   const run = {
     id: 'r', kind: 'review' as const, at: 0, round: 1, preset: 'full' as const, frames: [], tokens: 0, costUsd: 0,
-    check: [{ id: 'c', area: 'color' as const, node: '1:1', severity: 'major' as const, rule: 'x', fix: 'y' }],
-    results: [{ area: 'spacing' as const, pass: false, summary: '', tokens: 0, costUsd: 0, findings: [
-      { id: 'a', area: 'spacing' as const, node: '1:2', severity: 'major' as const, rule: 'x', fix: 'y' },
-      { id: 'b', area: 'color' as const, node: '1:3', severity: 'minor' as const, rule: 'x', fix: 'y' },
+    check: [{ id: 'c', area: 'system' as const, node: '1:1', severity: 'major' as const, rule: 'x', fix: 'y' }],
+    results: [{ area: 'visual' as const, pass: false, summary: '', tokens: 0, costUsd: 0, findings: [
+      { id: 'a', area: 'visual' as const, node: '1:2', severity: 'major' as const, rule: 'x', fix: 'y' },
+      { id: 'b', area: 'system' as const, node: '1:3', severity: 'minor' as const, rule: 'x', fix: 'y' },
     ] }],
   };
-  it('lists failed areas from major findings only', () => expect(failedAreas(run)).toEqual(['spacing']));
+  it('lists failed areas from major findings only', () => expect(failedAreas(run)).toEqual(['visual']));
   it('fixes check and major findings, not minor', () => expect(toFix(run).map((f) => f.id)).toEqual(['c', 'a']));
 });
 
@@ -62,8 +62,8 @@ describe('house rules in a review', () => {
 
   it('picks one reviewer to check the rules', () => {
     expect(rulesReviewer(['all'])).toBe('all');
-    expect(rulesReviewer(['color', 'brief'])).toBe('brief');
-    expect(rulesReviewer(['spacing', 'color'])).toBe('spacing');
+    expect(rulesReviewer(['visual', 'system'])).toBe('system');
+    expect(rulesReviewer(['visual', 'writing'])).toBe('visual');
     expect(rulesReviewer([])).toBeNull();
   });
 
@@ -85,7 +85,7 @@ describe('house rules in a review', () => {
       tokens: 1, costUsd: 0, text: '',
     }) as never);
     const dir = await mkdtemp(path.join(os.tmpdir(), 'review-'));
-    const run = await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'focused', areas: ['color', 'brief'], round: 1, kind: 'review' });
+    const run = await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'focused', areas: ['system', 'interaction'], round: 1, kind: 'review' });
     const schemas = vi.mocked(lean).mock.calls.map((c) => Boolean((c[1] as any).schema.properties.rules));
     expect(schemas.filter(Boolean)).toHaveLength(1);
     expect(run.rules).toEqual([
