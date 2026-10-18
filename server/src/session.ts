@@ -39,6 +39,9 @@ const STATUS_EVERY = 8;
 let lastLimit: PlanLimit | null = null;
 let lastLimits: Limits = {};
 
+/** Most screens the auto check after an edit reads. */
+export const AUTO_CHECK_MAX = 20;
+
 export class AgentSession {
   private q: Query | null = null;
   private inputQueue: SDKUserMessage[] = [];
@@ -1015,7 +1018,8 @@ export class AgentSession {
       const { framesContaining, mapScreens } = await import('./figmaCache.js');
       const map = await mapRead;
       const screens = map ? mapScreens(map.raw.pages) : [];
-      const frames = await framesContaining(this.cwd, key, touched, screens).catch(() => touched.filter((id) => screens.includes(id)));
+      // A read that lists every screen of a section marks them all touched, so the check stops at AUTO_CHECK_MAX.
+      const frames = (await framesContaining(this.cwd, key, touched, screens).catch(() => touched.filter((id) => screens.includes(id)))).slice(0, AUTO_CHECK_MAX);
       if (!frames.length) return;
       // Decisions from an auto check stay on its run in the Review tab; only reviews she starts fill Awaiting.
       const run = await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit', awaiting: false });
