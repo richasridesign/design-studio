@@ -32,6 +32,16 @@ describe('buildReport', () => {
     expect(html).not.toContain('<h2>Copy changes</h2>');
   });
 
+  it('lists house rule results with links to failing frames', async () => {
+    const rules = [{ rule: 'One primary <b>', state: 'fail', frames: ['1:2'] }, { rule: 'Sentence case', state: 'pass', frames: [] }];
+    await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [], results: [], rules, tokens: 0, costUsd: 0 }] }));
+    const html = await buildReport(dir, figma);
+    expect(html).toContain('<h3>House rules <small>1 of 2 passed</small></h3>');
+    expect(html).toContain('Failed</span> One primary &lt;b&gt;');
+    expect(html).toContain(`href="https://www.figma.com/design/${figma.key}?node-id=1-2"`);
+    expect(html).toContain('Passed</span> Sentence case');
+  });
+
   it('escapes quotes and renders markdown lists', () => {
     expect(esc(`<a href="x">'`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;');
     expect(markdown('## Hi\n\ntext `code`\n\n1. a\n2. b')).toContain('<ol>');

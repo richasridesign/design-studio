@@ -4,6 +4,7 @@ import { AREA_NAMES, PERSONA_NAMES, figmaNodeUrl, type Finding, type FigmaFile }
 import { readSketch } from './sketch.js';
 import { readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
+import { rulesLine, type RuleResult } from '../../shared/rules.js';
 
 const MAX_SHOTS = 8;
 const MAX_SHOT_BYTES = 1.5 * 1024 * 1024;
@@ -113,11 +114,21 @@ async function design(dir: string, figma: FigmaFile | null) {
 const findingRow = (f: Finding) =>
   `<li><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span> <strong>${esc(f.nodeName || f.node)}</strong>: ${esc(f.rule)}<br><small>Fix: ${esc(f.fix)}</small></li>`;
 
-async function review(dir: string) {
+const RULE_STATE: Record<RuleResult['state'], string> = { pass: 'Passed', fail: 'Failed', unchecked: 'Not checked' };
+
+const ruleRow = (r: RuleResult, figma: FigmaFile | null) => {
+  const frames = r.state === 'fail' && r.frames.length
+    ? `<br><small>Fails on ${r.frames.map((id) => (figma ? `<a href="${esc(figmaNodeUrl(figma.key, id))}">${esc(id)}</a>` : esc(id))).join(', ')}</small>`
+    : '';
+  return `<li><span class="sev ${r.state === 'fail' ? 'major' : 'minor'}">${RULE_STATE[r.state]}</span> ${esc(r.rule)}${frames}</li>`;
+};
+
+async function review(dir: string, figma: FigmaFile | null) {
   const run = (await readReview(dir)).runs.at(-1);
   if (!run) return '';
   const parts: string[] = [`<p class="meta">${esc(new Date(run.at).toLocaleString('en-GB'))}</p>`];
   if (run.check.length) parts.push(`<h3>Design system check <small>${run.check.length} findings</small></h3><ul class="findings">${run.check.map(findingRow).join('')}</ul>`);
+  if (run.rules?.length) parts.push(`<h3>House rules <small>${esc(rulesLine(run.rules))}</small></h3><ul class="findings">${run.rules.map((r) => ruleRow(r, figma)).join('')}</ul>`);
   for (const r of run.results) {
     const name = r.area === 'all' ? 'All areas' : AREA_NAMES[r.area];
     parts.push(`<h3>${esc(name)} <small>${r.error ? 'error' : r.pass ? 'pass' : 'needs work'}</small></h3>`);
@@ -181,6 +192,6 @@ export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design')
 export async function buildReport(dir: string, figma: FigmaFile | null): Promise<string> {
   const title = figma?.name || path.basename(dir);
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const body = (await Promise.all([brief(dir), sketches(dir), design(dir, figma), review(dir), crit(dir), copy(dir)])).join('\n');
+  const body = (await Promise.all([brief(dir), sketches(dir), design(dir, figma), review(dir, figma), crit(dir), copy(dir)])).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} design report</title><style>${STYLE}</style></head><body><main><h1>${esc(title)}</h1><p class="meta">Design report, ${esc(date)}</p>${body}</main></body></html>`;
 }
