@@ -33,9 +33,9 @@ export function McpItem() {
   const ok = mcp.filter((m) => m.status === 'connected').length;
   const tone = mcp.some((m) => m.status === 'failed') ? 'bad' : mcp.some((m) => MCP_BAD.includes(m.status)) ? 'warn' : ok ? 'ok' : 'off';
   return (
-    <span className="item clickable" title="MCP servers" onClick={openMcp}>
-      <span className={`mcp-dot ${tone}`} /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
-    </span>
+    <button className="item clickable mcp-item" title="MCP servers" aria-label={mcp.length ? `MCP servers: ${ok} of ${mcp.length} connected` : 'MCP servers'} onClick={openMcp}>
+      <span className={`mcp-dot ${tone}`} aria-hidden="true" /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
+    </button>
   );
 }
 
