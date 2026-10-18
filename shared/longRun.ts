@@ -1,7 +1,7 @@
 import type { PlanLimit } from './protocol.js';
 
 export type LongRunState = 'running' | 'reporting' | 'done' | 'stopped';
-export type LongRunReason = 'time' | 'cap' | 'rejected' | 'user' | 'errors' | 'reported';
+export type LongRunReason = 'time' | 'cap' | 'rejected' | 'user' | 'errors' | 'reported' | 'ended';
 
 export type LongRun = {
   until: number;
@@ -24,7 +24,11 @@ export const REASON_TEXT: Record<LongRunReason, string> = {
   user: 'stopped by you',
   errors: `${MAX_ERRORS} errors in a row`,
   reported: 'report ready',
+  ended: 'the session ended',
 };
+
+export const ASK_DENIED =
+  'This is a long run and I am away, so I cannot answer. Do not ask. Pick the safe option or leave it as it is, list the question under "## Needs your decision" in the report, and keep working.';
 
 export const CONTINUE_TEXT =
   'Keep going with the long run task. Work through what is left, check your work, and do not wait for me. When everything is done or you are blocked on my decisions, reply with the long run report.';
@@ -96,7 +100,7 @@ export type Report = { intro: string; fixed: string[]; decide: string[]; uncheck
 
 const HEADS: Array<[keyof Omit<Report, 'intro'>, RegExp]> = [
   ['fixed', /^fixed$/i],
-  ['decide', /^needs your decision$/i],
+  ['decide', /^needs? your decisions?$/i],
   ['unchecked', /^not checked$/i],
 ];
 
@@ -110,9 +114,10 @@ export function parseReport(text: string): Report | null {
   const intro: string[] = [];
   let cur: keyof Omit<Report, 'intro'> | null = null;
   for (const line of lines) {
-    const h = /^#{2,3}\s+(.+?)\s*#*\s*$/.exec(line);
+    const h = /^#{1,4}\s+(.+?)\s*#*\s*$/.exec(line);
     if (h) {
-      const hit = HEADS.find(([, re]) => re.test(h[1].replace(/[*_:]/g, '').trim()));
+      const title = h[1].replace(/[*_]/g, '').replace(/\s*[:(\-]?\s*\d+\s*\)?\s*$/, '').replace(/:\s*$/, '').trim();
+      const hit = HEADS.find(([, re]) => re.test(title));
       if (hit) { cur = hit[0]; seen.add(cur); continue; }
       if (cur) { cur = null; continue; }
     }
