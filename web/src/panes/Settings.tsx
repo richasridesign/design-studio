@@ -53,7 +53,7 @@ function CheckSetup() {
               </div>
               <div className="check-actions">
                 {r && r.tone !== 'ok' && !row?.busy && r.fixId && <button onClick={() => void fix(id, r.fixId!)}>{r.fixLabel}</button>}
-                <button disabled={row?.busy} onClick={() => void run(id)}>Check</button>
+                <button className="ghost" disabled={row?.busy} aria-label={`Check ${CHECK_TITLES[id]}`} onClick={() => void run(id)}>Check</button>
               </div>
             </li>
           );
@@ -104,14 +104,14 @@ export function Settings() {
       {msg && <div className="banner"><Icon name="info" small /> <span>{msg}</span></div>}
       <section className="set-card" id="set-figma">
         <h2>Figma access</h2>
-        <p className="muted">Design Studio reads files, frames, thumbnails and comments with a Figma personal access token (Figma, Settings, Security, Personal access tokens). Give it read access to files and write access to comments.</p>
+        <p className="muted">Reads files, frames and thumbnails, and posts review comments, with your own token.</p>
         <label className="field">
           <span>Personal access token</span>
           <div className="inline">
             <input type="password" value={token} placeholder="figd_…" onChange={(e) => setToken(e.target.value)} />
             <button onClick={() => save({ figmaToken: token })}>Save</button>
           </div>
-          {who && <span className="muted small">{who}</span>}
+          <span className="muted small">{who || 'In Figma: Settings, Security, Personal access tokens. Read on files, write on comments.'}</span>
         </label>
         <label className="field">
           <span>Team ID, for the team files list (optional)</span>
@@ -139,11 +139,11 @@ export function Settings() {
         <Toggle label="Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
-        <Toggle label="Check frames against the design system after Claude edits Figma (free)" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
+        <Toggle label="Check frames after Claude edits Figma" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
         <div className="field">
           <span>Default review</span>
-          <div className="seg">
-            {(['quick', 'full'] as const).map((p) => <button key={p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
+          <div className="seg" role="radiogroup" aria-label="Default review">
+            {(['quick', 'full'] as const).map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
           </div>
           <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}. New chats start with this.</span>
         </div>

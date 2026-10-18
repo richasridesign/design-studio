@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { connect, getJson, useStore } from './store';
 import { Brief } from './panes/Brief';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -18,6 +18,7 @@ import { Decisions } from './panes/Decisions';
 import { Settings } from './panes/Settings';
 import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';
+import { useDialogFocus } from './useDialog';
 import { FilePill } from './AttachFile';
 import { ConnectPopover } from './ConnectPopover';
 import { McpItem, McpPage } from './panes/McpStatus';
@@ -94,16 +95,14 @@ function Preview() {
 }
 
 function Dialog({ title, onClose, extra, wide, children }: { title: string; onClose: () => void; extra?: string; wide?: boolean; children: React.ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const box = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogFocus(true, box, onClose);
   return (
     <div className="overlay settings-overlay" onClick={onClose}>
-      <div className={`settings-dialog${wide ? ' wide' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div ref={box} className={`settings-dialog${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="settings-dialog-head">
-          <span>{title}</span>
+          <h2 id={titleId}>{title}</h2>
           <button className="icon-btn" title="Close" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
         <div className="settings-dialog-body">{extra && <div id={extra} className="dialog-extra" />}{children}</div>
