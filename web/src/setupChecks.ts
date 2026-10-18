@@ -35,7 +35,7 @@ async function mcp(): Promise<CheckResult> {
     const row = rows.find((r) => /figma/i.test(r.name));
     if (!row) return { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
     if (row.status === 'connected') return { tone: 'ok', detail: `Figma tools connected${row.tools ? `, ${row.tools.length} tools` : ''}` };
-    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'The Figma plugin needs you to log in', fix: 'Run claude in a terminal, type /mcp and pick plugin:figma:figma.' };
+    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'The Figma plugin needs you to log in', fix: 'Run claude in a terminal, type /mcp and pick plugin:figma:figma.', fixLabel: 'How to log in', fixId: 'figma-login' };
     return { tone: 'bad', detail: row.error ?? `Figma tools: ${row.status}`, fix: 'Check the Figma entry on the MCP page, or add Figma to Claude again.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };

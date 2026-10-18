@@ -1,5 +1,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
+// Open dialogs, newest last. Only the top one handles Esc and Tab, so a dialog opened over Settings closes alone.
+const stack: object[] = [];
+
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -11,11 +14,14 @@ export function useDialogFocus(open: boolean, box: RefObject<HTMLElement | null>
   close.current = onClose;
   useEffect(() => {
     if (!open) return;
+    const me = {};
+    stack.push(me);
     const trigger = document.activeElement as HTMLElement | null;
     const items = () => [...(box.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => el.getClientRects().length > 0);
     const root = box.current;
     if (root && !root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0])?.focus();
     const onKey = (e: KeyboardEvent) => {
+      if (stack[stack.length - 1] !== me) return;
       if (e.key === 'Escape') {
         close.current();
         return;
@@ -35,6 +41,7 @@ export function useDialogFocus(open: boolean, box: RefObject<HTMLElement | null>
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
+      stack.splice(stack.indexOf(me), 1);
       if (trigger?.isConnected) requestAnimationFrame(() => trigger.focus());
     };
   }, [open, box]);

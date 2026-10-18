@@ -29,6 +29,7 @@ import { Research } from './panes/Research';
 import { openSection } from './Section';
 import { useCanvasContent } from './canvasContent';
 import { canNotify, toggleNotify, useNotify } from './notify';
+import { FigmaLoginHost } from './FigmaLogin';
 import './page.css';
 import './design.css';
 
@@ -372,6 +373,7 @@ export function App() {
       <RecipeEditorHost />
       <Shortcuts />
       <Research />
+      <FigmaLoginHost />
       {settings && <Dialog title="Settings" onClose={() => setSettings(false)}><Settings /></Dialog>}
       {mcpOpen && <Dialog title="MCP servers" extra="page-mcp-extra" wide onClose={() => setMcpOpen(false)}><McpPage /></Dialog>}
       {phone && <ConnectPopover onClose={() => setPhone(false)} />}
