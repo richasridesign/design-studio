@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFindings, approvePrompt, awaitKey, cleanAwaiting, decide } from './awaiting';
+import { addFindings, approvePrompt, awaitKey, cleanAwaiting, decide, stillAwaiting } from './awaiting';
 import type { Finding } from './design';
 
 const f = (rule: string, decide?: string): Finding => ({ id: rule, area: 'system', node: '1:2', nodeName: 'Home', severity: 'major', rule, fix: 'Darken text/muted to #5B5B5B', ...(decide ? { decide } : {}) });
@@ -31,5 +31,16 @@ describe('awaiting your decision', () => {
     expect(text).toContain('I approved it: Muted text fails contrast.');
     expect(text).toContain('wait for my go');
     expect(text).not.toContain('—');
+  });
+});
+
+describe('stillAwaiting', () => {
+  it('counts the run findings that are still open on the list', () => {
+    const file = { key: 'KEY', name: 'Harisson' };
+    const fs = [f('Muted text fails contrast', 'token'), f('Loose dialog', 'main component'), f('13px text')];
+    const list = addFindings([], fs, file, 1);
+    expect(stillAwaiting(fs, 'KEY', list)).toBe(2);
+    expect(stillAwaiting(fs, 'KEY', decide(list, list[0].id, 'parked', 2))).toBe(1);
+    expect(stillAwaiting(fs, undefined, null)).toBe(2);
   });
 });

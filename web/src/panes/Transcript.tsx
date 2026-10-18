@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { approvalReply } from '../../../shared/stages';
+import { stillAwaiting, type AwaitItem } from '../../../shared/awaiting';
+import { FIX_ASK } from './Stages';
 import { getJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
@@ -347,6 +349,8 @@ function ReviewCard({ runAt }: { runAt: number }) {
   const rev = useRev('review.json');
   const [doc, setDoc] = useState<ReviewDoc | null>(null);
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, rev]);
+  const [awaiting, setAwaiting] = useState<AwaitItem[] | null>(null);
+  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setAwaiting).catch(() => {}); }, [chat, rev]);
   const { triage } = useTriage();
   const latestAt = doc?.runs.length ? Math.max(...doc.runs.map((r) => r.at)) : 0;
   const outline = useOutline(figmaKey);
@@ -355,7 +359,12 @@ function ReviewCard({ runAt }: { runAt: number }) {
   if (!doc || !full) return <div className="tr-system">Review finished</div>;
   // Findings closed by hand in the Review pane leave the counts, the area rows and the checklist.
   const run = openRun(full, triage);
-  const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
+  const findings = run.results.flatMap((r) => r.findings);
+  const hasFindings = run.check.length + findings.length > 0;
+  // Fix rounds skip the findings that wait for her decision, so Fix the issues shows only when something else is left.
+  const fixable = findings.some((f) => !f.decide && f.severity !== 'minor') || rulesTone(run) === 'fail';
+  const deciding = stillAwaiting(findings, figmaKey, awaiting);
+  const openReview = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }));
   const copy = () => {
     navigator.clipboard.writeText(reviewChecklist(run, figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
     setCopied(true);
@@ -365,7 +374,7 @@ function ReviewCard({ runAt }: { runAt: number }) {
     <div className="tr-review">
       <div className="tr-review-head">
         <b>{runLabel(run)}</b>
-        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}</span>
+        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}{deciding > 0 && <> · <button className="link tr-review-await" title="Open Review: findings that change something shared wait for your decision" onClick={openReview}>{deciding} {deciding === 1 ? 'waits' : 'wait'} for your decision</button></>}</span>
       </div>
       {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
       <ul className="tr-review-rows">
@@ -386,7 +395,12 @@ function ReviewCard({ runAt }: { runAt: number }) {
       </ul>
       {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review. <button className="link" onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
       <div className="tr-review-actions">
-        <button onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }))}>Open Review</button>
+        {fixable ? (
+          <>
+            <button title="Put the fix request in the message box" onClick={() => insertPrompt(FIX_ASK)}>Fix the issues</button>
+            <button className="link" onClick={openReview}>Open Review</button>
+          </>
+        ) : <button onClick={openReview}>Open Review</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {retryPrompt(run) && <button className="link" title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
         {canGoDeeper(run) && <button className="link" onClick={() => insertPrompt('/review full')}>Review deeper</button>}

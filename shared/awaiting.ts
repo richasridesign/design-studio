@@ -15,7 +15,8 @@ export type AwaitItem = {
   fileName: string;
   node: string;
   nodeName?: string;
-  area: AnyArea | 'check';
+  /** 'long_run': a question from a long run report, not a review finding. */
+  area: AnyArea | 'check' | 'long_run';
   severity: Severity;
   rule: string;
   /** The reviewer's suggested fix: the recommended option. */
@@ -75,6 +76,22 @@ export function addFindings(list: AwaitItem[], findings: Finding[], file: { key:
   return next.slice(-MAX_AWAIT);
 }
 
+/** The items under "Needs your decision" in a long run report. Each keeps its node link when it has one. */
+export function addQuestions(list: AwaitItem[], items: Array<{ text: string; fileKey: string; node: string }>, file: { key: string; name: string }, now = Date.now()): AwaitItem[] {
+  const next = [...list];
+  for (const q of items) {
+    const rule = text(q.text);
+    if (!rule) continue;
+    const id = awaitKey(q.fileKey, { rule, node: q.node });
+    if (next.some((x) => x.id === id)) continue;
+    next.push({ id, at: now, fileKey: q.fileKey, fileName: q.fileKey === file.key ? file.name : '', node: q.node, area: 'long_run', severity: 'major', rule, fix: '', impact: '', state: 'open' });
+  }
+  return next.slice(-MAX_AWAIT);
+}
+
+/** The prompt Answer puts in the message box for a long run question. */
+export const answerPrompt = (rule: string) => `About "${rule.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim()}": `;
+
 export function decide(list: AwaitItem[], id: string, state: AwaitState, now = Date.now()): AwaitItem[] {
   return list.map((x) => (x.id === id ? (state === 'open' ? { ...x, state, decidedAt: undefined } : { ...x, state, decidedAt: now }) : x));
 }
@@ -92,3 +109,11 @@ export function approvePrompt(item: Pick<AwaitItem, 'rule' | 'fix' | 'impact' | 
 
 /** A link to the node in its Figma file, for items from any file. */
 export const nodeUrl = (fileKey: string, node: string) => `https://www.figma.com/design/${fileKey}/?node-id=${node.replace(':', '-')}`;
+
+/** How many of a run's findings still wait for her decision. Without the list (not loaded yet) every finding marked decide counts. */
+export function stillAwaiting(findings: Finding[], fileKey: string | undefined, list: AwaitItem[] | null): number {
+  const asked = findings.filter((f) => f.decide);
+  if (!list || !fileKey) return asked.length;
+  const open = new Set(list.filter((x) => x.state === 'open').map((x) => x.id));
+  return asked.filter((f) => open.has(awaitKey(fileKey, f))).length;
+}

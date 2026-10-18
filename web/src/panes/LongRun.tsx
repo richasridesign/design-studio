@@ -106,7 +106,7 @@ export function LongRunLine() {
     <div className="lr-line" role="status">
       <span className={`lr-dot ${dotFor(run)}`} aria-hidden />
       <span className="lr-text">{lineText(run, used)}</span>
-      <button className="link" title="Stop the long run and the current turn" onClick={() => send({ type: 'long_run_stop' })}>Stop</button>
+      <button className="link" title="Stop the long run and the current turn" onClick={() => send({ type: 'long_run_stop' })}>End long run</button>
     </div>
   );
 }
