@@ -65,6 +65,7 @@ describe('stages', () => {
       ['Review run', 'met', 'Round 1, 1 frame'],
       ['No blocking or major issues', 'open', '1 issue open'],
       ['House rules followed', 'open', '1 of 2 failed'],
+      ['Prototype wired', 'unchecked', 'Flow check has not run on this file'],
     ]);
   });
 
@@ -72,6 +73,19 @@ describe('stages', () => {
     const s = byId({ ...none, review: { runs: [run()] } }, { spec: { at: 1 }, explore: { at: 1 }, decide: { at: 1 }, build: { at: 1 } });
     expect(s.validate.checks[2].state).toBe('unchecked');
     expect(s.validate.state).toBe('ready');
+  });
+});
+
+describe('flow check on the Validate gate', () => {
+  const flow = (id: string, counts: Record<string, number>, state: 'pass' | 'fail' | 'unchecked' = 'pass') => ({ id, name: id, path: [], page: 'p', screens: 1, state, counts, unchecked: [], findings: [], more: 0 });
+  const fc = (flows: ReturnType<typeof flow>[]) => ({ id: 'f', at: 1, fileKey: 'k', flows, unchecked: [] });
+  it('blocks while a flow has issues and ignores flows it could not check', () => {
+    const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', { 'no-hover': 2 }, 'fail'), flow('b', {}), flow('c', {}, 'unchecked')]) });
+    expect(s.validate.checks.at(-1)).toMatchObject({ label: 'Prototype wired', state: 'open', detail: 'Flow check: issues in 1 of 2 flows' });
+  });
+  it('passes when every flow passed', () => {
+    const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', {})]) });
+    expect(s.validate.checks.at(-1)).toMatchObject({ state: 'met', detail: 'Flow check: the flow passed' });
   });
 });
 

@@ -91,6 +91,8 @@ export function FlowCheck() {
     try {
       const r = await postJson<{ run: FlowCheckRun }>('/api/flowcheck', {});
       setRun(r.run);
+      // The Validate gate counts this run.
+      window.dispatchEvent(new Event('designstudio:evidence'));
       const first = r.run.flows.find((f) => f.state === 'fail');
       setOpen(first ? { [first.id]: true } : {});
     } catch (e) {
