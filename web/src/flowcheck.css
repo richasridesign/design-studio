@@ -10,6 +10,9 @@
 .fc-error { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: rgba(201, 54, 54, 0.06); color: var(--err); font-size: var(--text-sm); line-height: 20px; }
 .fc-meta { margin: 0; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 .fc-note { color: var(--fg-muted); }
+.fc-missing { margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+/* Flows in Scope with no section: an amber triangle, a shape no other state uses. */
+.fc-tri { flex: none; width: 12px; height: 12px; margin-top: 4px; background: var(--warn); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .fc-ask { height: 36px; padding: 0 16px; background: var(--bg); border: 1px solid var(--border-strong); }
 .fc-ask:hover { background: var(--bg-hover); }
 
