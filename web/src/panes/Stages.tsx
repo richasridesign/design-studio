@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { CHAT_KINDS, KIND_INFO, REPEATS, stepLine, type ChatKind, type Stage, type StageCheck, type StageId, type StageOpen, type StagesView, type StepAction } from '../../../shared/stages';
@@ -6,6 +6,9 @@ import { RECIPES } from '../../../shared/recipes';
 import { focusComposer, insertPrompt } from './Files';
 import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
+import { IconButton } from '../Tip';
+import { narrowNow } from '../touch';
+import { useDialogFocus } from '../useDialog';
 import '../stages.css';
 
 const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open handoff report', attach: 'Attach Figma file', research: 'Open research', states: 'Show states' };
@@ -77,15 +80,35 @@ export function useStages() {
   return { view, error, change, reload: () => setTick((t) => t + 1) };
 }
 
-/** Open or closed, remembered per chat. Closed by default, so the chat keeps its room. */
+/**
+ * Open or closed, remembered per chat. Closed by default, so the chat keeps its room.
+ * On a phone the panel is a full-height sheet, so it always starts closed there: opening a chat never covers it.
+ */
 export function useStepsOpen() {
   const sid = useStore((s) => s.session.sessionId);
   const key = `designstudio.steps.${sid ?? 'new'}`;
-  const read = () => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
+  const read = () => { try { return !narrowNow() && localStorage.getItem(key) === '1'; } catch { return false; } };
   const [open, setOpen] = useState(read);
   useEffect(() => setOpen(read()), [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem(key, v ? '1' : '0'); } catch {} };
-  return { open, toggle };
+  const set = (v: boolean) => { setOpen(v); try { localStorage.setItem(key, v ? '1' : '0'); } catch {} };
+  return { open, toggle: () => set(!open), close: () => set(false) };
+}
+
+/** Phone: the steps open as a full-height sheet over the chat, with a heading, a close button, Esc and focus kept inside. */
+export function StepsSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(true, box, onClose);
+  return (
+    <div className="steps-sheet-overlay" onClick={onClose}>
+      <div ref={box} className="steps-sheet" role="dialog" aria-modal="true" aria-labelledby="steps-sheet-h" onClick={(e) => e.stopPropagation()}>
+        <div className="steps-sheet-head">
+          <h2 id="steps-sheet-h">Steps</h2>
+          <IconButton label="Close steps" tip="Close" onClick={onClose}><Icon name="close" /></IconButton>
+        </div>
+        <div className="steps-sheet-body">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 const STATE_WORD: Record<Stage['state'], string> = { done: 'done', skipped: 'not needed', todo: 'to do' };
@@ -129,7 +152,7 @@ function closeOnEscape(e: React.KeyboardEvent) {
 const KIND_CHOICES: Array<ChatKind | 'none'> = [...CHAT_KINDS, 'none'];
 const kindLabel = (k: ChatKind | 'none') => (k === 'none' ? 'No steps' : KIND_INFO[k].label);
 
-export function StepsPanel({ view, error, change, reload }: ReturnType<typeof useStages> & { view: StagesView }) {
+export function StepsPanel({ view, error, change, reload, sheet = false }: ReturnType<typeof useStages> & { view: StagesView; sheet?: boolean }) {
   const spec = view.steps.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
   const [shown, setShown] = useState<StageId | null>(null);
@@ -137,7 +160,7 @@ export function StepsPanel({ view, error, change, reload }: ReturnType<typeof us
   const hasSpec = view.steps.some((s) => s.id === 'spec');
   const current = view.kind ?? 'none';
   return (
-    <section className="steps-panel" id="steps-panel" aria-label="Steps" onKeyDown={closeOnEscape}>
+    <section className="steps-panel" id="steps-panel" aria-label={sheet ? undefined : 'Steps'} onKeyDown={sheet ? undefined : closeOnEscape}>
       <div className="steps-kind-row">
         <label htmlFor="steps-kind">Kind of work</label>
         <select id="steps-kind" value={current} aria-describedby={view.kind ? 'steps-guess' : undefined} onChange={(e) => change({ action: 'kind', kind: e.target.value as ChatKind | 'none' })}>

@@ -6,12 +6,12 @@ import { Pending } from './Pending';
 import { Composer } from './Chat';
 import { RunCard } from './RunCard';
 import { ReadAloud } from './Voice';
-import { touch } from '../touch';
+import { touch, useNarrow } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
-import { StepsButton, StepsPanel, useStages, useStepsOpen } from './Stages';
+import { StepsButton, StepsPanel, StepsSheet, useStages, useStepsOpen } from './Stages';
 import { stepLabel } from './steps';
 import { insertPrompt } from './Files';
 import { quickReplies, replyToAnswer } from './quickReplies';
@@ -61,6 +61,7 @@ export function Brief() {
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
   const stages = useStages();
   const steps = useStepsOpen();
+  const narrow = useNarrow();
   // Up next, Claude's own list of what it does after this turn: shown when it has items, hidden when empty (Add to Up next lives with the items).
   const hasSteps = next.length > 0 || adding;
   const answerTo = useMemo(() => replyToAnswer(events), [events]);
@@ -87,7 +88,9 @@ export function Brief() {
             {stages.view && <StepsButton view={stages.view} open={steps.open} onToggle={steps.toggle} />}
           </div>
         )}
-        {events.length > 0 && steps.open && stages.view && <StepsPanel {...stages} view={stages.view} />}
+        {events.length > 0 && steps.open && stages.view && (narrow
+          ? <StepsSheet onClose={steps.close}><StepsPanel {...stages} view={stages.view} sheet /></StepsSheet>
+          : <StepsPanel {...stages} view={stages.view} />)}
         <Transcript view={view}>
           <RunCard />
           {(events.length > 0 || running) && <div className="tl-foot">

@@ -14,6 +14,10 @@
   .brief { display: contents; --brief-bg: var(--bg); }
   .brief-status { order: 0; flex: 1 1 0; min-height: 0; overflow: hidden; padding: 0 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
   .brief-cards { order: 1; flex: none; max-height: 50%; overflow: auto; padding: 8px 12px; }
+  /* A waiting plan or question reads at full height: the cards take the free space, the conversation keeps a short
+     strip with its last lines, and the card's actions stay pinned at its bottom. */
+  .brief:has(> .brief-cards) > .brief-status { flex: 0 1 30%; }
+  .brief:has(> .brief-cards) > .brief-cards { flex: 1 1 auto; min-height: 0; max-height: none; }
   .brief-input { order: 2; flex: none; padding: 6px 12px 8px; }
   .step .acts { opacity: 1; }
   .step { min-height: 36px; font-size: var(--text-md); }

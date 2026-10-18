@@ -66,7 +66,7 @@ describe('PlanCard', () => {
     expect(out).toContain('Approve<kbd>Y</kbd>');
     expect(out).toContain('Ask for changes<kbd>N</kbd>');
     expect(out).not.toContain('Always allow');
-    expect(out).toContain('Or type go, or what to change, in the message box');
+    expect(out).toContain('Or type your answer below');
   });
 });
 

@@ -130,7 +130,7 @@ function PlanDecision({ p, mode, first, cardRef }: CardProps & { cardRef: RefObj
         <button className="pd-btn primary" onClick={() => reply(true)}>Approve<kbd>Y</kbd></button>
         <button className="pd-btn" onClick={() => setNote('')}>Ask for changes<kbd>N</kbd></button>
       </div>
-      <div className="pd-hint">Or type go, or what to change, in the message box</div>
+      <div className="pd-hint">Or type your answer below</div>
     </div>
   );
 }
