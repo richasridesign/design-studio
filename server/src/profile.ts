@@ -50,7 +50,30 @@ export function profileMarkdown(ds: DesignSystem) {
   ].join('\n');
 }
 
+/**
+ * Reads the file's variables, styles and components through the plugin first (about half a cent, names and values
+ * only) and keeps what she already has: starter values, code tokens, dropped items, rule files. Only when the plugin
+ * read fails or finds nothing does a model search the library through the Figma tools.
+ */
 export async function buildProfile(dir: string, figma: FigmaFile, signal?: AbortSignal) {
+  try {
+    const { readFigmaKit, writeProfile } = await import('./dsSources.js');
+    const { blankProfile, mergeFound, withSource } = await import('../../shared/dsProfiles.js');
+    const r = await readFigmaKit(dir, figma.key, { signal });
+    if (r.found.colors.length + r.found.text.length + r.found.components.length > 0) {
+      const now = Date.now();
+      const base = (await readProfile(dir)) ?? blankProfile(now);
+      const ds = await writeProfile(dir, withSource(mergeFound(base, r.found, 'figma', now), { kind: 'figma', key: figma.key, name: figma.name, at: now }));
+      return { ds, tokens: 0, costUsd: r.costUsd };
+    }
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.error('profile plugin read:', (err as Error).message);
+  }
+  return buildProfileWithModel(dir, figma, signal);
+}
+
+async function buildProfileWithModel(dir: string, figma: FigmaFile, signal?: AbortSignal) {
   const { servers, plugins, name } = await figmaMcp();
   const frames = await fileOutline(dir, figma.key, { signal }).then((o) => o.pages.flatMap((p) => p.frames).slice(0, 6).map((f) => `${f.id} ${f.name} (${f.page})`)).catch(() => [] as string[]);
   const prompt = [
@@ -73,8 +96,12 @@ export async function buildProfile(dir: string, figma: FigmaFile, signal?: Abort
     signal,
   });
   if (!r.data) throw new Error(`Could not build the design system profile: ${r.error ?? 'no result'}`);
-  const ds: DesignSystem = { builtAt: Date.now(), ...r.data };
-  await writeFile(path.join(dir, PROFILE_FILE), JSON.stringify(ds, null, 2));
-  await writeFile(path.join(dir, 'design-system.md'), profileMarkdown(ds));
+  // Merged like the plugin read, so starter values, code tokens, dropped items and rule files stay.
+  const { writeProfile } = await import('./dsSources.js');
+  const { blankProfile, mergeFound, withSource } = await import('../../shared/dsProfiles.js');
+  const now = Date.now();
+  const base = (await readProfile(dir)) ?? blankProfile(now);
+  const merged = mergeFound(base, r.data, 'figma', now);
+  const ds: DesignSystem = await writeProfile(dir, withSource({ ...merged, rules: base.rules.length ? base.rules : r.data.rules }, { kind: 'figma', key: figma.key, name: figma.name, at: now }));
   return { ds, tokens: r.tokens, costUsd: r.costUsd };
 }
