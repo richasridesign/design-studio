@@ -2,7 +2,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildReport, esc, markdown, safeId } from './report.js';
+import { briefLede, buildReport, esc, markdown, safeId } from './report.js';
 
 let dir = '';
 const figma = { key: 'abcdefghij1', name: 'Shop <app>', url: 'https://www.figma.com/design/abcdefghij1' };
@@ -90,6 +90,75 @@ describe('buildReport', () => {
     const html = await buildReport(dir, figma);
     expect(html).not.toContain('<h2>Research</h2>');
     expect(html).not.toContain('<h2>Scope</h2>');
+  });
+
+  it('opens with a summary: goal, Figma link, stage strip and open issue counts', async () => {
+    await writeFile(path.join(dir, 'plan.md'), '# Shop\n\n## Goal\nLet people <check out> fast.\n\n## Users\n- Parents');
+    await writeFile(path.join(dir, 'stages.json'), JSON.stringify({ spec: { at: 1 }, explore: { at: 2 } }));
+    await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2' }, { screen: 'Cart', state: 'Error', nodeId: '1:3' }] }));
+    const f = (id: string, severity: string) => ({ id, area: 'color', node: '1:2', severity, rule: 'r', fix: 'x' });
+    await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [f('a', 'blocking'), f('b', 'minor')], results: [{ area: 'color', pass: false, summary: 's', findings: [f('c', 'major'), f('d', 'major')], tokens: 0, costUsd: 0 }], rules: [{ rule: 'One primary', state: 'fail', frames: [] }], tokens: 0, costUsd: 0 }] }));
+    await writeFile(path.join(dir, 'flowcheck.json'), JSON.stringify({ runs: [{ id: 'f', at: 1, fileKey: figma.key, unchecked: [], flows: [
+      { id: '9:1', name: 'Checkout', path: [], page: 'P', screens: 3, state: 'fail', counts: { 'no-hover': 2 }, unchecked: [], findings: [], more: 0 },
+      { id: '9:2', name: 'Empty', path: [], page: 'P', screens: 1, state: 'pass', counts: {}, unchecked: [], findings: [], more: 0 },
+    ] }] }));
+    const html = await buildReport(dir, figma);
+    const top = html.slice(html.indexOf('<section id="summary"'), html.indexOf('<section id="brief"'));
+    expect(top).toContain('<p class="lede">Let people &lt;check out&gt; fast.</p>');
+    expect(top).toContain(`<a class="file" href="${figma.url}">Open in Figma</a>`);
+    expect(top).toContain('<dt>Frames:</dt><dd>2 frames, 1 screen</dd>');
+    expect(top).toContain('<dt>Stage:</dt><dd>Decide</dd>');
+    expect(top).toContain('<span class="st pass">Explore</span><small>Approved</small>');
+    expect(top).toContain('<span class="st current">Decide</span><small>Current</small>');
+    expect(top).toContain('<span class="st none">Ship</span><small>Later</small>');
+    expect(top).toContain('<span class="num">1</span><span class="st blocking">Blocking</span>');
+    expect(top).toContain('<span class="num">2</span><span class="st major">Major</span>');
+    expect(top).toContain('<span class="num">1</span><span class="st minor">Minor</span>');
+    expect(top).toContain('House rules:</span> 0 of 1 passed');
+    expect(top).toContain('Prototype check:</span> 2 issues in 1 of 2 flows');
+    expect(html).toContain('<nav class="toc" aria-label="Contents">');
+    expect(html).not.toContain('<h3>Shop</h3>');
+  });
+
+  it('says the review has not run instead of showing zero issues', async () => {
+    await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2', name: 'Cart <main>' }] }));
+    const html = await buildReport(dir, figma);
+    expect(html).toContain('Review:</span> Not run yet');
+    expect(html).toContain('Prototype check:</span> Not run yet');
+    expect(html).not.toContain('class="tiles"');
+    expect(html).not.toContain('<h2>Review</h2>');
+    // No screenshot: the frame is a linked row, not an empty card.
+    const design = html.slice(html.indexOf('<section id="design"'));
+    expect(design).not.toContain('<figure');
+    expect(design).toContain(`<li><a href="https://www.figma.com/design/${figma.key}?node-id=1-2">Cart &lt;main&gt;</a>`);
+  });
+
+  it('shows one plain line and no headings for an empty chat', async () => {
+    const html = await buildReport(dir, null);
+    expect(html).not.toContain('<h2');
+    expect(html).not.toContain('<nav');
+    expect(html).toContain('Nothing to hand off yet.');
+  });
+
+  it('keeps a lone section without a table of contents or empty issue block', async () => {
+    await writeFile(path.join(dir, 'plan.md'), 'Just a line');
+    const html = await buildReport(dir, figma);
+    expect(html).not.toContain('<nav');
+    expect(html).not.toContain('Open issues');
+    expect(html).not.toContain('<dt>Stage:</dt>');
+  });
+
+  it('drops a title heading and starts headings at h3', () => {
+    expect(markdown('# Research\n\n## Looked at\n- a', { dropTitle: true })).toBe('<h3>Looked at</h3>\n<ul>\n<li>a</li>\n</ul>');
+    expect(markdown('### Deep\ntext')).toBe('<h3>Deep</h3>\n<p>text</p>');
+    expect(markdown('# One\n# Two', { dropTitle: true })).toContain('<h3>One</h3>');
+  });
+
+  it('takes the lede from the Goal section, or the first paragraph', () => {
+    expect(briefLede('# T\n\n## Users\n- a\n\n## Goal\nShip **fast**\nand calm.\n\n## Next\nNo')).toBe('Ship fast and calm.');
+    expect(briefLede('# T\n\nFirst para.\n\n## Goal')).toBe('First para.');
+    expect(briefLede('x'.repeat(400))).toHaveLength(280);
+    expect(briefLede('- only a list')).toBe('');
   });
 
   it('inlines sketches as data images, not markup', async () => {
