@@ -31,36 +31,39 @@
 .steps-marks .step-mark .codicon { font-size: 8px; }
 .steps-kind { overflow: hidden; text-overflow: ellipsis; }
 @container chathead (max-width: 480px) { .steps-kind { display: none; } }
+@container chathead (max-width: 400px) { .steps-marks { display: none; } }
 
 /* The panel scrolls on its own and stays short, so the conversation keeps most of the column. */
 .steps-panel {
-  flex: 0 1 auto; min-height: 0; max-height: clamp(240px, 45%, 520px); overflow-y: auto; overscroll-behavior: contain;
+  flex: 0 0 auto; min-height: 0; max-height: clamp(240px, 45%, 520px); overflow-y: auto; overscroll-behavior: contain;
   display: grid; gap: 12px; margin: 0 0 12px; padding: 12px 16px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
 }
 .steps-panel ~ .tr { min-height: 144px; }
 
-.steps-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
-.steps-kinds button {
-  min-height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: transparent;
-  font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted);
+/* Kind of work: one line, a select with a drawn arrow 12px from the right, like the 12px text inset on the left. */
+.steps-kind-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--text-sm); line-height: 20px; }
+.steps-kind-row label { font-weight: 600; }
+.steps-kind-row select {
+  appearance: none; min-height: 32px; padding: 0 36px 0 12px; border: 1px solid var(--input-border); border-radius: var(--radius-sm);
+  background: var(--input) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+  font: inherit; color: var(--fg);
 }
-.steps-kinds button:hover { background: var(--bg-hover); color: var(--fg); }
-.steps-kinds button.on { border-color: var(--fg); background: var(--fg); color: var(--on-accent); font-weight: 600; }
+.steps-kind-row select:hover { border-color: var(--input-border-hover); }
 .steps-hint { margin: 0; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
 
 .steps-list { display: grid; margin: 0; padding: 0; list-style: none; }
 .step-row { border-top: 1px solid var(--border); }
 .step-row:first-child { border-top: 0; }
-.step-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 44px; }
 .step-toggle {
-  flex: 1 1 160px; min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; margin-left: -8px;
+  width: calc(100% + 16px); display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px; margin: 0 -8px;
   border: 0; border-radius: var(--radius-sm); background: transparent; font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
 }
+.step-toggle > .codicon { margin-left: auto; }
 .step-toggle:hover { background: var(--bg-hover); }
 .step-name { font-weight: 600; }
 .step-row.skipped .step-name { font-weight: 400; color: var(--fg-muted); }
-.step-meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }
-.step-acts { display: inline-flex; align-items: center; gap: 12px; margin-left: auto; font-size: var(--text-sm); line-height: 20px; }
+.step-meta { min-width: 0; color: var(--fg-muted); }
+.step-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0 0 12px 24px; font-size: var(--text-sm); line-height: 20px; }
 .step-acts .link { min-height: 24px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 .step-btn { min-height: 32px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 
@@ -90,10 +93,10 @@
 
 @media (max-width: 900px) {
   .steps-btn { min-height: 36px; font-size: var(--text-md); }
-  .steps-kinds button, .step-btn { min-height: 36px; }
+  .steps-kind-row select, .step-btn { min-height: 36px; }
   .step-acts .link, .step-next .link, .step-add-note, .step-check .link { min-height: 36px; }
   .steps-panel { padding: 12px; }
-  .step-body { padding-left: 0; }
+  .step-body, .step-acts { padding-left: 0; }
 }
 
 /* Scope: flows the work keeps and parked features, between the rail and the gate. */
