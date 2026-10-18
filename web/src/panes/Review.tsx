@@ -8,6 +8,7 @@ import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FlowCheck } from './FlowCheck';
 import { FrameNames } from '../FrameNames';
+import { Confirm } from '../Confirm';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
 import { rulesLine, type RuleResult } from '../../../shared/rules';
@@ -108,7 +109,10 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
   const [posting, setPosting] = useState(false);
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const postBtn = useRef<HTMLButtonElement>(null);
   const figmaKey = useStore((s) => s.session.figma?.key);
+  const fileName = useStore((s) => s.session.figma?.name) ?? 'the Figma file';
   const pending = unposted(run, doc);
   const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
   const copy = () => {
@@ -135,10 +139,22 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
       <div className="review-summary">
         <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
         <div className="muted">{run.tokens ? `${k(run.tokens)} tokens · $${run.costUsd.toFixed(2)}` : 'No tokens used'}</div>
-        {pending.length > 0 && <button disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={post}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
+        {pending.length > 0 && <button ref={postBtn} disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={() => setAsking(true)}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
-        {note && <span className="muted">{note}</span>}
+        {note && <span className="muted" role="status">{note}</span>}
       </div>
+      {asking && (
+        <Confirm
+          safe
+          icon="comment"
+          title={`Post ${pending.length} ${pending.length === 1 ? 'comment' : 'comments'} to Figma?`}
+          detail={`Each finding becomes a comment on its frame in ${fileName}.`}
+          warning="Everyone with access to the file sees them."
+          action={`Post ${pending.length}`}
+          run={post}
+          onClose={() => { setAsking(false); requestAnimationFrame(() => postBtn.current?.focus()); }}
+        />
+      )}
       <div className="review-grid">
         <AreaCard title="Design system check" sub={run.checkError ?? (run.check.length ? `${run.check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !run.check.some((f) => f.severity !== 'minor'), !!run.checkError, run.check)} tokens={0} findings={run.check} grouped focusAt={focusAt('check')} />
         {!!run.rules?.length && (
