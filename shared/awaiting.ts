@@ -28,6 +28,22 @@ export type AwaitItem = {
 };
 
 export const MAX_AWAIT = 300;
+
+/**
+ * Keeps the list at MAX_AWAIT by dropping decided items, the oldest decision first. An open item is never dropped:
+ * with only open items left the list can run over, since each one is a question she has not answered yet.
+ */
+export function capAwaiting(list: AwaitItem[], max = MAX_AWAIT): AwaitItem[] {
+  const over = list.length - max;
+  if (over <= 0) return list;
+  const drop = new Set(list
+    .map((x, i) => ({ i, t: x.state === 'open' ? -1 : x.decidedAt ?? x.at }))
+    .filter((x) => x.t >= 0)
+    .sort((a, b) => a.t - b.t || a.i - b.i)
+    .slice(0, over)
+    .map((x) => x.i));
+  return list.filter((_, i) => !drop.has(i));
+}
 const TEXT_MAX = 400;
 const text = (v: unknown, max = TEXT_MAX) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
@@ -61,7 +77,7 @@ export function cleanAwaiting(input: unknown): AwaitItem[] {
       ...(typeof r.decidedAt === 'number' ? { decidedAt: r.decidedAt } : {}),
     });
   }
-  return out.slice(-MAX_AWAIT);
+  return capAwaiting(out);
 }
 
 /** Adds the run's findings that need a decision. A finding already on the list keeps its state; an open one gets the newer wording. */
@@ -75,7 +91,7 @@ export function addFindings(list: AwaitItem[], findings: Finding[], file: { key:
     if (at < 0) next.push(item);
     else if (next[at].state === 'open') next[at] = { ...item, at: next[at].at };
   }
-  return next.slice(-MAX_AWAIT);
+  return capAwaiting(next);
 }
 
 /** The items under "Needs your decision" in a long run report. Each keeps its node link when it has one. */
@@ -88,7 +104,7 @@ export function addQuestions(list: AwaitItem[], items: Array<{ text: string; fil
     if (next.some((x) => x.id === id)) continue;
     next.push({ id, at: now, fileKey: q.fileKey, fileName: q.fileKey === file.key ? file.name : '', node: q.node, area: 'long_run', severity: 'major', rule, fix: '', impact: '', state: 'open' });
   }
-  return next.slice(-MAX_AWAIT);
+  return capAwaiting(next);
 }
 
 /** The prompt Answer puts in the message box for a long run question. */
@@ -98,21 +114,38 @@ export function decide(list: AwaitItem[], id: string, state: AwaitState, now = D
   return list.map((x) => (x.id === id ? (state === 'open' ? { ...x, state, decidedAt: undefined } : { ...x, state, decidedAt: now }) : x));
 }
 
+const approveLine = (rule: string) => `Fix this across the file, I approved it: ${rule.replace(/\.$/, '')}`;
+
 /** The prompt an approval puts in the message box. It is never sent on its own. */
 export function approvePrompt(item: Pick<AwaitItem, 'rule' | 'fix' | 'impact' | 'node' | 'nodeName'>, nodeUrl?: string) {
   return [
-    `Fix this across the file, I approved it: ${item.rule.replace(/\.$/, '')}.`,
+    `${approveLine(item.rule)}.`,
     `Fix: ${item.fix}`,
     `It touches: ${item.impact}`,
     `Found on ${item.nodeName ? `"${item.nodeName}" ` : ''}${nodeUrl ?? item.node}.`,
-    'Plan first: list every place it changes and wait for my go. Save a version before editing.',
+    'Plan first: list every place it changes and wait for my go.',
   ].join('\n');
 }
 
-/** How many of a run's findings still wait for her decision. Without the list (not loaded yet) every finding marked decide counts. */
+/**
+ * The start of the message that approves or answers an item. Approve and Answer only put the prompt in the message box;
+ * the item is decided when she sends a message that starts with this, so an edited prompt still counts.
+ */
+export const sentKey = (item: Pick<AwaitItem, 'area' | 'rule'>) => (item.area === 'long_run' ? answerPrompt(item.rule).replace(/:\s*$/, '') : approveLine(item.rule));
+const squash = (t: string) => t.replace(/\s+/g, ' ').trim().toLowerCase();
+export const sentFor = (item: Pick<AwaitItem, 'area' | 'rule'>, message: string) => squash(message).startsWith(squash(sentKey(item)));
+
+/** The finding's state on the Awaiting list, or null when it is not on it (an auto check, or past the per-run cap). */
+export function awaitState(f: Pick<Finding, 'rule' | 'node'>, fileKey: string | undefined, list: AwaitItem[] | null): AwaitState | null {
+  if (!list || !fileKey) return null;
+  const id = awaitKey(fileKey, f);
+  return list.find((x) => x.id === id)?.state ?? null;
+}
+
+/** How many of a run's findings still wait for her decision on the Awaiting list. Until the list loads, none: it never claims more than the list holds. */
 export function stillAwaiting(findings: Finding[], fileKey: string | undefined, list: AwaitItem[] | null): number {
   const asked = findings.filter((f) => f.decide);
-  if (!list || !fileKey) return asked.length;
+  if (!list || !fileKey) return 0;
   const open = new Set(list.filter((x) => x.state === 'open').map((x) => x.id));
   return asked.filter((f) => open.has(awaitKey(fileKey, f))).length;
 }

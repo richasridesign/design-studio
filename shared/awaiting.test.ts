@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFindings, addQuestions, answerPrompt, approvePrompt, awaitKey, cleanAwaiting, decide, openCount, stillAwaiting } from './awaiting';
+import { MAX_AWAIT, addFindings, addQuestions, answerPrompt, approvePrompt, awaitKey, awaitState, capAwaiting, cleanAwaiting, decide, openCount, sentFor, sentKey, stillAwaiting, type AwaitItem } from './awaiting';
 import type { Finding } from './design';
 
 const f = (rule: string, decide?: string): Finding => ({ id: rule, area: 'system', node: '1:2', nodeName: 'Home', severity: 'major', rule, fix: 'Darken text/muted to #5B5B5B', ...(decide ? { decide } : {}) });
@@ -31,6 +31,7 @@ describe('awaiting your decision', () => {
     expect(text).toContain('I approved it: Muted text fails contrast.');
     expect(text).toContain('wait for my go');
     expect(text).not.toContain('—');
+    expect(text).not.toContain('Save a version');
   });
 });
 
@@ -41,7 +42,8 @@ describe('stillAwaiting', () => {
     const list = addFindings([], fs, file, 1);
     expect(stillAwaiting(fs, 'KEY', list)).toBe(2);
     expect(stillAwaiting(fs, 'KEY', decide(list, list[0].id, 'parked', 2))).toBe(1);
-    expect(stillAwaiting(fs, undefined, null)).toBe(2);
+    expect(stillAwaiting(fs, 'KEY', null)).toBe(0);
+    expect(stillAwaiting(fs, undefined, list)).toBe(0);
   });
 });
 
@@ -73,5 +75,57 @@ describe('openCount', () => {
     const b = { ...a, rule: 'Button "Next" changes on hover to Type=Secondary (and 4 more like it).' };
     expect(awaitKey('KEY', a)).toBe(awaitKey('KEY', b));
     expect(addFindings(addFindings([], [a], file, 1), [b], file, 2)).toHaveLength(1);
+  });
+});
+
+const item = (i: number, state: AwaitItem['state'] = 'open', decidedAt?: number): AwaitItem => ({ id: `i${i}`, at: i, fileKey: 'KEY', fileName: 'F', node: '1:2', area: 'system', severity: 'major', rule: `rule ${i}`, fix: '', impact: '', state, ...(decidedAt ? { decidedAt } : {}) });
+
+describe('a full list', () => {
+  it('drops decided items first, the oldest decision first, and keeps the order', () => {
+    const list = [item(1), item(2, 'approved', 50), item(3, 'parked', 10), item(4), item(5, 'rejected', 30)];
+    expect(capAwaiting(list, 3).map((x) => x.id)).toEqual(['i1', 'i2', 'i4']);
+  });
+  it('never drops an open item, so a list of open items can run over', () => {
+    const list = [item(1), item(2), item(3, 'approved', 5)];
+    expect(capAwaiting(list, 1).map((x) => x.id)).toEqual(['i1', 'i2']);
+  });
+  it('keeps unanswered long run questions when new findings arrive', () => {
+    const full = Array.from({ length: MAX_AWAIT }, (_, i) => (i < 2 ? { ...item(i), area: 'long_run' as const } : item(i, 'approved', 1000 + i)));
+    const next = addFindings(full, [f('New shared change', 'token')], file, 9999);
+    expect(next).toHaveLength(MAX_AWAIT);
+    expect(next.slice(0, 2).map((x) => x.state)).toEqual(['open', 'open']);
+    expect(next.some((x) => x.id === 'i2')).toBe(false);
+    expect(next.at(-1)?.rule).toBe('New shared change');
+  });
+  it('applies the same rule when the file is read', () => {
+    const raw = [...Array.from({ length: MAX_AWAIT }, (_, i) => item(i)), item(400, 'parked', 1)];
+    expect(cleanAwaiting(raw)).toHaveLength(MAX_AWAIT);
+    expect(cleanAwaiting([...raw, item(401)])).toHaveLength(MAX_AWAIT + 1);
+  });
+});
+
+describe('approve and answer wait for the message', () => {
+  it('counts a sent message that starts with the prompt, even when she edited the rest', () => {
+    const it1 = { area: 'system' as const, rule: 'Muted text fails contrast.' };
+    const prompt = approvePrompt({ ...it1, fix: 'Darken it', impact: 'token', node: '1:2' });
+    expect(prompt.startsWith(sentKey(it1))).toBe(true);
+    expect(sentFor(it1, prompt.replace('Darken it', 'Use #5B5B5B'))).toBe(true);
+    expect(sentFor(it1, 'Fix this  across the file, I approved it:\nMuted text fails contrast. Go')).toBe(true);
+    expect(sentFor(it1, 'What does muted text mean?')).toBe(false);
+  });
+  it('matches a long run answer by its question', () => {
+    const q = { area: 'long_run' as const, rule: 'Keep [Toast](https://x) on top?' };
+    expect(sentFor(q, `${answerPrompt(q.rule)}yes, keep it`)).toBe(true);
+    expect(sentFor(q, 'yes')).toBe(false);
+  });
+});
+
+describe('awaitState', () => {
+  it('says whether a finding is on the list, and how it stands', () => {
+    const list = decide(addFindings([], [f('A', 'token'), f('B', 'token')], file, 1), awaitKey('KEY', f('B')), 'parked', 2);
+    expect(awaitState(f('A'), 'KEY', list)).toBe('open');
+    expect(awaitState(f('B'), 'KEY', list)).toBe('parked');
+    expect(awaitState(f('Auto check only'), 'KEY', list)).toBeNull();
+    expect(awaitState(f('A'), 'KEY', null)).toBeNull();
   });
 });
