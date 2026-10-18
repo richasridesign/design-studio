@@ -14,7 +14,7 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 export type RunSubRow = { label: string; state: ReviewerState['state'] };
 export type RunRow = { label: string; state: 'done' | 'now' | 'idle'; detail?: string; subs?: RunSubRow[] };
 
-const areaLabel = (a: ReviewerState['area']) => (a === 'check' ? 'Design system check' : a === 'all' ? 'All areas' : AREA_NAMES[a]);
+const areaLabel = (a: ReviewerState['area']) => (a === 'check' ? 'Code scan' : a === 'all' ? 'All areas' : AREA_NAMES[a]);
 
 export function runRows(flow: FlowState): { title: string; rows: RunRow[]; tokens: number; waiting: boolean } | null {
   const phase = flow.phase;

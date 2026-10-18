@@ -158,7 +158,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change, dev = false }: {
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
       </div>
       <div className="review-grid">
-        <AreaCard title="Design system check" sub={run.checkError ?? (check.length ? `${check.length} ${check.length === 1 ? 'issue' : 'issues'}` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} dev={dev} frames={run.frames} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
+        <AreaCard title="Code scan" sub={run.checkError ?? (check.length ? `${check.length} ${check.length === 1 ? 'issue' : 'issues'}` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} dev={dev} frames={run.frames} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
         {!!shown.rules?.length && (
           <AreaCard title="House rules" sub={run.rulesError ? `${rulesLine(shown.rules)}. ${run.rulesError}` : rulesLine(shown.rules)} tone={rulesTone(shown)} tokens={0} frames={run.frames} findings={[]} focusAt={focusAt('rules')}>
             <RuleList rules={shown.rules} frames={run.frames} onResolve={resolveRule} />
@@ -220,7 +220,7 @@ function AreaCard({ title, sub, tone, tokens, dev = false, frames, findings, gro
     ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [focusAt]);
   const bodyId = `area-${useId()}`;
-  // Blocking first, then major, then minor; the design system check keeps its areas together within each level.
+  // Blocking first, then major, then minor; the code scan keeps its areas together within each level.
   const shown = [...findings].sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || (grouped ? AREAS.indexOf(a.area as Area) - AREAS.indexOf(b.area as Area) : 0));
   return (
     <section ref={ref} className={`area-card ${pass ? 'pass' : 'fail'} ${tone}${focusAt ? ' focused' : ''}`}>

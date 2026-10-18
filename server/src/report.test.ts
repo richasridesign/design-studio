@@ -134,7 +134,7 @@ describe('buildReport', () => {
     expect(top).toContain('<span class="num">1</span><span class="st major">Major</span>');
     expect(top).toContain("Resolved by hand:</span> 1 fixed, 1 won&#39;t fix");
     const review = html.slice(html.indexOf('<section id="review"'));
-    expect(review).toContain('<h3>Design system check <small>1 finding</small></h3>');
+    expect(review).toContain('<h3>Code scan <small>1 finding</small></h3>');
     expect(review).toContain("<h3>Resolved by hand <small>1 fixed, 1 won&#39;t fix</small></h3>");
     expect(review).toContain('<span class="st fixed">Fixed</span>');
     expect(review).toContain('<span class="st wontfix">Won&#39;t fix</span>');
