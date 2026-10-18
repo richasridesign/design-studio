@@ -139,7 +139,7 @@ export type ClientMessage =
   | { type: 'prompt'; text: string; images?: string[] }
   | { type: 'steer'; text: string; id?: string; images?: string[] }
   | { type: 'plan'; next: string[] }
-  | { type: 'answer'; id: string; answers: Record<string, string> }
+  | { type: 'answer'; id: string; answers: Record<string, string>; response?: string }
   | { type: 'permission'; id: string; allow: boolean; always?: boolean; note?: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }

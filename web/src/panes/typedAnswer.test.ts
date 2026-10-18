@@ -38,9 +38,9 @@ describe('typedAnswer', () => {
     expect(typedAnswer('make it calmer', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'make it calmer' });
     expect(typedAnswer('go through every dialog and list the ones with no close icon', plan)).toMatchObject({ allow: false });
   });
-  it('sends her words once, under the first question, never copied into every question', () => {
-    expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'error message B, voice 2' } });
-    expect(typedAnswer('option A', { ...question, questions: question.questions.slice(0, 1) })).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'option A' } });
+  it('sends her words once as the free text reply, never copied into every question', () => {
+    expect(typedAnswer(' error message B, voice 2 ', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'error message B, voice 2' }, response: 'error message B, voice 2' });
+    expect(typedAnswer('option A', { ...question, questions: question.questions.slice(0, 1) })).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'option A' }, response: 'option A' });
   });
   for (const t of ['y', 'Y', 'yes', 'Yes.', 'ok', 'OK', 'okay', 'yes please', 'Yes, please', 'lgtm', 'LGTM!', 'sure', 'sure go', 'Sure, go ahead', 'okay, go']) {
     it(`approves a waiting plan on "${t}"`, () => {

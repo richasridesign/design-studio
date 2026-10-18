@@ -26,7 +26,7 @@ export function goWithNote(text: string) {
 
 export type TypedAnswer =
   | { type: 'permission'; id: string; allow: boolean; note?: string }
-  | { type: 'answer'; id: string; answers: Record<string, string> };
+  | { type: 'answer'; id: string; answers: Record<string, string>; response: string };
 
 /**
  * What a message typed while a card waits should do, so typing never aborts the card.
@@ -37,9 +37,9 @@ export type TypedAnswer =
 export function typedAnswer(text: string, pending: PendingRequest | undefined): TypedAnswer | null {
   const t = text.trim();
   if (!t || !pending) return null;
-  // Her words go once, never copied into every question. They sit under the first question: Claude Code prints
-  // only answers keyed by a real question, so a made-up key would be dropped and Claude would see no answer.
-  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: pending.questions.length ? { [pending.questions[0].question]: t } : {} };
+  // Her words go once, as Claude Code's free text reply (response), never copied into every question. Claude reads
+  // the response first; the copy under the first question only matters if a Claude Code version drops response.
+  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: pending.questions.length ? { [pending.questions[0].question]: t } : {}, response: t };
   if (pending.toolName !== 'ExitPlanMode') return null;
   if (plainGo(t)) return { type: 'permission', id: pending.id, allow: true };
   return { type: 'permission', id: pending.id, allow: goWithNote(t), note: t };

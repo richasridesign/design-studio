@@ -75,9 +75,14 @@ export class Approvals {
     });
   }
 
-  answerQuestion(id: string, answers: Record<string, string>) {
+  /**
+   * Picked options go in answers. Words she typed instead of picking go in response, the free text field
+   * Claude Code's question tool reads: Claude then sees "The user responded: ..." instead of one question's answer.
+   */
+  answerQuestion(id: string, answers: Record<string, string>, response?: string) {
     const w = this.finish(id);
-    w?.resolve({ behavior: 'allow', updatedInput: { ...w.input, answers } });
+    const said = response?.trim().slice(0, 4000);
+    w?.resolve({ behavior: 'allow', updatedInput: { ...w.input, answers, ...(said ? { response: said } : {}) } });
   }
 
   answerPermission(id: string, allow: boolean, always?: boolean, note?: string) {

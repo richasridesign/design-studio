@@ -312,8 +312,8 @@ export class AgentSession {
 
   private askBeforeEdit = false;
 
-  answerQuestion(id: string, answers: Record<string, string>) {
-    this.approvals.answerQuestion(id, answers);
+  answerQuestion(id: string, answers: Record<string, string>, response?: string) {
+    this.approvals.answerQuestion(id, answers, response);
   }
 
   answerPermission(id: string, allow: boolean, always?: boolean, note?: string) {
