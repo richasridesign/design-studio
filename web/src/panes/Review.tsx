@@ -37,6 +37,10 @@ export function Review({ dev = false }: { dev?: boolean }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [build, setBuild] = useState(false);
   const [focus, setFocus] = useState<(ReviewFocus & { at: number }) | null>(null);
+  const running = useStore((s) => s.session.running);
+  const designRev = useRev('design.json');
+  const [designFrames, setDesignFrames] = useState(0);
+  useEffect(() => { getJson<{ frames?: unknown[] } | null>('/api/design').then((d) => setDesignFrames(d?.frames?.length ?? 0), () => setDesignFrames(0)); }, [chat, designRev]);
   const { triage, change } = useTriage();
 
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, reviewRev]);
@@ -56,11 +60,20 @@ export function Review({ dev = false }: { dev?: boolean }) {
   }, []);
 
   const rows = mergeRuns(doc.runs, crit, copy);
+  // Review runs straight away on the frames of the last Design run. Without them it puts /review in the message box
+  // for her frame links, and says so.
+  const canRun = hasFigma && designFrames > 0;
 
   return (
     <div className="review-page">
       <div className="review-bar">
-        <button className="primary" onClick={() => insertPrompt('/review ')}><Icon name="play" small /> Review</button>
+        {canRun ? (
+          <span className="review-run" title={running ? 'Wait for Claude to finish this turn' : `Review the ${designFrames} ${designFrames === 1 ? 'frame' : 'frames'} from the last Design run, ${PRESET_INFO[preset].label}`}>
+            <button className="primary" disabled={running} onClick={() => send({ type: 'prompt', text: `/review ${preset}` })}><Icon name="play" small /> Review</button>
+          </span>
+        ) : (
+          <button className="primary" title="Puts /review in the message box. Paste frame links after it." onClick={() => insertPrompt('/review ')}>Review frames…</button>
+        )}
         <DepthSeg />
         <span className="spacer" />
         <button className="ghost" title="Open the handoff report in a new tab" onClick={() => window.open(api('/api/report'), '_blank')}>Handoff report</button>
