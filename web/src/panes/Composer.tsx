@@ -11,6 +11,7 @@ import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
 import { imageProblem, imagesIn } from './attach';
 import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
+import { LongRunButton } from './LongRun';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -393,6 +394,18 @@ export function Composer() {
     apply('');
   };
 
+  const startLongRun = (until: number, cap: number) => {
+    const t = text.trim();
+    if (!t || running) return;
+    send({ type: 'long_run_start', text: t, until, cap, images: imgs.length ? imgs.map((i) => i.ref) : undefined });
+    clearImgs();
+    const next = remember(t, stored);
+    setStored(next);
+    try { localStorage.setItem(STORED_KEY, JSON.stringify(next)); } catch {}
+    setHist(null);
+    apply('');
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
     const el = e.currentTarget;
@@ -499,6 +512,7 @@ export function Composer() {
               </div>
             )}
           </div>
+          {!shell && <LongRunButton text={text} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
           <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="file-media" small /></button>

@@ -7,6 +7,7 @@ import { RunCard } from './RunCard';
 import { ReadAloud } from './Voice';
 import { touch } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
+import { LongRunLine } from './LongRun';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 
 export function nextSteps(events: ChatEvent[]) {
@@ -107,6 +108,7 @@ export function Brief() {
       </div>
       {waiting && <div className="brief-cards"><Pending /></div>}
       <div className="brief-input">
+        <LongRunLine />
         <Composer />
         {compacting ? (
           <div className="ctx-line"><Icon name="loading" small spin /> Compacting the conversation…</div>

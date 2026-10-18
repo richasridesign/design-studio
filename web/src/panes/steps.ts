@@ -1,5 +1,6 @@
 import { editCount, type EditCount } from '../../../shared/edits';
 import type { ChatEvent } from '../../../shared/protocol';
+import { parseReport, type Report } from '../../../shared/longRun';
 
 export type ToolUse = Extract<ChatEvent, { kind: 'tool_use' }>;
 export type ToolResult = Extract<ChatEvent, { kind: 'tool_result' }>;
@@ -14,7 +15,8 @@ export type Item =
   | { kind: 'agent'; id: string; use: ToolUse; result?: ToolResult }
   | { kind: 'done'; id: string; text: string; nodes: Array<[string, number]> }
   | { kind: 'note'; id: string; text: string }
-  | { kind: 'review'; id: string; runAt: number };
+  | { kind: 'review'; id: string; runAt: number }
+  | { kind: 'report'; id: string; report: Report };
 
 export type Block = Item | { kind: 'steps'; id: string; items: Item[]; count: number; ms: number };
 export type Turn = { id: string; blocks: Block[] };
@@ -113,7 +115,11 @@ export function buildTranscript(events: ChatEvent[]): Item[] {
       if (note) items.push({ kind: 'note', id: `${e.id}:note`, text: note });
     }
     else if (e.kind === 'user') items.push(e.phase ? { kind: 'phase', id: e.id, text: e.text } : { kind: 'user', id: e.id, text: e.text, at: e.at, stopping: e.stopping });
-    else if (e.kind === 'assistant') { if (e.text.trim()) items.push({ kind: 'assistant', id: e.id, text: e.text, streaming: e.streaming }); }
+    else if (e.kind === 'assistant') {
+      const report = e.streaming ? null : parseReport(e.text);
+      if (report) items.push({ kind: 'report', id: e.id, report });
+      else if (e.text.trim()) items.push({ kind: 'assistant', id: e.id, text: e.text, streaming: e.streaming });
+    }
     else if (e.kind === 'system') items.push({ kind: 'system', id: e.id, text: e.text });
     else if (e.kind === 'review') items.push({ kind: 'review', id: e.id, runAt: e.runAt });
     else if (e.kind === 'plan') items.push({ kind: 'system', id: e.id, text: e.next.length ? `You changed the next steps (${e.next.length})` : 'You cleared the next steps' });
@@ -158,7 +164,7 @@ export function groupTurns(items: Item[]): Turn[] {
     let final = -1;
     let lastTool = -1;
     seg.forEach((it, i) => {
-      if (it.kind === 'assistant') final = i;
+      if (it.kind === 'assistant' || it.kind === 'report') final = i;
       if (isTool(it) && !isFable(it)) lastTool = i;
     });
     const inside = seg.filter((it, i) => (isTool(it) && !isFable(it)) || (it.kind === 'assistant' && i !== final));
@@ -172,7 +178,7 @@ export function groupTurns(items: Item[]): Turn[] {
   });
 }
 
-const QUIET = /^(Permission mode:|Session started with)/;
+const QUIET = /^(Permission mode:|Session started with|Long run · turn \d+$)/;
 
 /** Per turn: the prompt, done lines, notes, reviews, notices and the latest reply. Tool steps are left out. */
 export function timelineTurns(items: Item[]): Turn[] {

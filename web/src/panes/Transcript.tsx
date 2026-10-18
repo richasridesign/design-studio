@@ -10,6 +10,7 @@ import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
 import { MakeRule } from './MakeRule';
+import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
 import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
 import { reviewChecklist, type ReviewDoc } from '../../../shared/design';
@@ -172,6 +173,8 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
       );
     case 'review':
       return <ReviewCard runAt={it.runAt} />;
+    case 'report':
+      return <LongRunReport report={it.report} />;
     case 'note':
       return <div className="tr-note tr-act"><span className="tr-mark"><i className="tr-dot" /></span><span className="tr-text" title={it.text}>{it.text}</span></div>;
   }

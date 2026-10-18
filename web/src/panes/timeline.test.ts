@@ -53,3 +53,22 @@ describe('recentTurns', () => {
     expect(recentTurns([])).toEqual({ from: 0, hidden: 0 });
   });
 });
+
+describe('long run report', () => {
+  const report = '## Fixed\n- a\n## Needs your decision\n- b\n## Not checked\n- None';
+  it('turns a finished report reply into a report item', () => {
+    const items = buildTranscript([{ id: 'a', kind: 'assistant', text: report, streaming: false, at: 1 }]);
+    expect(items).toEqual([{ kind: 'report', id: 'a', report: { intro: '', fixed: ['a'], decide: ['b'], unchecked: [] } }]);
+  });
+  it('keeps a streaming report as a reply', () => {
+    expect(buildTranscript([{ id: 'a', kind: 'assistant', text: report, streaming: true, at: 1 }])[0].kind).toBe('assistant');
+  });
+  it('hides the per-turn long run notes in the timeline', () => {
+    const turns = timelineTurns(buildTranscript([
+      { id: 'u', kind: 'user', text: 'task', at: 1 },
+      { id: 's', kind: 'system', text: 'Long run · turn 2', at: 2 },
+      { id: 't', kind: 'system', text: 'Long run stopped: time reached · 3 turns', at: 3 },
+    ]));
+    expect(turns[0].blocks.map((b) => b.id)).toEqual(['u', 't']);
+  });
+});
