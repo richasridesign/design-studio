@@ -5,6 +5,7 @@ import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { FileIcon } from './Explorer';
 import { insertPrompt, showNode } from './Files';
+import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
@@ -60,6 +61,37 @@ function SetupBanner() {
   );
 }
 
+function Welcome({ fileName }: { fileName: string | null }) {
+  const chips = welcomeChips(fileName);
+  const attach = chips.find((c) => c.attach);
+  const [sampleError, setSampleError] = useState('');
+  return (
+    <div className="tl-welcome">
+      <SetupBanner />
+      <h2>What are we working on?</h2>
+      <p>Ask Claude about a design. Design mode (Shift+Tab) plans, sketches, designs and reviews it.</p>
+      {attach && (
+        <div className="tl-start">
+          <button className="tl-attach" onClick={() => window.dispatchEvent(new Event('designstudio:attach'))}><Icon name="file-media" small />{attach.label}</button>
+          <button className="link" onClick={() => { setSampleError(''); openSample().catch((e: Error) => setSampleError(e.message)); }}>Try the sample tour</button>
+        </div>
+      )}
+      {sampleError && <p className="error-text" role="alert">{sampleError}</p>}
+      <div className="tl-suggest-label" id="tl-suggest-label">Or start from a prompt</div>
+      <ul className="tl-suggest" aria-labelledby="tl-suggest-label">
+        {chips.filter((c) => !c.attach).map((c) => (
+          <li key={c.label}>
+            <button title="Put this prompt in the message box" onClick={() => insertPrompt(c.label)}>
+              <span>{c.label}</span>
+              <Icon name="arrow-right" small />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function TranscriptView({ events, cwd, running, stopping, status, figmaKey, view = 'transcript', children }: { events: ChatEvent[]; cwd: string; running: boolean; stopping: boolean; status: string; figmaKey?: string; view?: ChatView; children?: ReactNode }) {
   const items = useMemo(() => buildTranscript(events), [events]);
   const all = useMemo(() => (view === 'timeline' ? timelineTurns(items) : groupTurns(items)), [items, view]);
@@ -91,14 +123,7 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
     <Settle.Provider value={scroll}>
       <div ref={box} className={`tr ${view}`} onScroll={recheck}>
         {items.length === 0 && (
-          <div className="tl-welcome">
-            <SetupBanner />
-            <h2>What are we working on?</h2>
-            <p>Chat with Claude about your design. Switch to Design mode (Shift+Tab) for a full plan, sketch, design and review run.</p>
-            <div className="tl-chips">
-              {welcomeChips(fileName).map((c) => <button key={c.label} onClick={() => (c.attach ? window.dispatchEvent(new Event('designstudio:attach')) : insertPrompt(c.label))}>{c.label}</button>)}
-            </div>
-          </div>
+          <Welcome fileName={fileName} />
         )}
         {hidden > 0 && <div className="tl-earlier"><button className="link" onClick={() => setEarly(true)}>Show {hidden} earlier {hidden === 1 ? 'prompt' : 'prompts'}</button></div>}
         {turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}

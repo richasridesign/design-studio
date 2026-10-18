@@ -82,7 +82,7 @@ export function Brief() {
         {events.length > 0 && stagesOpen && stages.list && <StagePanel {...stages} list={stages.list} />}
         <Transcript view={view}>
           <RunCard />
-          <div className="tl-foot">
+          {(events.length > 0 || running) && <div className="tl-foot">
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
@@ -111,7 +111,7 @@ export function Brief() {
                 )}
               </ul>
             )}
-          </div>
+          </div>}
         </Transcript>
       </div>
       {waiting && <div className="brief-cards"><Pending /></div>}

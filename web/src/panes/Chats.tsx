@@ -44,6 +44,13 @@ export function filterGroups(groups: Group[], query: string): Group[] {
     .filter((g) => g.open.length || g.recent.length);
 }
 
+// Opens the sample chat (Grocery app) and shows its sketch. Shared by the sidebar row and the first-run state.
+export async function openSample() {
+  const { id } = await postJson<{ id: string }>('/api/sample', {});
+  send({ type: 'view', id });
+  setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
+}
+
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
   const current = useStore((s) => s.session.sessionId);
@@ -76,13 +83,11 @@ export function Chats() {
       ? setAsk({ title: 'Close this chat?', detail: c.title, warning: 'Claude is still working on it and will stop. The transcript is kept.', action: 'Close', run: async () => send({ type: 'close', id: c.id }) })
       : send({ type: 'close', id: c.id });
 
-  const openSample = async () => {
+  const runSample = async () => {
     setSampleBusy(true);
     setSampleError('');
     try {
-      const { id } = await postJson<{ id: string }>('/api/sample', {});
-      send({ type: 'view', id });
-      setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
+      await openSample();
     } catch (err) {
       setSampleError((err as Error).message);
     }
@@ -98,7 +103,7 @@ export function Chats() {
         <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />
       </div>
       <div className="tree">
-        <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void openSample()} {...press(() => sampleBusy || void openSample())}>
+        <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void runSample()} {...press(() => sampleBusy || void runSample())}>
           <span className="twistie"><Icon name="play" small /></span>
           <span className="name">Sample tour</span>
         </div>
