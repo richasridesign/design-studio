@@ -133,3 +133,18 @@ export function cleanApprovals(input: unknown): StageApprovals {
   }
   return out;
 }
+
+/** A line for Claude when the designer's approvals change. Empty when stages are not in use. */
+export function stageNote(a: StageApprovals): string {
+  const done = STAGE_IDS.filter((id) => a[id]);
+  if (!done.length) return '';
+  const next = STAGE_IDS.find((id) => !a[id]);
+  const approved = done.map((id) => STAGE_INFO[id].name).join(', ');
+  if (!next) return `Stages: the designer approved every stage (${approved}). The work is handed off. Ask before changing the Figma file.`;
+  const notes = done.map((id) => a[id]?.note && `${STAGE_INFO[id].name}: ${a[id]!.note}`).filter(Boolean);
+  return [
+    `Stages: the designer approved ${approved}. Current stage: ${STAGE_INFO[next].name} (${STAGE_INFO[next].goal.toLowerCase()}).`,
+    'Work inside this stage. If a request jumps ahead (for example editing Figma before Decide is approved), say so in one line and ask before doing it.',
+    ...(notes.length ? [`Approval notes: ${notes.join('; ')}`] : []),
+  ].join('\n');
+}

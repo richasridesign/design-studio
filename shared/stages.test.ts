@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approve, cleanApprovals, currentStage, reopen, stages, type StageEvidence } from './stages.js';
+import { approve, cleanApprovals, currentStage, reopen, stageNote, stages, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -84,5 +84,18 @@ describe('approve and reopen', () => {
   it('cleans stored approvals', () => {
     expect(cleanApprovals({ spec: { at: 1, note: ' ' }, nope: { at: 2 }, build: { at: 'x' } })).toEqual({ spec: { at: 1 } });
     expect(cleanApprovals([1])).toEqual({});
+  });
+});
+
+describe('stageNote', () => {
+  it('says nothing until a stage is approved', () => expect(stageNote({})).toBe(''));
+  it('names the approved stages, the current one and the notes', () => {
+    const t = stageNote({ spec: { at: 1, note: 'Mobile only' }, explore: { at: 2 } });
+    expect(t).toContain('approved Spec, Explore. Current stage: Decide (pick one direction per screen).');
+    expect(t).toContain('ask before doing it');
+    expect(t).toContain('Approval notes: Spec: Mobile only');
+  });
+  it('says the work is handed off when every stage is approved', () => {
+    expect(stageNote(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toMatch(/^Stages: the designer approved every stage/);
   });
 });
