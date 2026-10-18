@@ -46,7 +46,9 @@
 .frame-list li { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); }
 .frame-list li.focused { background: var(--figma-soft); box-shadow: inset 2px 0 0 var(--figma); }
 .frame-list li .icon-btn { opacity: 0; }
-.frame-list li:hover .icon-btn { opacity: 1; }
+/* Shown on hover, on keyboard focus, and always on touch screens. */
+.frame-list li:hover .icon-btn, .frame-list li:focus-within .icon-btn { opacity: 1; }
+@media (hover: none) { .frame-list li .icon-btn { opacity: 1; } }
 .frame { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; padding: 4px; text-align: left; }
 .frame:hover { background: var(--figma-soft); }
 .thumb { width: 52px; height: 40px; flex: none; border-radius: 4px; background: var(--bg-sunken); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
