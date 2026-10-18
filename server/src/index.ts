@@ -458,6 +458,15 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'interrupt':
         void chat.interrupt();
         break;
+      case 'long_run_start':
+        void chat.startLongRun(String(msg.text ?? ''), Number(msg.until), Number(msg.cap), msg.images);
+        break;
+      case 'long_run_stop':
+        void chat.stopLongRun();
+        break;
+      case 'long_run_clear':
+        chat.clearLongRun();
+        break;
       case 'close': {
         const target = live.get(msg.id)?.chat;
         if (target) closeByUser(target).catch(fail);

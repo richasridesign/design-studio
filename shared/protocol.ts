@@ -1,4 +1,5 @@
 import type { FigmaFile, FlowPhase, FlowState } from './design.js';
+import type { LongRun } from './longRun.js';
 
 export type PendingQuestion = {
   id: string;
@@ -57,6 +58,7 @@ export type SessionInfo = {
   flow: FlowState;
   spend: Spend;
   limit?: PlanLimit | null;
+  longRun?: LongRun | null;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };
@@ -142,6 +144,9 @@ export type ClientMessage =
   | { type: 'flow_continue' }
   | { type: 'flow_pick'; screen: string; direction: string }
   | { type: 'interrupt' }
+  | { type: 'long_run_start'; text: string; until: number; cap: number; images?: string[] }
+  | { type: 'long_run_stop' }
+  | { type: 'long_run_clear' }
   | { type: 'view'; id: string }
   | { type: 'close'; id: string }
   | { type: 'open_session'; sessionId: string }
