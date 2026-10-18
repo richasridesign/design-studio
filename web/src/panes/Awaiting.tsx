@@ -1,43 +1,93 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
 import { AREA_NAMES, figmaNodeUrl } from '../../../shared/design';
-import { AWAIT_LABEL, answerPrompt, approvePrompt, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
+import { AWAIT_LABEL, answerPrompt, approvePrompt, sentFor, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
 import { insertPrompt, showNode } from './composerEvents';
 import { useNodeLabel } from './Triage';
+import { useTip } from '../Tip';
 
 const SEV: Record<AwaitItem['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
 const DONE_MARK: Record<Exclude<AwaitState, 'open'>, string> = { approved: 'pass', rejected: 'wontfix', parked: 'parked' };
 
-/**
- * "Awaiting your decision": findings whose fix changes something shared (a token, a main component, a feature).
- * Fix rounds leave them alone. The list lives outside the chat, so it survives across chats and files.
- * Approve only puts a prompt in the message box; nothing is sent or changed until she sends it.
- */
-export function Awaiting() {
-  const fileKey = useStore((s) => s.session.figma?.key);
+/** The list for the Review tab: the Awaiting section and the line under each finding read the same copy. */
+export function useAwaitingList() {
   const reviewRev = useRev('review.json');
   // A long run report adds its questions to the list when the run ends.
   const fromRun = useStore((s) => s.session.longRun?.awaiting ?? 0);
-  const [items, setItems] = useState<AwaitItem[]>([]);
+  const [items, setItems] = useState<AwaitItem[] | null>(null);
+  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setItems).catch(() => {}); }, [reviewRev, fromRun]);
+  return [items, setItems] as const;
+}
+
+// Approve and Answer put a prompt in the message box. The item stays open until a message that starts with that prompt
+// is sent, so a prompt she clears or never sends decides nothing. Kept outside the component: she may leave the Review tab
+// to send it. Times are when the prompt went in; only messages from then on count (a minute of slack for clock drift).
+const inserted = new Map<string, number>();
+const SLACK_MS = 60_000;
+
+/** Marks an item approved once its prompt was sent. Runs while the Awaiting list is on screen, and on return to it. */
+function useSentApprovals(items: AwaitItem[], onSent: (item: AwaitItem) => void) {
+  const events = useStore((s) => s.events);
+  const sent = useRef(onSent);
+  sent.current = onSent;
+  useEffect(() => {
+    if (!inserted.size) return;
+    for (const item of items) {
+      const since = inserted.get(item.id);
+      if (since === undefined || item.state !== 'open') continue;
+      if (events.some((e) => e.kind === 'user' && e.at >= since - SLACK_MS && sentFor(item, e.text))) {
+        inserted.delete(item.id);
+        sent.current(item);
+      }
+    }
+  }, [events, items]);
+}
+
+function ApproveButton({ question, onClick }: { question: boolean; onClick: () => void }) {
+  const t = useTip(question ? 'Puts the question in the message box. It counts as answered when you send your answer.' : 'Puts the fix in the message box. It counts as approved when you send it.');
+  return (
+    <>
+      <button {...t.props} className="aw-approve" aria-describedby={t.open ? t.id : undefined} onClick={onClick}>{question ? 'Answer' : 'Approve'}</button>
+      {t.tip}
+    </>
+  );
+}
+
+/**
+ * "Awaiting your decision": findings whose fix changes something shared (a token, a main component, a feature).
+ * Fix rounds leave them alone. The list lives outside the chat, so it survives across chats and files.
+ * Approve only puts a prompt in the message box; the item is approved when she sends it.
+ */
+export function Awaiting({ items, onItems }: { items: AwaitItem[]; onItems: (list: AwaitItem[]) => void }) {
+  const fileKey = useStore((s) => s.session.figma?.key);
   const [all, setAll] = useState(false);
   const [decided, setDecided] = useState(false);
   const [said, setSaid] = useState('');
   const label = useNodeLabel();
 
-  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setItems).catch(() => {}); }, [reviewRev, fromRun]);
-
-  const set = async (item: AwaitItem, state: AwaitState) => {
+  const save = async (item: AwaitItem, state: AwaitState) => {
     const next = await postJson<AwaitItem[]>('/api/awaiting', { id: item.id, state }).catch(() => null);
-    if (!next) { setSaid('Could not save. Try again.'); return; }
-    setItems(next);
-    if (state === 'approved' && item.area === 'long_run') {
-      insertPrompt(answerPrompt(item.rule));
-      setSaid('The question is in the message box: write your answer, then send it.');
-    } else if (state === 'approved') {
-      insertPrompt(approvePrompt(item, figmaNodeUrl(item.fileKey, item.node)));
-      setSaid('Approved. The fix is in the message box: read it, then send it to start.');
-    } else setSaid(state === 'open' ? `Reopened: ${item.rule}` : `${AWAIT_LABEL[state]}: ${item.rule}`);
+    if (next) onItems(next);
+    return !!next;
   };
+  const set = async (item: AwaitItem, state: AwaitState) => {
+    inserted.delete(item.id);
+    if (!(await save(item, state))) return setSaid('Could not save. Try again.');
+    setSaid(state === 'open' ? `Reopened: ${item.rule}` : `${AWAIT_LABEL[state]}: ${item.rule}`);
+  };
+  const approve = (item: AwaitItem) => {
+    inserted.set(item.id, Date.now());
+    if (item.area === 'long_run') {
+      insertPrompt(answerPrompt(item.rule));
+      setSaid('The question is in the message box. Write your answer and send it: then it counts as answered.');
+    } else {
+      insertPrompt(approvePrompt(item, figmaNodeUrl(item.fileKey, item.node)));
+      setSaid('The fix is in the message box. Read it and send it: then it counts as approved.');
+    }
+  };
+  useSentApprovals(items, (item) => {
+    void save(item, 'approved').then((ok) => setSaid(ok ? `${item.area === 'long_run' ? 'Answered' : 'Approved'}: ${item.rule}` : 'Sent, but could not mark it approved. Try again.'));
+  });
 
   const open = items.filter((i) => i.state === 'open').reverse();
   const here = open.filter((i) => i.fileKey === fileKey);
@@ -73,7 +123,7 @@ export function Awaiting() {
                   )}
                   <div className="aw-foot">
                     {local
-                      ? <button className="aw-approve" title={question ? 'Put this question in the message box with your answer' : undefined} onClick={() => set(item, 'approved')}>{question ? 'Answer' : 'Approve'}</button>
+                      ? <ApproveButton question={question} onClick={() => approve(item)} />
                       : <span className="aw-hint">{question ? 'Answer' : 'Approve'} from a chat on {item.fileName || 'that file'}.</span>}
                     <button className="triage-link" onClick={() => set(item, 'parked')}>Park</button>
                     <button className="triage-link" onClick={() => set(item, 'rejected')}>Reject</button>
