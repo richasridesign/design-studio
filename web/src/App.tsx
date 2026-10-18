@@ -291,7 +291,7 @@ export function App() {
           ))}
         </aside>
 
-        <section className="sidebar pane side">
+        <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() && tab === 'more' ? 'More' : undefined}>
           <div className="sidebar-title">{(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}</div>
           {tab === 'more' && (
             <div className="side-switch mobile-only">
