@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, type CheckId, type CheckResult } from '../setupChecks';
 import { PRESET_INFO, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
+import { ThemeSegment } from '../ThemeToggle';
 
 type McpInfo = { configured: boolean; status: { status: string; error?: string } | null };
 
@@ -124,6 +125,15 @@ export function Settings() {
           ) : (
             <div className="inline"><span className="muted">Not set up yet.</span><button onClick={addMcp}>Add Figma to Claude</button></div>
           )}
+        </div>
+      </section>
+
+      <section className="set-card">
+        <h2>Appearance</h2>
+        <div className="field">
+          <span>Theme</span>
+          <ThemeSegment />
+          <span className="muted small">System follows your computer's light or dark setting.</span>
         </div>
       </section>
 
