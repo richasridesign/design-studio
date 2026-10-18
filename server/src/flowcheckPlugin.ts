@@ -10,6 +10,9 @@ import { pluginScript, type ReadDeps } from './pluginRead.js';
 
 export const PLUGIN_MAX_NODES = 20000;
 export const PLUGIN_MAX_DEPTH = 40;
+// Link destinations the walk did not reach (old versions behind the cap, shallow sections) are looked up one by one,
+// so the Old link rule still sees where they sit. This caps those lookups.
+export const PLUGIN_MAX_LOOKUPS = 3000;
 
 // Shapes with no children that matter to the walker: icon vectors are most of a file's layers. They are kept only
 // when they carry a prototype reaction, or a name the close and sticky checks read.
@@ -29,6 +32,9 @@ type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[]; first?:
 
 /** Sections walked before the rest, so the node cap never cuts them: her live work sits in LATEST and Parked. */
 export const FIRST = /\b(latest|parked)\b/i;
+// nameWords from shared/flowcheck.ts, rebuilt inside the script: no case, accents or punctuation.
+const MARKS = /[\u0300-\u036f]/g;
+const NON_WORD = /[^a-z0-9]+/g;
 
 function flowWalk(opts: WalkOpts = {}) {
   const maxNodes = opts.maxNodes ?? PLUGIN_MAX_NODES;
@@ -36,11 +42,18 @@ function flowWalk(opts: WalkOpts = {}) {
   return `const MAX_NODES = ${maxNodes};
 const ONLY = ${JSON.stringify(opts.only ?? null)};
 const FIRST = new RegExp(${JSON.stringify(FIRST.source)}, 'i');
-const FIRST_NAMES = ${JSON.stringify((opts.first ?? []).map((f) => f.toLowerCase()).filter(Boolean))};
+const FIRST_NAMES = ${JSON.stringify((opts.first ?? []).filter((f) => f.trim()))};
+const MARKS = new RegExp(${JSON.stringify(MARKS.source)}, 'g');
+const NON_WORD = new RegExp(${JSON.stringify(NON_WORD.source)}, 'g');
+const words = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFKD').replace(MARKS, '').replace(NON_WORD, ' ').trim();
+const named = (text, name) => { const w = words(name); return !!w && (' ' + words(text) + ' ').includes(' ' + w + ' '); };
 const TOAST = new RegExp(${JSON.stringify(TOAST.source)}, 'i');
 const NOTE_LIMIT = ${NOTE_LIMIT};
 const BULLETS = new RegExp(${JSON.stringify(BULLETS.source)});
 const dests = new Set();
+const links = new Set();
+const seen = new Set();
+const MAX_LOOKUPS = ${PLUGIN_MAX_LOOKUPS};
 const MAX_DEPTH = ${maxDepth};
 const GEOMETRY = new Set(${JSON.stringify(GEOMETRY)});
 const KEEP = new RegExp(${JSON.stringify(KEEP.source)}, 'i');
@@ -77,7 +90,10 @@ function reactions(n) {
     if (!r || !r.trigger || !r.trigger.type) continue;
     const a = acts(r.actions || (r.action ? [r.action] : []));
     if (a.length) out.push([String(r.trigger.type), a]);
-    for (const x of a) if (x[2] === 'CHANGE_TO' && x[1]) dests.add(x[1]);
+    for (const x of a) {
+      if (x[2] === 'CHANGE_TO' && x[1]) dests.add(x[1]);
+      else if (x[1] && (x[2] === 'NAVIGATE' || x[2] === 'OVERLAY' || x[2] === 'SWAP')) links.add(x[1]);
+    }
   }
   return out.length ? out : null;
 }
@@ -104,6 +120,7 @@ async function instance(n, o) {
 async function walk(n, depth, parentType, full) {
   if (count >= MAX_NODES) { truncated = true; return null; }
   const o = { i: n.id, n: clip(n.name), t: n.type };
+  seen.add(n.id);
   if (n.visible === false) { count++; o.h = 1; return o; }
   const r = reactions(n);
   if (GEOMETRY.has(n.type) && !r && !KEEP.test(n.name || '')) return null;
@@ -146,18 +163,27 @@ async function walk(n, depth, parentType, full) {
   }
   return o;
 }
-// The node cap cuts the walk short on big files, so sections named LATEST or Parked, or after a flow in Scope, go
-// first on every page, then the rest. The tree keeps the canvas order.
-const first = (t) => {
-  const name = String(t.name || '');
-  return FIRST.test(name) || FIRST_NAMES.some((f) => name.toLowerCase().includes(f));
-};
 const plan = [];
 for (const page of figma.root.children) {
   if (typeof page.loadAsync === 'function') await page.loadAsync();
   const tops = page.children || [];
   plan.push({ page, tops, flows: tops.some((t) => t.type === 'SECTION'), out: [] });
 }
+// The node cap cuts the walk short on big files, so sections named LATEST or Parked, or after a flow in Scope, go
+// first on every page, then the rest. The tree keeps the canvas order. A Scope flow matches whole words ("Flow 1" is
+// not "Flow 10"), an exact name wins over a longer one, and a flow that a LATEST or Parked section already holds
+// pulls nothing else forward, so its old versions stay behind.
+const live = (t) => FIRST.test(String(t.name || ''));
+const allTops = [];
+for (const p of plan) if (p.flows) for (const t of p.tops) allTops.push(t);
+const kidNames = (t) => { try { return (t.type === 'SECTION' && t.children ? t.children : []).map((c) => c.name); } catch (e) { return []; } };
+const firstIds = new Set();
+for (const f of FIRST_NAMES) {
+  if (allTops.some((t) => live(t) && (named(t.name, f) || kidNames(t).some((n) => named(n, f))))) continue;
+  const exact = allTops.filter((t) => words(t.name) === words(f));
+  for (const t of exact.length ? exact : allTops.filter((t) => named(t.name, f))) firstIds.add(t.id);
+}
+const first = (t) => live(t) || firstIds.has(t.id);
 for (const pass of [true, false]) {
   for (const p of plan) {
     if (!p.flows) continue;
@@ -195,7 +221,27 @@ if (typeof figma.getNodeByIdAsync === 'function') {
     } catch (e) {}
   }
 }
-const __payload = { flowcheck: 1, document: { i: figma.root.id, n: clip(figma.root.name), t: 'DOCUMENT', c: pages }, components, componentSets, nodes: count, truncated };`;
+// Where each unread link destination sits: its name, size and the sections around it, outermost first.
+const outside = {};
+if (typeof figma.getNodeByIdAsync === 'function') {
+  let looked = 0;
+  for (const id of links) {
+    if (seen.has(id)) continue;
+    if (looked++ >= MAX_LOOKUPS) break;
+    try {
+      const d = await figma.getNodeByIdAsync(id);
+      if (!d) continue;
+      const s = [];
+      let page = null;
+      for (let p = d.parent; p; p = p.parent) {
+        if (p.type === 'SECTION') s.unshift([p.id, clip(p.name)]);
+        if (p.type === 'PAGE') { page = [p.id, clip(p.name)]; break; }
+      }
+      outside[id] = { n: clip(d.name), t: d.type, w: r2(d.width), h: r2(d.height), s, p: page };
+    } catch (e) {}
+  }
+}
+const __payload = { flowcheck: 1, document: { i: figma.root.id, n: clip(figma.root.name), t: 'DOCUMENT', c: pages }, components, componentSets, outside, nodes: count, truncated };`;
 }
 
 /** The walker alone, returning the compact tree. Tests run it against a fake figma global. */

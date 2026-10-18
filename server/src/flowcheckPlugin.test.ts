@@ -148,6 +148,32 @@ describe('flowCheckScript', () => {
     expect(flows).toEqual(expect.arrayContaining([['LATEST flows', 'pass', ''], ['Onboarding', 'unchecked', 'cut']]));
   });
 
+  it('matches Scope flows as whole words, prefers an exact name, and leaves old versions behind once LATEST holds the flow', async () => {
+    const small = (id: string, name: string, x: number, kids: any[] = []) => section(id, name, x, 0, 2000, 1200, [frame(`${id}0`, `${name} screen`, x + 100, 100, [text(`${id}1`, 'x')]), ...kids]);
+    const tops = (out: PluginPayload) => out.document.c![0].c!.filter((t: any) => t.c).map((t: any) => t.n);
+    const page = (kids: any[]) => ({ root: node({ id: '0:0', type: 'DOCUMENT', name: 'Doc' }, [node({ id: '0:1', type: 'PAGE', name: 'Hi fi', loadAsync: async () => {} }, kids)]) });
+    // 3 layers per top section, so a cap of 3 walks only the section that goes first.
+    const loose = page([small('1:', 'Flow 1 · V1', 0), small('2:', 'Flow 10 · Reports', 3000), small('3:', 'Flow 1', 6000)]);
+    expect(tops(await runScript(flowCheckScript({ maxNodes: 3, first: ['Flow 1'] }), loose))).toEqual(['Flow 1']);
+    const phrase = page([small('2:', 'Flow 10 · Reports', 0), small('1:', 'Flow 1 · V1', 3000)]);
+    expect(tops(await runScript(flowCheckScript({ maxNodes: 3, first: ['Flow 1'] }), phrase))).toEqual(['Flow 1 · V1']);
+    const held = page([small('1:', 'Flow 1 · V1', 0), small('2:', 'Flow 10 · Reports', 3000), small('4:', 'LATEST flows', 6000, [section('4:9', 'Flow 1 · First run (V1.14 · LATEST)', 6000, 1300, 1000, 500, [])])]);
+    expect(tops(await runScript(flowCheckScript({ maxNodes: 3, first: ['Flow 1'] }), held))).toEqual(['LATEST flows']);
+  });
+
+  it('looks up link destinations the walk did not reach, with the sections around them', async () => {
+    const latest = section('1:1', 'LATEST flows', 0, 0, 4000, 2000, [frame('2:1', 'Home', 100, 100, [btn('3:1', 'Back', { reactions: [click('2:9'), click('2:1'), hover()] })])]);
+    const old = section('1:2', 'Flow 1 · V1', 5000, 0, 2000, 1200, [frame('2:9', 'Old home', 5100, 100, [])]);
+    const figma = {
+      root: node({ id: '0:0', type: 'DOCUMENT', name: 'Doc' }, [node({ id: '0:1', type: 'PAGE', name: 'Flows', loadAsync: async () => {} }, [latest, old])]),
+      getNodeByIdAsync: async (id: string) => (id === '2:9' ? { id, type: 'FRAME', name: 'Old home', width: 1440, height: 900, parent: { id: '1:2', type: 'SECTION', name: 'Flow 1 · V1', parent: { id: '0:1', type: 'PAGE', name: 'Flows', parent: { type: 'DOCUMENT' } } } } : null),
+    };
+    const out = await runScript(flowCheckScript({ only: ['1:1'] }), figma);
+    expect(out.outside).toEqual({ '2:9': { n: 'Old home', t: 'FRAME', w: 1440, h: 900, s: [['1:2', 'Flow 1 · V1']], p: ['0:1', 'Flows'] } });
+    const f = runPayload(out).flows.find((x) => x.name === 'LATEST flows')!.findings.filter((x) => x.rule === 'stale-link');
+    expect(f.map((x) => x.message)).toEqual(['Button "Back" opens "Old home" in "Flow 1 · V1", outside this flow.']);
+  });
+
   it('stays well under the use_figma code limit', () => {
     expect(flowCheckScript().length).toBeLessThan(50000);
     expect(flowCheckScript()).not.toMatch(/setCurrentPageAsync|loadAllPagesAsync|saveVersionHistoryAsync|setPluginData/);
