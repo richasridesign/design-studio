@@ -3,7 +3,7 @@ import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { insertPrompt } from './Files';
-import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
+import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, askedEnd, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
 import type { PlanLimit } from '../../../shared/protocol';
 import { answerPrompt } from '../../../shared/awaiting';
 import '../longrun.css';
@@ -112,6 +112,48 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (o: Lo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Under a message that asks Claude to work until a time or overnight: one click starts it as a long run with that end
+ * time and the default caps and rounds. Never starts on its own; Send still sends it as one turn.
+ */
+export function LongRunHint({ text, onStart }: { text: string; onStart: (o: LongRunStart) => void }) {
+  const run = useStore((s) => s.session.longRun);
+  const running = useStore((s) => s.session.running);
+  const chat = useStore((s) => s.session.id);
+  const mode = useStore((s) => s.session.permissionMode);
+  const limit = useStore((s) => s.session.limit);
+  const limitsRaw = useStore((s) => s.session.limits);
+  const [dismissed, setDismissed] = useState(false);
+  const [askBeforeEdit, setAskBeforeEdit] = useState(false);
+  const empty = !text.trim();
+  useEffect(() => setDismissed(false), [chat]);
+  useEffect(() => { if (empty) setDismissed(false); }, [empty]);
+  const until = empty ? null : askedEnd(text, Date.now());
+  const show = until !== null && !dismissed && !running && !isActive(run);
+  useEffect(() => {
+    if (show) getJson<{ askBeforeEdit?: boolean }>('/api/settings').then((x) => setAskBeforeEdit(Boolean(x.askBeforeEdit)), () => {});
+  }, [show]);
+  if (!show) return null;
+  const limits = allLimits(limitsRaw, limit);
+  const used5 = windowPct(limits, 'five_hour') ?? 0;
+  const usedWeek = windowPct(limits, 'weekly') ?? 0;
+  const over = used5 >= DEFAULT_CAP ? `5-hour usage is already at ${Math.round(used5)}%. Set a higher cap in Long run.`
+    : usedWeek >= DEFAULT_WEEKLY_CAP ? `Weekly usage is already at ${Math.round(usedWeek)}%. Set a higher cap in Long run.`
+    : '';
+  const stall = stallReason(mode, askBeforeEdit);
+  return (
+    <div className="lr-hint" role="group" aria-label="Long run">
+      <Icon name="watch" small />
+      <div className="lr-hint-body">
+        <span>{over || `Claude works alone in up to ${DEFAULT_ROUNDS} rounds and stops at ${DEFAULT_CAP}% of 5-hour or ${DEFAULT_WEEKLY_CAP}% of weekly usage.`}</span>
+        {stall && !over && <span className="lr-hint-warn"><span className="lr-warn-mark" aria-hidden />{stall}</span>}
+        {!over && <button onClick={() => onStart({ until, cap: DEFAULT_CAP, weeklyCap: DEFAULT_WEEKLY_CAP, rounds: DEFAULT_ROUNDS })}>Run as a long run until {hhmm(until)}</button>}
+      </div>
+      <button className="icon-btn" title="Dismiss" aria-label="Dismiss long run suggestion" onClick={() => setDismissed(true)}><Icon name="close" small /></button>
     </div>
   );
 }

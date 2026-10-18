@@ -32,6 +32,8 @@ describe('kinds', () => {
     expect(guessKind('Design a new onboarding flow for HR admins')).toBe('new');
     expect(guessKind('What if the approvals lived in Slack? Explore some ideas')).toBe('explore');
     expect(guessKind('Run all of this until 4 AM, figure out yourself')).toBe('batch');
+    expect(guessKind('loop until 5')).toBe('batch');
+    expect(guessKind('keep fixing until 5 flows are done')).not.toBe('batch');
     expect(guessKind('What does this error mean?')).toBeNull();
     expect(guessKind('')).toBeNull();
   });

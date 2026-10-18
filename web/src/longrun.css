@@ -72,3 +72,10 @@
 .cp:has(.lr-pop) .cp-send:not(:disabled) { background: transparent; border-color: var(--border-strong); color: var(--fg); }
 .cp:has(.lr-pop) .cp-send:hover:not(:disabled) { background: var(--bg-hover); }
 .lr-answer { margin-top: 4px; min-height: 24px; font-size: var(--text-sm); }
+
+/* Under a time-bound message: offer it as a long run. Same strip as the attach offer above the message box. */
+.lr-hint { display: flex; align-items: flex-start; gap: 8px; padding: 8px 8px 12px 12px; border-bottom: 1px solid var(--border); font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.lr-hint > svg, .lr-hint > .icon { flex: none; margin-top: 2px; }
+.lr-hint > .icon-btn { margin-top: -2px; }
+.lr-hint-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.lr-hint-warn { display: flex; align-items: flex-start; gap: 8px; margin-top: -4px; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }

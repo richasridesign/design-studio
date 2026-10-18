@@ -11,6 +11,7 @@ import { flowIssues, type FlowCheckRun } from './flowcheck.js';
 import { stateMap } from './stateMap.js';
 import { closedTally, splitRun, triagedRules, type Triage } from './triage.js';
 import { rulesSummary } from './rules.js';
+import { askedEnd } from './longRun.js';
 
 export const STAGE_IDS = ['spec', 'research', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -46,7 +47,8 @@ export function guessKind(text: string | null | undefined): ChatKind | null {
   const t = (text ?? '').toLowerCase().replace(/\s+/g, ' ');
   if (!t.trim()) return null;
   if (/\breview only\b|\bonly (a )?review\b|\bjust (a )?review\b|\b(do not|don't|dont) (build|change|edit|fix|touch)\b|\bno edits\b|^\s*(please |can you )?(review|audit)\b/.test(t)) return 'review';
-  if (/\bovernight\b|\buntil \d{1,2} ?(am|pm|a\.m\.|p\.m\.)|\bwhile i (sleep|am asleep|'m asleep)\b|\bfigure (it )?out yourself\b/.test(t)) return 'batch';
+  // The same reading the composer uses to offer a long run, so both agree on what is a time-bound request.
+  if (askedEnd(t, Date.now()) !== null || /\bfigure (it )?out yourself\b/.test(t)) return 'batch';
   if (/\bacross (all |the |every |each )*((\d+|two|three|four|five|six|seven|eight|nine|ten) )?flows\b|\b(in|to) (all|every|each) (of )?(the )?((\d+|eight) )?flows\b|\beverywhere\b|\bevery (dialog|screen|modal|card|button|table|toast|tooltip)s?\b|\bfix (it|this|that|them|these)\b/.test(t)) return 'fix';
   if (/\b(design|create|build|make|add|redesign)\b.{0,60}\b(screens?|flows?|pages?|dialogs?|modals?|features?|onboarding|forms?|states?)\b|\bnew (screen|flow|page|feature|version)\b/.test(t)) return 'new';
   if (/\b(explore|brainstorm|research|competitors?|what if|ideas?|inspiration|industry standard|options for)\b/.test(t)) return 'explore';

@@ -12,7 +12,7 @@ import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
 import { imageProblem, imagesIn } from './attach';
 import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
-import { LongRunButton, type LongRunStart } from './LongRun';
+import { LongRunButton, LongRunHint, type LongRunStart } from './LongRun';
 import { ModelPicker } from './ModelPicker';
 import { focusChecked, menuKeys } from '../press';
 import { useTip } from '../Tip';
@@ -508,6 +508,7 @@ export function Composer() {
             <button className="icon-btn" title="Dismiss" aria-label="Dismiss" onClick={() => setSkipLink(link.url)}><Icon name="close" small /></button>
           </div>
         )}
+        {!shell && <LongRunHint text={text} onStart={startLongRun} />}
         {nodeLinks.length > 0 && !shell && (
           <div className="cp-nodes" aria-label="Frames in this message">
             {nodeLinks.map((l) => {
