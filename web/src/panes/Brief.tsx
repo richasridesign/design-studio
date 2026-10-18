@@ -127,7 +127,7 @@ export function Brief() {
                     {adding ? (
                       <UpNextItem text="" editing onSave={(v) => { setAdding(false); if (v) setNext([...next, v]); }} onDrop={() => setAdding(false)} />
                     ) : (
-                      <li className="step add"><button className="link" onClick={() => setAdding(true)}><Icon name="add" small /> Add to Up next</button></li>
+                      <li className="step add"><button className="link" onClick={() => setAdding(true)}><Icon name="add" small /><span>Add to Up next</span></button></li>
                     )}
                   </ul>
                 )}

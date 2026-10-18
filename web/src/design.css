@@ -26,6 +26,9 @@
 .muted { color: var(--fg-muted); }
 .small { font-size: var(--text-sm); }
 .link { background: none; border: 0; padding: 0; min-height: 0; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+/* A link with a leading icon underlines its words only: the words sit in a span, the icon stays plain. */
+.link:has(> .icon), .link:has(> .icon):hover { text-decoration: none; }
+.link:has(> .icon) > span:not(.sr-only) { text-decoration: underline; text-underline-offset: 2px; }
 .banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); }
 .banner > span { flex: 1; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
