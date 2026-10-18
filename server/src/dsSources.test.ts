@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { changeDesignSystem, listSkills, readCodeTokens, skillRulesFor } from './dsSources.js';
+import { changeDesignSystem, listSkills, readCodeTokens, skillRulesFor, switchStarter } from './dsSources.js';
 import { starterProfile } from '../../shared/dsProfiles.js';
 import { profileOff } from './profile.js';
 
@@ -64,6 +64,25 @@ describe('changeDesignSystem', () => {
     expect(await profileOff(dir)).toBe(true);
     await changeDesignSystem(dir, null, { action: 'starter', id: 'lofi' });
     expect(await profileOff(dir)).toBe(false);
+  });
+  it('keeps her principles on a starter switch, and takes the starter\'s when she never changed them', async () => {
+    const dir = await tmp();
+    await changeDesignSystem(dir, null, { action: 'starter', id: 'nordic' });
+    let r = await changeDesignSystem(dir, null, { action: 'starter', id: 'lofi' });
+    expect(r.kept).toEqual([]);
+    expect(r.ds?.rules).toEqual(starterProfile('lofi', 1).rules);
+    await changeDesignSystem(dir, null, { action: 'edit', rules: ['Dialogs always have a close icon.'] });
+    r = await changeDesignSystem(dir, null, { action: 'starter', id: 'nordic' });
+    expect(r.kept).toEqual(['principles']);
+    expect(r.ds?.rules).toEqual(['Dialogs always have a close icon.']);
+    expect(r.ds?.name).toBe('Nordic calm B2B');
+    expect(r.ds?.starter).toBe('nordic');
+  });
+  it('keeps a name and note that are not the old starter\'s', () => {
+    const mine = { ...starterProfile('nordic', 1), name: 'Harisson', note: 'Our product', rules: starterProfile('nordic', 1).rules };
+    const r = switchStarter(mine, 'lofi', 2);
+    expect(r.kept).toEqual(['name', 'note']);
+    expect(r.ds).toMatchObject({ name: 'Harisson', note: 'Our product', starter: 'lofi', rules: starterProfile('lofi', 2).rules });
   });
   it('records a failed Figma read on the source instead of failing', async () => {
     const dir = await tmp();
