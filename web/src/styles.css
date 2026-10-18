@@ -489,14 +489,12 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .tl-now .tool { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--text-xs); color: var(--fg-muted); }
 .steps { list-style: none; margin: 0; padding: 0 0 0 26px; }
 .step { display: flex; align-items: center; gap: 6px; min-height: 22px; font-size: var(--text-sm); color: var(--fg-muted); }
-.step::before { content: ''; flex: none; width: 10px; height: 10px; border: 1px solid var(--fg-muted); border-radius: 2px; }
 .step .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
 .step .text:hover { color: var(--fg); }
 .step .acts { display: flex; opacity: 0; }
 .step:hover .acts, .step:focus-within .acts { opacity: 1; }
 .step .icon-btn { width: 24px; height: 24px; }
 .step input { flex: 1; min-width: 0; height: 22px; font-size: var(--text-sm); }
-.step.add::before { display: none; }
 .step.add .link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
 .step.add .link:hover { color: var(--link); }
 .brief-cards .card { margin: 0; border-radius: var(--radius); border: 1px solid var(--border); border-left: 3px solid var(--warn); background: var(--bg-raised); }
