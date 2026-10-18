@@ -74,12 +74,7 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (until
   );
 }
 
-function dotFor(r: LongRun) {
-  if (r.state === 'running') return 'run';
-  if (r.state === 'reporting') return 'report';
-  if (r.state === 'done') return 'done';
-  return r.reason === 'errors' || r.reason === 'rejected' ? 'bad' : 'warn';
-}
+const dotFor = (r: LongRun) => (r.state === 'reporting' ? 'report' : 'run');
 
 export function lineText(r: LongRun, used: number | null) {
   const turns = `${r.turns} ${r.turns === 1 ? 'turn' : 'turns'}`;
@@ -94,18 +89,14 @@ export function lineText(r: LongRun, used: number | null) {
 export function LongRunLine() {
   const run = useStore((s) => s.session.longRun);
   const limit = useStore((s) => s.session.limit);
-  if (!run) return null;
-  const active = isActive(run);
+  // An ended run already has its note (and report) in the chat, so the line only shows while it runs.
+  if (!run || !isActive(run)) return null;
   const used = limit?.kind === 'five_hour' && limit.used !== null ? limit.used * 100 : null;
   return (
     <div className="lr-line" role="status">
-      <span className={`lr-dot ${dotFor(run)}`} aria-hidden>{run.state === 'done' && <Icon name="check" small />}</span>
+      <span className={`lr-dot ${dotFor(run)}`} aria-hidden />
       <span className="lr-text">{lineText(run, used)}</span>
-      {active ? (
-        <button className="link" title="Stop the long run and the current turn" onClick={() => send({ type: 'long_run_stop' })}>Stop</button>
-      ) : (
-        <button className="icon-btn" title="Dismiss" aria-label="Dismiss" onClick={() => send({ type: 'long_run_clear' })}><Icon name="close" small /></button>
-      )}
+      <button className="link" title="Stop the long run and the current turn" onClick={() => send({ type: 'long_run_stop' })}>Stop</button>
     </div>
   );
 }
