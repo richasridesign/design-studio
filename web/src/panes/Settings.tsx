@@ -157,7 +157,7 @@ export function Settings() {
         </div>
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
-        <Toggle label="Check frames after Claude edits Figma" detail="Runs the design system check on the frames Claude touched in a chat turn. Reading them from Figma costs under a cent" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
+        <Toggle label="Check frames after Claude edits Figma" detail="Runs the code scan on the frames Claude touched in a chat turn. Reading them from Figma costs under a cent" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
       </section>
 
       <section className="set-card" id="set-models" aria-labelledby="set-models-h">

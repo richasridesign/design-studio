@@ -43,7 +43,7 @@ describe('runRows', () => {
   it('lists reviewers under the Review row', () => {
     const run = runRows(flow('review', { reviewers: [{ area: 'check', state: 'pass' }, { area: 'all', state: 'running' }, { area: 'spacing', state: 'fail' }] }))!;
     expect(run.rows[3].subs).toEqual([
-      { label: 'Design system check', state: 'pass' },
+      { label: 'Code scan', state: 'pass' },
       { label: 'All areas', state: 'running' },
       { label: 'Spacing and layout', state: 'fail' },
     ]);

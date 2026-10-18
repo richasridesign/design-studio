@@ -78,7 +78,7 @@ and Claude's, show as chips with the frame name and open the frame on click.
   name and a pass or fail mark per area. Failed areas link to their findings in the Review pane. Buttons: Open
   Review, Copy as checklist (Markdown), Retry (when a reviewer failed) and Review deeper (after a Quick review or
   audit).
-- **Check after edits.** In Chat mode, when a turn edited Figma, Design Studio runs the design system check on the
+- **Check after edits.** In Chat mode, when a turn edited Figma, Design Studio runs the code scan on the
   frames Claude touched (a nested layer counts as its top-level frame) and posts a review card. Reading the frames costs under a cent. Turn it off in Settings, Design runs.
 
 Before its first change in each turn, Claude saves a Figma version. A hook blocks changes until it has.
@@ -110,7 +110,7 @@ These commands run on the server:
 | `/design <brief>` | The full run: plan, sketch, design, review |
 | `/sketch <brief>` | Plan and sketch only |
 | `/review [quick\|full] [frame links]` | Review frames without changing them |
-| `/audit` | Design system check across the whole file. Reads every frame through the Figma plugin, a few minutes on a large file |
+| `/audit` | Code scan across the whole file. Reads every frame through the Figma plugin, a few minutes on a large file |
 | `/system` | Rebuild the design system profile |
 | `/crit [frame links]` | Same as the recipe, with frame links |
 | `/copy [tone:friendly] [frame links]` | Tones are friendly, neutral and formal |

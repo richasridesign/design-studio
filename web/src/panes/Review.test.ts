@@ -60,7 +60,7 @@ describe('review card helpers', () => {
 
   it('lists the check first and marks failed reviewers', () => {
     const run = review('a', 1, { check: [finding('major')], results: [{ area: 'all', pass: false, summary: '', findings: [], tokens: 0, costUsd: 0, error: 'boom' }] });
-    expect(areaRows(run)).toEqual([{ key: 'check', name: 'Design system check', pass: false, failed: false, tone: 'major' }, { key: 'all', name: 'All areas', pass: false, failed: true, tone: 'error' }]);
+    expect(areaRows(run)).toEqual([{ key: 'check', name: 'Code scan', pass: false, failed: false, tone: 'major' }, { key: 'all', name: 'All areas', pass: false, failed: true, tone: 'error' }]);
   });
 
   it('keeps red for blocking findings and errors', () => {

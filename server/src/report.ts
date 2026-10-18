@@ -261,8 +261,8 @@ function review(d: Data): Section | null {
     const open = (list: Finding[]) => splitFindings(run, list, d.triage).open;
     const check = open(run.check);
     parts.push(`<p class="meta">Reviewed: ${esc(dayTime(run.at))}, round ${run.round}, ${plural(run.frames.length, 'frame')}</p>`);
-    if (run.checkError) parts.push(`<p>${st('error', 'Error')} Design system check: ${esc(run.checkError)}</p>`);
-    if (check.length) parts.push(`<h3>Design system check <small>${plural(check.length, 'finding')}</small></h3><ul class="rows">${[...check].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
+    if (run.checkError) parts.push(`<p>${st('error', 'Error')} Code scan: ${esc(run.checkError)}</p>`);
+    if (check.length) parts.push(`<h3>Code scan <small>${plural(check.length, 'finding')}</small></h3><ul class="rows">${[...check].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
     if (run.rulesError) parts.push(`<p>${st('error', 'Error')} House rules: ${esc(run.rulesError)}</p>`);
     // Failed rules resolved by hand move to Resolved by hand, like findings.
     const rules = triagedRules(run, d.triage) ?? [];

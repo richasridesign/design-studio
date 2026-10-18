@@ -53,7 +53,7 @@ export const areaTone = (pass: boolean, failed: boolean, findings: Finding[]): A
 export function areaRows(run: ReviewRun): Array<{ key: string; name: string; pass: boolean; failed: boolean; tone: AreaTone }> {
   const checkPass = !run.checkError && !run.check.some((f) => f.severity !== 'minor');
   return [
-    { key: 'check', name: 'Design system check', pass: checkPass, failed: !!run.checkError, tone: areaTone(checkPass, !!run.checkError, run.check) },
+    { key: 'check', name: 'Code scan', pass: checkPass, failed: !!run.checkError, tone: areaTone(checkPass, !!run.checkError, run.check) },
     ...run.results.map((r) => ({ key: r.area, name: r.area === 'all' ? 'All areas' : AREA_NAMES[r.area], pass: r.pass, failed: !!r.error, tone: areaTone(r.pass, !!r.error, r.findings) })),
   ];
 }
