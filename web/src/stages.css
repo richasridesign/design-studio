@@ -22,12 +22,13 @@
 /* Marks differ by shape as well as colour, all drawn in the stage's own ink: ring with a centre dot = current, filled = ready,
    filled with a check = approved, thin ring = later. Every ink is at least 3:1 on white and on its tint, and the label says the state too. */
 .stage-mark { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--st-ink, var(--warn)); }
-.stage-btn.open .stage-mark::after, .stage-rail .open .stage-mark::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--st-ink, var(--warn)); }
-.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark { background: var(--st-ink, var(--fg)); }
+.stage-btn.open .stage-mark::after, .stage-rail .open .stage-mark::after, .gate-head.open .stage-mark::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--st-ink, var(--warn)); }
+.stage-btn.ready .stage-mark, .stage-rail .ready .stage-mark, .gate-head.ready .stage-mark { background: var(--st-ink, var(--fg)); }
 .stage-btn.approved .stage-mark { background: var(--st-ink, var(--ok)); }
 .stage-rail .later .stage-mark { border-width: 1px; border-color: color-mix(in srgb, var(--st-ink) 80%, var(--bg-elevated)); }
-.stage-rail .approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--st-ink); color: #fff; }
-.stage-rail .approved .stage-mark .codicon { font-size: 12px; }
+.gate-head.later .stage-mark { border-width: 1px; }
+.stage-rail .approved .stage-mark, .gate-head.approved .stage-mark { width: 16px; height: 16px; border: 0; background: var(--st-ink); color: #fff; }
+.stage-rail .approved .stage-mark .codicon, .gate-head.approved .stage-mark .codicon { font-size: 12px; }
 
 .stage-panel { container-type: inline-size; flex: none; max-height: min(560px, 60vh); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
 
@@ -52,6 +53,8 @@
   display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--radius-sm);
   background: linear-gradient(110deg, var(--st-tint, var(--bg-raised)) 0%, color-mix(in srgb, var(--st-tint, var(--bg-raised)) 35%, var(--bg-elevated)) 100%);
 }
+.gate-state { display: inline-flex; align-items: center; gap: 8px; min-height: 16px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+.gate-head:not(.approved) .gate-state .stage-mark { margin: 0 2px; }
 .gate-head b { font-family: var(--serif); font-weight: 500; font-size: var(--text-lg); line-height: 24px; }
 .gate-head .muted, .gate-foot .muted { font-size: var(--text-sm); line-height: 20px; }
 .gate-next { margin: 0; font-size: var(--text-sm); line-height: 20px; }
