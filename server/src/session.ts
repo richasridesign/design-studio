@@ -25,7 +25,7 @@ import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpe
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, refreshMapSoon, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
-import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, nodeLink, parseReport, reportAsk, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
+import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
 import { awaitQuestions } from './awaiting.js';
 
@@ -559,7 +559,7 @@ export class AgentSession {
   /** The report's "Needs your decision" items go to the Awaiting your decision list, so they outlast the chat. */
   private async awaitReport(report: Report) {
     const key = this.figma && this.figma.key !== SAMPLE_KEY ? this.figma.key : '';
-    const items = report.decide.map((text) => ({ text, ...(nodeLink(text) ?? { fileKey: key, node: '' }) })).filter((q) => q.fileKey && q.fileKey !== SAMPLE_KEY);
+    const items = reportQuestions(report.decide, key);
     if (!items.length) return;
     try {
       await awaitQuestions(this.cwd, key, items);

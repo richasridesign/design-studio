@@ -135,6 +135,28 @@ export function roundFrom(text: string): number | null {
   return m ? +m[1] : null;
 }
 
+/** A report line as plain words: link labels kept, link targets and bare Figma links dropped. */
+export function plainLine(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/<?https?:\/\/(?:www\.)?figma\.com\/\S+?>?(?=[\s)]|$)/g, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([.,;:!?])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Never a real file: the sample tour's key. */
+const SAMPLE = 'sample';
+
+/** The report's "Needs your decision" items as they go to the Awaiting list: plain text, the node from the link, or the chat's file. */
+export function reportQuestions(decide: string[], chatKey: string | null | undefined): Array<{ text: string; fileKey: string; node: string }> {
+  const key = chatKey && chatKey !== SAMPLE ? chatKey : '';
+  return decide
+    .map((raw) => ({ text: plainLine(raw), ...(nodeLink(raw) ?? { fileKey: key, node: '' }) }))
+    .filter((q) => q.text && q.fileKey && q.fileKey !== SAMPLE);
+}
+
 /** A Figma node link in a report line: its file key and node id ("12:34"). */
 export function nodeLink(text: string): { fileKey: string; node: string } | null {
   const m = /figma\.com\/(?:design|file|proto|board)\/([A-Za-z0-9]+)[^\s)]*?[?&]node-id=(\d+)[-:](\d+)/.exec(text);

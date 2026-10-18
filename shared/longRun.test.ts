@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, longRunPrompt, nodeLink, parseReport, roundFrom, stallReason, untilFrom, usedPct, windowPct, withLimit, type LongRun } from './longRun.js';
+import { decide, longRunPrompt, nodeLink, plainLine, reportQuestions, parseReport, roundFrom, stallReason, untilFrom, usedPct, windowPct, withLimit, type LongRun } from './longRun.js';
 import type { PlanLimit } from './protocol.js';
 
 const now = 1_000_000;
@@ -139,5 +139,19 @@ describe('rounds and links', () => {
     expect(p).toMatch(/90% of the 5-hour plan limit or 70% of the weekly limit/);
     expect(p).toMatch(/cached file map \(\/x\/map\.md\)/);
     expect(p).not.toMatch(/\u2014/);
+  });
+});
+
+describe('report questions for the Awaiting list', () => {
+  it('keeps link labels and drops link targets', () => {
+    expect(plainLine('Move the toast on [Cart](https://www.figma.com/design/Ab1/F?node-id=1-2)? Left it.')).toBe('Move the toast on Cart? Left it.');
+    expect(plainLine('Rename the tab? Kept it (https://www.figma.com/design/Ab1/F?node-id=1-2).')).toBe('Rename the tab? Kept it.');
+    expect(plainLine('Rename the tab https://figma.com/design/Ab1/F?node-id=1-2 or keep it')).toBe('Rename the tab or keep it');
+  });
+  it('takes the node from the link, else the chat file, and saves nothing without a real file', () => {
+    const decide = ['Move it? [Toast](https://www.figma.com/design/Ab1/F?node-id=3-4)', 'Rename the tab?'];
+    expect(reportQuestions(decide, 'Chat9')).toEqual([{ text: 'Move it? Toast', fileKey: 'Ab1', node: '3:4' }, { text: 'Rename the tab?', fileKey: 'Chat9', node: '' }]);
+    expect(reportQuestions(['Rename the tab?'], null)).toEqual([]);
+    expect(reportQuestions(['Rename the tab?'], 'sample')).toEqual([]);
   });
 });
