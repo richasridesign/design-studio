@@ -37,10 +37,10 @@ export function Changes() {
     setFrameId(null);
     if (!figma) return;
     getJson<Version[]>('/api/figma/versions').then((v) => { setVersions(v); setVersionId((reviewTarget(v) ?? v[0])?.id ?? null); }).catch((e) => setError(e.message));
-    Promise.all([getOutline(figma.key), getJson<DesignDoc>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
+    Promise.all([getOutline(figma.key), getJson<DesignDoc | null>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
       .then(([o, d]) => {
         const all = o.pages.flatMap((p) => p.frames);
-        const mine = d.frames.map((f) => all.find((a) => a.id === f.nodeId)).filter((f): f is FrameRow => !!f);
+        const mine = (d?.frames ?? []).map((f) => all.find((a) => a.id === f.nodeId)).filter((f): f is FrameRow => !!f);
         const list = [...new Map([...mine, ...all].map((f) => [f.id, f])).values()];
         setFrames(list);
         setFrameId(list[0]?.id ?? null);
@@ -65,7 +65,6 @@ export function Changes() {
     <div className="changes">
       <ul className="ch-list" aria-label="Versions" ref={list}>
         {!versions && !error && [0, 1, 2, 3].map((i) => <li key={i} className="ch-skel" />)}
-        {versions && !versions.length && <li className="muted ch-note">No versions saved yet.</li>}
         {versions?.map((v) => (
           <li key={v.id}>
             <button className={`ch-item ${v.id === versionId ? 'on' : ''}`} onClick={() => setVersionId(v.id)}>
