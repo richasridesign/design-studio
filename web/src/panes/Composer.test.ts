@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accept, figmaLinkIn, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
+import { accept, dropLink, figmaLinkIn, nodeLinksIn, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
 import { RECIPES, toRecipe } from '../../../shared/recipes';
 import type { ChatEvent } from '../../../shared/protocol';
 
@@ -211,5 +211,26 @@ describe('recent frames', () => {
   it('puts recent frames first and keeps the rest in order', () => {
     const f = (id: string) => ({ id, name: id, page: 'P' });
     expect(recentFirst([f('1:1'), f('2:2'), f('3:3')], ['3:3', '9:9']).map((x) => x.id)).toEqual(['3:3', '1:1', '2:2']);
+  });
+});
+
+describe('nodeLinksIn', () => {
+  const key = 'AbCdEf123456';
+  it('finds node links of this file once each', () => {
+    const t = `Fix https://www.figma.com/design/${key}/Atlas?node-id=12-34&t=x and https://www.figma.com/design/${key}/Atlas?node-id=12-34 then https://figma.com/design/${key}?node-id=5-6.`;
+    expect(nodeLinksIn(t, key)).toEqual([
+      { url: `https://www.figma.com/design/${key}/Atlas?node-id=12-34&t=x`, id: '12:34' },
+      { url: `https://figma.com/design/${key}?node-id=5-6`, id: '5:6' },
+    ]);
+  });
+
+  it('skips other files and links without a node', () => {
+    expect(nodeLinksIn(`https://www.figma.com/design/OtherKey99999/X?node-id=1-2 https://www.figma.com/design/${key}/X`, key)).toEqual([]);
+  });
+});
+
+describe('dropLink', () => {
+  it('removes the link and tidies the gap', () => {
+    expect(dropLink('Fix Cart (https://f.com/a) now', 'https://f.com/a')).toBe('Fix Cart now');
   });
 });
