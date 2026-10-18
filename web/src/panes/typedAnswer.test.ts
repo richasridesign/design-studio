@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { plainGo, typedAnswer, waitingPlaceholder } from './typedAnswer';
+import { goWithNote, plainGo, typedAnswer, waitingPlaceholder } from './typedAnswer';
 import type { PendingRequest } from '../../../shared/protocol';
 
 const plan: PendingRequest = { id: 'p1', kind: 'permission', toolName: 'ExitPlanMode', title: 'Plan', input: { plan: 'x' }, canAlwaysAllow: false };
@@ -18,13 +18,25 @@ describe('plainGo', () => {
   });
 });
 
+describe('goWithNote', () => {
+  it('takes letters and go with words, not bare go or new asks', () => {
+    for (const t of ['A', 'go with B', 'go, keep it', 'go but drop the toast', 'ok, go and park flow 3']) expect(goWithNote(t)).toBe(true);
+    for (const t of ['go', 'approved', 'go through every dialog', 'make it calmer']) expect(goWithNote(t)).toBe(false);
+  });
+});
+
 describe('typedAnswer', () => {
   it('approves a plan on go', () => {
     expect(typedAnswer(' go ', plan)).toEqual({ type: 'permission', id: 'p1', allow: true });
   });
+  it('approves with her words when go or a letter carries a note', () => {
+    expect(typedAnswer('A', plan)).toEqual({ type: 'permission', id: 'p1', allow: true, note: 'A' });
+    expect(typedAnswer('go, keep the voice button', plan)).toEqual({ type: 'permission', id: 'p1', allow: true, note: 'go, keep the voice button' });
+    expect(typedAnswer('go but keep the mic on the right and the paperclip on the left in every flow', plan)).toMatchObject({ allow: true });
+  });
   it('sends anything else on a plan as what to change, never an abort', () => {
-    expect(typedAnswer('A', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'A' });
-    expect(typedAnswer('go, keep the voice button', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'go, keep the voice button' });
+    expect(typedAnswer('make it calmer', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'make it calmer' });
+    expect(typedAnswer('go through every dialog and list the ones with no close icon', plan)).toMatchObject({ allow: false });
   });
   it('answers every question with her words', () => {
     expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'error message B, voice 2', 'Which voice?': 'error message B, voice 2' } });

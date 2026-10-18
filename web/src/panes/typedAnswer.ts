@@ -3,11 +3,18 @@ import type { PendingRequest } from '../../../shared/protocol';
 
 /**
  * A bare go word ("go", "approved", "build it"): approve as it is.
- * A letter or "go, keep X" carries a choice, so it goes back to Claude as what to change.
+ * A letter or "go, keep X" also approves, and her words ride along as a note.
  */
 export function plainGo(text: string) {
   const t = text.trim();
   return Boolean(approvalReply(t)) && !/\b[a-c]\b/i.test(t) && !/^(go|approved?)[,.:] \S/i.test(t);
+}
+
+/** An approval that carries words: a letter ("A", "go with B"), or go followed by a note of any length ("go but keep the mic"). "go through every dialog" is a new ask, not an approval. */
+export function goWithNote(text: string) {
+  const t = text.trim();
+  if (plainGo(t)) return false;
+  return Boolean(approvalReply(t)) || /^((ok|yes),? )?(go( ahead)?|approved?|looks good)(,|\.|:|!| but| and| with)\s+\S/i.test(t);
 }
 
 export type TypedAnswer =
@@ -16,7 +23,7 @@ export type TypedAnswer =
 
 /**
  * What a message typed while a card waits should do, so typing never aborts the card.
- * A plan: a go word approves it, anything else asks for changes with her words.
+ * A plan: a go word approves it, go with words approves it with her words as a note, anything else asks for changes.
  * A question: her words answer it (one line like "error message B, voice 2" can answer several).
  * Other permission cards return null: the message steers Claude as before.
  */
@@ -25,7 +32,8 @@ export function typedAnswer(text: string, pending: PendingRequest | undefined): 
   if (!t || !pending) return null;
   if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: Object.fromEntries(pending.questions.map((q) => [q.question, t])) };
   if (pending.toolName !== 'ExitPlanMode') return null;
-  return plainGo(t) ? { type: 'permission', id: pending.id, allow: true } : { type: 'permission', id: pending.id, allow: false, note: t };
+  if (plainGo(t)) return { type: 'permission', id: pending.id, allow: true };
+  return { type: 'permission', id: pending.id, allow: goWithNote(t), note: t };
 }
 
 /** The message box placeholder while a card waits, naming what typing does. */

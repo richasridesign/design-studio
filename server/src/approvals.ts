@@ -33,6 +33,15 @@ export function permissionTitle(toolName: string, input: Record<string, unknown>
   return `Use ${toolName}`;
 }
 
+/**
+ * An approval with words ("go, keep the voice button", "A"): the note rides on the approved plan, so Claude
+ * builds with it in the same round instead of asking again. Other tools keep their input as it was.
+ */
+export function withNote(input: Record<string, unknown>, note?: string): Record<string, unknown> {
+  if (!note || typeof input.plan !== 'string') return input;
+  return { ...input, plan: `${input.plan}\n\n## Approved with this note from the designer\n${note}` };
+}
+
 export class Approvals {
   private waiting = new Map<string, Waiting>();
 
@@ -76,7 +85,7 @@ export class Approvals {
     if (!w) return;
     const said = note?.trim().slice(0, 4000);
     if (!allow) w.resolve({ behavior: 'deny', message: said ? `The designer wants changes before you go on: ${said}` : 'User denied this action in the Design Studio UI.' });
-    else w.resolve({ behavior: 'allow', updatedInput: w.input, updatedPermissions: always ? w.suggestions : undefined });
+    else w.resolve({ behavior: 'allow', updatedInput: withNote(w.input, said), updatedPermissions: always ? w.suggestions : undefined });
   }
 
   denyAll() {
