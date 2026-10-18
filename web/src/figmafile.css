@@ -1,0 +1,35 @@
+/* Figma tab without Chrome: the attached file and its designed frames. */
+.ff-pane { overflow-y: auto; background: var(--bg); }
+.ff-pane .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ff-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.ff-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+.ff-name { margin: 0; font-size: var(--text-xl); line-height: 28px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.ff-open { font-size: var(--text-sm); line-height: 20px; }
+.ff-open:not(:hover) { text-decoration: none; }
+.ff-meta { font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.ff-line { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+
+.ff-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.ff-grid > li { display: flex; min-width: 0; }
+.ff-card { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--fg); text-decoration: none; overflow: hidden; }
+.ff-card-link:hover { border-color: var(--border-strong); background: var(--bg-raised); }
+.ff-card-link:hover .ff-card-name { text-decoration: underline; text-underline-offset: 2px; }
+.ff-card-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ff-thumb { position: relative; aspect-ratio: 4 / 3; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg-sunken); border-bottom: 1px solid var(--border); }
+.ff-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.ff-nothumb { font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.ff-card-foot { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 12px; }
+.ff-card-name { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-card-foot .icon { flex: none; color: var(--fg-muted); }
+
+.ff-chrome { margin: auto 24px 24px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ff-chrome-title { margin: 0; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
+.ff-chrome-text { margin: 0; max-width: 560px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.ff-chrome-btn { min-height: 32px; padding: 4px 12px; font-size: var(--text-sm); }
+
+@media (max-width: 899px) {
+  .ff-body { padding: 16px; }
+  .ff-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ff-chrome { margin: auto 16px 16px; }
+  .ff-chrome-btn { min-height: 44px; }
+}
