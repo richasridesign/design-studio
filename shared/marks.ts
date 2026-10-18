@@ -21,6 +21,8 @@ export const MARKS = {
   wontfix: { shape: 'slash', tone: 'muted' },
   parked: { shape: 'box', tone: 'muted' },
   current: { shape: 'diamond', tone: 'ink' },
+  /** A question waiting for her answer (a long run asked it). */
+  question: { shape: 'diamond', tone: 'warn' },
 } as const satisfies Record<string, { shape: MarkShape; tone: MarkTone }>;
 
 export type MarkKind = keyof typeof MARKS;

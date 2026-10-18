@@ -24,7 +24,14 @@
 .lr-pop-foot .primary { height: 36px; padding: 0 16px; flex: none; }
 
 .lr-line { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 0 2px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
-.lr-line .lr-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lr-line .lr-lines { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; }
+.lr-line .lr-text, .lr-line .lr-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lr-line .lr-text { color: var(--fg); }
+.lr-line .lr-sub { white-space: normal; }
+.lr-line > .link { flex: none; white-space: nowrap; }
+.lr-line.two .lr-dot { align-self: flex-start; margin-top: 4px; }
+.lr-unit { visibility: hidden; }
+.lr-saved { margin: 4px 0 0; color: var(--fg-muted); font-size: var(--text-xs); line-height: 16px; }
 .lr-line .link { font-size: var(--text-xs); line-height: 16px; min-height: 24px; }
 .lr-line .icon-btn { margin-left: -4px; }
 .lr-dot { flex: none; width: 8px; height: 8px; display: inline-flex; align-items: center; justify-content: center; }

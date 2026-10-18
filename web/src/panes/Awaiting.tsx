@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
 import { AREA_NAMES } from '../../../shared/design';
-import { AWAIT_LABEL, approvePrompt, nodeUrl, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
+import { AWAIT_LABEL, answerPrompt, approvePrompt, nodeUrl, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
 import { insertPrompt, showNode } from './Files';
 import { useNodeLabel } from './Triage';
 
@@ -16,19 +16,24 @@ const DONE_MARK: Record<Exclude<AwaitState, 'open'>, string> = { approved: 'pass
 export function Awaiting() {
   const fileKey = useStore((s) => s.session.figma?.key);
   const reviewRev = useRev('review.json');
+  // A long run report adds its questions to the list when the run ends.
+  const fromRun = useStore((s) => s.session.longRun?.awaiting ?? 0);
   const [items, setItems] = useState<AwaitItem[]>([]);
   const [all, setAll] = useState(false);
   const [decided, setDecided] = useState(false);
   const [said, setSaid] = useState('');
   const label = useNodeLabel();
 
-  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setItems).catch(() => {}); }, [reviewRev]);
+  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setItems).catch(() => {}); }, [reviewRev, fromRun]);
 
   const set = async (item: AwaitItem, state: AwaitState) => {
     const next = await postJson<AwaitItem[]>('/api/awaiting', { id: item.id, state }).catch(() => null);
     if (!next) { setSaid('Could not save. Try again.'); return; }
     setItems(next);
-    if (state === 'approved') {
+    if (state === 'approved' && item.area === 'long_run') {
+      insertPrompt(answerPrompt(item.rule));
+      setSaid('The question is in the message box: write your answer, then send it.');
+    } else if (state === 'approved') {
       insertPrompt(approvePrompt(item, nodeUrl(item.fileKey, item.node)));
       setSaid('Approved. The fix is in the message box: read it, then send it to start.');
     } else setSaid(state === 'open' ? `Reopened: ${item.rule}` : `${AWAIT_LABEL[state]}: ${item.rule}`);
@@ -40,35 +45,42 @@ export function Awaiting() {
   const shown = all || !fileKey ? open : here;
   const done = items.filter((i) => i.state !== 'open').reverse().slice(0, 20);
   if (!open.length && !done.length) return null;
+  const asked = shown.filter((i) => i.area === 'long_run').length;
 
   return (
     <section className="awaiting" aria-labelledby="awaiting-h">
       <header className="aw-head">
         <h2 id="awaiting-h">Awaiting your decision <span className="aw-count">{shown.length}</span></h2>
-        <p>Fixing these changes something shared, so fix rounds leave them for you.</p>
+        <p>{asked === 0 ? 'Fixing these changes something shared, so fix rounds leave them for you.'
+          : asked === shown.length ? 'Questions a long run left for you while you were away.'
+          : 'Fixes that change something shared, and questions a long run left for you.'}</p>
       </header>
       {shown.length > 0 && (
         <ul className="aw-list">
           {shown.map((item) => {
             const local = item.fileKey === fileKey;
+            const question = item.area === 'long_run';
             return (
               <li key={item.id}>
-                <span className={`sev mk ${item.severity}`}>{SEV[item.severity]}</span>
+                {question ? <span className="tri mk question">Question</span> : <span className={`sev mk ${item.severity}`}>{SEV[item.severity]}</span>}
                 <div className="aw-body">
                   <div className="f-rule">{item.rule}</div>
-                  <dl>
-                    <div><dt>Recommended:</dt> <dd>{item.fix}</dd></div>
-                    <div><dt>Touches:</dt> <dd>{item.impact}</dd></div>
-                  </dl>
+                  {(item.fix || item.impact) && (
+                    <dl>
+                      {item.fix && <div><dt>Recommended:</dt> <dd>{item.fix}</dd></div>}
+                      {item.impact && <div><dt>Touches:</dt> <dd>{item.impact}</dd></div>}
+                    </dl>
+                  )}
                   <div className="aw-foot">
                     {local
-                      ? <button className="aw-approve" onClick={() => set(item, 'approved')}>Approve</button>
-                      : <span className="aw-hint">Approve from a chat on {item.fileName || 'that file'}.</span>}
+                      ? <button className="aw-approve" title={question ? 'Put this question in the message box with your answer' : undefined} onClick={() => set(item, 'approved')}>{question ? 'Answer' : 'Approve'}</button>
+                      : <span className="aw-hint">{question ? 'Answer' : 'Approve'} from a chat on {item.fileName || 'that file'}.</span>}
                     <button className="triage-link" onClick={() => set(item, 'parked')}>Park</button>
                     <button className="triage-link" onClick={() => set(item, 'rejected')}>Reject</button>
                     <span className="aw-where">
-                      {item.area === 'long_run' ? 'Long run' : AREA_NAMES[item.area as keyof typeof AREA_NAMES] ?? 'Code scan'} ·{' '}
-                      {local
+                      {question ? 'Long run' : AREA_NAMES[item.area as keyof typeof AREA_NAMES] ?? 'Code scan'}
+                      {item.node ? ' · ' : !local && item.fileName ? ` · ${item.fileName}` : null}
+                      {!item.node ? null : local
                         ? <button className="node-chip" title="Show in Figma" onClick={() => showNode(item.node)}>{label(item.node, item.nodeName)}</button>
                         : <a className="node-chip" href={nodeUrl(item.fileKey, item.node)} target="_blank" rel="noreferrer">{item.fileName || 'Other file'}</a>}
                     </span>
@@ -94,7 +106,7 @@ export function Awaiting() {
         <ul className="aw-list aw-done">
           {done.map((item) => (
             <li key={item.id}>
-              <span className={`tri mk ${DONE_MARK[item.state as Exclude<AwaitState, 'open'>]}`}>{AWAIT_LABEL[item.state]}</span>
+              <span className={`tri mk ${DONE_MARK[item.state as Exclude<AwaitState, 'open'>]}`}>{item.area === 'long_run' && item.state === 'approved' ? 'Answered' : AWAIT_LABEL[item.state]}</span>
               <div className="aw-body">
                 <div className="f-rule">{item.rule}</div>
                 <div className="aw-foot"><button className="triage-link" onClick={() => set(item, 'open')}>Reopen</button></div>
