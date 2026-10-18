@@ -68,4 +68,10 @@ describe('openCount', () => {
     expect(openCount(decide(list, ids[0], 'approved', 2), ids)).toBe(1);
     expect(openCount(list, [ids[1], 'other'])).toBe(1);
   });
+  it('keys a Code scan finding the same when its count of copies changes', () => {
+    const a = { ...f('Button "Next" changes on hover to Type=Secondary (and 1 more like it).', 'main'), node: 'I1:5;2:3' };
+    const b = { ...a, rule: 'Button "Next" changes on hover to Type=Secondary (and 4 more like it).' };
+    expect(awaitKey('KEY', a)).toBe(awaitKey('KEY', b));
+    expect(addFindings(addFindings([], [a], file, 1), [b], file, 2)).toHaveLength(1);
+  });
 });

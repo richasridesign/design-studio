@@ -32,7 +32,9 @@ const TEXT_MAX = 400;
 const text = (v: unknown, max = TEXT_MAX) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
 /** One item per file and problem: the same finding in a later round does not add a second row. */
-export const awaitKey = (fileKey: string, f: Pick<Finding, 'rule' | 'node'>) => `${fileKey}|${f.node}|${text(f.rule, 120).toLowerCase()}`;
+// Code scan messages end in a count of copies ("(and 3 more like it)") that changes between runs, so it is left out.
+const MORE = /\s*\(and \d+ more like (it|this)\)/gi;
+export const awaitKey = (fileKey: string, f: Pick<Finding, 'rule' | 'node'>) => `${fileKey}|${f.node}|${text(f.rule.replace(MORE, ''), 120).toLowerCase()}`;
 
 export function cleanAwaiting(input: unknown): AwaitItem[] {
   if (!Array.isArray(input)) return [];
