@@ -39,7 +39,7 @@ import { readProfile } from './profile.js';
 import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
-import { approvalReply } from '../../shared/stages.js';
+import { approvalReply, planApprovedOnCard } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -322,7 +322,7 @@ const server = http.createServer(async (req, res) => {
       // The written brief (plan.md) wins over the first message, so the steps and the report agree.
       const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
       const brief = (plan && briefLede(plan)) || first;
-      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
+      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
       return json({ ...view, approvals: await readApprovals(chat.cwd) });
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });

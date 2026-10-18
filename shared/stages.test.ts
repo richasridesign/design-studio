@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KIND_INFO, PHASE_STAGE, approvalReply, chatKind, cleanApprovals, cleanChatSteps, guessKind, markStep, phaseLine, researchSummary, stageFrames, stageLabel, stageNote, stages, stepLine, type ChatSteps, type StageEvidence } from './stages.js';
+import { KIND_INFO, PHASE_STAGE, approvalReply, planApprovedOnCard, chatKind, cleanApprovals, cleanChatSteps, guessKind, markStep, phaseLine, researchSummary, stageFrames, stageLabel, stageNote, stages, stepLine, type ChatSteps, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -259,6 +259,21 @@ describe('approvalReply', () => {
   it('shows on Plan as information, with or without a written plan', () => {
     expect(byId({ ...none, approvedInChat: 'go' }).spec.checks.at(-1)).toMatchObject({ label: 'You said go', state: 'met', detail: '"go", no written plan' });
     expect(byId(none).spec.checks.at(-1)).toMatchObject({ state: 'unchecked' });
+  });
+  it('ticks when the plan was approved on its card, by a click or a typed go', () => {
+    expect(byId({ ...none, planApproved: true }).spec.checks.at(-1)).toMatchObject({ label: 'You said go', state: 'met', detail: 'Approved on the plan card' });
+  });
+});
+
+describe('planApprovedOnCard', () => {
+  const plan = { id: 't1', kind: 'tool_use', name: 'ExitPlanMode' };
+  it('counts a plan call whose result is not an error', () => {
+    expect(planApprovedOnCard([plan, { id: 'r1', kind: 'tool_result', toolUseId: 't1', isError: false }])).toBe(true);
+  });
+  it('leaves out changes asked for, a plan still waiting and other tools', () => {
+    expect(planApprovedOnCard([plan, { id: 'r1', kind: 'tool_result', toolUseId: 't1', isError: true }])).toBe(false);
+    expect(planApprovedOnCard([plan])).toBe(false);
+    expect(planApprovedOnCard([{ id: 't2', kind: 'tool_use', name: 'Bash' }, { id: 'r2', kind: 'tool_result', toolUseId: 't2', isError: false }])).toBe(false);
   });
 });
 

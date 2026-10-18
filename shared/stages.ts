@@ -119,6 +119,8 @@ export type StageEvidence = {
   flowcheck?: FlowCheckRun | null;
   /** Her short approval in the chat ("go", "A"), with or without a written plan. Logged, never required. */
   approvedInChat?: string | null;
+  /** She approved Claude's plan on its card, by a click or a typed go. */
+  planApproved?: boolean;
   /** Findings the designer closed by hand (triage.json). */
   triage?: Triage | null;
   decisions: DecisionDoc | null;
@@ -146,7 +148,9 @@ function checksFor(id: StageId, e: StageEvidence, kind: ChatKind): StageCheck[] 
         check('Figma file attached', e.figma, e.figma ? 'Attached' : 'Attach the file Claude designs in', e.figma ? undefined : 'attach'),
         e.approvedInChat
           ? check('You said go', true, `"${e.approvedInChat}"${e.plan?.trim() ? '' : ', no written plan'}`)
-          : { label: 'You said go', state: 'unchecked', detail: 'Reply go to Claude\'s plan, or skip the plan' },
+          : e.planApproved
+            ? check('You said go', true, 'Approved on the plan card')
+            : { label: 'You said go', state: 'unchecked', detail: 'Reply go to Claude\'s plan, or skip the plan' },
       ];
     case 'research':
       return [check('Research written', !!e.research?.trim(), e.research?.trim() ? researchSummary(e.research) : 'No research yet', e.research?.trim() ? 'research' : undefined)];
@@ -360,6 +364,16 @@ export function stageNote(c: ChatSteps): string {
     ...(reopened.length ? [`Reopened: ${reopened.map(name).join(', ')}.`] : []),
     ...(notes.length ? [`Notes: ${notes.join('; ')}`] : []),
   ].join(' ');
+}
+
+/**
+ * Claude's plan was approved on its card: a plan tool call (ExitPlanMode) whose result is not an error.
+ * A plan card approved by a click or a typed go sends no chat message, so the chat replies alone miss it.
+ * Asking for changes and the flow's own saved plan both come back as errors, so they do not count.
+ */
+export function planApprovedOnCard(events: ReadonlyArray<{ kind: string; id: string; name?: string; toolUseId?: string; isError?: boolean }>): boolean {
+  const plans = new Set(events.filter((e) => e.kind === 'tool_use' && e.name === 'ExitPlanMode').map((e) => e.id));
+  return events.some((e) => e.kind === 'tool_result' && plans.has(e.toolUseId ?? '') && !e.isError);
 }
 
 /**
