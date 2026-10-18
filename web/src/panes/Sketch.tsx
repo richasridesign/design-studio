@@ -1,8 +1,9 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Empty, SketchArt } from './Empty';
 import { insertPrompt } from './Files';
+import { Confirm, type ConfirmRequest } from '../Confirm';
 import { REASON_MAX, type SketchDoc, type SketchScreen } from '../../../shared/design';
 
 const SketchCanvas = lazy(() => import('./SketchCanvas'));
@@ -42,6 +43,24 @@ export function Sketch() {
     }) });
   };
   const allPicked = doc?.screens.every((s) => s.chosen);
+  const picked = doc?.screens.filter((s) => s.chosen).length ?? 0;
+  // Changing a pick that has a written reason asks first, because the reason was for the old direction.
+  const [ask, setAsk] = useState<ConfirmRequest | null>(null);
+  const trigger = useRef<HTMLElement | null>(null);
+  const choose = (s: SketchScreen, d: SketchScreen['directions'][number], el: HTMLElement) => {
+    if (s.chosen === d.id) return;
+    const old = s.directions.find((x) => x.id === s.chosen);
+    if (!(s.chosenBy === 'designer' && s.reason && old)) return pick(s.id, d.id);
+    trigger.current = el;
+    setAsk({
+      title: `Switch ${s.name} to ${d.name}?`,
+      detail: `Your reason was for ${old.name}: "${s.reason}". Switching clears it.`,
+      action: 'Switch',
+      safe: true,
+      icon: 'question',
+      run: async () => pick(s.id, d.id),
+    });
+  };
 
   return (
     <div className="sketch-page">
@@ -54,16 +73,23 @@ export function Sketch() {
           </div>
         )}
         {error && <div className="error-text">{error}</div>}
+        {!!doc?.screens.length && <p className="sketch-count muted small" role="status">Picked: {picked} of {doc.screens.length}</p>}
         {doc?.screens.map((s) => (
           <div key={s.id} className="sketch-screen">
             <span className="screen-name">{s.name}</span>
             {s.directions.map((d, i) => (
-              <button key={d.id} className={`dir ${s.chosen === d.id ? 'chosen' : ''}`} title={d.rationale} onClick={() => pick(s.id, d.id)}>
+              <button key={d.id} className={`dir ${s.chosen === d.id ? 'chosen' : ''}`} aria-pressed={s.chosen === d.id} aria-describedby={!s.chosen || s.chosen === d.id ? `dir-${s.id}-${d.id}` : undefined} onClick={(e) => choose(s, d, e.currentTarget)}>
                 {s.chosen === d.id && <Icon name="check" small />}
                 {String.fromCharCode(65 + i)} · {d.name}
               </button>
             ))}
             {s.chosen && s.chosenBy === 'designer' && <span className="muted small">Picked by you</span>}
+            {/* Each direction's reasoning, readable without hover. Once picked, only the chosen one stays. */}
+            <ul className="sketch-notes">
+              {s.directions.map((d, i) => (!s.chosen || s.chosen === d.id) && (
+                <li key={d.id} id={`dir-${s.id}-${d.id}`}><b>{String.fromCharCode(65 + i)}:</b> {d.rationale}</li>
+              ))}
+            </ul>
             {s.chosen && s.chosenBy !== 'designer' && (
               <span className="muted small sketch-sub">
                 Picked by Claude
@@ -74,6 +100,7 @@ export function Sketch() {
           </div>
         ))}
       </div>
+      {ask && <Confirm {...ask} onClose={() => { setAsk(null); requestAnimationFrame(() => trigger.current?.focus()); }} />}
       {!doc && !error && <Empty art={<SketchArt />} title="No sketches yet" text="Claude sketches two or three low-fidelity directions per screen before it designs. You can draw and leave notes on them." action={{ label: 'Sketch with Claude', onClick: () => insertPrompt('/sketch') }} />}
       {(doc || error) && <div className="sketch-canvas">
         {board && (
