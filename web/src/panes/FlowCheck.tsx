@@ -19,10 +19,14 @@ function byScreen(findings: FlowFinding[]) {
   return out;
 }
 
+const screensText = (n: number) => `${n} ${n === 1 ? 'screen' : 'screens'}`;
+
 function counts(flow: FlowResult) {
+  // Parked sections are frozen references, so no rule runs on them.
+  if (flow.skipped === 'parked') return flow.screens ? `Reason: Parked · ${screensText(flow.screens)}` : 'Reason: Parked';
   if (flow.state === 'unchecked') return 'No screens in this section';
   const parts = FLOW_RULES.filter((r) => flow.counts[r]).map((r) => `${FLOW_RULE_LABEL[r]} ${flow.counts[r]}`);
-  return parts.length ? parts.join(' · ') : `${flow.screens} ${flow.screens === 1 ? 'screen' : 'screens'}`;
+  return parts.length ? parts.join(' · ') : screensText(flow.screens);
 }
 
 function FlowRow({ flow, open, onToggle }: { flow: FlowResult; open: boolean; onToggle: () => void }) {
@@ -120,7 +124,7 @@ export function FlowCheck() {
       <div className="fc-head">
         <div className="fc-intro">
           <h2 id="fc-title">Flow check</h2>
-          <p>Clicks, hovers, close icons, tooltips, old links, overlaps and stickies in each section. Free.</p>
+          <p>Clicks, hovers, close icons, tooltips, old and parked links, overlaps and stickies in each section. Free.</p>
         </div>
         <button className="fc-run" disabled={busy} onClick={check}><Icon name={busy ? 'loading' : 'play'} small spin={busy} /> {busy ? (viaPlugin ? 'Checking through the Figma plugin…' : 'Checking…') : 'Run flow check'}</button>
       </div>
@@ -135,6 +139,9 @@ export function FlowCheck() {
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Ask Claude to fix'}</button>}
         </div>
+      )}
+      {run && !busy && !!run.missing?.length && (
+        <p className="fc-missing"><span className="fc-tri" aria-hidden="true" />Not found in the file: {run.missing.join(', ')}</p>
       )}
       {run && !run.flows.length && <p className="fc-meta">No sections found. Flow check reads each Figma section as one flow.</p>}
       {run && run.flows.length > 0 && (
