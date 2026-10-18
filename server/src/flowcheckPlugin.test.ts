@@ -134,6 +134,16 @@ describe('flowCheckScript', () => {
     expect(JSON.stringify(only.document)).toContain('"4:1"');
   });
 
+  it('walks LATEST, Parked and Scope sections first so the node cap cuts old work, and keeps canvas order', async () => {
+    const big = (id: string, name: string, x: number) => section(id, name, x, 0, 2000, 1200, [frame(`${id}0`, `${name} screen`, x + 100, 100, Array.from({ length: 6 }, (_, k) => node({ id: `${id}${k + 1}`, type: 'TEXT', name: 'T', characters: 'x' })))]);
+    const page = node({ id: '0:1', type: 'PAGE', name: 'Hi fi', loadAsync: async () => {} }, [big('7:', 'Flow 1 · V1', 0), big('8:', 'LATEST flows', 3000), big('9:', 'Onboarding', 6000)]);
+    const figma = { root: node({ id: '0:0', type: 'DOCUMENT', name: 'Doc' }, [page]) };
+    const out = await runScript(flowCheckScript({ maxNodes: 17, first: ['onboarding'] }), figma);
+    expect(out.truncated).toBe(true);
+    const tops = out.document.c[0].c.map((t: any) => [t.n, Boolean(t.c)]);
+    expect(tops).toEqual([['Flow 1 · V1', false], ['LATEST flows', true], ['Onboarding', true]]);
+  });
+
   it('stays well under the use_figma code limit', () => {
     expect(flowCheckScript().length).toBeLessThan(50000);
     expect(flowCheckScript()).not.toMatch(/setCurrentPageAsync|loadAllPagesAsync|saveVersionHistoryAsync|setPluginData/);
