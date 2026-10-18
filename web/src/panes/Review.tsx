@@ -194,7 +194,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
           </AreaCard>
         )}
         {openRun(run, triage).results.map((r) => (
-          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} triage={triageOps} />
+          <AreaCard key={r.area} title={r.area === 'all' ? 'All areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} triage={triageOps} />
         ))}
       </div>
       <ClosedGroup closed={split.closed.map((f) => ({ ...f, key: triageKey(run, f) }))} grouped={(f) => run.check.some((c) => c.id === f.id)} onReopen={reopen} headRef={closedHead} />
