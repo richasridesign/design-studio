@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { FLOW_RULES, type FlowCheckRun, type FlowFinding, type FlowRef, type FlowResult, type FlowRule } from '../../shared/flowcheck.js';
+import { FLOW_RULES, flowMatches, namedLike, type FlowCheckRun, type FlowFinding, type FlowRef, type FlowResult, type FlowRule } from '../../shared/flowcheck.js';
+import { EMPTY_SCOPE, type Scope } from '../../shared/scope.js';
+import { readScope } from './scope.js';
 import { CONTROL } from './check.js';
 import { FigmaError, figmaGet, nodes, SAMPLE_KEY } from './figma.js';
 import { figmaMcp } from './lean.js';
@@ -65,6 +67,7 @@ const CLOSE = /\b(close|dismiss)\b|(^|[\s/_-])x$/i;
 const DECISION = /^\s*decision\s*(\d+)\s*[·•:|-]\s*(.*)$/i;
 const NOT_SCREEN = /^\s*(decision|note|notes|flow note|section note|changelog|review|readme|legend|title|label|sticky|arrow)\b/i;
 const LINKS = new Set(['NAVIGATE', 'OVERLAY', 'SWAP']);
+const MAJOR = new Set<FlowRule>(['no-click', 'no-close', 'stale-link', 'parked-link']);
 const CANVAS = new Set(['FRAME', 'COMPONENT', 'INSTANCE']);
 
 type Maps = { components?: Record<string, any>; componentSets?: Record<string, any> };
@@ -181,11 +184,25 @@ function dialogFindings(node: any, maps: Maps, add: (node: any, rule: FlowRule, 
   visit(node);
 }
 
-function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>, add: (node: any, rule: FlowRule, message: string, fix: string, suffix?: string) => void) {
+type Adder = (node: any, rule: FlowRule, message: string, fix: string, suffix?: string) => void;
+// Where a link lands when it lands in a parked feature: the feature's name if known, else the Parked section's.
+type ParkedTarget = { name: string; feature: boolean };
+const PARKED_FIX = 'Remove the entry point, or restore the feature in Scope.';
+
+function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>, parkedAt: (id: string) => ParkedTarget | null, add: Adder, flagged: Set<string>) {
   const visit = (n: any) => {
     for (const r of reactionsOf(n)) {
       for (const a of r.actions) {
         if (a.type !== 'NODE' || !a.destinationId || !LINKS.has(a.navigation ?? '')) continue;
+        // A link into a parked feature is reported once, as a parked link, not also as an old link.
+        const parked = parkedAt(a.destinationId);
+        if (parked) {
+          const where = screens.get(a.destinationId)?.name;
+          const target = where ? `${quote(where)}, ` : '';
+          add(n, 'parked-link', parked.feature ? `${describe(n)} opens ${target}part of the parked feature ${quote(parked.name)}.` : `${describe(n)} opens ${target}in the parked section ${quote(parked.name)}.`, PARKED_FIX, a.destinationId);
+          flagged.add(n.id);
+          continue;
+        }
         const dest = screens.get(a.destinationId);
         if (!dest || dest.flow.id === flow.id) continue;
         add(n, 'stale-link', `${describe(n)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, outside this flow.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
@@ -194,6 +211,29 @@ function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>
     for (const c of kids(n)) visit(c);
   };
   visit(node);
+}
+
+// Entry points left behind: a layer or text named like a parked feature, the screen itself included.
+// A match stops the walk, so a button and its label count once. One finding per feature per screen.
+function parkedNameFindings(screen: any, parked: string[], add: Adder, flagged: Set<string>) {
+  for (const feature of parked) {
+    const hits: any[] = [];
+    // A label inside a button or chip reports the instance that holds it, which is the entry point to remove.
+    const visit = (n: any, holder: any) => {
+      if (flagged.has(n.id)) return;
+      if (namedLike(String(n.name ?? ''), feature) || (n.type === 'TEXT' && namedLike(String(n.characters ?? ''), feature))) {
+        const hit = n.type === 'TEXT' && holder ? holder : n;
+        if (!hits.includes(hit)) hits.push(hit);
+        return;
+      }
+      for (const c of kids(n)) visit(c, n.type === 'INSTANCE' ? n : holder);
+    };
+    visit(screen, null);
+    if (!hits.length) continue;
+    const more = hits.length > 1 ? ` (and ${hits.length - 1} more like it)` : '';
+    const what = hits[0] === screen ? `${quote(String(screen.name ?? screen.id))} is a screen` : `${describe(hits[0])} is an entry point`;
+    add(hits[0], 'parked-link', `${what} for the parked feature ${quote(feature)}${more}.`, PARKED_FIX);
+  }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -209,12 +249,18 @@ function stickyMatch(decision: string, screen: string) {
 const intersects = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 const contains = (outer: Box, inner: Box) => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 
-type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean };
+// parked: inside a section named Parked, so no rule runs on it. feature: the parked feature this section is named after.
+type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null };
 type Item = { id: string; name: string; box: Box; section: boolean; ancestors: string[]; flow: FlowRef; parent: string | null };
 
-export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[]; unchecked: FlowRule[] } {
+export const isParkedSection = (name: string, path: string[]) => [...path, name].some((n) => namedLike(n, 'parked'));
+
+export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
   const flows: Flow[] = [];
   const screens = new Map<string, ScreenInfo>();
+  // Every layer directly inside a section, screens or not, so links to small overlays are traced too.
+  const owner = new Map<string, Flow>();
+  const parkedNames = scope.parked.map((p) => p.name);
   const pageItems: Item[][] = [];
   let decisions = false;
   const scanDecisions = (n: any) => {
@@ -232,7 +278,10 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
       const ref = { id: s.id, name: String(s.name ?? s.id) };
       const own = kids(s).filter(isScreen);
       const subs = kids(s).filter((c) => c.type === 'SECTION');
-      flows.push({ ref, path, page: page.name, node: s, screens: own, leaf: !subs.length });
+      const full = [...path, ref.name].join(' / ');
+      const flow: Flow = { ref, path, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null };
+      flows.push(flow);
+      for (const c of kids(s)) if (c.type !== 'SECTION') owner.set(c.id, flow);
       if (s.absoluteBoundingBox) items.push({ id: s.id, name: ref.name, box: s.absoluteBoundingBox, section: true, ancestors, flow: ref, parent: ancestors[ancestors.length - 1] ?? null });
       for (const sc of own) {
         screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
@@ -244,7 +293,7 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
     const loose = tops.filter((t) => t.type !== 'SECTION' && isScreen(t));
     if (loose.length) {
       const ref = { id: page.id, name: `Not in a section (${page.name})` };
-      flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true });
+      flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null });
       for (const sc of loose) {
         screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
         if (sc.absoluteBoundingBox) items.push({ id: sc.id, name: String(sc.name ?? sc.id), box: sc.absoluteBoundingBox, section: false, ancestors: [], flow: ref, parent: null });
@@ -256,9 +305,21 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
   const found = new Map<string, FlowFinding[]>();
   const push = (f: FlowFinding) => found.set(f.flow.id, [...(found.get(f.flow.id) ?? []), f]);
   const adder = (flow: FlowRef, screen: FlowRef | null) => (node: any, rule: FlowRule, message: string, fix: string, suffix?: string) =>
-    push({ id: `flow:${rule}:${node.id}${suffix ? `:${suffix}` : ''}`, flow, screen, nodeId: node.id, nodeName: String(node.name ?? node.id), rule, message, fix, severity: rule === 'no-click' || rule === 'no-close' || rule === 'stale-link' ? 'major' : 'minor' });
+    push({ id: `flow:${rule}:${node.id}${suffix ? `:${suffix}` : ''}`, flow, screen, nodeId: node.id, nodeName: String(node.name ?? node.id), rule, message, fix, severity: MAJOR.has(rule) ? 'major' : 'minor' });
+
+  const parkedAt = (id: string): ParkedTarget | null => {
+    const f = owner.get(id);
+    if (!f || !(f.parked || f.feature)) return null;
+    const name = String(screens.get(id)?.name ?? '');
+    const feature = f.feature ?? parkedNames.find((p) => namedLike(name, p));
+    return feature ? { name: feature, feature: true } : { name: f.ref.name, feature: false };
+  };
 
   for (const f of flows) {
+    // Parked sections are frozen references: nothing is checked inside them.
+    if (f.parked) continue;
+    // A section named after a parked feature is that feature's own flow, so its screens are not entry points to it.
+    const scanParked = !f.feature && parkedNames.length > 0;
     const decisionNames: string[] = [];
     const collect = (n: any) => {
       for (const c of n.children ?? []) {
@@ -273,7 +334,9 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
       const add = adder(f.ref, screen);
       controlFindings(sc, maps, add);
       dialogFindings(sc, maps, add);
-      linkFindings(sc, f.ref, screens, add);
+      const flagged = new Set<string>();
+      linkFindings(sc, f.ref, screens, scanParked ? parkedAt : () => null, add, flagged);
+      if (scanParked) parkedNameFindings(sc, parkedNames, add, flagged);
       if (decisions) {
         const have = new Set(decisionNames.map((d) => DECISION.exec(d)!).filter((m) => stickyMatch(m[2], screen.name)).map((m) => m[1]));
         const missing = ['1', '2'].filter((n) => !have.has(n));
@@ -282,12 +345,13 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
     }
   }
 
+  const frozen = new Set(flows.filter((f) => f.parked).map((f) => f.ref.id));
   for (const items of pageItems) {
     const byId = new Map(items.map((i) => [i.id, i]));
     for (let i = 0; i < items.length; i++) {
       const a = items[i];
       const own = a.parent ? byId.get(a.parent) : undefined;
-      if (own && !contains(own.box, a.box)) adder(a.flow, a.section ? null : { id: a.id, name: a.name })({ id: a.id, name: a.name }, 'overlap', `${quote(a.name)} sits partly outside its section ${quote(own.name)}.`, `Grow ${quote(own.name)} so it holds ${quote(a.name)} with room to spare, then restack the sections below.`, 'outside');
+      if (own && !contains(own.box, a.box) && !frozen.has(a.flow.id)) adder(a.flow, a.section ? null : { id: a.id, name: a.name })({ id: a.id, name: a.name }, 'overlap', `${quote(a.name)} sits partly outside its section ${quote(own.name)}.`, `Grow ${quote(own.name)} so it holds ${quote(a.name)} with room to spare, then restack the sections below.`, 'outside');
       for (let j = i + 1; j < items.length; j++) {
         const b = items[j];
         if (a.ancestors.includes(b.id) || b.ancestors.includes(a.id) || !intersects(a.box, b.box)) continue;
@@ -298,7 +362,10 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
           const mine = scr.parent ? byId.get(scr.parent) : undefined;
           if (mine && intersects(mine.box, sec.box)) continue;
         }
-        const first = a.section && !b.section ? b : a;
+        if (frozen.has(a.flow.id) && frozen.has(b.flow.id)) continue;
+        // An overlap with a parked section is reported on the side that is still checked.
+        const pick = a.section && !b.section ? b : a;
+        const first = frozen.has(pick.flow.id) ? (pick === a ? b : a) : pick;
         const other = first === a ? b : a;
         adder(first.flow, first.section ? null : { id: first.id, name: first.name })({ id: first.id, name: first.name }, 'overlap', `${quote(first.name)} overlaps ${quote(other.name)} on the canvas.`, `Move ${quote(first.name)} or ${quote(other.name)} so they do not touch, and grow the section if it needs room.`, other.id);
       }
@@ -307,6 +374,10 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
 
   const results: FlowResult[] = [];
   for (const f of flows) {
+    if (f.parked) {
+      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'parked' });
+      continue;
+    }
     const list = found.get(f.ref.id) ?? [];
     if (!f.screens.length && !list.length && !f.leaf) continue;
     const counts: Partial<Record<FlowRule, number>> = {};
@@ -316,7 +387,10 @@ export function checkFlows(document: any, maps: Maps = {}): { flows: FlowResult[
     const sorted = [...list].sort((x, y) => order(x) - order(y) || FLOW_RULES.indexOf(x.rule) - FLOW_RULES.indexOf(y.rule));
     results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state, counts, unchecked: decisions ? [] : ['no-stickies'], findings: sorted.slice(0, MAX_PER_FLOW), more: Math.max(0, sorted.length - MAX_PER_FLOW) });
   }
-  return { flows: results, unchecked: decisions ? [] : ['no-stickies'] };
+  // Flows named in Scope need a section in the file. Parked sections and loose screens do not count.
+  const live = flows.filter((f) => f.section && !f.parked).map((f) => [...f.path, f.ref.name].join(' '));
+  const missing = scope.flows.filter((name) => !live.some((s) => flowMatches(name, s)));
+  return { flows: results, unchecked: decisions ? [] : ['no-stickies'], missing };
 }
 
 export const readFlowChecks = (dir: string) => readFile(path.join(dir, FLOWCHECK_FILE), 'utf8').then((t) => JSON.parse(t).runs as FlowCheckRun[]).catch(() => [] as FlowCheckRun[]);
@@ -349,11 +423,11 @@ export const NO_FIGMA_ACCESS = 'Log in to the Figma plugin, or add a Figma token
 type Loaded = { document: any; maps: Maps; truncated?: boolean };
 
 // REST first. Without a token (412), the Figma plugin reads the file instead, when it is installed.
-export async function runFlowCheck(input: { dir: string; fileKey: string; load?: (fileKey: string) => Promise<Loaded>; loadPlugin?: (fileKey: string, opts: { dir: string; signal?: AbortSignal }) => Promise<Loaded>; figma?: () => Promise<{ configured: boolean }>; signal?: AbortSignal }): Promise<FlowCheckRun> {
+export async function runFlowCheck(input: { dir: string; fileKey: string; load?: (fileKey: string) => Promise<Loaded>; loadPlugin?: (fileKey: string, opts: { dir: string; signal?: AbortSignal }) => Promise<Loaded>; figma?: () => Promise<{ configured: boolean }>; scope?: Scope; signal?: AbortSignal }): Promise<FlowCheckRun> {
   const { dir, fileKey } = input;
   let via: FlowCheckRun['via'] = 'rest';
   let truncated = false;
-  const result = fileKey === SAMPLE_KEY ? { flows: [], unchecked: [] as FlowRule[] } : await (async () => {
+  const result = fileKey === SAMPLE_KEY ? { flows: [], unchecked: [] as FlowRule[], missing: [] as string[] } : await (async () => {
     let loaded: Loaded;
     try {
       loaded = await (input.load ?? loadDocument)(fileKey);
@@ -364,9 +438,9 @@ export async function runFlowCheck(input: { dir: string; fileKey: string; load?:
       via = 'plugin';
     }
     truncated = !!loaded.truncated;
-    return checkFlows(loaded.document, loaded.maps);
+    return checkFlows(loaded.document, loaded.maps, input.scope ?? (await readScope(dir)));
   })();
-  const run: FlowCheckRun = { id: randomUUID(), at: Date.now(), fileKey, flows: result.flows, unchecked: result.unchecked, via, ...(truncated ? { truncated } : {}) };
+  const run: FlowCheckRun = { id: randomUUID(), at: Date.now(), fileKey, flows: result.flows, unchecked: result.unchecked, via, ...(truncated ? { truncated } : {}), ...(result.missing.length ? { missing: result.missing } : {}) };
   const runs = await readFlowChecks(dir);
   await writeFile(path.join(dir, FLOWCHECK_FILE), JSON.stringify({ runs: [...runs, run].slice(-5) }, null, 2));
   return run;

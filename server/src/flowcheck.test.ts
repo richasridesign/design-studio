@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { checkFlows, hasClick, hasHover, reactionsOf, readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { flowFixPrompt, flowLabel } from '../../shared/flowcheck.js';
@@ -21,6 +21,9 @@ const doc = (...pages: any[][]) => ({ id: '0:0', type: 'DOCUMENT', children: pag
 const maps = { components: { 'c:btn': { name: 'Type=Primary, State=Default' }, 'c:btnHover': { name: 'Type=Primary, State=Hover' }, 'c:icon': { name: 'Icon' }, 'c:iconbtn': { name: 'Icon button' }, 'c:row': { name: 'Workflow row' } }, componentSets: {} };
 
 const rules = (r: ReturnType<typeof checkFlows>, flow = 0) => r.flows[flow].findings.map((f) => f.rule);
+const scope = (flows: string[], parked: string[] = []) => ({ flows, parked: parked.map((name) => ({ name, why: 'Not in the MVP', restore: '', at: 1 })) });
+// A wired button with a hover, so only the scope rules can fail.
+const ok = (label: string, dest = 's2', extra: any = {}) => button(label, { interactions: [click(dest), hover()], ...extra });
 
 describe('reactionsOf', () => {
   it('reads the REST interactions shape', () => {
@@ -216,6 +219,87 @@ describe('checkFlows', () => {
   });
 });
 
+describe('checkFlows with scope', () => {
+  const parkedSection = (children: any[] = [screen('p1', 'Add a workflow', [], 0, 3000)]) => section('9:1', 'Parked', children, 0, 3000);
+
+  it('flags a layer or text named like a parked feature in an in-scope flow, once per screen', () => {
+    const r = checkFlows(doc([section('1:1', 'Home', [screen('s1', 'Home', [ok('Add-a-Workflow'), ok('Save'), text('add a workflow'), text('Add a workflow')])])]), maps, scope([], ['Add a workflow']));
+    const f = r.flows[0].findings.filter((x) => x.rule === 'parked-link');
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: 'major', fix: 'Remove the entry point, or restore the feature in Scope.' });
+    expect(f[0].message).toBe('Button "Add-a-Workflow" is an entry point for the parked feature "Add a workflow" (and 2 more like it).');
+  });
+
+  it('flags a screen named like a parked feature left in an in-scope section', () => {
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Add a workflow · Step 1', [])])]), maps, scope([], ['Add a workflow']));
+    expect(r.flows[0].findings[0]).toMatchObject({ rule: 'parked-link', nodeId: 's1', message: '"Add a workflow · Step 1" is a screen for the parked feature "Add a workflow".' });
+  });
+
+  it('flags a link into a Parked section as a parked link, not an old link', () => {
+    const b = ok('Next', 'p1', { name: 'Link' });
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Home', [b])]), parkedSection()]), maps, scope([], ['Add a workflow']));
+    const f = r.flows[0].findings;
+    expect(f.map((x) => x.rule)).toEqual(['parked-link']);
+    expect(f[0].message).toBe('Link "Next" opens "Add a workflow", part of the parked feature "Add a workflow".');
+  });
+
+  it('names the Parked section when the destination does not name the feature', () => {
+    const b = ok('Next', 'p1', { name: 'Link' });
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Home', [b])]), parkedSection([screen('p1', 'Step 1', [], 0, 3000)])]), maps, scope([], ['Bulk import']));
+    expect(r.flows[0].findings[0].message).toBe('Link "Next" opens "Step 1", in the parked section "Parked".');
+  });
+
+  it('flags a link into a small overlay inside a section named like the feature', () => {
+    const b = ok('Next', 'ov', { name: 'Link' });
+    const overlay = { id: 'ov', type: 'FRAME', name: 'Menu', ...box(0, 3000, 200, 100), children: [] };
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Home', [b])]), section('5:1', 'V3 · Add a workflow', [screen('w1', 'Add a workflow', [], 0, 3200), overlay], 0, 3000)]), maps, scope([], ['Add a workflow']));
+    expect(rules(r)).toEqual(['parked-link']);
+    expect(r.flows[0].findings[0].message).toBe('Link "Next" opens part of the parked feature "Add a workflow".');
+  });
+
+  it('does not scan the feature\'s own section for entry points, but still runs the normal rules there', () => {
+    const r = checkFlows(doc([section('5:1', 'Add a workflow', [screen('w1', 'Add a workflow', [button('Add a workflow')])])]), maps, scope([], ['Add a workflow']));
+    expect(rules(r)).toEqual(['no-click', 'no-hover']);
+  });
+
+  it('flags nothing extra without parked features', () => {
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Home', [ok('Add a workflow')])])]), maps, scope(['Flow 2']));
+    expect(rules(r)).toEqual([]);
+    expect(r.missing).toEqual([]);
+  });
+
+  it('skips Parked sections and their sub-sections, and lists them as not checked', () => {
+    const inner = section('9:2', 'Add a workflow', [screen('p2', 'Step 2', [button('Go')], 0, 3000)], 0, 3000, 2000, 1000);
+    const r = checkFlows(doc([section('1:1', 'Flow 2', [screen('s1', 'Home', [])]), section('9:1', 'Parked · 12 Oct', [screen('p1', 'Add a workflow', [button('Go')], 2000, 3000), inner], 0, 3000)]), maps, scope([], ['Add a workflow']));
+    const parked = r.flows.filter((f) => f.skipped === 'parked');
+    expect(parked.map((f) => f.name)).toEqual(['Parked · 12 Oct', 'Add a workflow']);
+    expect(parked.every((f) => f.state === 'unchecked' && f.findings.length === 0)).toBe(true);
+    expect(parked[0].screens).toBe(1);
+    expect(flowLabel(parked[0])).toBe('Not checked');
+  });
+
+  it('skips Parked sections even without a scope', () => {
+    const r = checkFlows(doc([section('9:1', 'Parked', [screen('p1', 'Old', [button('Go')])])]), maps);
+    expect(r.flows[0]).toMatchObject({ state: 'unchecked', skipped: 'parked', findings: [] });
+  });
+
+  it('reports an overlap with a Parked section on the checked side, and none between parked items', () => {
+    const r = checkFlows(doc([section('1:1', 'Flow 1', [screen('a', 'A', [])], 0, 0, 2000, 1000), section('9:1', 'Parked', [screen('b', 'B', [], 0, 900), screen('c', 'C', [], 0, 900)], 0, 900, 2000, 1000)]), maps);
+    expect(r.flows.find((f) => f.id === '1:1')!.counts.overlap).toBe(1);
+    expect(r.flows.find((f) => f.id === '9:1')!.findings).toEqual([]);
+  });
+
+  it('lists scope flows with no matching section, ignoring Parked sections and loose screens', () => {
+    const d = doc([
+      section('L', 'LATEST', [section('1:1', 'Onboarding', [screen('s1', 'Home', [])], 0, 0, 2000, 1000), section('2:1', 'Activate', [screen('s2', 'Activate', [], 0, 1200)], 0, 1200, 2000, 1000)], 0, 0, 3000, 3000),
+      section('9:1', 'Parked', [screen('p1', 'Checkout', [], 0, 4000)], 0, 4000),
+      screen('loose', 'Search', [], 6000, 0),
+    ]);
+    const r = checkFlows(d, maps, scope(['onboarding flow', 'LATEST Activate', 'Checkout', 'Search']));
+    expect(r.missing).toEqual(['Checkout', 'Search']);
+  });
+});
+
 describe('flowFixPrompt', () => {
   it('asks for a plan first and lists findings with node ids', () => {
     const r = checkFlows(doc([section('1:1', 'Flow 1', [screen('s1', 'Home', [button('Save', { id: '5:6', interactions: [hover()] })])]), section('2:1', 'Flow 2', [screen('s2', 'Done', [], 0, 3000)], 0, 3000)]), maps);
@@ -237,6 +321,21 @@ describe('runFlowCheck', () => {
     expect(run.flows[0].counts).toEqual({ 'no-click': 1, 'no-hover': 1 });
     expect((await readFlowChecks(dir)).map((x) => x.id)).toEqual([run.id]);
     expect(JSON.parse(await readFile(path.join(dir, 'flowcheck.json'), 'utf8')).runs).toHaveLength(1);
+  });
+  it('reads scope.json from the chat folder and stores the missing flows', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
+    await writeFile(path.join(dir, 'scope.json'), JSON.stringify(scope(['Home', 'Checkout'], ['Add a workflow'])));
+    const load = async () => ({ document: doc([section('1:1', 'Home', [screen('s1', 'Home', [ok('Add a workflow')])])]), maps });
+    const run = await runFlowCheck({ dir, fileKey: 'abc', load });
+    expect(run.missing).toEqual(['Checkout']);
+    expect(run.flows[0].counts).toEqual({ 'parked-link': 1 });
+    expect((await readFlowChecks(dir))[0].missing).toEqual(['Checkout']);
+  });
+  it('leaves missing out when every scope flow is found, and takes a scope passed in', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
+    const load = async () => ({ document: doc([section('1:1', 'Home', [screen('s1', 'Home', [])])]), maps });
+    const run = await runFlowCheck({ dir, fileKey: 'abc', load, scope: scope(['Home']) });
+    expect(run).not.toHaveProperty('missing');
   });
   it('returns no flows for the sample file without calling Figma', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
