@@ -19,7 +19,7 @@ import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';
 import { FilePill } from './AttachFile';
 import { ConnectPopover } from './ConnectPopover';
-import { McpItem } from './panes/McpStatus';
+import { McpItem, McpPage } from './panes/McpStatus';
 import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
 import { ThemeButton } from './ThemeToggle';
@@ -88,7 +88,7 @@ function Preview() {
   return <iframe className="preview-frame" title="Prototype" src={src} />;
 }
 
-function SettingsOverlay({ onClose }: { onClose: () => void }) {
+function Dialog({ title, onClose, extra, wide, children }: { title: string; onClose: () => void; extra?: string; wide?: boolean; children: React.ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -96,12 +96,12 @@ function SettingsOverlay({ onClose }: { onClose: () => void }) {
   }, [onClose]);
   return (
     <div className="overlay settings-overlay" onClick={onClose}>
-      <div className="settings-dialog" role="dialog" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+      <div className={`settings-dialog${wide ? ' wide' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="settings-dialog-head">
-          <span>Settings</span>
-          <button className="icon-btn" title="Close" onClick={onClose}><Icon name="close" /></button>
+          <span>{title}</span>
+          <button className="icon-btn" title="Close" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
-        <div className="settings-dialog-body"><Settings /></div>
+        <div className="settings-dialog-body">{extra && <div id={extra} className="dialog-extra" />}{children}</div>
       </div>
     </div>
   );
@@ -121,6 +121,7 @@ export function App() {
   const [view, setView] = useState<View>('chats');
   const [phone, setPhone] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const content = useCanvasContent();
   const [dev, setDev] = useState(false);
@@ -218,7 +219,7 @@ export function App() {
         else if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
-      else if (kind === 'page') { if (arg === 'settings') setSettings(true); else open(arg as Center); }
+      else if (kind === 'page') { if (arg === 'settings') setSettings(true); else if (arg === 'mcp') setMcpOpen(true); else open(arg as Center); }
       else if (kind === 'focus') { if (!narrow()) toggleFocus(); }
       else if (kind === 'phone') setPhone((v) => !v);
       else if (kind === 'tab') setTab(arg as Tab);
@@ -345,7 +346,8 @@ export function App() {
       <Palette />
       <RecipeEditorHost />
       <Shortcuts />
-      {settings && <SettingsOverlay onClose={() => setSettings(false)} />}
+      {settings && <Dialog title="Settings" onClose={() => setSettings(false)}><Settings /></Dialog>}
+      {mcpOpen && <Dialog title="MCP servers" extra="page-mcp-extra" wide onClose={() => setMcpOpen(false)}><McpPage /></Dialog>}
       {phone && <ConnectPopover onClose={() => setPhone(false)} />}
     </div>
   );
