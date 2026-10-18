@@ -20,7 +20,7 @@ export function ThemeButton() {
   const pref = useThemePref();
   const label = `Theme: ${THEME_LABEL[pref]}`;
   return (
-    <button className="icon-btn desktop-only" title={`${label}. Switch to ${THEME_LABEL[nextThemePref(pref)]}`} aria-label={label} onClick={() => setThemePref(nextThemePref(pref))}>
+    <button className="icon-btn desktop-only" title={label} aria-label={label} onClick={() => setThemePref(nextThemePref(pref))}>
       <ThemeIcon pref={pref} />
     </button>
   );
