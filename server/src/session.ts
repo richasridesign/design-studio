@@ -19,6 +19,8 @@ import { settings } from './settings.js';
 import { touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
+import { readApprovals } from './stages.js';
+import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { SAMPLE_KEY } from './figma.js';
 import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
@@ -163,6 +165,8 @@ export class AgentSession {
 
   private rules = '';
   private rulesNote = '';
+  private stageKey = '{}';
+  private stageNote = '';
   private figmaNote = '';
 
   private sampleBlocked() {
@@ -311,6 +315,10 @@ export class AgentSession {
       text = `${this.rulesNote}\n\n${text}`;
       this.rulesNote = '';
     }
+    if (this.stageNote) {
+      text = `${this.stageNote}\n\n${text}`;
+      this.stageNote = '';
+    }
     if (this.figmaNote) {
       text = `${this.figmaNote}\n\n${text}`;
       this.figmaNote = '';
@@ -354,6 +362,13 @@ export class AgentSession {
       this.rules = rules;
     }
     this.askBeforeEdit = (await settings()).askBeforeEdit;
+    // Tell Claude where the work stands each time the designer approves or reopens a stage.
+    const approvals = await readApprovals(this.cwd);
+    const key = JSON.stringify(approvals);
+    if (key !== this.stageKey) {
+      this.stageNote = stageNote(approvals) || 'Stages: the designer reopened every stage. Start again from Spec.';
+      this.stageKey = key;
+    }
   }
 
   async prompt(text: string, refs?: unknown) {
