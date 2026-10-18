@@ -179,7 +179,8 @@ async function design(d: Data): Promise<Section | null> {
   const rest: string[] = [];
   for (const f of frames) {
     const name = f.name || `${f.screen} / ${f.state}`;
-    const state = f.state && f.name ? `<small>State: ${esc(f.state)}</small>` : '';
+    // The state shows only when the frame name does not already say it ("Cart / default").
+    const state = f.state && !name.toLowerCase().includes(f.state.toLowerCase()) ? `<small>State: ${esc(f.state)}</small>` : '';
     const src = shots < MAX_SHOTS ? await shotFor(d.dir, f.nodeId) : null;
     if (src) {
       shots++;

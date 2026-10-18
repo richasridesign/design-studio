@@ -118,6 +118,8 @@ describe('buildReport', () => {
     expect(top).toContain('Prototype check:</span> 2 issues in 1 of 2 flows');
     expect(html).toContain('<nav class="toc" aria-label="Contents">');
     expect(html).not.toContain('<h3>Shop</h3>');
+    // "Cart / Default" already names the state.
+    expect(html).not.toContain('State: Default');
   });
 
   it('says the review has not run instead of showing zero issues', async () => {
@@ -131,6 +133,7 @@ describe('buildReport', () => {
     const design = html.slice(html.indexOf('<section id="design"'));
     expect(design).not.toContain('<figure');
     expect(design).toContain(`<li><a href="https://www.figma.com/design/${figma.key}?node-id=1-2">Cart &lt;main&gt;</a>`);
+    expect(design).toContain('<small>State: Default</small>');
   });
 
   it('shows one plain line and no headings for an empty chat', async () => {
