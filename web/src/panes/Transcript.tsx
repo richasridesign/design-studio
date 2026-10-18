@@ -9,6 +9,7 @@ import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
 import { buildTranscript, duration, firstLine, groupTurns, relPath, stepLabel, type Block, type Item, type ToolResult, type ToolUse } from './steps';
+import { MakeRule } from './MakeRule';
 import { focusReview } from './reviewFocus';
 import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
 import { reviewChecklist, type ReviewDoc } from '../../../shared/design';
@@ -123,7 +124,12 @@ function Steps({ b, cwd, thumb, live }: { b: Extract<Block, { kind: 'steps' }>; 
 function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) => string | null }) {
   switch (it.kind) {
     case 'user':
-      return <div className={`tr-user ${it.stopping ? 'stopping' : ''}`}><UserText text={it.text} />{it.stopping && <span className="tr-stop"><Icon name="loading" small spin /></span>}</div>;
+      return (
+        <div className="tr-user-wrap">
+          <div className={`tr-user ${it.stopping ? 'stopping' : ''}`}><UserText text={it.text} />{it.stopping && <span className="tr-stop"><Icon name="loading" small spin /></span>}</div>
+          {!it.stopping && <UserRule text={it.text} />}
+        </div>
+      );
     case 'phase':
       return <div className="tr-phase"><Icon name="sync" small />{it.text}</div>;
     case 'assistant':
@@ -155,6 +161,11 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
     case 'note':
       return <div className="tr-note tr-act"><span className="tr-mark"><i className="tr-dot" /></span><span className="tr-text" title={it.text}>{it.text}</span></div>;
   }
+}
+
+function UserRule({ text }: { text: string }) {
+  const hasFile = useStore((s) => Boolean(s.session.figma));
+  return <MakeRule text={text} hasFile={hasFile} />;
 }
 
 function UserText({ text }: { text: string }) {

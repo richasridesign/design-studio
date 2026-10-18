@@ -54,7 +54,7 @@ export function Rules() {
     <div className="rules-box">
       <Box title="This file" value={r.file} onChange={(v) => setR({ ...r, file: v })} onSave={save('file')} saved={saved === 'file'} />
       <Box title="All files" value={r.global} onChange={(v) => setR({ ...r, global: v })} onSave={save('global')} saved={saved === 'global'} />
-      <p className="hint">Claude follows these in every chat. Changes apply from the next chat you start.</p>
+      <p className="hint">Claude follows these in every chat, from your next message. Hover one of your messages and pick Make it a rule to add one from the chat.</p>
       <button className="suggest" onClick={() => insertPrompt(SUGGEST)}>Suggest rules from my design system</button>
     </div>
   );
