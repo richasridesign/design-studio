@@ -143,7 +143,7 @@ describe('checkFlows', () => {
     const plugin = button('Back', { reactions: [{ trigger: { type: 'ON_CLICK' }, action: { type: 'NODE', destinationId: 'old1', navigation: 'OVERLAY' } }, { trigger: { type: 'ON_HOVER' }, actions: [{ type: 'BACK' }] }] });
     const r = checkFlows(doc([section('1:1', 'V4 · Flow 1', [screen('s1', 'Home', [rest, plugin])]), section('2:1', 'V3 · Flow 1', [screen('old1', 'Home', [], 0, 3000)], 0, 3000)]), maps);
     expect(rules(r)).toEqual(['stale-link', 'stale-link']);
-    expect(r.flows[0].findings[0].message).toBe('Button "Next" opens "Home" in "V3 · Flow 1", outside this flow.');
+    expect(r.flows[0].findings[0].message).toBe('Button "Next" opens "Home" in "V3 · Flow 1", which is an old version.');
   });
 
   it('does not treat hover CHANGE_TO variants or unknown destinations as old links', () => {
@@ -197,7 +197,7 @@ describe('checkFlows', () => {
       const latest = section('L', 'LATEST flows', [screen('a1', 'Home', [link('l1', 'o1'), link('l2', 'n1'), link('l3', 't1'), link('l4', 'p1')])]);
       const r = checkFlows(doc([latest]), { ...maps, outside });
       expect(stale(r)).toEqual(['l1>Connectors', 'l4>Import']);
-      expect(r.flows[0].findings.find((x) => x.nodeId === 'l1')!.message).toBe('Button "Go" opens "Connectors" in "Flow 1 · First run (V1.13, superseded)", outside this flow.');
+      expect(r.flows[0].findings.find((x) => x.nodeId === 'l1')!.message).toBe('Button "Go" opens "Connectors" in "Flow 1 · First run (V1.13, superseded)", which is an old version.');
       const parked = checkFlows(doc([latest]), { ...maps, outside }, scope([], ['Bulk import']));
       expect(parked.flows[0].findings.filter((x) => x.rule === 'parked-link').map((x) => x.message)).toEqual(['Button "Go" opens "Import", part of the parked feature "Bulk import".']);
     });
