@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMessage, type PermissionMode, type HookInput, type HookJSONOutput, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
-import { COMPACT_AT, type ChatEvent, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
+import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
 import { AREAS, FLOW_ACTIVE, FLOW_MODES, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
-import { advisorEvent, cacheFrom, contextFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
+import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
 import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, fixPrompt, parseCommand, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
@@ -26,6 +26,8 @@ type Step = { phase: FlowPhase; model: string; mode: string; label: string; prom
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
+
+let lastLimit: PlanLimit | null = null;
 
 export class AgentSession {
   private q: Query | null = null;
@@ -64,7 +66,7 @@ export class AgentSession {
 
   constructor(public cwd: string, private figma: FigmaFile | null, private resume?: string) {
     this.state = {
-      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend() },
+      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend(), limit: lastLimit },
       status: 'Idle',
       events: [],
       pending: [],
@@ -799,6 +801,10 @@ export class AgentSession {
         }
         return;
 
+      case 'rate_limit_event':
+        lastLimit = limitFrom(msg.rate_limit_info);
+        this.setSession({ limit: lastLimit });
+        return;
       case 'stream_event': {
         if (msg.parent_tool_use_id) return;
         const ev = msg.event;
