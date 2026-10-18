@@ -256,7 +256,7 @@ function Step({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd: st
   const dur = result ? duration(result.at - use.at) : '';
   return (
     <div className={`tr-step tr-act ${state} ${open ? 'open' : ''}`} aria-expanded={open} onClick={() => setOpen((v) => !v)} {...press(() => setOpen((v) => !v))}>
-      <span className="tr-mark">{state === 'pending' ? <Icon name="loading" small spin /> : <i className="tr-hex" />}</span>
+      <span className="tr-mark">{state === 'pending' ? <Icon name="loading" small spin /> : state === 'err' ? <Icon name="close" small /> : <i className="tr-hex" />}</span>
       <span className="tr-text" title={object}>{verb} <span className={`tr-obj ${mono ? 'mono' : ''}`}>{object}</span></span>
       <span className="tr-dur">{dur}</span>
       {state === 'err' && !open && <span className="tr-err">{firstLine(result!.text) || 'Failed'}</span>}
@@ -301,9 +301,10 @@ function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
       <span className="tr-mark"><i className="tr-ring" /></span>
       <span className="tr-text" title={desc}>
         {desc}
-        <span className="tr-state"> · {!result ? 'running' : result.isError ? 'failed' : `done${dur ? ` ${dur}` : ''}`}</span>
+        <span className="tr-state"> · {!result ? 'running' : result.isError ? 'failed' : 'done'}</span>
         {!result && <Icon name="loading" small spin />}
       </span>
+      <span className="tr-dur">{dur}</span>
       {open && result && <div className="tr-detail" onClick={(e) => e.stopPropagation()}><div className="tr-report"><Markdown text={result.text || '(no output)'} /></div></div>}
     </div>
   );
