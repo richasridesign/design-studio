@@ -85,6 +85,16 @@ export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boo
   );
 }
 
+// Esc closes the panel and puts focus back on the Stages button. Fields handle their own Esc first.
+function closeOnEscape(e: React.KeyboardEvent) {
+  if (e.key !== 'Escape' || e.defaultPrevented || (e.target as Element).closest('input, textarea, .dialog-overlay')) return;
+  const btn = document.querySelector<HTMLButtonElement>('.stage-btn[aria-controls="stage-panel"]');
+  if (!btn) return;
+  e.preventDefault();
+  btn.click();
+  btn.focus();
+}
+
 export function StagePanel({ list, error, change, reload }: ReturnType<typeof useStages> & { list: Stage[] }) {
   const now = currentStage(list);
   const [picked, setPicked] = useState<StageId | null>(null);
@@ -92,7 +102,7 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
   const spec = list.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
   return (
-    <section className="stage-panel" id="stage-panel" aria-label="Stages">
+    <section className="stage-panel" id="stage-panel" aria-label="Stages" onKeyDown={closeOnEscape}>
       <ol className="stage-rail">
         {list.map((s, i) => (
           <li key={s.id} className={`${s.state} ${s.id === shown.id ? 'shown' : ''}`}>
@@ -118,6 +128,12 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState('');
   useEffect(() => { setNoting(false); setNote(''); }, [stage.id]);
+  // Approving with open checks needs a reason, so the gate never passes by a stray click.
+  const needsNote = open > 0 && !note.trim();
+  const approve = () => {
+    if (needsNote) return setNoting(true);
+    onChange('approve', stage.id, note);
+  };
   return (
     <div className="gate">
       <div className="gate-head">
@@ -130,8 +146,9 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
       {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
       {current && noting && (
         <label className="gate-note-field">
-          <span>Note for Claude</span>
-          <input autoFocus value={note} maxLength={400} placeholder="For example: direction B, keep the voice button" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onChange('approve', stage.id, note); if (e.key === 'Escape') { setNoting(false); setNote(''); } }} />
+          <span>{open > 0 ? <>Why approve with {open === 1 ? '1 check' : `${open} checks`} open?<span aria-hidden="true"> *</span></> : 'Note for Claude'}</span>
+          <input autoFocus required={open > 0} value={note} maxLength={400} placeholder={open > 0 ? 'For example: the brief is in the Figma file' : 'For example: direction B, keep the voice button'} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && note.trim()) approve(); if (e.key === 'Escape') { setNoting(false); setNote(''); } }} />
+          {open > 0 && <span className="muted gate-req">* Required</span>}
         </label>
       )}
       <div className="gate-foot">
@@ -144,7 +161,7 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
         ) : current ? (
           <span className="gate-act">
             {!noting && <button className="link" onClick={() => setNoting(true)}>Add a note</button>}
-            <button onClick={() => onChange('approve', stage.id, note)}>Approve {stage.name}</button>
+            <button disabled={noting && needsNote} title={noting && needsNote ? 'Write why first' : undefined} onClick={approve}>Approve {stage.name}</button>
           </span>
         ) : (
           <span className="muted">Opens after the stages before it are approved</span>
