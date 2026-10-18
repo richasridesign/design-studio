@@ -1,0 +1,49 @@
+/* Flow check: one row per Figma section. Status is dot + label, and the shape differs per state:
+   Passed is a filled circle, issues an amber square, Not checked a grey ring. Red only for fetch errors. */
+.fc { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.fc-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.fc-intro { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px; }
+.fc-intro h2 { margin: 0; font-size: var(--text-lg); line-height: 24px; font-weight: 600; }
+.fc-intro p { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.fc-run { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; flex: none; }
+.fc-run:disabled { cursor: default; opacity: 0.7; }
+.fc-error { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: rgba(201, 54, 54, 0.06); color: var(--err); font-size: var(--text-sm); line-height: 20px; }
+.fc-meta { margin: 0; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.fc-note { color: var(--fg-muted); }
+.fc-ask { height: 36px; padding: 0 16px; background: var(--bg); border: 1px solid var(--border-strong); }
+.fc-ask:hover { background: var(--bg-hover); }
+
+.fc-flows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.fc-flow + .fc-flow { border-top: 1px solid var(--border); }
+.fc-row { display: grid; grid-template-columns: 16px 104px minmax(0, 1fr); align-items: start; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px; background: none; border: 0; border-radius: 0; text-align: left; }
+.fc-row:hover:not(:disabled) { background: var(--bg-hover); }
+.fc-row:disabled { cursor: default; opacity: 1; color: var(--fg); }
+.fc-chev { display: inline-flex; align-items: center; height: 24px; width: 16px; justify-content: center; color: var(--fg-muted); }
+.fc-state { display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; line-height: 20px; color: var(--fg); white-space: nowrap; }
+.fc-state::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
+.fc-state.pass::before { background: var(--ok); border-radius: 50%; }
+.fc-state.fail::before { background: var(--warn); border-radius: 1px; }
+.fc-state.unchecked { color: var(--fg-muted); }
+.fc-state.unchecked::before { border: 2px solid var(--fg-muted); border-radius: 50%; }
+.fc-name { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fc-flowname { font-weight: 500; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-path { font-weight: 400; color: var(--fg-muted); }
+.fc-counts { font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+
+.fc-detail { padding: 0 12px 12px 40px; display: flex; flex-direction: column; gap: 12px; }
+.fc-detail .node-chip { min-height: 24px; line-height: 24px; align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-detail .fc-section-chip { font-family: inherit; }
+.fc-screen { display: flex; flex-direction: column; gap: 4px; }
+.fc-screen h4 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--text-sm); line-height: 24px; font-weight: 600; }
+.fc-screen .findings { padding: 0; }
+.fc-screen .f-body .node-chip { margin-top: 4px; }
+.fc-rule { display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 4px; background: var(--bg-sunken); font-size: var(--text-xs); line-height: 20px; font-weight: 500; color: var(--fg-muted); }
+.fc-more { margin: 0; font-size: var(--text-sm); color: var(--fg-muted); }
+
+@media (max-width: 600px) {
+  .fc { padding: 12px; }
+  .fc-run, .fc-ask { width: 100%; justify-content: center; }
+  .fc-row { grid-template-columns: 16px minmax(0, 1fr); row-gap: 4px; }
+  .fc-name { grid-column: 2; }
+  .fc-detail { padding-left: 12px; }
+}
