@@ -75,6 +75,23 @@ describe('buildReport', () => {
     expect(await buildReport(dir, figma)).not.toContain('Decision log');
   });
 
+  it('adds research and scope with the parked notes, escaped', async () => {
+    await writeFile(path.join(dir, 'research.md'), '## Looked at\n- Oda <hearts>\n![Oda cart](research/oda.png)');
+    await writeFile(path.join(dir, 'scope.json'), JSON.stringify({ flows: ['Checkout'], parked: [{ name: 'Saved <lists>', why: 'Not in the MVP', restore: 'Add the heart back', at: Date.UTC(2026, 9, 1) }] }));
+    const html = await buildReport(dir, figma);
+    expect(html).toContain('<h2>Research</h2>');
+    expect(html).toContain('<li>Oda &lt;hearts&gt;</li>');
+    expect(html).toContain('(Screenshot: Oda cart)');
+    expect(html).toContain('<p>Flows in scope: Checkout</p>');
+    expect(html).toContain('<strong>Saved &lt;lists&gt;</strong>, parked 1 Oct 2026<br>Why: Not in the MVP<br>To restore: Add the heart back');
+  });
+
+  it('leaves research and scope out when there are none', async () => {
+    const html = await buildReport(dir, figma);
+    expect(html).not.toContain('<h2>Research</h2>');
+    expect(html).not.toContain('<h2>Scope</h2>');
+  });
+
   it('inlines sketches as data images, not markup', async () => {
     await mkdir(path.join(dir, 'sketches'));
     await writeFile(path.join(dir, 'sketches', 's1--d1.svg'), '<svg><script>alert(1)</script></svg>');

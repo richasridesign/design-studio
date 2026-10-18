@@ -7,6 +7,7 @@ import { readDesign, readReview } from './review.js';
 import { rulesLine, type RuleResult } from '../../shared/rules.js';
 import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
 import { readApprovals } from './stages.js';
+import { readScope } from './scope.js';
 
 const MAX_SHOTS = 8;
 const MAX_SHOT_BYTES = 1.5 * 1024 * 1024;
@@ -68,6 +69,23 @@ const read = (file: string) => readFile(file, 'utf8').catch(() => null);
 async function brief(dir: string) {
   const text = (await read(path.join(dir, 'plan.md')))?.trim();
   return text ? section('Brief', markdown(text)) : '';
+}
+
+async function research(dir: string) {
+  const text = (await read(path.join(dir, 'research.md')))?.trim();
+  // The report is one file, so screenshots saved next to research.md show as their names.
+  return text ? section('Research', markdown(text.replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt) => (alt ? `(Screenshot: ${alt})` : '')))) : '';
+}
+
+async function scope(dir: string) {
+  const s = await readScope(dir);
+  if (!s.flows.length && !s.parked.length) return '';
+  const day = (at: number) => new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const flows = s.flows.length ? `<p>Flows in scope: ${s.flows.map(esc).join(', ')}</p>` : '';
+  const parked = s.parked.length
+    ? `<h3>Parked</h3><ul class="findings">${s.parked.map((p) => `<li><strong>${esc(p.name)}</strong>, parked ${esc(day(p.at))}<br>Why: ${esc(p.why)}${p.restore ? `<br>To restore: ${esc(p.restore)}` : ''}</li>`).join('')}</ul>`
+    : '';
+  return section('Scope', flows + parked);
 }
 
 async function sketches(dir: string) {
@@ -205,6 +223,6 @@ export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design')
 export async function buildReport(dir: string, figma: FigmaFile | null): Promise<string> {
   const title = figma?.name || path.basename(dir);
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const body = (await Promise.all([brief(dir), sketches(dir), decisions(dir), design(dir, figma), review(dir, figma), crit(dir), copy(dir)])).join('\n');
+  const body = (await Promise.all([brief(dir), research(dir), scope(dir), sketches(dir), decisions(dir), design(dir, figma), review(dir, figma), crit(dir), copy(dir)])).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} design report</title><style>${STYLE}</style></head><body><main><h1>${esc(title)}</h1><p class="meta">Design report, ${esc(date)}</p>${body}</main></body></html>`;
 }
