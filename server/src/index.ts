@@ -2,6 +2,7 @@ import { allowedHost, allowedOrigin } from './origin.js';
 import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readRecipes, writeRecipes } from './recipes.js';
+import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -273,6 +274,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/recipes') return json(await readRecipes());
     if (url.pathname === '/api/rules' && req.method === 'POST') return json(await writeRules(chat.cwd, await readJsonBody()));
     if (url.pathname === '/api/rules') return json(await readRules(chat.cwd));
+    if (url.pathname === '/api/decisions') {
+      const key = url.searchParams.get('key') || figma?.key || '';
+      return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
+    }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));
     if (url.pathname === '/api/settings') return json(publicSettings(await settings()));
@@ -371,6 +376,7 @@ const server = http.createServer(async (req, res) => {
       return json({ hostname: os.hostname(), urls: ips.map((ip) => `http://${ip}:${port}`) });
     }
 
+    if (url.pathname.startsWith('/api/')) return json({ error: 'Not found' }, 404);
     if (DEV_WEB) {
       res.writeHead(302, { location: `http://${(req.headers.host ?? 'localhost').replace(/:\d+$/, '')}:${DEV_WEB}${url.pathname}${url.search}` });
       return res.end();
@@ -383,7 +389,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (err) {
-    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError ? err.status : 500);
+    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof DecisionError ? err.status : 500);
   }
 });
 
