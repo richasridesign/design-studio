@@ -49,10 +49,13 @@
 .gate-text { display: grid; gap: 0; font-size: var(--text-sm); line-height: 20px; min-width: 0; }
 .gate-text .muted { overflow-wrap: anywhere; }
 .gate-check .link { min-height: 20px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
+.gate-note { margin: 0; font-size: var(--text-sm); line-height: 20px; }
+.gate-note-field { display: grid; gap: 4px; font-size: var(--text-sm); line-height: 20px; }
+.gate-note-field span { font-weight: 600; }
 .gate-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 .gate-act, .gate-done { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: var(--text-sm); line-height: 20px; }
 .gate-act button { min-height: 36px; }
-.gate-done .link { min-height: 24px; }
+.gate-done .link, .gate-act .link { min-height: 24px; }
 
 /* Tight columns: only the stage on show keeps its name; the others read out to screen readers. */
 @container (max-width: 600px) {

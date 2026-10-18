@@ -33,8 +33,8 @@ export function useStages() {
     const t = setTimeout(() => getJson<Stage[]>('/api/stages').then((l) => { if (alive) { setList(l); setError(''); } }).catch((e) => alive && setError(e.message)), 300);
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, phase, figma]);
-  const change = async (action: 'approve' | 'reopen', id: StageId) => {
-    try { setList(await postJson<Stage[]>('/api/stages', { action, id })); setError(''); } catch (e) { setError((e as Error).message); }
+  const change = async (action: 'approve' | 'reopen', id: StageId, note?: string) => {
+    try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); } catch (e) { setError((e as Error).message); }
   };
   return { list, error, change };
 }
@@ -75,8 +75,11 @@ export function StagePanel({ list, error, change }: ReturnType<typeof useStages>
   );
 }
 
-function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; onChange: (a: 'approve' | 'reopen', id: StageId) => void }) {
+function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void }) {
   const open = stage.checks.filter((c) => c.state === 'open').length;
+  const [noting, setNoting] = useState(false);
+  const [note, setNote] = useState('');
+  useEffect(() => { setNoting(false); setNote(''); }, [stage.id]);
   return (
     <div className="gate">
       <div className="gate-head">
@@ -85,6 +88,13 @@ function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; on
       </div>
       <div className="gate-label">Passes when</div>
       <ul className="gate-checks">{stage.checks.map((c) => <Check key={c.label} c={c} />)}</ul>
+      {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
+      {current && noting && (
+        <label className="gate-note-field">
+          <span>Note for Claude</span>
+          <input autoFocus value={note} maxLength={400} placeholder="For example: direction B, keep the voice button" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onChange('approve', stage.id, note); if (e.key === 'Escape') { setNoting(false); setNote(''); } }} />
+        </label>
+      )}
       <div className="gate-foot">
         <span className="muted">Approves: <b>You</b></span>
         {stage.state === 'approved' && stage.approval ? (
@@ -95,7 +105,8 @@ function Gate({ stage, current, onChange }: { stage: Stage; current: boolean; on
         ) : current ? (
           <span className="gate-act">
             {open > 0 && <span className="muted">{open === 1 ? '1 check is not met yet' : `${open} checks are not met yet`}</span>}
-            <button onClick={() => onChange('approve', stage.id)}>Approve {stage.name}</button>
+            {!noting && <button className="link" onClick={() => setNoting(true)}>Add a note</button>}
+            <button onClick={() => onChange('approve', stage.id, note)}>Approve {stage.name}</button>
           </span>
         ) : (
           <span className="muted">Opens after the stages before it are approved</span>
