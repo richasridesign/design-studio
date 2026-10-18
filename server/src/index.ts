@@ -23,7 +23,9 @@ import { listDir, listFiles, readFileWithOriginal } from './files.js';
 import { cachedOutline, fileOutline, refreshOutlineSoon, thumbs } from './figmaCache.js';
 import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isChatFolder, readFigma, SAMPLE_KEY, scratchFolder } from './figma.js';
 import { loadSample, samplePath } from './sample.js';
-import { today } from './spend.js';
+import { addDaily, today } from './spend.js';
+import { onReadCost } from './pluginRead.js';
+import { ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
@@ -61,6 +63,13 @@ const live = new Map<string, { chat: AgentSession; watcher: FSWatcher }>();
 let lastViewed: AgentSession;
 
 const viewers = (chat: AgentSession) => [...clients].filter((c) => c.view === chat).length;
+
+// Plugin reads (thumbnails, outline, file map, checks) count toward the chat that asked for them, or today's total.
+onReadCost(({ dir, costUsd, tokens }) => {
+  const chat = [...live.values()].map((l) => l.chat).find((c) => c.cwd === dir);
+  if (chat) chat.recordRead(costUsd, tokens);
+  else addDaily(tokens, costUsd).catch(() => {});
+});
 
 function summary(chat: AgentSession): LiveChat {
   const s = chat.state;
@@ -137,6 +146,12 @@ function view(client: Client, chat: AgentSession) {
   lastViewed = chat;
   remember(chat);
   client.send({ type: 'init', state: chat.state });
+  // A chat on a real Figma file starts Claude now, so the first message does not wait for it and its tools to load.
+  const figma = chat.figmaFile;
+  if (figma && figma.key !== SAMPLE_KEY) {
+    chat.start();
+    void ensureMapSoon(chat.cwd, figma.key);
+  }
   void chat.refreshMcp();
   if (prev && prev !== chat && idle(prev) && !prev.state.session.sessionId) closeChat(prev);
   broadcastLive();
@@ -323,7 +338,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());
     if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));
     // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.
-    if (url.pathname === '/api/figma/outline') return json(await fileOutline(chat.cwd, needFigma().key, { fresh: url.searchParams.get('fresh') === '1' }));
+    if (url.pathname === '/api/figma/outline') {
+      const fresh = url.searchParams.get('fresh') === '1';
+      if (fresh) refreshMapSoon(chat.cwd, needFigma().key);
+      return json(await fileOutline(chat.cwd, needFigma().key, { fresh }));
+    }
     if (url.pathname === '/api/figma/thumbs') {
       const rev = Number(url.searchParams.get('r') ?? 0) || 0;
       return json(await thumbs(chat.cwd, needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).map((id) => [id, rev])));

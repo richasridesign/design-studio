@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentSession } from './session.js';
 import { contextFrom, historyFrom } from './transcript.js';
 
+// Never add test spend to the real daily total.
+vi.mock('./spend.js', async (orig) => ({ ...(await orig<typeof import('./spend.js')>()), addDaily: vi.fn(async () => {}) }));
+
 function fakeSession() {
   const s = new AgentSession('/tmp/project', null);
   const interrupt = vi.fn(async () => {});
@@ -193,22 +196,33 @@ describe('Figma checkpoint', () => {
   const pre = (s: AgentSession, input: Record<string, unknown>) =>
     (s as unknown as { beforeFigma: (i: unknown) => any }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__use_figma', tool_input: input });
 
-  it('blocks the first Figma change in a turn until a version is saved', () => {
+  it('saves a version inside the first Figma call of a turn, without a round trip', () => {
     const { s } = fakeSession();
     s.sendPrompt('make it blue');
-    expect(pre(s, { code: 'node.fills = []' }).hookSpecificOutput.permissionDecision).toBe('deny');
-    expect(pre(s, { code: "await figma.saveVersionHistoryAsync('Design Studio: blue')" })).toEqual({});
+    const out = pre(s, { code: 'node.fills = []', description: 'Make it blue' });
+    expect(out.hookSpecificOutput.permissionDecision).toBeUndefined();
+    expect(out.hookSpecificOutput.updatedInput.code).toMatch(/^await figma\.saveVersionHistoryAsync\("Design Studio: Make it blue"\);\nnode\.fills = \[\]$/);
     expect(pre(s, { code: 'node.fills = []' })).toEqual({});
     expect(s.state.events.some((e) => e.kind === 'system' && e.text.startsWith('Checkpoint saved'))).toBe(true);
   });
 
-  it('asks for a new checkpoint in the next turn', () => {
+  it('saves again in the next turn, and not twice when Claude saves itself', () => {
     const { s, result } = fakeSession();
     s.sendPrompt('one');
-    pre(s, { code: 'figma.saveVersionHistoryAsync("x")' });
+    expect(pre(s, { code: 'figma.saveVersionHistoryAsync("x")' })).toEqual({});
     result('r1');
     s.sendPrompt('two');
-    expect(pre(s, { code: 'node.x = 1' }).hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(pre(s, { code: 'node.x = 1' }).hookSpecificOutput.updatedInput.code).toContain('saveVersionHistoryAsync');
+  });
+
+  it('adds the helpers to calls that use DS, and leaves code that does not parse alone', () => {
+    const { s } = fakeSession();
+    s.sendPrompt('x');
+    expect(pre(s, { code: 'node.x = (' })).toEqual({});
+    const code = pre(s, { code: 'const n = await DS.node("1:2"); return DS.check([n.id]);' }).hookSpecificOutput.updatedInput.code;
+    expect(code).toContain('saveVersionHistoryAsync');
+    expect(code).toContain('const DS = (() => {');
+    expect(pre(s, { code: 'return DS.tree(await DS.node("1:2"))' }).hookSpecificOutput.updatedInput.code).not.toContain('saveVersionHistoryAsync');
   });
 
   it('ignores other tools', () => {
@@ -335,5 +349,19 @@ describe('compacting', () => {
     handle({ type: 'system', subtype: 'status', status: null, compact_result: 'failed', compact_error: 'Prompt is too long' });
     expect(s.state.session.compacting).toBe(false);
     expect(s.state.events.at(-1)).toMatchObject({ kind: 'system', text: 'Compact failed: Prompt is too long' });
+  });
+});
+
+describe('spend from plugin reads', () => {
+  it('counts reads on their own and a review only for its reviewers, so the read is not counted twice', () => {
+    const s = new AgentSession('/tmp/project', null);
+    const priv = s as unknown as { recordBackground: (p: string, r: unknown) => void; saveSpend: () => void };
+    priv.saveSpend = () => {};
+    s.recordRead(0.004, 100);
+    priv.recordBackground('review', { tokens: 50, costUsd: 0.104, results: [{ costUsd: 0.06 }, { costUsd: 0.04 }] });
+    const spend = s.state.session.spend;
+    expect(spend.byPhase.read.costUsd).toBeCloseTo(0.004);
+    expect(spend.byPhase.review.costUsd).toBeCloseTo(0.1);
+    expect(spend.costUsd).toBeCloseTo(0.104);
   });
 });

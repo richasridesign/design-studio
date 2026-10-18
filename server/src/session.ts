@@ -5,10 +5,10 @@ import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMes
 import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
 import { AREAS, FLOW_ACTIVE, FLOW_MODES, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
-import { STATUS_REMINDER, agentOptions, userMessage } from './options.js';
+import { STATUS_REMINDER, agentOptions, figmaSpeed, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
 import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
-import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
+import { afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
 import { buildProfile, readProfile } from './profile.js';
@@ -23,6 +23,8 @@ import { readChatSteps } from './stages.js';
 import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { refreshOutlineSoon } from './figmaCache.js';
+import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, refreshMapSoon, type FileMap } from './fileMap.js';
+import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
 import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
 
@@ -89,6 +91,9 @@ export class AgentSession {
   setFigma(figma: FigmaFile) {
     if (this.state.session.running) return this.system('Wait for the current turn to finish before attaching a Figma file');
     this.figma = figma;
+    this.map = null;
+    this.mapRead = 0;
+    void ensureMapSoon(this.cwd, figma.key);
     this.setSession({ figma });
     if (this.q) this.figmaNote = `A Figma file is now attached to this chat: "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file from now on.`;
     this.system(`Attached ${figma.name}`);
@@ -163,6 +168,7 @@ export class AgentSession {
     const { servers, via } = await figmaMcp();
     this.figmaServers = servers;
     this.strictMcp = via === 'config';
+    if (this.figma) void ensureMapSoon(this.cwd, this.figma.key);
   }
 
   private rules = '';
@@ -172,6 +178,10 @@ export class AgentSession {
   private pickKey = '[]';
   private pickNote = '';
   private figmaNote = '';
+  /** The file map, and the read time of the one Claude was last told about. */
+  private map: FileMap | null = null;
+  private mapRead = 0;
+  private mapNote = '';
 
   private sampleBlocked() {
     if (this.figma?.key !== SAMPLE_KEY) return false;
@@ -199,7 +209,10 @@ export class AgentSession {
         },
         canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
         beforeFigma: async (input) => this.beforeFigma(input),
+        beforeAgent: async (input) => this.beforeAgent(input),
         afterTool: async (input) => this.afterTool(input),
+        mapFile: this.map && this.figma ? mapFiles(this.cwd, this.figma.key).md : null,
+        refreshMap: () => this.readMapNow(),
       }),
     });
     void this.consume();
@@ -257,22 +270,28 @@ export class AgentSession {
     if (!quiet) this.system(`Permission mode: ${mode}`);
   }
 
+  /**
+   * Every use_figma call: the first one in a turn also saves a version in Figma history, in the same call, and any
+   * call that uses the DS helpers gets them added. Nothing is denied, so no round trip is lost.
+   */
   private beforeFigma(input: HookInput): HookJSONOutput {
     if (input.hook_event_name !== 'PreToolUse' || !/use_figma$/.test(input.tool_name)) return {};
-    const code = JSON.stringify(input.tool_input ?? {});
-    if (code.includes(CHECKPOINT)) {
-      if (!this.checkpointed) this.system(`Checkpoint saved in Figma version history${this.figma ? `: ${this.figma.url}` : ''}`);
+    const { input: next, saved } = prepareFigmaCall((input.tool_input ?? {}) as FigmaCall, !this.checkpointed);
+    if (saved) {
       this.checkpointed = true;
-      return {};
+      this.system(`Checkpoint saved in Figma version history${this.figma ? `: ${this.figma.url}` : ''}`);
     }
-    if (this.checkpointed) return {};
-    return {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: `Save a version before you use use_figma in this turn: call use_figma with \`await figma.${CHECKPOINT}("Design Studio: <what you are about to do>")\` first, then continue.`,
-      },
-    };
+    return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
+  }
+
+  /** Subagents do not see the system prompt, so a subagent doing Figma work gets the map and the helpers in its prompt. */
+  private async beforeAgent(input: HookInput): Promise<HookJSONOutput> {
+    if (input.hook_event_name !== 'PreToolUse' || !this.figma || this.figma.key === SAMPLE_KEY) return {};
+    const tool = (input.tool_input ?? {}) as Record<string, unknown>;
+    if (typeof tool.prompt !== 'string' || !/figma|frame|screen|section|component|\d+[:-]\d+/i.test(tool.prompt)) return {};
+    const map = await cachedMap(this.cwd, this.figma.key);
+    const extra = `\n\nFigma file: "${this.figma.name}", file key ${this.figma.key}.\n${figmaSpeed(map ? mapFiles(this.cwd, this.figma.key).md : null)}`;
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...tool, prompt: tool.prompt + extra } } };
   }
 
   private figmaTool(toolName: string, input: Record<string, unknown>): Promise<PermissionResult> | null {
@@ -306,7 +325,39 @@ export class AgentSession {
     if (this.sampleBlocked()) return;
     const full = withRefs(text, images.refs);
     this.pushEvent({ id: randomUUID(), kind: 'user', text: full, at: Date.now() });
-    this.enqueue(full, images.blocks);
+    this.enqueue(full + this.whereNote(text), images.blocks);
+  }
+
+  /** Where the nodes in pasted links sit, from the map, so Claude does not spend a call finding out. */
+  private whereNote(text: string) {
+    if (!this.map) return '';
+    const linked = new Set([...text.matchAll(/node-id=([0-9]+[-:][0-9]+)/g)].map((m) => m[1].replace('-', ':')));
+    const lines = locate(this.map, nodeIdsIn(text).slice(0, 8)).filter((l) => l.found || linked.has(l.id));
+    return lines.length ? `\n\nFrom the file map: ${lines.map((l) => l.text).join(' ')}` : '';
+  }
+
+  /** Notes Claude about the file map when there is a newer one than it knows: the summary once, then only that it changed. */
+  private async refreshMapNote() {
+    const key = this.figma?.key;
+    if (!key || key === SAMPLE_KEY) return;
+    void ensureMapSoon(this.cwd, key);
+    const map = await cachedMap(this.cwd, key);
+    if (!map) return;
+    this.map = map;
+    if (map.readAt === this.mapRead) return;
+    const file = mapFiles(this.cwd, key).md;
+    this.mapNote = this.mapRead ? `The file map has been read again (${file}). Grep it again for anything made since you last looked.` : mapSummary(map, file);
+    this.mapRead = map.readAt;
+  }
+
+  /** The refresh_file_map tool: reads the map now and returns its summary. */
+  private async readMapNow() {
+    const key = this.figma?.key;
+    if (!key || key === SAMPLE_KEY) return 'No Figma file is attached to this chat.';
+    const map = await buildMap(this.cwd, key);
+    this.map = map;
+    this.mapRead = map.readAt;
+    return mapSummary(map, mapFiles(this.cwd, key).md);
   }
 
   private enqueue(text: string, blocks: Parameters<typeof userMessage>[1] = []) {
@@ -331,6 +382,10 @@ export class AgentSession {
     if (this.figmaNote) {
       text = `${this.figmaNote}\n\n${text}`;
       this.figmaNote = '';
+    }
+    if (this.mapNote) {
+      text = `${this.mapNote}\n\n${text}`;
+      this.mapNote = '';
     }
     this.inputQueue.push(userMessage(text, blocks));
     this.wake?.();
@@ -371,6 +426,7 @@ export class AgentSession {
       this.rules = rules;
     }
     this.askBeforeEdit = (await settings()).askBeforeEdit;
+    await this.refreshMapNote().catch(() => {});
     // Tell Claude where the work stands when the designer marks a step or picks a kind. Only a status line, never a gate.
     const note = stageNote(await readChatSteps(this.cwd, this.state.session.sessionId));
     if (note !== this.stageKey) {
@@ -596,6 +652,7 @@ export class AgentSession {
     }
     this.setFlow({ phase: step.phase });
     if (marker) this.pushEvent({ id: randomUUID(), kind: 'user', text: step.label, at: Date.now(), phase: step.phase });
+    await this.refreshMapNote().catch(() => {});
     this.enqueue(step.prompt);
   }
 
@@ -751,8 +808,14 @@ export class AgentSession {
     }, 2000);
   }
 
-  private recordBackground(phase: 'review' | 'system', r: { tokens: number; costUsd: number }) {
-    this.recordSpend(phase, MODELS.work, r.tokens, r.costUsd);
+  private recordBackground(phase: 'review' | 'system', r: { tokens: number; costUsd: number; results?: Array<{ costUsd: number }> }) {
+    // Plugin reads are counted by recordRead as they finish, so a review counts only its reviewers here.
+    this.recordSpend(phase, MODELS.work, r.tokens, r.results ? r.results.reduce((n, x) => n + x.costUsd, 0) : r.costUsd);
+  }
+
+  /** A plugin read (thumbnails, outline, map, checks) made for this chat: a short Haiku run. */
+  recordRead(costUsd: number, tokens: number) {
+    this.recordSpend('read', MODELS.read, tokens, costUsd);
   }
 
   private recordResult(msg: Extract<SDKMessage, { type: 'result' }>) {
@@ -842,6 +905,8 @@ export class AgentSession {
     this.figmaUses.clear();
     const key = this.figma?.key;
     if (!edited || !key || key === SAMPLE_KEY) return;
+    // The file map is read again after any run that edited the file, so the next turn starts from it.
+    refreshMapSoon(this.cwd, key);
     // The saved outline is read again after any run that edited the file; the auto check reads it itself.
     if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return refreshOutlineSoon(this.cwd, key);
     void this.checkEdited(key, touched);

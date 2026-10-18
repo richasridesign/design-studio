@@ -66,7 +66,7 @@ export function designPrompt(sketch: SketchDoc | null, hasProfile: boolean, task
   const chosen = sketch ? chosenSummary(sketch) : [];
   return [
     'Phase 3: design. Build the screens from plan.md in Figma at high fidelity.',
-    `1. Save a version first: call use_figma with \`await figma.${CHECKPOINT}('Design Studio: ${task.replace(/[`'\n]/g, ' ').slice(0, 60)}')\`. Changes to the file are blocked until you do.`,
+    '1. Design Studio saves a version in Figma history before your first Figma call, so you do not need to.',
     '2. Put new work on a page named "Design Studio" (create it if missing). Do not edit frames on other pages. To change an existing frame, duplicate it onto the Design Studio page and work on the copy.',
     chosen.length ? `3. Put the chosen sketches on a page named "Sketch" with upload_assets, as a record. Files: ${chosen.map((c) => c.file).join(', ')}.` : '3. There are no sketches for this run.',
     `4. Build one frame per screen and state, left to right, named "<Screen> / <State>". Cover every state in the States section of plan.md; the Build gate checks each one. ${hasProfile ? 'Use the library components, variables and text styles listed in design-system.md: import components by key, bind fills and strokes to color variables, apply text styles, use auto layout with spacing from the scale.' : 'There is no design system profile; use the components, variables and styles the file already uses.'}`,
@@ -85,7 +85,7 @@ export function fixPrompt(findings: Finding[], round: number) {
     `Phase 4: fix, round ${round}. The review found these problems in the Design Studio frames:`,
     list.join('\n'),
     findings.length > 40 ? `…and ${findings.length - 40} more of the same kinds.` : '',
-    `Save a version first (use_figma with \`await figma.${CHECKPOINT}('Design Studio: review fixes ${round}')\`), then fix them in Figma. Leave everything else as it is. Do not change shared variables, main components or styles, and do not remove features: those changes wait for the designer. Update design.json if frames change. Finish with a short summary of what you fixed and anything you left alone and why.`,
+    `Fix them in Figma (Design Studio saves a version first). Leave everything else as it is. Do not change shared variables, main components or styles, and do not remove features: those changes wait for the designer. Update design.json if frames change. Finish with a short summary of what you fixed and anything you left alone and why.`,
   ].filter(Boolean).join('\n\n');
 }
 
