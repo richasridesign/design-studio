@@ -30,7 +30,7 @@ import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { markPosted, readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
-import { buildReport, reportSlug } from './report.js';
+import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, readApprovals, readStages } from './stages.js';
 import { stageLabel } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
@@ -288,7 +288,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
     if (url.pathname === '/api/stages') {
       if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
-      const brief = chat.state.events.find((e) => e.kind === 'user')?.text ?? null;
+      // The written brief (plan.md) wins over the first message, so the gate and the report agree.
+      const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
+      const brief = (plan && briefLede(plan)) || (chat.state.events.find((e) => e.kind === 'user')?.text ?? null);
       const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
       return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions }));
     }
