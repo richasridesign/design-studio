@@ -6,6 +6,7 @@ import type { DecisionDoc } from './decisions.js';
 import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
 import { flowIssues, type FlowCheckRun } from './flowcheck.js';
+import { stateMap } from './stateMap.js';
 
 export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -23,7 +24,7 @@ export type Approval = { at: number; note?: string };
 export type StageApprovals = Partial<Record<StageId, Approval>>;
 
 /** Where a check's evidence lives in the app. */
-export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach' | 'research';
+export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach' | 'research' | 'states';
 export type StageCheck = { label: string; state: 'met' | 'open' | 'unchecked'; detail: string; open?: StageOpen };
 export type StageState = 'approved' | 'ready' | 'open' | 'later';
 export type Stage = { id: StageId; name: string; goal: string; state: StageState; checks: StageCheck[]; approval?: Approval };
@@ -35,6 +36,8 @@ export type StageEvidence = {
   scope?: Scope | null;
   /** research.md from the Research first recipe. */
   research?: string | null;
+  /** plan.md, the written brief. Its States section lists the states each screen needs. */
+  plan?: string | null;
   sketch: SketchDoc | null;
   design: DesignDoc | null;
   review: ReviewDoc | null;
@@ -76,6 +79,7 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
       return [
         check('Frames in Figma', frames.length > 0, frames.length ? plural(frames.length, 'frame') : 'Claude has not designed any frames yet', 'figma'),
         check('Two decisions per frame', ids.size > 0 && written === ids.size, ids.size ? `${written} of ${ids.size} frames` : 'No frames yet', 'decisions'),
+        statesCheck(e.plan?.trim() ? e.plan : e.brief ?? '', frames),
       ];
     }
     case 'validate': {
@@ -103,6 +107,17 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
     case 'ship':
       return [check('Handoff report', frames.length > 0, frames.length ? 'Frames, decisions and review in one page' : 'Nothing to hand off yet', frames.length ? 'report' : undefined)];
   }
+}
+
+/** Every state the brief lists for a screen has a frame. */
+function statesCheck(brief: string, frames: Array<{ nodeId: string }>): StageCheck {
+  const label = 'Every state designed';
+  const map = stateMap(brief, frames);
+  if (!map.total) return { label, state: 'unchecked', detail: 'The brief lists no states' };
+  // Older chats know frames by node id only, so there is nothing to match the states against.
+  if (frames.length && !map.named) return { label, state: 'unchecked', detail: 'The frames have no names to match states against', open: 'states' };
+  const detail = map.missing ? `${map.missing} of ${plural(map.total, 'state')} missing` : map.total === 1 ? 'The state is designed' : `All ${map.total} states designed`;
+  return check(label, map.missing === 0, detail, 'states');
 }
 
 /** "4 references, 3 options" from the Looked at and Options sections of research.md. */
