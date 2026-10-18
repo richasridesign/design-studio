@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 import { SpendPill } from './SpendPill';
 import { McpItem, openMcp } from './panes/McpStatus';
 import { openFigmaLogin } from './FigmaLogin';
+import { useDevTools } from './devTools';
 import './statusbar.css';
 
 const FIGMA: Record<string, [tone: string, label: string]> = {
@@ -66,10 +67,22 @@ const clock = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
+/** Compact Figma connection for the phone top bar: a status shape plus the word Figma, full state in its name. */
+export function FigmaItem() {
+  const mcp = useStore((s) => s.session.mcp);
+  const [tone, label] = figmaState(mcp);
+  return (
+    <button className="mcp-item figma-item" aria-label={`Figma: ${label}`} onClick={openMcp}>
+      <span className={`sb-dot ${tone}`} aria-hidden="true" /> <span className="label">Figma</span>
+    </button>
+  );
+}
+
 export function StatusBar() {
   const mcp = useStore((s) => s.session.mcp);
   const cache = useStore((s) => s.session.cache);
   const limit = useStore((s) => s.session.limit);
+  const dev = useDevTools();
   const [now, setNow] = useState(Date.now());
   const left = cacheLeft(cache, now);
 
@@ -102,7 +115,8 @@ export function StatusBar() {
         </button>
       )}
       <span className="spacer" />
-      {left > 0 && (
+      {/* Cache and MCP counts are developer detail: shown only with Developer tools on. */}
+      {dev && left > 0 && (
         <span className="sb-item" title="Claude keeps this chat in its prompt cache for a few minutes. Messages sent before it runs out cost less.">
           <Icon name="clock" small /> Cache {clock(left)}
         </span>
@@ -116,7 +130,7 @@ export function StatusBar() {
         );
       })()}
       <SpendPill />
-      <McpItem />
+      {dev && <McpItem />}
     </footer>
   );
 }

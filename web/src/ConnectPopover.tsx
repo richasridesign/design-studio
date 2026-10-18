@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { IconButton } from './Tip';
+import { useDialogFocus } from './useDialog';
 import QRCode from 'qrcode';
 
 export function networkLabel(url: string): string {
@@ -28,19 +30,29 @@ export function ConnectPopover({ onClose }: { onClose: () => void }) {
     QRCode.toDataURL(url, { margin: 2, width: 200, color: { dark: '#000000', light: '#ffffff' } }).then(setQr);
   }, [url]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const box = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogFocus(true, box, onClose);
+
+  // Sits 4px under the Open on phone button. Opened from the command palette with the button hidden, it sits top right.
+  const [at, setAt] = useState<React.CSSProperties>({});
+  useLayoutEffect(() => {
+    const place = () => {
+      const r = document.querySelector('.phone-btn')?.getBoundingClientRect();
+      setAt(r && r.width > 0 ? { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) } : { top: 52, right: 8 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, []);
 
   return (
     <div className="overlay connect-overlay" onClick={onClose}>
-      <div className="switcher connect" onClick={(e) => e.stopPropagation()}>
+      <div ref={box} className="switcher connect" role="dialog" aria-labelledby={titleId} style={at} onClick={(e) => e.stopPropagation()}>
         <div className="connect-head">
-          <span>Open on phone</span>
+          <h2 id={titleId}>Open on phone</h2>
           <span className="spacer" />
-          <button className="icon-btn" title="Close" onClick={onClose}><Icon name="close" /></button>
+          <IconButton label="Close" onClick={onClose}><Icon name="close" /></IconButton>
         </div>
         {error && <div className="connect-body muted">{error}</div>}
         {urls && urls.length === 0 && <div className="connect-body muted">No network address found.</div>}
@@ -49,7 +61,7 @@ export function ConnectPopover({ onClose }: { onClose: () => void }) {
             {urls!.length > 1 && (
               <div className="connect-tabs">
                 {urls!.map((u, i) => (
-                  <button key={u} className={i === pick ? 'active' : ''} onClick={() => setPick(i)}>{networkLabel(u)}</button>
+                  <button key={u} className={i === pick ? 'active' : ''} aria-pressed={i === pick} onClick={() => setPick(i)}>{networkLabel(u)}</button>
                 ))}
               </div>
             )}
@@ -58,8 +70,8 @@ export function ConnectPopover({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="connect-note muted small">
-          Scan with the phone camera. Tailscale works from anywhere while the phone is on your tailnet; Wi-Fi needs the
-          same network. In Safari, Share then Add to Home Screen opens Design Studio as an app.
+          Scan with your phone camera. Your phone needs the same Wi-Fi as this Mac, or Tailscale on both when you are
+          away. In Safari, tap Share, then Add to Home Screen to keep Design Studio as an app.
         </div>
       </div>
     </div>
