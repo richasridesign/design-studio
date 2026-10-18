@@ -252,6 +252,17 @@ export function App() {
   const views = VIEWS.filter((v) => !v.dev || dev);
   const wanted = narrow() && isMobileCenter(tab) ? tab : center;
   const shownCenter = centers.some((c) => c.id === wanted) ? wanted : centers[0]?.id;
+  const [rove, setRove] = useState<string | null>(null);
+  const tabKeys = (e: React.KeyboardEvent<HTMLElement>) => {
+    const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role=tab]'));
+    const i = tabs.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    const to = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    setRove(tabs[to].id.replace('tab-', ''));
+    tabs[to].focus();
+  };
 
   return (
     <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} style={{ '--chat-w': `${chatW}px` } as React.CSSProperties}>
@@ -296,22 +307,26 @@ export function App() {
 
         <section className="editor-group pane code">
           <div className="tabs">
-            {centers.map((c) => (
-              <button key={c.id} className={`tab ${shownCenter === c.id ? 'active' : ''}`} onClick={() => open(c.id)}>
-                <Icon name={c.icon} small /> {c.label}
-                {c.id === 'sketch' && phase === 'pick' && <span className="badge waiting">!</span>}
-              </button>
-            ))}
+            {/* Tabs for screen readers: arrows move between tabs, Enter or Space opens one. */}
+            <div role="tablist" aria-label="Panels" style={{ display: 'contents' }} onKeyDown={tabKeys}>
+              {centers.map((c) => (
+                <button key={c.id} id={`tab-${c.id}`} role="tab" aria-selected={shownCenter === c.id} aria-controls={`panel-${c.id}`} tabIndex={(centers.some((x) => x.id === rove) ? rove : shownCenter) === c.id ? 0 : -1}
+                  className={`tab ${shownCenter === c.id ? 'active' : ''}`} onClick={() => { setRove(null); open(c.id); }}>
+                  <Icon name={c.icon} small /> {c.label}
+                  {c.id === 'sketch' && phase === 'pick' && <span className="badge waiting" title="Waiting for your pick" aria-label="Waiting for your pick">!</span>}
+                </button>
+              ))}
+            </div>
             <span className="spacer" />
             <button className="icon-btn focus-btn desktop-only" title={focusMode ? 'Exit focus mode (⌘.)' : 'Focus mode (⌘.)'} onClick={toggleFocus}><Icon name={focusMode ? 'screen-normal' : 'screen-full'} small /></button>
           </div>
           <ErrorBoundary label="panel">
-          <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`}>{shownCenter === 'figma' && <BrowserPane />}</div>
-          <div className={`editor ${shownCenter === 'sketch' ? 'shown' : ''}`}>{shownCenter === 'sketch' && <Sketch />}</div>
-          <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`}>{shownCenter === 'review' && <Review dev={dev} />}</div>
-          <div className={`editor ${shownCenter === 'decisions' ? 'shown' : ''}`}>{shownCenter === 'decisions' && <Decisions />}</div>
-          <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`}>{shownCenter === 'preview' && <Preview />}</div>
-          {dev && <div className={`editor ${shownCenter === 'code' ? 'shown' : ''}`}><CodePane /></div>}
+          <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`} id="panel-figma" role="tabpanel" aria-labelledby="tab-figma">{shownCenter === 'figma' && <BrowserPane />}</div>
+          <div className={`editor ${shownCenter === 'sketch' ? 'shown' : ''}`} id="panel-sketch" role="tabpanel" aria-labelledby="tab-sketch">{shownCenter === 'sketch' && <Sketch />}</div>
+          <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`} id="panel-review" role="tabpanel" aria-labelledby="tab-review">{shownCenter === 'review' && <Review dev={dev} />}</div>
+          <div className={`editor ${shownCenter === 'decisions' ? 'shown' : ''}`} id="panel-decisions" role="tabpanel" aria-labelledby="tab-decisions">{shownCenter === 'decisions' && <Decisions />}</div>
+          <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`} id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">{shownCenter === 'preview' && <Preview />}</div>
+          {dev && <div className={`editor ${shownCenter === 'code' ? 'shown' : ''}`} id="panel-code" role="tabpanel" aria-labelledby="tab-code"><CodePane /></div>}
           </ErrorBoundary>
           {focusMode && (
             <div className="focus-pill desktop-only">
