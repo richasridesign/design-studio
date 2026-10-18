@@ -12,7 +12,7 @@ export type StateMap = { screens: MappedScreen[]; total: number; missing: number
 const BULLET = /^(\s*)(?:[-*+]|\d+[.)])\s+(.*)$/;
 const HEADING = /^(#{1,6})\s+(.*)$/;
 // "Cart: default" or "Cart - default", with an en or em dash too.
-const SPLIT = /^(.+?)\s*(?::|\s[-–—]\s)\s*(.*)$/;
+const SPLIT = /^(.+?)\s*(?::|\s[-\u2013\u2014]\s)\s*(.*)$/;
 
 const clean = (t: string) =>
   t.replace(/\*\*|__|`/g, '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim().replace(/[.:;,]+$/, '').trim();
@@ -79,7 +79,7 @@ const isDefault = (t: string[]) => t.every((w) => DEFAULTS.has(w));
 function screenOf(f: StateFrame, screens: string[][]): number {
   const byField = screens.findIndex((s) => s.length && same(s, tokens(f.screen)));
   if (byField >= 0) return byField;
-  const head = f.name?.split(/\s*[/|–—,]\s*|\s-\s/)[0];
+  const head = f.name?.split(/\s*[/|\u2013\u2014,]\s*|\s-\s/)[0];
   const byName = screens.findIndex((s) => s.length && same(s, tokens(head)));
   if (byName >= 0) return byName;
   const all = tokens([f.screen, f.state, f.name].filter(Boolean).join(' '));
