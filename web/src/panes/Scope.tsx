@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
+import { Confirm } from '../Confirm';
 import { scopeSummary, type Scope, type ScopeChange } from '../../../shared/scope';
 
 const day = (at: number) => new Date(at).toLocaleDateString([], { day: 'numeric', month: 'short' });
@@ -50,6 +51,9 @@ function ScopeEdit({ scope, change }: { scope: Scope; change: (c: ScopeChange) =
   const [name, setName] = useState('');
   // Parking asks why first, so the dated note her process wants is never empty.
   const [parking, setParking] = useState<string | null>(null);
+  // Removing drops the flow with no note, so it asks first and points to Park.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const trigger = useRef<HTMLElement | null>(null);
   const add = async () => { if (name.trim() && (await change({ action: 'add', name }))) setName(''); };
   return (
     <div className="scope-edit" id="scope-edit">
@@ -62,7 +66,7 @@ function ScopeEdit({ scope, change }: { scope: Scope; change: (c: ScopeChange) =
             <li key={f}>
               <span className="scope-name">{f}</span>
               <button className="link" onClick={() => setParking(f)}>Park</button>
-              <button className="icon-btn" title={`Remove ${f}`} aria-label={`Remove ${f}`} onClick={() => change({ action: 'remove', name: f })}><Icon name="close" small /></button>
+              <button className="icon-btn" title={`Remove ${f}`} aria-label={`Remove ${f}`} onClick={(e) => { trigger.current = e.currentTarget; setRemoving(f); }}><Icon name="close" small /></button>
             </li>
           ))}
         </ul>
@@ -75,6 +79,16 @@ function ScopeEdit({ scope, change }: { scope: Scope; change: (c: ScopeChange) =
           <button onClick={add} disabled={!name.trim()}>Add flow</button>
           <button className="link" onClick={() => setParking('')}>Park a feature</button>
         </div>
+      )}
+      {removing !== null && (
+        <Confirm
+          title={`Remove ${removing} from scope?`}
+          detail="Claude stops keeping this flow, and no note is kept."
+          warning="To keep a dated note of why, park it instead."
+          action="Remove"
+          run={async () => change({ action: 'remove', name: removing })}
+          onClose={() => { setRemoving(null); requestAnimationFrame(() => trigger.current?.isConnected && trigger.current.focus()); }}
+        />
       )}
       {scope.parked.length > 0 && (
         <>

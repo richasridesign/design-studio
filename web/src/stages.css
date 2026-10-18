@@ -55,7 +55,8 @@
 .gate-check .link { min-height: 20px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 .gate-note { margin: 0; font-size: var(--text-sm); line-height: 20px; }
 .gate-note-field { display: grid; gap: 4px; font-size: var(--text-sm); line-height: 20px; }
-.gate-note-field span { font-weight: 600; }
+.gate-note-field > span:first-child { font-weight: 600; }
+.gate-req { font-size: var(--text-xs); line-height: 16px; }
 .gate-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 /* Approve stays in view while the panel scrolls. */
 .gate-foot { position: sticky; bottom: -16px; z-index: 1; margin-bottom: -16px; padding-bottom: 16px; background: var(--bg); }
