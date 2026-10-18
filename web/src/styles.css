@@ -1,39 +1,68 @@
-/* Calm neutral light palette. */
+/* Warm light palette after richadesign.in: off-white paper, pastel tints for cards, vivid accents for marks only. */
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-raised: #fafafa;
-  --bg-sunken: #f4f4f5;
+  --bg: #faf8f4;
+  --bg-raised: #f5f2ec;
+  --bg-sunken: #efebe4;
   --bg-elevated: #ffffff;
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --border: #ececec;
-  --border-strong: #dcdcdc;
-  --fg: #1a1a1a;
-  --fg-muted: #5b5b5b;
-  --fg-faint: #6b6b6b;
-  --accent: #1a1a1a;
-  --accent-hover: #333333;
-  --accent-soft: rgba(26, 26, 26, 0.06);
+  --bg-hover: rgba(60, 40, 20, 0.05);
+  --border: #e9e3d9;
+  --border-strong: #d9d1c3;
+  --fg: #1f1b16;
+  --fg-muted: #57524b;
+  --fg-faint: #615c55;
+  --accent: #1f1b16;
+  --accent-hover: #3a342c;
+  --accent-soft: rgba(31, 27, 22, 0.06);
   --on-accent: #ffffff;
-  --btn: #ebebeb;
-  --btn-hover: #e1e1e1;
-  --focus: #2f5bd3;
-  --overlay: rgba(0, 0, 0, 0.32);
+  --btn: #efebe4;
+  --btn-hover: #e6e0d6;
+  --focus: #2c3ec8;
+  --overlay: rgba(31, 27, 22, 0.32);
   --figma: #0d99ff;
   --figma-soft: rgba(13, 153, 255, 0.12);
   --figma-ink: #0b63ad;
-  --link: #2f5bd3;
+  --link: #2c3ec8;
   --prompt: var(--link);
   --agent: var(--link);
-  --ok: #1a7a42;
+  --ok: #18723d;
   --warn: #8a5a00;
-  --err: #c93636;
+  --err: #b8322f;
+  /* Pastel tints: card and pill backgrounds. Text on them keeps --fg and --fg-muted (6:1 or more). */
+  --tint-blue: #d1eafa;
+  --tint-green: #dfefd7;
+  --tint-lavender: #e7e0eb;
+  --tint-peach: #fbe4d2;
+  --tint-pink: #f6dde6;
+  --tint-amber: #fdebd0;
+  --grad-blue: linear-gradient(135deg, #d9eefb 0%, #e3e9ee 100%);
+  --grad-green: linear-gradient(135deg, #e3f1dc 0%, #e8efec 100%);
+  --grad-lavender: linear-gradient(135deg, #ebe4ef 0%, #efebf0 100%);
+  --grad-peach: linear-gradient(135deg, #fce9da 0%, #f7efe6 100%);
+  --glow-peach: radial-gradient(ellipse at 50% 0%, rgba(248, 196, 160, 0.45) 0%, rgba(250, 248, 244, 0) 70%);
+  /* Vivid accents: decoration only (illustration, dots, bars). Under 3:1 on paper, so never text or a state mark. */
+  --vivid-lavender: #ba8ad6;
+  --vivid-orange: #d48740;
+  --vivid-green: #82c95e;
+  --vivid-pink: #d65c89;
+  --vivid-terracotta: #db755e;
+  --vivid-amber: #fdb156;
+  /* Deep accents: at least 4:1 on paper and white text on them, for marks that carry meaning. */
+  --ink-blue: #2f7fc1;
+  --ink-lavender: #8e57b8;
+  --ink-orange: #b0661c;
+  --ink-green: #3f8a22;
+  --ink-pink: #c0406f;
+  --ink-terracotta: #b4472f;
+  --royal: #2c3ec8;
   --diff-add: var(--ok);
   --diff-del: var(--err);
   --radius: 12px;
   --radius-sm: 8px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06);
+  --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.08), 0 1px 3px rgba(60, 40, 20, 0.06);
   --claude: var(--link);
   --claude-button: var(--accent);
   --serif: ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
@@ -86,7 +115,7 @@ button {
 }
 button:hover { background: var(--btn-hover); }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-button.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+button.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; border-radius: var(--radius-pill); padding-inline: 16px; }
 button.primary:hover { background: var(--accent-hover); }
 button.primary:disabled { opacity: 0.5; cursor: default; }
 button.danger { color: var(--err); }
