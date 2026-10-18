@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getJson, postJson } from '../store';
+import { getJson, postJson, useRev, useStore } from '../store';
 import { insertPrompt } from './Files';
+import { focusReview } from './reviewFocus';
+import { allRules, rulesLine } from '../../../shared/rules';
+import type { ReviewDoc, ReviewRun } from '../../../shared/design';
 import '../rules.css';
 
 type R = { global: string; file: string };
@@ -31,8 +34,21 @@ function Box({ title, value, onChange, onSave, saved }: { title: string; value: 
   );
 }
 
+function useLastRulesRun() {
+  const chat = useStore((s) => s.session.id);
+  const rev = useRev('review.json');
+  const [last, setLast] = useState<ReviewRun | null>(null);
+  useEffect(() => {
+    getJson<ReviewDoc>('/api/review')
+      .then((d) => setLast(d.runs.filter((x) => x.rules?.length).sort((a, b) => b.at - a.at)[0] ?? null))
+      .catch(() => {});
+  }, [chat, rev]);
+  return last;
+}
+
 export function Rules() {
   const [r, setR] = useState<R | null>(null);
+  const last = useLastRulesRun();
   const [disk, setDisk] = useState<R>({ global: '', file: '' });
   const [saved, setSaved] = useState<keyof R | null>(null);
 
@@ -54,6 +70,12 @@ export function Rules() {
     <div className="rules-box">
       <Box title="This file" value={r.file} onChange={(v) => setR({ ...r, file: v })} onSave={save('file')} saved={saved === 'file'} />
       <Box title="All files" value={r.global} onChange={(v) => setR({ ...r, global: v })} onSave={save('global')} saved={saved === 'global'} />
+      {allRules(r).length > 0 && (
+        <p className="checked">
+          Checked in every review.
+          {last && <button className="link" onClick={() => focusReview({ runId: last.id, area: 'rules' })}>Last result: {rulesLine(last.rules!)}</button>}
+        </p>
+      )}
       <p className="hint">Claude follows these in every chat, from your next message. Hover one of your messages and pick Make it a rule to add one from the chat.</p>
       <button className="suggest" onClick={() => insertPrompt(SUGGEST)}>Suggest rules from my design system</button>
     </div>

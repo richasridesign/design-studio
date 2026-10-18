@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { AREAS, AREA_NAMES, PRESET_INFO, type Area, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewRun, reviewChecklist } from '../../../shared/design';
@@ -8,10 +8,13 @@ import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FrameNames } from '../FrameNames';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
-import { KIND_LABEL, ago, areaTone, mergeRuns, runLabel, shownPreset, summarize, unposted, type AreaTone, type RunRow } from './reviewRuns';
+import { KIND_LABEL, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
+import { rulesLine, type RuleResult } from '../../../shared/rules';
+import { frameName, useOutline } from '../outline';
 
 const SEV: Record<Finding['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
-const TONE_ICON: Record<AreaTone, string> = { pass: 'pass-filled', major: 'warning', blocking: 'error', error: 'error' };
+const TONE_ICON: Record<RulesTone, string> = { pass: 'pass-filled', major: 'warning', blocking: 'error', error: 'error', unchecked: 'circle-large-outline' };
+const RULE_STATE: Record<RuleResult['state'], string> = { pass: 'Passed', fail: 'Failed', unchecked: 'Not checked' };
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 const when = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -132,6 +135,11 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
       </div>
       <div className="review-grid">
         <AreaCard title="Design system check" sub={run.checkError ?? (run.check.length ? `${run.check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !run.check.some((f) => f.severity !== 'minor'), !!run.checkError, run.check)} tokens={0} findings={run.check} grouped focusAt={focusAt('check')} />
+        {!!run.rules?.length && (
+          <AreaCard title="House rules" sub={run.rulesError ? `${rulesLine(run.rules)}. ${run.rulesError}` : rulesLine(run.rules)} tone={rulesTone(run)} tokens={0} findings={[]} focusAt={focusAt('rules')}>
+            <RuleList rules={run.rules} />
+          </AreaCard>
+        )}
         {run.results.map((r) => (
           <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} />
         ))}
@@ -140,7 +148,28 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
   );
 }
 
-function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt = 0 }: { title: string; sub: string; tone: AreaTone; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number }) {
+function RuleList({ rules }: { rules: RuleResult[] }) {
+  const outline = useOutline(useStore((s) => s.session.figma?.key));
+  return (
+    <ul className="findings rule-list">
+      {rules.map((r, i) => (
+        <li key={i} className={`rule ${r.state}`}>
+          <span className={`rule-state ${r.state}`}>{r.state === 'pass' && <Icon name="check" small />}{RULE_STATE[r.state]}</span>
+          <div className="f-body">
+            <div className="f-rule">{r.rule}</div>
+            {r.frames.length > 0 && (
+              <div className="rule-frames">
+                {r.frames.map((id) => <button key={id} className="link" title="Show in Figma" onClick={() => showNode(id)}>{frameName(outline, id) ?? id}</button>)}
+              </div>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt = 0, children }: { title: string; sub: string; tone: RulesTone; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number; children?: ReactNode }) {
   const pass = tone === 'pass';
   const [open, setOpen] = useState(!pass);
   const ref = useRef<HTMLElement>(null);
@@ -152,7 +181,7 @@ function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt
   const shown = grouped ? [...findings].sort((a, b) => AREAS.indexOf(a.area as Area) - AREAS.indexOf(b.area as Area)) : findings;
   return (
     <section ref={ref} className={`area-card ${pass ? 'pass' : 'fail'} ${tone}${focusAt ? ' focused' : ''}`}>
-      <header onClick={() => setOpen((v) => !v)}>
+      <header role="button" tabIndex={0} aria-expanded={open} onClick={() => setOpen((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
         <Icon name={TONE_ICON[tone]} />
         <div className="area-title">
           <div className="t">{title}</div>
@@ -176,6 +205,7 @@ function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt
           {shown.length > 60 && <li className="muted">…and {shown.length - 60} more</li>}
         </ul>
       )}
+      {open && children}
     </section>
   );
 }

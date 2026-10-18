@@ -28,7 +28,9 @@ export function summarize(row: RunRow): string {
   const findings = [...row.run.check, ...row.run.results.flatMap((r) => r.findings)];
   const blocking = findings.filter((f) => f.severity === 'blocking').length;
   const major = findings.filter((f) => f.severity === 'major').length;
-  return blocking || major ? `${blocking} blocking, ${major} major` : 'No issues';
+  const rules = row.run.rules?.filter((r) => r.state === 'fail').length ?? 0;
+  const parts = [...(blocking || major ? [`${blocking} blocking, ${major} major`] : []), ...(rules ? [`${plural(rules, 'rule')} failed`] : [])];
+  return parts.length ? parts.join(', ') : 'No issues';
 }
 
 export function ago(at: number, now = Date.now()): string {
@@ -61,4 +63,13 @@ export const retryPrompt = (run: ReviewRun) => (areaRows(run).some((a) => a.fail
 export function isStale(run: Pick<ReviewRun, 'at'>, lastModified: string | null | undefined, latestAt: number): boolean {
   const t = lastModified ? Date.parse(lastModified) : NaN;
   return run.at === latestAt && !Number.isNaN(t) && t > run.at;
+}
+
+// House rules: a failed rule needs attention (amber), never an error. Unchecked rules keep the card neutral.
+export type RulesTone = AreaTone | 'unchecked';
+export function rulesTone(run: Pick<ReviewRun, 'rules' | 'rulesError'>): RulesTone {
+  const rules = run.rules ?? [];
+  if (rules.some((r) => r.state === 'fail')) return 'major';
+  if (run.rulesError) return 'error';
+  return rules.length && rules.every((r) => r.state === 'pass') ? 'pass' : 'unchecked';
 }

@@ -110,7 +110,8 @@
 .tr-review-rows li.pass .codicon { color: var(--ok); }
 .tr-review-rows li.fail .codicon { color: var(--err); }
 .tr-review-rows li.major .codicon { color: var(--warn); }
-.tr-review-rows li.tr-review-go { cursor: pointer; width: fit-content; }
+.tr-review-rows li.unchecked .codicon { color: var(--fg-muted); }
+.tr-review-rows li.tr-review-go { cursor: pointer; width: fit-content; min-height: 24px; }
 .tr-review-go .tr-review-name { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
 .tr-review-go:hover .tr-review-name { text-decoration-thickness: 2px; }
 .tr-review-failed { color: var(--err); }

@@ -127,7 +127,7 @@
 .run-detail { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
 .run-dev { background: var(--bg-sunken); border-radius: var(--radius); }
 .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
-.area-card { background: var(--bg-sunken); border-radius: var(--radius); overflow: hidden; }
+.area-card { background: var(--bg-sunken); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 8px; }
 .area-card header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
 .area-card.pass header > .codicon:first-child { color: var(--ok); }
 .area-card.blocking header > .codicon:first-child, .area-card.error header > .codicon:first-child { color: var(--err); }
@@ -149,6 +149,19 @@
   .findings li { flex-direction: column; gap: 4px; }
   .sev { height: 20px; }
 }
+/* House rules: Passed is a green check, Failed an amber square, Not checked a grey ring. */
+.area-card.unchecked header > .codicon:first-child { color: var(--fg-muted); }
+.area-card header:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.rule-state { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
+.rule-state:not(.pass)::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
+.rule-state.pass .codicon { color: var(--ok); width: 8px; overflow: visible; display: inline-flex; justify-content: center; }
+.rule-state.fail::before { background: var(--warn); border-radius: 1px; }
+.rule-state.unchecked { color: var(--fg-muted); }
+.rule-state.unchecked::before { border: 2px solid var(--fg-muted); border-radius: 50%; }
+.rule-frames { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
+.rule-frames .link { margin-top: 0; }
+.rule-list .f-rule { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .rule-state { height: 20px; } }
 .f-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .f-rule { font-weight: 500; }
 .f-fix { color: var(--fg-muted); font-size: var(--text-sm); }
