@@ -47,6 +47,9 @@
 .aw-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 4px; }
 .aw-approve { min-height: 36px; height: 36px; padding: 0 12px; font-size: var(--text-sm); background: var(--bg); border: 1px solid var(--fg); border-radius: var(--radius-sm); font-weight: 500; }
 .aw-approve:hover { background: var(--bg-hover); }
+/* Waiting on Claude's card: muted, no hover, and its tip says why (disabled controls are exempt from contrast). */
+.aw-approve[aria-disabled='true'] { color: var(--fg-muted); border-color: var(--border-strong); cursor: default; }
+.aw-approve[aria-disabled='true']:hover { background: var(--bg); }
 .awaiting .triage-link { background: transparent; border: 0; padding: 0; min-height: 36px; height: 36px; display: inline-flex; align-items: center; gap: 4px; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .awaiting .triage-link:hover { background: transparent; text-decoration-thickness: 2px; }
 .aw-hint { color: var(--fg-muted); font-size: var(--text-sm); }
