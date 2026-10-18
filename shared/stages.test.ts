@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approve, cleanApprovals, stageFrames, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
+import { PHASE_STAGE, approve, cleanApprovals, phaseLine, stageFrames, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -177,5 +177,26 @@ describe('stageLabel', () => {
     expect(stageLabel({})).toBeNull();
     expect(stageLabel({ spec: { at: 1 } })).toBe('Explore');
     expect(stageLabel(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toBe('Shipped');
+  });
+});
+
+describe('phaseLine', () => {
+  it('names a run phase by its stage, with the phase as the sub-line', () => {
+    expect(phaseLine('design')).toBe('Build: designing in Figma');
+    expect(phaseLine('plan')).toBe('Spec: writing the plan');
+    expect(phaseLine('pick')).toBe('Decide: pick a direction');
+    expect(phaseLine('fix')).toBe('Validate: fixing issues');
+  });
+
+  it('keeps done and stopped as run states', () => {
+    expect(phaseLine(null)).toBe('No design run');
+    expect(phaseLine('done')).toBe('Design run done');
+    expect(phaseLine('stopped')).toBe('Design run stopped');
+  });
+
+  it('maps phases onto the stages in order', () => {
+    const order = ['spec', 'explore', 'decide', 'build', 'validate'];
+    const seen = Object.values(PHASE_STAGE).map((p) => order.indexOf(p.stage));
+    expect(seen.every((i, k) => i >= 0 && (k === 0 || i >= seen[k - 1]))).toBe(true);
   });
 });

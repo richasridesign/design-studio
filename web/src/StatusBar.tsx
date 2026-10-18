@@ -100,7 +100,7 @@ export function StatusBar() {
 
   return (
     <footer className="statusbar desktop-only">
-      <button className="sb-item" title="Figma connection, open MCP servers" onClick={openMcp}>
+      <button className="sb-item" onClick={openMcp}>
         <span className={`sb-dot ${tone}`} aria-hidden="true" /> Figma: {label}
       </button>
       {figma?.status === 'needs-auth' && <button className="sb-link sb-help" onClick={openFigmaLogin}>How to log in</button>}

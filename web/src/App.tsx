@@ -60,7 +60,8 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
 ];
 
 const PHASE_TAB: Record<string, Center> = { sketch: 'sketch', pick: 'sketch', file: 'figma', design: 'figma', fix: 'figma', review: 'review' };
-const PHASE_LABEL: Record<string, string> = { plan: 'Plan', sketch: 'Sketch', pick: 'Pick a direction', file: 'Attach Figma file', system: 'Design system', design: 'Design', review: 'Review', fix: 'Fix', done: 'Done', stopped: 'Stopped' };
+// Stage names first, the phase as the sub-line, the same words as phaseLine in shared/stages.ts.
+const PHASE_LABEL: Record<string, string> = { plan: 'Spec: writing the plan', sketch: 'Explore: sketching directions', pick: 'Decide: pick a direction', file: 'Build: attach the Figma file', system: 'Build: reading the design system', design: 'Build: designing in Figma', review: 'Validate: reviewing the frames', fix: 'Validate: fixing issues', done: 'Design run done', stopped: 'Design run stopped' };
 const narrow = () => window.innerWidth <= 900;
 // Visually hidden, still read by screen readers (the page's one h1).
 const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };
@@ -313,7 +314,7 @@ export function App() {
         </section>
 
         {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}
-        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() || isMobileCenter(tab) ? 'Panels' : undefined}>
+        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() ? 'Panel area' : isMobileCenter(tab) ? 'Panels' : undefined}>
           <div className="tabs">
             {/* Tabs for screen readers: arrows move between tabs, Enter or Space opens one. */}
             <div role="tablist" aria-label="Panels" style={{ display: 'contents' }} onKeyDown={tabKeys}>

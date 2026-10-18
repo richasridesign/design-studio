@@ -1,7 +1,7 @@
 // Stages: the six gates a piece of design work passes, from Richa's brief for an ideal tool.
 // Each gate lists what passes it, the evidence the app already has, and who approves (the designer).
 
-import type { DesignDoc, ReviewDoc, SketchDoc } from './design.js';
+import type { DesignDoc, FlowPhase, ReviewDoc, SketchDoc } from './design.js';
 import type { DecisionDoc } from './decisions.js';
 import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
@@ -21,6 +21,27 @@ export const STAGE_INFO: Record<StageId, { name: string; goal: string }> = {
   validate: { name: 'Validate', goal: 'Review the frames against the checks and house rules' },
   ship: { name: 'Ship', goal: 'Hand off the frames' },
 };
+
+/** A design run's phases, named by the stage they belong to. The stage is the main name; the phase is its sub-line. */
+export const PHASE_STAGE: Record<Exclude<FlowPhase, 'done' | 'stopped'>, { stage: StageId; doing: string }> = {
+  plan: { stage: 'spec', doing: 'writing the plan' },
+  sketch: { stage: 'explore', doing: 'sketching directions' },
+  pick: { stage: 'decide', doing: 'pick a direction' },
+  file: { stage: 'build', doing: 'attach the Figma file' },
+  system: { stage: 'build', doing: 'reading the design system' },
+  design: { stage: 'build', doing: 'designing in Figma' },
+  review: { stage: 'validate', doing: 'reviewing the frames' },
+  fix: { stage: 'validate', doing: 'fixing issues' },
+};
+
+/** "Build: designing in Figma". Done and stopped are run states, not stages. */
+export function phaseLine(phase: FlowPhase | null): string {
+  if (!phase) return 'No design run';
+  if (phase === 'done') return 'Design run done';
+  if (phase === 'stopped') return 'Design run stopped';
+  const p = PHASE_STAGE[phase];
+  return `${STAGE_INFO[p.stage].name}: ${p.doing}`;
+}
 
 export type Approval = { at: number; note?: string };
 export type StageApprovals = Partial<Record<StageId, Approval>>;
