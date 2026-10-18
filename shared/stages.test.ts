@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approve, cleanApprovals, currentStage, reopen, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
+import { approve, cleanApprovals, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -22,7 +22,8 @@ describe('stages', () => {
     const list = stages({ ...none, brief: 'Saved items screen\nfor a grocery app', figma: true, scope: { flows: ['Saved items'], parked: [] } }, {});
     expect(list[0].state).toBe('ready');
     expect(list[0].checks[0].detail).toBe('Saved items screen');
-    expect(list[0].checks[1]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
+    expect(list[0].checks[1]).toMatchObject({ label: 'Research written', state: 'unchecked' });
+    expect(list[0].checks[2]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
     expect(list[1].state).toBe('later');
   });
 
@@ -86,6 +87,17 @@ describe('flow check on the Validate gate', () => {
   it('passes when every flow passed', () => {
     const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', {})]) });
     expect(s.validate.checks.at(-1)).toMatchObject({ state: 'met', detail: 'Flow check: the flow passed' });
+  });
+});
+
+describe('research', () => {
+  it('counts references and options in research.md', () => {
+    const md = '# Saved items\n## Question\n- How do others save items?\n## Looked at\n- Ocado: lists\n  - nested note\n- Oda: hearts\n- Instacart: lists\n## Findings\n- a\n## Options\n1. A lists\n2. B hearts\n## Sources\n- x';
+    expect(researchSummary(md)).toBe('3 references, 2 options');
+    expect(researchSummary('Some notes')).toBe('Findings written');
+  });
+  it('is met once research.md exists, and never blocks Spec', () => {
+    expect(byId({ ...none, research: '## Looked at\n- A' }).spec.checks[1]).toMatchObject({ state: 'met', detail: '1 reference', open: 'research' });
   });
 });
 
