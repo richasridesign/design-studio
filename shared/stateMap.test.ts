@@ -55,6 +55,17 @@ describe('parseStates', () => {
     expect(parseStates('## States\n### S1: Cart\n- default')).toEqual([{ screen: 'Cart', states: ['default'] }]);
   });
 
+  it('names a screen from the Screens list when the States line only gives its id', () => {
+    const md = '## Screens\n- S1 Cart: item rows and a total\n- S2: Checkout\n### S3 \u00b7 Order placed\n| S4 | Help | FAQ |\n\n## States per screen\n- S1: default, loading\n- S2 - default, error\n- S4: default\n### S3\n- success';
+    expect(parseStates(md)).toEqual([
+      { screen: 'Cart', states: ['default', 'loading'] },
+      { screen: 'Checkout', states: ['default', 'error'] },
+      { screen: 'Help', states: ['default'] },
+      { screen: 'Order placed', states: ['success'] },
+    ]);
+    expect(designed(md, [f('7:1', 'cart', 'default', 'Cart / Default')])['Cart: default']).toBe('7:1');
+  });
+
   it('matches frames named after the screen when the brief gives it an id', () => {
     const map = designed('## States per screen\n- S1 Cart: default, loading', [f('9:1', 'S1', 'default', 'Cart / Default'), f('9:2', undefined, undefined, 'Cart / Loading')]);
     expect(map).toEqual({ 'Cart: default': '9:1', 'Cart: loading': '9:2' });
@@ -67,6 +78,12 @@ describe('parseStates', () => {
       { screen: 'Checkout', states: ['default', 'card declined'] },
     ]);
     expect(designed(md, [f('8:1', 'Cart', 'empty')])['Cart: Empty: no items, browse button']).toBe('8:1');
+  });
+
+  it('reads a note after a dash as a note, so no dash reaches the map or the message box', () => {
+    expect(parseStates('## States\n### Checkout\n- Card declined \u2014 error under the card field\n- Submitting - fields locked')).toEqual([
+      { screen: 'Checkout', states: ['Card declined: error under the card field', 'Submitting: fields locked'] },
+    ]);
   });
 
   it('reads numbered and bold headings', () => {

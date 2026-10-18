@@ -45,7 +45,7 @@ export function FigmaLogin({ name, tone, label, onClose, onRetry }: { name: stri
         <div className="settings-dialog-body fl-body">
           <p className="fl-lead">Claude edits your file through the Figma plugin. You log in to it once, from the terminal.</p>
           <ol className="fl-steps">
-            <li>Open Terminal and run <Command id="fl-c1" text="claude" /></li>
+            <li>On your Mac, open Terminal and run <Command id="fl-c1" text="claude" /></li>
             <li>Type <Command id="fl-c2" text="/mcp" /> and press Return.</li>
             <li>Pick <Command id="fl-c3" text={name} /> and log in in the browser window that opens.</li>
             <li>Come back here and press Try again.</li>
