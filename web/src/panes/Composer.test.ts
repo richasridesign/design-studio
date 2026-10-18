@@ -86,11 +86,12 @@ describe('insertInto', () => {
     expect(insertInto('/review ', '/review ')).toBe('/review ');
     expect(insertInto('Fix the issues ', 'Fix the issues')).toBe('Fix the issues ');
   });
-  it('puts a command first and replaces a command line at the top', () => {
+  it('puts a command first and keeps every word she typed', () => {
     expect(insertInto('', '/review ')).toBe('/review ');
     expect(insertInto('look at the cart', '/review')).toBe('/review look at the cart');
-    expect(insertInto('/review check 1:2', '/review full')).toBe('/review full ');
-    expect(insertInto('/sketch\nthe empty state', '/design')).toBe('/design\nthe empty state ');
+    expect(insertInto('/review check 1:2 3:4', '/review full')).toBe('/review check 1:2 3:4');
+    expect(insertInto('/design a checkout flow with three screens', '/review')).toBe('/review a checkout flow with three screens');
+    expect(insertInto('/sketch\nthe empty state', '/design')).toBe('/design\nthe empty state');
   });
   it('appends plain text after what is there', () => {
     expect(insertInto('Hello', 'About "x": ')).toBe('Hello About "x": ');
