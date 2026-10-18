@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { MCP_BAD, type McpServer } from '../../../shared/protocol';
 import { api, send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { openFigmaLogin } from '../FigmaLogin';
 import '../mcp.css';
 
 const STATUS: Record<string, [tone: string, label: string]> = {
@@ -15,7 +16,7 @@ const STATUS: Record<string, [tone: string, label: string]> = {
 };
 const statusOf = (s: string) => STATUS[s] ?? ['off', s];
 export const needsYou = (r: { status: string; live?: boolean }) => r.status === 'failed' || (r.status === 'needs-auth' && !!r.live);
-const stateOf = (r: { status: string; live?: boolean }): [tone: string, label: string] => (r.status === 'needs-auth' && !r.live ? ['off', 'OAuth via Claude'] : statusOf(r.status));
+const stateOf = (r: { status: string; live?: boolean }): [tone: string, label: string] => (r.status === 'needs-auth' && !r.live ? ['off', 'Login kept by Claude'] : statusOf(r.status));
 
 const SCOPES: [id: string, title: string, where: string][] = [
   ['user', 'Your servers', '~/.claude.json'],
@@ -24,6 +25,8 @@ const SCOPES: [id: string, title: string, where: string][] = [
   ['claudeai', 'Claude.ai connectors', 'claude.ai settings'],
   ['plugin', 'Plugins', 'Claude Code plugins'],
 ];
+const isFigma = (r: { name: string }) => /figma/i.test(r.name);
+
 const scopeInfo = (id: string) => SCOPES.find((s) => s[0] === id) ?? [id, id[0].toUpperCase() + id.slice(1), ''];
 
 export const openMcp = () => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:mcp' } }));
@@ -59,7 +62,6 @@ export function sections(rows: Row[]): [string, Row[]][] {
   return [...by.entries()].sort((a, b) => order(a[0]) - order(b[0]));
 }
 
-const short = (v: string) => v.split('+')[0];
 
 const ago = (t: number) => {
   const s = Math.round((Date.now() - t) / 1000);
@@ -91,7 +93,6 @@ export function McpPage() {
   const rows = useMemo(() => merge(probed ?? [], mcp), [probed, mcp]);
   const current = rows.find((r) => r.name === sel) ?? null;
   const ok = rows.filter((r) => r.status === 'connected').length;
-  const tools = rows.reduce((n, r) => n + (r.tools?.length ?? 0), 0);
   const attention = rows.filter(needsYou).length;
   const extra = document.getElementById('page-mcp-extra');
 
@@ -101,7 +102,6 @@ export function McpPage() {
         {extra && createPortal(
           <div className="mcp-stats">
             <Stat n={ok} of={rows.length} label="connected" tone={attention ? 'warn' : 'ok'} />
-            <Stat n={tools} label="tools" />
             {attention > 0 && <Stat n={attention} label="need you" tone={rows.some((r) => r.status === 'failed') ? 'bad' : 'warn'} />}
             <button className={`mcp-refresh ${busy ? 'busy' : ''}`} onClick={() => load(true)} disabled={busy} title="Connect to every server again">
               <Icon name={busy ? 'loading' : 'refresh'} small spin={busy} /> {busy ? 'Checking' : at ? `Checked ${ago(at)}` : 'Check'}
@@ -110,6 +110,9 @@ export function McpPage() {
           extra,
         )}
         {error && <div className="mcp-error"><Icon name="error" small /> {error}</div>}
+        {rows.some((r) => isFigma(r) && r.status === 'needs-auth' && r.live) && (
+          <p className="mcp-login" role="status"><span className="mcp-orb warn" aria-hidden="true" /> Figma plugin: Needs login. <button className="link" onClick={openFigmaLogin}>How to log in</button></p>
+        )}
         {probed === null && !error && (
           <div className="mcp-grid">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="mcp-card skeleton" style={{ animationDelay: `${i * 80}ms` }} />)}</div>
         )}
@@ -121,10 +124,10 @@ export function McpPage() {
           </div>
         )}
         {sections(rows).map(([scope, list]) => {
-          const [, title, where] = scopeInfo(scope);
+          const [, title] = scopeInfo(scope);
           return (
             <section key={scope} className="mcp-section">
-              <div className="mcp-section-head"><span>{title}</span><span className="mono muted">{where}</span><span className="muted count">{list.filter((r) => r.status === 'connected').length}/{list.length}</span></div>
+              <div className="mcp-section-head"><span>{title}</span><span className="muted count">{list.filter((r) => r.status === 'connected').length}/{list.length}</span></div>
               <div className="mcp-grid">
                 {list.map((r) => <Card key={r.name} row={r} selected={r.name === sel} onClick={() => setSel((s) => (s === r.name ? null : r.name))} />)}
               </div>
@@ -154,14 +157,11 @@ function Card({ row, selected, onClick }: { row: Row; selected: boolean; onClick
       <div className="mcp-card-top">
         <span className={`mcp-orb ${tone}`} />
         <span className="mcp-card-name">{row.name}</span>
-        {row.type && <span className="mcp-tag">{row.type}</span>}
-        {row.live && <span className="mcp-tag live" title="Loaded in this chat">chat</span>}
+        {row.live && <span className="mcp-tag live" title="Loaded in this chat">In this chat</span>}
       </div>
-      <div className="mcp-card-cmd mono" title={row.command}>{url ? row.command?.replace(/^https?:\/\//, '') : row.command ?? '-'}</div>
       <div className="mcp-card-foot">
         <span className={`s ${tone}`}>{label}</span>
         {row.status === 'connected' && row.tools && <span>{row.tools.length} tools</span>}
-        {row.version && <span className="mono muted" title={row.version}>v{short(row.version)}</span>}
       </div>
     </button>
   );
@@ -180,7 +180,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
         <span className={`mcp-orb ${tone}`} />
         <h2>{row.name}</h2>
         <span className="spacer" />
-        <button className="icon-btn" title="Close" onClick={onClose}><Icon name="close" small /></button>
+        <button className="icon-btn" title="Close" aria-label="Close" onClick={onClose}><Icon name="close" small /></button>
       </div>
       <div className="mcp-detail-acts">
         {row.live && MCP_BAD.includes(row.status) && <button onClick={() => send({ type: 'mcp_reconnect', name: row.name })}><Icon name="debug-restart" small /> Reconnect in chat</button>}
@@ -189,21 +189,33 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
         {url && <a href={row.command} target="_blank" rel="noreferrer"><Icon name="link-external" small /> Open URL</a>}
       </div>
       <dl className="mcp-kv">
-        <dt>Status</dt><dd className={tone}>{label}{row.version ? <span className="muted mono"> · v{row.version}</span> : null}</dd>
+        <dt>Status</dt><dd className={tone}>{label}</dd>
         {row.error && (row.live || row.status !== 'needs-auth') && <><dt>Error</dt><dd className="bad mono wrap">{row.error}</dd></>}
-        {row.status === 'needs-auth' && row.live && (
-          <><dt>Log in</dt><dd>Run <code>claude</code> in a terminal here, then <code>/mcp</code> and pick {row.name}. <button className="link" onClick={() => window.dispatchEvent(new Event('designstudio:terminal'))}>Open terminal</button></dd></>
+        {row.status === 'needs-auth' && isFigma(row) && (
+          <><dt>Log in</dt><dd>Log in once from the terminal. <button className="link" onClick={openFigmaLogin}>How to log in</button></dd></>
         )}
-        {row.status === 'needs-auth' && !row.live && (
-          <><dt>Login</dt><dd>Claude holds this server's OAuth login, which Design Studio can't use from here. The live status shows once Claude starts in this chat.</dd></>
+        {row.status === 'needs-auth' && !isFigma(row) && row.live && (
+          <><dt>Log in</dt><dd>Log in once from the terminal: run <code>claude</code>, type <code>/mcp</code> and pick {row.name}. <button className="link" onClick={() => window.dispatchEvent(new Event('designstudio:terminal'))}>Open terminal</button></dd></>
         )}
-        {row.command && <><dt>{url ? 'URL' : 'Command'}</dt><dd className="mono wrap">{row.command}</dd></>}
-        {row.env && <><dt>Env</dt><dd className="mono wrap">{row.env.join('  ')}</dd></>}
-        <dt>From</dt><dd>{scope}{where ? <span className="muted mono"> · {where}</span> : null}</dd>
+        {row.status === 'needs-auth' && !isFigma(row) && !row.live && (
+          <><dt>Log in</dt><dd>Claude keeps this login itself. Its live status shows once Claude starts in this chat.</dd></>
+        )}
+        <dt>From</dt><dd>{scope}</dd>
         <dt>In chat</dt><dd>{row.live ? 'Loaded' : 'Loads when Claude starts'}</dd>
       </dl>
+      {/* Where it runs and how: for whoever set it up, not needed day to day. */}
+      <details className="mcp-more">
+        <summary>Details</summary>
+        <dl className="mcp-kv">
+          {row.type && <><dt>Type</dt><dd className="mono">{row.type}</dd></>}
+          {row.command && <><dt>{url ? 'URL' : 'Command'}</dt><dd className="mono wrap">{row.command}</dd></>}
+          {row.env && <><dt>Env</dt><dd className="mono wrap">{row.env.join('  ')}</dd></>}
+          {where && <><dt>Config</dt><dd className="mono wrap">{where}</dd></>}
+          {row.version && <><dt>Version</dt><dd className="mono wrap">{row.version}</dd></>}
+        </dl>
+      </details>
       <div className="mcp-tools-head">
-        <span>Tools</span><span className="muted">{row.tools?.length ?? 0}</span>
+        <span>What Claude can do with it</span><span className="muted">{row.tools?.length ?? 0}</span>
         <span className="spacer" />
         {(row.tools?.length ?? 0) > 6 && <input placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} spellCheck={false} />}
       </div>

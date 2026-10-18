@@ -25,10 +25,14 @@
 .ff-chrome-title { margin: 0; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
 .ff-chrome-text { margin: 0; max-width: 560px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 .ff-chrome-btn { min-height: 32px; padding: 4px 12px; font-size: var(--text-sm); }
+.ff-chrome-steps { margin: 0; padding-left: 20px; max-width: 560px; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.ff-chrome-phone { display: none; }
 
 @media (max-width: 899px) {
   .ff-body { padding: 16px; }
   .ff-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .ff-chrome { margin: auto 16px 16px; }
   .ff-chrome-btn { min-height: 44px; }
+  .ff-chrome-btn, .ff-chrome-steps { display: none; }
+  .ff-chrome-phone { display: block; }
 }
