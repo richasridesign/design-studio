@@ -100,11 +100,25 @@ function want(s: string) {
   return kept.length ? kept : all;
 }
 
-/** A scope flow matches a section when every word of the flow name is in the section's name or path, in any order. */
+/**
+ * A scope flow matches a section when every word of the flow name is in the section's name or path, in any order.
+ * A number stays with the word before it: "Flow 1" needs "flow 1" in that order, so it never matches "Flow 10",
+ * "V2.1" or "flows 1 to 6".
+ */
 export function flowMatches(flow: string, section: string) {
-  const need = want(flow);
+  const words = nameWords(flow).split(' ').filter(Boolean);
+  const text = ` ${nameWords(section)} `;
+  const phrases: string[] = [];
+  const bound = new Set<number>();
+  words.forEach((w, i) => {
+    if (i > 0 && /^\d+$/.test(w)) {
+      phrases.push(`${words[i - 1]} ${w}`);
+      bound.add(i - 1).add(i);
+    }
+  });
+  const need = bound.size ? want(words.filter((_, i) => !bound.has(i)).join(' ')).filter((w) => !FILLER.has(w)) : want(flow);
   const have = new Set(allWords(section));
-  return need.length > 0 && need.every((w) => have.has(w));
+  return need.length + phrases.length > 0 && phrases.every((p) => text.includes(` ${p} `)) && need.every((w) => have.has(w));
 }
 
 const MAX_PROMPT = 40;

@@ -30,6 +30,14 @@ describe('flowMatches', () => {
     expect(flowMatches('Flow', 'Flow 1')).toBe(true);
     expect(flowMatches('Flow', 'Home')).toBe(false);
   });
+  it('keeps a number with the word before it, as whole words', () => {
+    expect(flowMatches('Flow 1', 'Flow 1 · First run: connectors')).toBe(true);
+    expect(flowMatches('Flow 1', 'flow-1 setup')).toBe(true);
+    expect(flowMatches('Flow 1', 'Flow 10 · Reports')).toBe(false);
+    expect(flowMatches('Flow 1', 'LATEST flows 1 to 6 and 8 / Flow 6 · Pause Harisson (V2.1 · LATEST)')).toBe(false);
+    expect(flowMatches('Flow 3 checkout', 'Checkout · Flow 3')).toBe(true);
+    expect(flowMatches('Flow 3 checkout', 'Checkout · Flow 4 (V3)')).toBe(false);
+  });
 });
 
 describe('parked-link rule', () => {

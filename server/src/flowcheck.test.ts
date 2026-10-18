@@ -152,11 +152,55 @@ describe('checkFlows', () => {
     expect(rules(r)).toEqual([]);
   });
 
-  it('flags a branch section linking into the main section (literal different-section rule)', () => {
-    const b = button('Back', { interactions: [click('main1'), hover()] });
-    const r = checkFlows(doc([section('L', 'LATEST', [section('m', 'Flow 2 · Main', [screen('main1', 'Home', [])], 0, 0, 2000, 1000), section('br', 'Flow 2 · Voice and attach', [screen('v1', 'Voice', [b], 0, 1200)], 0, 1200, 2000, 1000)], 0, 0, 3000, 3000)]), maps);
-    const branch = r.flows.find((f) => f.id === 'br')!;
-    expect(branch.findings.map((f) => f.rule)).toEqual(['stale-link']);
+  describe('old links between sections of one version', () => {
+    const link = (id: string, dest: string) => button('Go', { id, interactions: [click(dest), hover()] });
+    const sub = (id: string, name: string, screens: any[], y: number, inner: any[] = []) => section(id, name, [...screens, ...inner], 0, y, 2000, 1000);
+    const stale = (r: ReturnType<typeof checkFlows>) => r.flows.flatMap((f) => f.findings.filter((x) => x.rule === 'stale-link').map((x) => `${x.nodeId}>${x.message.match(/opens "([^"]+)"/)![1]}`));
+
+    it('does not flag links between sub-sections of one LATEST container, at any depth, or across flows in it', () => {
+      const deep = sub('c', 'C · Voice states', [screen('c1', 'Voice', [link('l3', 'a1')], 0, 2400)], 2400);
+      const flow2 = sub('f2', 'Flow 2 · Try it (V5.3 · LATEST)', [], 0, [sub('a', 'A · Main path', [screen('a1', 'Home', [link('l1', 'b1'), link('l2', 'c1'), link('l4', 'x1')])], 0), sub('b', 'B · Supporting states', [screen('b1', 'Error', [], 0, 1200)], 1200, [deep])]);
+      const flow3 = sub('f3', 'Flow 3 · Customise', [], 4000, [sub('x', 'A · Main', [screen('x1', 'Workflow', [], 0, 4000)], 4000)]);
+      const r = checkFlows(doc([section('L', 'LATEST flows 1 to 6 (review these)', [flow2, flow3], 0, 0, 3000, 9000)]), maps);
+      expect(stale(r)).toEqual([]);
+    });
+
+    it('treats two LATEST containers as one version', () => {
+      const r = checkFlows(doc([section('L1', 'Flow 1 · LATEST', [screen('a1', 'Home', [link('l1', 'b1')])]), section('L2', 'LATEST · Flow 7', [screen('b1', 'Create', [], 0, 3000)], 0, 3000)]), maps);
+      expect(stale(r)).toEqual([]);
+    });
+
+    it('still flags a LATEST link into an old version or into a Parked section inside LATEST', () => {
+      const latest = section('L', 'LATEST flows', [sub('a', 'A · Main', [screen('a1', 'Home', [link('l1', 'o1'), link('l2', 'p1')])], 0), sub('p', 'Parked · Bulk import', [screen('p1', 'Import', [], 0, 1200)], 1200)], 0, 0, 3000, 3000);
+      const old = section('O', 'Flow 1 · First run (V1.13, superseded)', [screen('o1', 'Connectors', [], 0, 4000)], 0, 4000);
+      const r = checkFlows(doc([latest, old]), maps);
+      expect(stale(r)).toEqual(['l1>Connectors', 'l2>Import']);
+    });
+
+    it('does not flag sibling sub-sections of one top-level flow with no LATEST name', () => {
+      const r = checkFlows(doc([section('T', 'Checkout', [sub('m', 'Main path', [screen('m1', 'Cart', [link('l1', 's1')])], 0), sub('s', 'Edge states', [screen('s1', 'Empty cart', [], 0, 1200)], 1200)], 0, 0, 3000, 3000)]), maps);
+      expect(stale(r)).toEqual([]);
+    });
+
+    it('flags a LATEST sub-section linking into an old version beside it in the same top-level section', () => {
+      const r = checkFlows(doc([section('T', 'Flow 1', [sub('v2', 'V2 · LATEST', [screen('n1', 'Home', [link('l1', 'o1')])], 0), sub('v1', 'V1', [screen('o1', 'Home (old)', [], 0, 1200)], 1200)], 0, 0, 3000, 3000)]), maps);
+      expect(stale(r)).toEqual(['l1>Home (old)']);
+    });
+
+    it('reads destinations the walk did not reach from the plugin lookups', () => {
+      const outside = {
+        o1: { n: 'Connectors', t: 'FRAME', w: 1440, h: 900, s: [['O', 'Flow 1 · First run (V1.13, superseded)']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] },
+        n1: { n: 'Activate', t: 'FRAME', w: 1440, h: 900, s: [['L', 'LATEST flows'], ['f4', 'Flow 4 · Activate']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] },
+        t1: { n: 'Tooltip', t: 'FRAME', w: 120, h: 32, s: [['O', 'Flow 1 · First run (V1.13, superseded)']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] },
+        p1: { n: 'Import', t: 'FRAME', w: 1440, h: 900, s: [['P', 'Parked · Bulk import']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] },
+      };
+      const latest = section('L', 'LATEST flows', [screen('a1', 'Home', [link('l1', 'o1'), link('l2', 'n1'), link('l3', 't1'), link('l4', 'p1')])]);
+      const r = checkFlows(doc([latest]), { ...maps, outside });
+      expect(stale(r)).toEqual(['l1>Connectors', 'l4>Import']);
+      expect(r.flows[0].findings.find((x) => x.nodeId === 'l1')!.message).toBe('Button "Go" opens "Connectors" in "Flow 1 · First run (V1.13, superseded)", outside this flow.');
+      const parked = checkFlows(doc([latest]), { ...maps, outside }, scope([], ['Bulk import']));
+      expect(parked.flows[0].findings.filter((x) => x.rule === 'parked-link').map((x) => x.message)).toEqual(['Button "Go" opens "Import", part of the parked feature "Bulk import".']);
+    });
   });
 
   it('flags overlapping screens and a screen poking out of its section, and ignores touching edges', () => {

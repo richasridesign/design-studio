@@ -73,9 +73,28 @@ const NOTE_SKIP = /\b(change ?log|version history|readme)\b/i;
 const BULLETS = /•|(^|\n)\s*([-*–]|\d+[.)])\s/;
 const CANVAS = new Set(['FRAME', 'COMPONENT', 'INSTANCE']);
 
-type Maps = { components?: Record<string, any>; componentSets?: Record<string, any> };
+// A link destination the plugin walk did not reach, looked up on its own: name, type, size, the sections around it
+// (outermost first) and its page.
+export type Outside = { n: string; t: string; w: number; h: number; s: Array<[string, string]>; p: [string, string] | null };
+type Maps = { components?: Record<string, any>; componentSets?: Record<string, any>; outside?: Record<string, Outside> };
 type Box = { x: number; y: number; width: number; height: number };
-type ScreenInfo = { id: string; name: string; flow: FlowRef };
+type ScreenInfo = { id: string; name: string; flow: FlowRef; version: string };
+
+const LATEST = /\blatest\b/i;
+/**
+ * Which version of the design a section belongs to, for the Old link rule. Her rule: links in the latest version
+ * never open a screen from an old version. Sub-sections of one version (main path, supporting states, branches) are
+ * one flow, so links between them are fine.
+ * - Inside a Parked section: that Parked section, so a link into it is never fine.
+ * - Inside a section named LATEST, at any depth: the latest version. Every LATEST section counts as one.
+ * - Otherwise: its top-level section.
+ */
+export function versionOf(chain: FlowRef[]): string {
+  const parked = chain.find((s) => namedLike(s.name, 'parked'));
+  if (parked) return `parked:${parked.id}`;
+  if (chain.some((s) => LATEST.test(s.name))) return 'latest';
+  return chain[0]?.id ?? '';
+}
 
 const visible = (n: any) => n && n.visible !== false;
 const kids = (n: any): any[] => (n?.children ?? []).filter(visible);
@@ -335,7 +354,7 @@ export function screenFindings(screen: any, maps: Maps): ScreenFinding[] {
 type ParkedTarget = { name: string; feature: boolean };
 const PARKED_FIX = 'Remove the entry point, or restore the feature in Scope.';
 
-function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>, parkedAt: (id: string) => ParkedTarget | null, add: Adder, flagged: Set<string>) {
+function linkFindings(node: any, flow: FlowRef, version: string, screens: (id: string) => ScreenInfo | undefined, parkedAt: (id: string) => ParkedTarget | null, add: Adder, flagged: Set<string>) {
   const visit = (n: any) => {
     for (const r of reactionsOf(n)) {
       for (const a of r.actions) {
@@ -343,14 +362,14 @@ function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>
         // A link into a parked feature is reported once, as a parked link, not also as an old link.
         const parked = parkedAt(a.destinationId);
         if (parked) {
-          const where = screens.get(a.destinationId)?.name;
+          const where = screens(a.destinationId)?.name;
           const target = where ? `${quote(where)}, ` : '';
           add(n, 'parked-link', parked.feature ? `${describe(n)} opens ${target}part of the parked feature ${quote(parked.name)}.` : `${describe(n)} opens ${target}in the parked section ${quote(parked.name)}.`, PARKED_FIX, a.destinationId);
           flagged.add(n.id);
           continue;
         }
-        const dest = screens.get(a.destinationId);
-        if (!dest || dest.flow.id === flow.id) continue;
+        const dest = screens(a.destinationId);
+        if (!dest || dest.flow.id === flow.id || dest.version === version) continue;
         add(n, 'stale-link', `${describe(n)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, outside this flow.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
       }
     }
@@ -396,7 +415,7 @@ const intersects = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.widt
 const contains = (outer: Box, inner: Box) => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 
 // parked: inside a section named Parked, so no rule runs on it. feature: the parked feature this section is named after.
-type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null };
+type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null; version: string };
 type Item = { id: string; name: string; box: Box; section: boolean; ancestors: string[]; flow: FlowRef; parent: string | null };
 
 // Flow and section notes: text in a section outside its screens, Decision stickies and the changelog. A note over
@@ -444,30 +463,31 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     const items: Item[] = [];
     const tops = kids(page);
     if (!tops.some((c) => c.type === 'SECTION')) continue;
-    const walkSection = (s: any, path: string[], ancestors: string[]) => {
+    const walkSection = (s: any, path: string[], ancestors: string[], chain: FlowRef[]) => {
       const ref = { id: s.id, name: String(s.name ?? s.id) };
+      const version = versionOf([...chain, ref]);
       const own = kids(s).filter(isScreen);
       const subs = kids(s).filter((c) => c.type === 'SECTION');
       const full = [...path, ref.name].join(' / ');
-      const flow: Flow = { ref, path, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null };
+      const flow: Flow = { ref, path, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null, version };
       flows.push(flow);
       for (const c of kids(s)) if (c.type !== 'SECTION') owner.set(c.id, flow);
       if (s.absoluteBoundingBox) items.push({ id: s.id, name: ref.name, box: s.absoluteBoundingBox, section: true, ancestors, flow: ref, parent: ancestors[ancestors.length - 1] ?? null });
       for (const sc of own) {
-        screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
+        screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref, version });
         if (sc.absoluteBoundingBox) items.push({ id: sc.id, name: String(sc.name ?? sc.id), box: sc.absoluteBoundingBox, section: false, ancestors: [...ancestors, s.id], flow: ref, parent: s.id });
       }
-      for (const sub of subs) walkSection(sub, [...path, ref.name], [...ancestors, s.id]);
+      for (const sub of subs) walkSection(sub, [...path, ref.name], [...ancestors, s.id], [...chain, ref]);
     };
-    for (const t of tops) if (t.type === 'SECTION') walkSection(t, [], []);
+    for (const t of tops) if (t.type === 'SECTION') walkSection(t, [], [], []);
     const loose = tops.filter((t) => t.type !== 'SECTION' && isScreen(t));
     if (loose.length) {
       const ref = { id: page.id, name: `Not in a section (${page.name})` };
-      flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null });
+      flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null, version: `loose:${page.id}` });
       // Only frames that are part of a prototype: a thumbnail, a style guide or a main component can sit on the canvas.
       for (const sc of loose) if (sc.type === 'FRAME') looseScreens.push({ flow: ref, node: sc });
       for (const sc of loose) {
-        screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
+        screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref, version: `loose:${page.id}` });
         if (sc.absoluteBoundingBox) items.push({ id: sc.id, name: String(sc.name ?? sc.id), box: sc.absoluteBoundingBox, section: false, ancestors: [], flow: ref, parent: null });
       }
     }
@@ -479,12 +499,33 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
   const adder = (flow: FlowRef, screen: FlowRef | null) => (node: any, rule: FlowRule, message: string, fix: string, suffix?: string) =>
     push({ id: `flow:${rule}:${node.id}${suffix ? `:${suffix}` : ''}`, flow, screen, nodeId: node.id, nodeName: String(node.name ?? node.id), rule, message, fix, severity: MAJOR.has(rule) ? 'major' : 'minor' });
 
+  // Destinations the walk did not reach, from the plugin's own lookups. As for walked layers, any layer counts for the
+  // parked check and only screens for the Old link rule.
+  const outside = new Map<string, { info: ScreenInfo; chain: FlowRef[]; screen: boolean }>();
+  for (const [id, o] of Object.entries(maps.outside ?? {})) {
+    if (screens.has(id) || owner.has(id)) continue;
+    const chain = (o.s ?? []).map(([i, n]) => ({ id: i, name: n }));
+    const page = o.p ? { id: o.p[0], name: o.p[1] } : { id: '', name: '' };
+    const flow = chain[chain.length - 1] ?? { id: page.id, name: `Not in a section (${page.name})` };
+    const shape = { type: o.t, name: o.n, absoluteBoundingBox: { x: 0, y: 0, width: o.w, height: o.h } };
+    const far = { info: { id, name: String(o.n ?? id), flow, version: chain.length ? versionOf(chain) : `loose:${page.id}` }, chain, screen: isScreen(shape) };
+    outside.set(id, far);
+  }
+  const screenAt = (id: string) => {
+    const far = outside.get(id);
+    return screens.get(id) ?? (far?.screen ? far.info : undefined);
+  };
+
   const parkedAt = (id: string): ParkedTarget | null => {
     const f = owner.get(id);
-    if (!f || !(f.parked || f.feature)) return null;
-    const name = String(screens.get(id)?.name ?? '');
-    const feature = f.feature ?? parkedNames.find((p) => namedLike(name, p));
-    return feature ? { name: feature, feature: true } : { name: f.ref.name, feature: false };
+    const far = f ? null : outside.get(id);
+    const names = f ? [...f.path, f.ref.name] : far ? far.chain.map((c) => c.name) : [];
+    const parked = f ? f.parked : names.some((n) => namedLike(n, 'parked'));
+    const own = f ? f.feature : parkedNames.find((p) => namedLike(names.join(' / '), p)) ?? null;
+    if (!names.length || !(parked || own)) return null;
+    const name = String(screens.get(id)?.name ?? (far?.screen ? far.info.name : ''));
+    const feature = own ?? parkedNames.find((p) => namedLike(name, p));
+    return feature ? { name: feature, feature: true } : { name: names[names.length - 1], feature: false };
   };
 
   for (const f of flows) {
@@ -507,7 +548,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       const add = adder(f.ref, screen);
       screenRules(sc, maps, add);
       const flagged = new Set<string>();
-      linkFindings(sc, f.ref, screens, scanParked ? parkedAt : () => null, add, flagged);
+      linkFindings(sc, f.ref, f.version, screenAt, scanParked ? parkedAt : () => null, add, flagged);
       if (scanParked) parkedNameFindings(sc, parkedNames, add, flagged);
       if (decisions) {
         const have = new Set(decisionNames.map((d) => DECISION.exec(d)!).filter((m) => stickyMatch(m[2], screen.name)).map((m) => m[1]));
@@ -587,7 +628,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
 }
 
 type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; L?: number; u?: 0 | 1; k?: 1; c?: Compact[] };
-export type PluginPayload = { flowcheck: 1; document: Compact; components: Record<string, any>; componentSets: Record<string, any>; nodes: number; truncated: boolean };
+export type PluginPayload = { flowcheck: 1; document: Compact; components: Record<string, any>; componentSets: Record<string, any>; outside?: Record<string, Outside>; nodes: number; truncated: boolean };
 
 /** Turns the script's short keys into the node shape checkFlows reads (Plugin API `reactions`, REST-like box and ids). */
 export function expandNode(c: Compact): any {
@@ -610,6 +651,6 @@ export function expandNode(c: Compact): any {
 
 /** Runs inside the plugin: the walker's compact tree in, the Flow check result out. */
 export function runPayload(payload: PluginPayload, scope: Scope = EMPTY_SCOPE) {
-  const result = checkFlows(expandNode(payload.document), { components: payload.components ?? {}, componentSets: payload.componentSets ?? {} }, scope);
+  const result = checkFlows(expandNode(payload.document), { components: payload.components ?? {}, componentSets: payload.componentSets ?? {}, outside: payload.outside ?? {} }, scope);
   return { ...result, truncated: !!payload.truncated, nodes: payload.nodes };
 }
