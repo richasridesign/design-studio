@@ -7,7 +7,9 @@ import { IconButton } from './Tip';
 
 export type Today = { today: { costUsd: number; tokens: number }; budgetUsd: number };
 
-const PHASES = ['plan', 'sketch', 'design', 'review', 'system', 'chat'];
+const PHASES = ['plan', 'sketch', 'design', 'review', 'system', 'chat', 'read'];
+/** Plugin reads (thumbnails, outline, file map, checks) are short Haiku runs. */
+const LABELS: Record<string, string> = { read: 'Figma reads' };
 const money = (n: number) => `$${n.toFixed(2)}`;
 const tok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -39,7 +41,7 @@ function SpendPop({ day, dev, onClose }: { day: Today | null; dev: boolean; onCl
         </div>
         <div className="spend-head">This chat <span>{money(spend.costUsd)}</span></div>
         {phases.length ? (
-          phases.map(([name, p]) => <div key={name} className="spend-row"><span>{cap(name)}</span><span>{money(p.costUsd)}</span></div>)
+          phases.map(([name, p]) => <div key={name} className="spend-row"><span>{LABELS[name] ?? cap(name)}</span><span>{money(p.costUsd)}</span></div>)
         ) : (
           <div className="muted small">Nothing spent yet</div>
         )}
@@ -58,7 +60,7 @@ function SpendPop({ day, dev, onClose }: { day: Today | null; dev: boolean; onCl
           <>
             <h3 className="spend-head">Details</h3>
             <div className="spend-row"><span>Tokens, this chat</span><span>{tok(spend.tokens)}</span></div>
-            {phases.map(([name, p]) => <div key={name} className="spend-row muted"><span>{cap(name)}</span><span>{tok(p.tokens)}</span></div>)}
+            {phases.map(([name, p]) => <div key={name} className="spend-row muted"><span>{LABELS[name] ?? cap(name)}</span><span>{tok(p.tokens)}</span></div>)}
             {day && <div className="spend-row"><span>Tokens, today</span><span>{tok(day.today.tokens)}</span></div>}
           </>
         )}

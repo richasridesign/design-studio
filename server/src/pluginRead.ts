@@ -361,6 +361,14 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 
 const inFlight = new Map<string, Promise<ReadResult>>();
 
+export type ReadCost = { dir: string; costUsd: number; tokens: number };
+let costSink: ((c: ReadCost) => void) | null = null;
+
+/** Where the cost of every read goes, failed ones too: each read is a short Claude run that counts toward spend. */
+export function onReadCost(fn: ((c: ReadCost) => void) | null) {
+  costSink = fn;
+}
+
 const SYSTEM = 'You make Figma read calls for Design Studio exactly as told. The tools fill in their own code and settings, so pass the arguments as given. You never edit the file, never load skills and never call other tools.';
 
 function hookFor(state: ReadState, tools: string[]): Partial<Record<'PreToolUse' | 'PostToolUse' | 'PostToolUseFailure', HookCallbackMatcher[]>> {
@@ -374,6 +382,8 @@ function hookFor(state: ReadState, tools: string[]): Partial<Record<'PreToolUse'
 }
 
 async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
+  // A test that reaches a real read would spend money and touch Figma: only fakes run under vitest.
+  if (process.env.VITEST && !deps.run) throw new FigmaError('Tests never read Figma for real', 412);
   const { servers, plugins, name, configured } = deps.mcp ?? (await figmaMcp());
   if (!configured) throw new FigmaError('Figma is not connected to Claude yet. Log in to Figma, then try again.', 412);
   const use = `mcp__${name}__use_figma`;
@@ -400,6 +410,11 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
     signal: spec.signal,
     hooks: hookFor(state, [use, shot]),
   });
+  try {
+    if (r.costUsd || r.tokens) costSink?.({ dir: spec.dir, costUsd: r.costUsd, tokens: r.tokens });
+  } catch (err) {
+    console.error('read cost:', err);
+  }
   if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
   if (!state.done && !state.fatal && !state.errors.length && r.error) state.errors.push(r.error);
   const value = state.value();

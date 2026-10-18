@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { figmaFailure, PACK_JS, PAGE_CHARS, pagedScript, pluginRead, pluginShots, ReadState, unpack } from './pluginRead.js';
+import { figmaFailure, onReadCost, PACK_JS, PAGE_CHARS, pagedScript, pluginRead, pluginShots, ReadState, unpack } from './pluginRead.js';
 
 const pack = new Function(`${PACK_JS}\nreturn __pack;`)() as (s: string) => string;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -186,6 +186,19 @@ describe('pluginRead', () => {
 
   it('says to log in when the plugin is not connected', async () => {
     await expect(pluginRead({ fileKey: 'K', dir: os.tmpdir(), what: 'Read', body: 'return 1;' }, { mcp: { ...MCP, configured: false }, run: fakeRun({}) })).rejects.toThrow(/Log in to Figma/);
+  });
+
+  it('reports the cost of every read to the sink, failed reads too', async () => {
+    const seen: Array<{ dir: string; costUsd: number }> = [];
+    onReadCost((c) => seen.push(c));
+    try {
+      await pluginRead({ fileKey: 'K', dir: '/chat/a', what: 'Read', body: 'return 1;' }, { mcp: MCP, run: fakeRun({}) });
+      await pluginRead({ fileKey: 'K', dir: '/chat/b', what: 'Read', body: 'throw new Error("Page not found");' }, { mcp: MCP, run: fakeRun({}) }).catch(() => null);
+    } finally {
+      onReadCost(null);
+    }
+    expect(seen.map((c) => c.dir)).toEqual(['/chat/a', '/chat/b']);
+    expect(seen.every((c) => c.costUsd === 0.001)).toBe(true);
   });
 
   it('passes a script error on as a Figma error', async () => {
