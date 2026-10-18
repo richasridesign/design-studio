@@ -147,6 +147,17 @@ describe('buildReport', () => {
     expect(html).not.toContain('The flow passed');
   });
 
+  it('lists frames from the review run when an older chat has no design.json', async () => {
+    await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['12:3', '12:4'], check: [], results: [], tokens: 0, costUsd: 0 }] }));
+    await writeFile(path.join(dir, 'crit.json'), JSON.stringify({ runs: [{ id: 'c', at: 1, frames: [], summary: '', personas: [{ id: 'product', verdict: '', points: [] }], tokens: 0, costUsd: 0 }] }));
+    const html = await buildReport(dir, figma);
+    expect(html).toContain('<dt>Frames:</dt><dd>2 frames</dd>');
+    expect(html).toContain('<h2>Design</h2>');
+    expect(html).toContain(`<a href="https://www.figma.com/design/${figma.key}?node-id=12-4">Layer 12:4</a>`);
+    // A persona with nothing to say leaves no empty heading, and no Crit section at all.
+    expect(html).not.toContain('<h2>Crit</h2>');
+  });
+
   it('shows one plain line and no headings for an empty chat', async () => {
     const html = await buildReport(dir, null);
     expect(html).not.toContain('<h2');
