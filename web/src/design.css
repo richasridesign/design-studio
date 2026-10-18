@@ -135,8 +135,12 @@
 .review-bar .seg, .set-card .seg { padding: 2px; }
 .review-bar .seg button, .set-card .seg button { min-height: 30px; padding: 0 12px; }
 .review-bar .spacer { flex: 1; }
+/* Handoff report and its download read as one peach pill: the stage's end product, quieter than the primary Review. */
+.review-bar > button.ghost:has(+ .report-download) { background: var(--tint-peach); color: var(--fg); border-radius: var(--radius-pill) 0 0 var(--radius-pill); padding: 0 8px 0 16px; }
+.review-bar > a.ghost.report-download { margin-left: -12px; background: var(--tint-peach); border-radius: 0 var(--radius-pill) var(--radius-pill) 0; width: 40px; padding: 0 4px 0 0; line-height: 1; }
+.review-bar > button.ghost:has(+ .report-download):hover, .review-bar > a.ghost.report-download:hover { background: color-mix(in srgb, var(--tint-peach) 90%, var(--fg)); color: var(--fg); }
 .review-bar select { font: inherit; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg); }
-.review-summary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.review-summary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 16px; border-radius: var(--radius); background: var(--grad-blue); }
 .review-summary .link { min-height: 24px; }
 .run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
 .run-list > li + li { border-top: 1px solid var(--border); }
@@ -232,7 +236,8 @@
 
 /* empty states */
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; max-width: 420px; margin: 0 auto; padding: 48px 24px; gap: 12px; }
-.empty-art { width: 120px; height: 120px; margin-bottom: 8px; }
+/* The illustration sits on a pastel disc, like the project cards on richadesign.in. */
+.empty-art { width: 120px; height: 120px; margin-bottom: 8px; padding: 16px; border-radius: 50%; background: var(--grad-blue); }
 .empty-art svg { width: 100%; height: 100%; display: block; }
 .empty-heading { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--fg); }
 .empty-text { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--fg-muted); }
