@@ -47,8 +47,12 @@
 .stage-line { flex: 1 1 8px; min-width: 8px; height: 1px; background: var(--border-strong); }
 
 .gate { display: grid; gap: 8px; }
-.gate-head { display: grid; gap: 4px; padding-left: 12px; border-left: 4px solid var(--st-vivid, var(--border-strong)); }
-.gate-head b { font-size: var(--text-md); line-height: 24px; }
+/* The stage name and goal sit on a soft band in the stage's tint, fading to white. Text keeps --fg and --fg-muted (6:1 or more on every tint). */
+.gate-head {
+  display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--radius-sm);
+  background: linear-gradient(110deg, var(--st-tint, var(--bg-raised)) 0%, color-mix(in srgb, var(--st-tint, var(--bg-raised)) 35%, var(--bg-elevated)) 100%);
+}
+.gate-head b { font-family: var(--serif); font-weight: 500; font-size: var(--text-lg); line-height: 24px; }
 .gate-head .muted, .gate-foot .muted { font-size: var(--text-sm); line-height: 20px; }
 .gate-next { margin: 0; font-size: var(--text-sm); line-height: 20px; }
 .gate-next .link { min-height: 24px; font-size: var(--text-sm); }
