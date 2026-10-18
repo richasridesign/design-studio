@@ -1,6 +1,6 @@
 import { rulesSummary } from '../../../shared/rules';
 import type { MarkKind } from '../../../shared/marks';
-import { AREA_NAMES, PRESET_INFO, type CopyRun, type CritRun, type Finding, type ReviewPreset, type ReviewRun } from '../../../shared/design';
+import { AREA_NAMES, PRESET_INFO, type CopyRun, type CritRun, type Finding, type ReviewPreset, type ReviewRun, type ShownPreset } from '../../../shared/design';
 
 export type RunRow =
   | { kind: 'review' | 'audit'; id: string; at: number; tokens: number; run: ReviewRun }
@@ -9,7 +9,8 @@ export type RunRow =
 
 export const KIND_LABEL: Record<RunRow['kind'], string> = { review: 'Review', audit: 'Audit', crit: 'Crit', copy: 'Copy' };
 
-export const shownPreset = (p: ReviewPreset): 'quick' | 'full' => (p === 'full' ? 'full' : 'quick');
+/** The preset as the picker shows it: Check runs on its own, so it reads as Quick. */
+export const shownPreset = (p: ReviewPreset): ShownPreset => (p === 'full' || p === 'focused' ? p : 'quick');
 
 export const isAudit = (r: ReviewRun) => r.kind === 'audit' || r.preset === 'check';
 

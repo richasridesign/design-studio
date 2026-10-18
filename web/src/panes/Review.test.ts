@@ -36,8 +36,8 @@ describe('summarize', () => {
 });
 
 describe('shownPreset', () => {
-  it('shows check and focused as quick', () => {
-    expect(['check', 'quick', 'focused', 'full'].map((p) => shownPreset(p as 'check'))).toEqual(['quick', 'quick', 'quick', 'full']);
+  it('shows check as quick and keeps focused', () => {
+    expect(['check', 'quick', 'focused', 'full'].map((p) => shownPreset(p as 'check'))).toEqual(['quick', 'quick', 'focused', 'full']);
   });
 });
 

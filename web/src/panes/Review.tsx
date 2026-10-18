@@ -8,6 +8,7 @@ import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FlowCheck } from './FlowCheck';
 import { Awaiting } from './Awaiting';
+import { DepthSeg, ReviewAreas } from './ReviewSetup';
 import { FrameNames } from '../FrameNames';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, TONE_MARK, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, type RulesTone, type RunRow } from './reviewRuns';
@@ -60,15 +61,12 @@ export function Review({ dev = false }: { dev?: boolean }) {
     <div className="review-page">
       <div className="review-bar">
         <button className="primary" onClick={() => insertPrompt('/review ')}><Icon name="play" small /> Review</button>
-        <div className="seg" role="radiogroup" aria-label="Review depth">
-          {(['quick', 'full'] as const).map((p) => (
-            <button key={p} role="radio" aria-checked={preset === p} className={preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => send({ type: 'set_flow', patch: { preset: p } })}>{PRESET_INFO[p].label}</button>
-          ))}
-        </div>
+        <DepthSeg />
         <span className="spacer" />
         <button className="ghost" title="Open the handoff report in a new tab" onClick={() => window.open(api('/api/report'), '_blank')}>Handoff report</button>
         <a className="ghost report-download" href={api('/api/report?download=1')} download aria-label="Download handoff report" title="Download handoff report"><Icon name="cloud-download" /></a>
       </div>
+      <ReviewAreas />
       <Awaiting />
       <FlowCheck />
       {!rows.length && (hasFigma

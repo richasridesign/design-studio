@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, postJson } from '../store';
 import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, type CheckId, type CheckResult } from '../setupChecks';
-import { PRESET_INFO, type Settings as S } from '../../../shared/design';
+import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
+import { costLine } from './ReviewSetup';
 import { figmaState } from '../StatusBar';
 import { Command, RECHECK, openFigmaLogin } from '../FigmaLogin';
 
@@ -131,9 +132,28 @@ export function Settings() {
         <div className="field">
           <span>Default: Review depth</span>
           <div className="seg" role="radiogroup" aria-label="Default review depth">
-            {(['quick', 'full'] as const).map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
+            {SHOWN_PRESETS.map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
           </div>
           <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}.</span>
+        </div>
+        {shownPreset(s.preset) !== 'full' && (
+          <fieldset className="field rs-areas">
+            <legend>Default: Areas</legend>
+            {AREAS.map((a) => (
+              <label key={a} className="rs-area">
+                <input type="checkbox" checked={s.areas.includes(a)} onChange={() => save({ areas: s.areas.includes(a) ? s.areas.filter((x) => x !== a) : AREAS.filter((x) => x === a || s.areas.includes(x)) })} />
+                <span>{AREA_NAMES[a]}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        <div className="field">
+          <span id="set-rounds-l">Fix rounds</span>
+          <div className="seg" role="radiogroup" aria-labelledby="set-rounds-l">
+            {FIX_ROUNDS.map((n) => <button key={n} role="radio" aria-checked={s.fixRounds === n} className={s.fixRounds === n ? 'on' : ''} onClick={() => save({ fixRounds: n })}>{n}</button>)}
+          </div>
+          <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. Quick fixes once. Shared changes wait for you.</span>
+          <span className="muted small">{costLine(shownPreset(s.preset), s.areas, s.fixRounds)}</span>
         </div>
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
