@@ -11,8 +11,8 @@
 @keyframes ch-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
 .ch-main { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .ch-frames { flex: none; }
-.ch-chip { font-size: var(--text-xs); padding: 0 10px; min-height: 28px; border-radius: 999px; background: var(--bg-sunken); color: var(--fg-muted); border: 1px solid var(--border); }
-.ch-chip.on { background: var(--bg); color: var(--fg); border-color: var(--figma); font-weight: 600; }
+.ch-chip { font-size: var(--text-xs); padding: 0 12px; min-height: 28px; border-radius: 999px; background: var(--bg-elevated); color: var(--fg-muted); border: 1px solid var(--border); }
+.ch-chip.on { background: var(--tint-blue); color: var(--fg); border-color: var(--figma); font-weight: 600; }
 .ch-compare { display: flex; flex-direction: column; gap: 10px; }
 .ch-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .ch-figma { color: var(--figma); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 2px; }

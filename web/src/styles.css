@@ -217,7 +217,8 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 }
 .card.permission { border-left-color: var(--accent); }
 .card .label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); font-weight: 600; }
-.chip { display: inline-block; font-size: var(--text-xs); line-height: 18px; padding: 0 6px; border-radius: var(--radius-sm); background: var(--border); color: var(--fg-muted); }
+/* Chips are white pills with a subtle border, as on the portfolio tags. */
+.chip { display: inline-block; font-size: var(--text-xs); line-height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--fg-muted); border: 1px solid var(--border); }
 .q { display: flex; flex-direction: column; gap: 6px; }
 .q-text { color: var(--fg); }
 .options { display: flex; flex-direction: column; gap: 4px; }
