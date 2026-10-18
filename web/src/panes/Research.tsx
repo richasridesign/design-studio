@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, getJson } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
+import { useDialogFocus } from '../useDialog';
 import '../research.css';
 
 // Pictures Claude saved next to research.md load from the chat folder.
@@ -11,17 +12,10 @@ const withImages = (md: string) => md.replace(/!\[([^\]]*)\]\((?![a-z]+:|\/)([^)
 export function Research() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string | null>(null);
-  const trigger = useRef<HTMLElement | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
-  const close = () => {
-    setOpen(false);
-    const el = trigger.current;
-    trigger.current = null;
-    if (el?.isConnected) requestAnimationFrame(() => el.focus());
-  };
+  const close = () => setOpen(false);
   useEffect(() => {
     const show = () => {
-      trigger.current = document.activeElement as HTMLElement | null;
       setText(null);
       setOpen(true);
       getJson<{ content: string }>('/api/file?path=research.md').then((f) => setText(f.content)).catch(() => setText(''));
@@ -29,21 +23,7 @@ export function Research() {
     window.addEventListener('designstudio:research', show);
     return () => window.removeEventListener('designstudio:research', show);
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    dialog.current?.querySelector<HTMLElement>('.rs-close')?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-      if (e.key !== 'Tab') return;
-      // Keep focus inside the dialog while it is open.
-      const items = [...(dialog.current?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? [])];
-      const i = items.indexOf(document.activeElement as HTMLElement);
-      e.preventDefault();
-      items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  useDialogFocus(open, dialog, close);
   if (!open) return null;
   return (
     <div className="overlay settings-overlay rs-overlay" onClick={close}>
