@@ -29,6 +29,11 @@ describe('quickReplies', () => {
     expect(q.slice(0, 2)).toMatchObject([{ label: 'Go with A', text: 'go with A', send: true }, { label: 'Go with B', send: true }]);
     expect(q).toHaveLength(4);
   });
+  it('gives one chip the Secondary weight: Go, or the first Go with', () => {
+    expect(quickReplies('A: inline\nB: banner\nC: toast').filter((q) => q.main).map((q) => q.label)).toEqual(['Go with A']);
+    expect(quickReplies('Reply go to build.').filter((q) => q.main).map((q) => q.label)).toEqual(['Go']);
+    expect(quickReplies('Fixed the spacing.').some((q) => q.main)).toBe(false);
+  });
   it('offers Go when the reply asks for it, and only follow-ups otherwise', () => {
     expect(quickReplies('Reply go to build.')[0]).toMatchObject({ label: 'Go', send: true });
     const done = quickReplies('Fixed the spacing.');
