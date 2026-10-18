@@ -15,8 +15,8 @@
   --accent-hover: #333333;
   --accent-soft: rgba(26, 26, 26, 0.06);
   --on-accent: #ffffff;
-  --btn: #f2f2f2;
-  --btn-hover: #e8e8e8;
+  --btn: #ebebeb;
+  --btn-hover: #e1e1e1;
   --focus: #2f5bd3;
   --overlay: rgba(0, 0, 0, 0.32);
   --figma: #0d99ff;
@@ -75,8 +75,8 @@
   --accent-hover: #d4d4d4;
   --accent-soft: rgba(237, 237, 237, 0.08);
   --on-accent: #141414;
-  --btn: #262626;
-  --btn-hover: #303030;
+  --btn: #2c2c2c;
+  --btn-hover: #363636;
   --focus: #7aa2ff;
   --overlay: rgba(0, 0, 0, 0.6);
   --figma-soft: rgba(13, 153, 255, 0.16);
