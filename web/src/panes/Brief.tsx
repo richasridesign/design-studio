@@ -71,15 +71,18 @@ export function Brief() {
   return (
     <div className="brief">
       <div className="brief-status">
-        {events.length > 0 && (
+        {/* The stages show from the first visit, so a new chat already reads Spec and its first step. */}
+        {(events.length > 0 || stages.list) && (
           <div className="chat-head">
-            <div className="seg chat-view" role="group" aria-label="Chat view">
-              {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
-            </div>
+            {events.length > 0 && (
+              <div className="seg chat-view" role="group" aria-label="Chat view">
+                {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
+              </div>
+            )}
             {stages.list && <StageButton list={stages.list} open={stagesOpen} onToggle={toggleStages} />}
           </div>
         )}
-        {events.length > 0 && stagesOpen && stages.list && <StagePanel {...stages} list={stages.list} />}
+        {stagesOpen && stages.list && <StagePanel {...stages} list={stages.list} />}
         <Transcript view={view}>
           <RunCard />
           {(events.length > 0 || running) && <div className="tl-foot">

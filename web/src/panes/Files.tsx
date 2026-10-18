@@ -12,6 +12,8 @@ type Project = { id: string; name: string };
 type FileRow = { key: string; name: string; thumbnail_url: string; last_modified: string };
 
 export const insertPrompt = (text: string) => window.dispatchEvent(new CustomEvent('designstudio:insert', { detail: text }));
+/** Shows and focuses the message box without changing its text. */
+export const focusComposer = () => window.dispatchEvent(new Event('designstudio:compose'));
 export const attachFigma = () => window.dispatchEvent(new Event('designstudio:attach'));
 export const showNode = (nodeId: string) => postJson('/api/figma/focus', { nodeId }).catch(() => {});
 

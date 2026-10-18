@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { currentStage, type Stage, type StageCheck, type StageId, type StageOpen } from '../../../shared/stages';
-import { insertPrompt } from './Files';
+import { focusComposer, insertPrompt } from './Files';
 import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
 import '../stages.css';
@@ -26,8 +26,8 @@ export function nextStep(stage: Stage, brief: string): { label: string; run: () 
   const about = brief ? ` ${brief}` : '';
   switch (stage.id) {
     case 'spec':
-      if (missing('Figma file attached')) return null;
-      return missing('Brief written') ? { label: 'Describe the work in the message box', run: () => document.querySelector<HTMLTextAreaElement>('.cp textarea')?.focus() } : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
+      if (missing('Brief written')) return { label: 'Describe the work', run: focusComposer };
+      return missing('Figma file attached') ? null : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
     case 'explore': return { label: 'Sketch directions', run: () => insertPrompt(`/sketch${about}`) };
     // Decide and the decisions check already link to where the work happens.
     case 'decide': return null;

@@ -2,13 +2,14 @@ import { Fragment } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { AREA_NAMES, FLOW_ACTIVE, PRESET_INFO, type FlowPhase, type FlowState, type ReviewerState } from '../../../shared/design';
+import { PHASE_STAGE, STAGE_INFO } from '../../../shared/stages';
 
-const STEPS: Array<{ label: string; phases: FlowPhase[] }> = [
-  { label: 'Plan', phases: ['plan'] },
-  { label: 'Sketch', phases: ['sketch', 'pick'] },
-  { label: 'Design', phases: ['file', 'system', 'design'] },
-  { label: 'Review', phases: ['review', 'fix'] },
-];
+// Rows use the stage names from the Stages panel; the phase is the row's sub-line.
+const STEPS: Array<{ label: string; phases: FlowPhase[] }> = (['spec', 'explore', 'decide', 'build', 'validate'] as const).map((id) => ({
+  label: STAGE_INFO[id].name,
+  phases: (Object.keys(PHASE_STAGE) as Array<keyof typeof PHASE_STAGE>).filter((p) => PHASE_STAGE[p].stage === id),
+}));
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export type RunSubRow = { label: string; state: ReviewerState['state'] };
 export type RunRow = { label: string; state: 'done' | 'now' | 'idle'; detail?: string; subs?: RunSubRow[] };
@@ -23,10 +24,10 @@ export function runRows(flow: FlowState): { title: string; rows: RunRow[]; token
     : phase === 'file' ? 'Waiting for a Figma file'
     : phase === 'fix' ? `Fixing round ${flow.round}`
     : phase === 'review' ? `Review ${flow.round} · ${PRESET_INFO[flow.preset].label}`
-    : phase === 'system' ? 'Reading the design system'
-    : 'Running';
-  const steps = flow.kind === 'sketch' ? STEPS.slice(0, 2) : STEPS;
-  const rows = steps.map((s, i): RunRow => (i < at ? { label: s.label, state: 'done' } : i === at ? { label: s.label, state: 'now', detail, ...(s.label === 'Review' && flow.reviewers?.length ? { subs: flow.reviewers.map((r) => ({ label: areaLabel(r.area), state: r.state })) } : {}) } : { label: s.label, state: 'idle' }));
+    : cap(PHASE_STAGE[phase as keyof typeof PHASE_STAGE].doing);
+  // A sketch run stops once a direction is picked.
+  const steps = flow.kind === 'sketch' ? STEPS.slice(0, 3) : STEPS;
+  const rows = steps.map((s, i): RunRow => (i < at ? { label: s.label, state: 'done' } : i === at ? { label: s.label, state: 'now', detail, ...(s.label === STAGE_INFO.validate.name && flow.reviewers?.length ? { subs: flow.reviewers.map((r) => ({ label: areaLabel(r.area), state: r.state })) } : {}) } : { label: s.label, state: 'idle' }));
   return { title: flow.kind === 'sketch' ? 'Sketch run' : 'Design run', rows, tokens: flow.tokens, waiting: phase === 'pick' || phase === 'file' };
 }
 

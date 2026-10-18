@@ -22,9 +22,9 @@ export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query
 export type Ranked<T> = { item: T; hits: number[]; score: number };
 
 export const MODE_INFO: Record<FlowMode, { label: string; detail: string; placeholder: string; icon: string }> = {
-  chat: { label: 'Chat', detail: 'Talk to Claude. Edits Figma when you ask.', placeholder: 'Ask Claude anything, or paste a Figma link', icon: 'comment' },
-  design: { label: 'Design', detail: 'Claude plans, sketches, designs and reviews.', placeholder: 'Describe the screens you need. Claude plans, sketches, designs and reviews.', icon: 'sparkle' },
-  review: { label: 'Review', detail: 'Reviewers check the frames. No edits.', placeholder: 'What should the reviewers look at?', icon: 'checklist' },
+  chat: { label: 'Chat', detail: 'Talk to Claude at any stage. Edits Figma when you ask.', placeholder: 'Ask Claude anything, or paste a Figma link', icon: 'comment' },
+  design: { label: 'Design', detail: 'Claude runs the stages for you, from Spec to Validate.', placeholder: 'Describe the screens you need. Claude takes them from Spec to Validate.', icon: 'sparkle' },
+  review: { label: 'Review', detail: 'The Validate stage: reviewers check the frames. No edits.', placeholder: 'What should the reviewers look at?', icon: 'checklist' },
 };
 
 export const nextMode = (m: FlowMode): FlowMode => FLOW_MODES[(FLOW_MODES.indexOf(m) + 1) % FLOW_MODES.length];
@@ -267,7 +267,8 @@ export function Composer() {
       ta.current?.focus();
     };
     window.addEventListener('designstudio:insert', onInsert);
-    return () => window.removeEventListener('designstudio:insert', onInsert);
+    window.addEventListener('designstudio:compose', reveal);
+    return () => { window.removeEventListener('designstudio:insert', onInsert); window.removeEventListener('designstudio:compose', reveal); };
   }, []);
 
   useEffect(() => {
