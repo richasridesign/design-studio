@@ -51,6 +51,16 @@ function pickLine({ screen: s, direction: d }: ReturnType<typeof chosenSummary>[
   return parts.filter(Boolean).join(' ');
 }
 
+/** Only the designer's own picks: Claude writing sketch.json never counts as a change. */
+export const designerPicksKey = (sketch: SketchDoc | null) =>
+  JSON.stringify((sketch?.screens ?? []).filter((s) => s.chosenBy === 'designer').map((s) => [s.id, s.chosen, s.reason ?? '']));
+
+/** Told to Claude when the designer changes a pick or its reason, so later work follows it. */
+export function picksNote(sketch: SketchDoc | null) {
+  const chosen = sketch ? chosenSummary(sketch).filter((c) => c.screen.chosen) : [];
+  return chosen.length ? `The designer changed the sketch picks. Follow these from now on:\n${chosen.map(pickLine).join('\n')}` : '';
+}
+
 export function designPrompt(sketch: SketchDoc | null, hasProfile: boolean, task: string, notes: string[] = []) {
   const chosen = sketch ? chosenSummary(sketch) : [];
   return [
