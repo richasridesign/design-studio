@@ -287,9 +287,11 @@ function HouseRulesRow({ run }: { run: ReviewRun }) {
   const tone = rulesTone(run);
   const go = () => focusReview({ runId: run.id, area: 'rules' });
   return (
-    <li className={`tr-review-go ${tone === 'pass' ? 'pass' : `fail ${tone}`}`} role="button" tabIndex={0} title="Show house rules" onClick={go} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }}>
-      <Icon name={tone === 'pass' ? 'check' : tone === 'major' ? 'warning' : tone === 'error' ? 'close' : 'circle-large-outline'} small />
-      <span className="tr-review-name">House rules: {rulesLine(run.rules!)}</span>
+    <li className={`tr-review-go ${tone === 'pass' ? 'pass' : `fail ${tone}`}`}>
+      <button className="tr-review-btn" title="Show house rules" onClick={go}>
+        <Icon name={tone === 'pass' ? 'check' : tone === 'major' ? 'warning' : tone === 'error' ? 'close' : 'circle-large-outline'} small />
+        <span className="tr-review-name">House rules: {rulesLine(run.rules!)}</span>
+      </button>
     </li>
   );
 }
@@ -338,14 +340,16 @@ function ReviewCard({ runAt }: { runAt: number }) {
       {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
       <ul className="tr-review-rows">
         {areaRows(run).map((a) => (
-          <li
-            key={a.key}
-            className={a.pass ? 'pass' : `fail tr-review-go ${a.tone}`}
-            {...(a.pass ? {} : { role: 'button', tabIndex: 0, title: 'Show findings', onClick: () => focusReview({ runId: run.id, area: a.key }), onKeyDown: (e: React.KeyboardEvent) => e.key === 'Enter' && focusReview({ runId: run.id, area: a.key }) })}
-          >
-            <Icon name={a.pass ? 'check' : a.tone === 'major' ? 'warning' : 'close'} small />
-            <span className="tr-review-name">{a.name}</span>
-            {a.failed && <span className="tr-review-failed">failed</span>}
+          <li key={a.key} className={a.pass ? 'pass' : `fail tr-review-go ${a.tone}`}>
+            {a.pass ? (
+              <><Icon name="check" small /><span className="tr-review-name">{a.name}</span></>
+            ) : (
+              <button className="tr-review-btn" title="Show findings" onClick={() => focusReview({ runId: run.id, area: a.key })}>
+                <Icon name={a.tone === 'major' ? 'warning' : 'close'} small />
+                <span className="tr-review-name">{a.name}</span>
+                {a.failed && <span className="tr-review-failed">failed</span>}
+              </button>
+            )}
           </li>
         ))}
         {!!run.rules?.length && <HouseRulesRow run={run} />}
