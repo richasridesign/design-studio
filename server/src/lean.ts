@@ -60,7 +60,7 @@ export const FIGMA_WRITE = /__(use_figma|html_to_figma|upload_assets|generate_fi
 
 export type LeanResult<T> = { data: T | null; tokens: number; costUsd: number; error?: string; text: string };
 
-export async function lean<T>(prompt: string, opts: { cwd: string; model: string; system: string; schema: Record<string, unknown>; tools?: string[]; mcp?: Record<string, McpServerConfig>; plugins?: SdkPluginConfig[]; allowed?: string[]; maxTurns?: number; signal?: AbortSignal; onMessage?: (msg: SDKMessage) => void; env?: Record<string, string> }): Promise<LeanResult<T>> {
+export async function lean<T>(prompt: string, opts: { cwd: string; model: string; system: string; schema: Record<string, unknown>; tools?: string[]; mcp?: Record<string, McpServerConfig>; plugins?: SdkPluginConfig[]; allowed?: string[]; maxTurns?: number; signal?: AbortSignal; onMessage?: (msg: SDKMessage) => void; env?: Record<string, string>; hooks?: Options['hooks'] }): Promise<LeanResult<T>> {
   const abort = new AbortController();
   opts.signal?.addEventListener('abort', () => abort.abort());
   const options: Options = {
@@ -82,6 +82,7 @@ export async function lean<T>(prompt: string, opts: { cwd: string; model: string
     stderr: (d) => process.stderr.write(d),
     // The SDK does not merge env with process.env, so extra variables are added on top of it.
     ...(opts.env ? { env: { ...process.env, ...opts.env } } : {}),
+    ...(opts.hooks ? { hooks: opts.hooks } : {}),
   };
   let tokens = 0;
   let costUsd = 0;

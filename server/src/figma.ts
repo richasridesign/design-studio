@@ -7,11 +7,8 @@ import { CHATS_ROOT, settings } from './settings.js';
 const API = 'https://api.figma.com/v1';
 const SKILLS = fileURLToPath(new URL('../../skills', import.meta.url));
 
-export class FigmaError extends Error {
-  constructor(message: string, public status = 400) {
-    super(message);
-  }
-}
+export { FigmaError } from './figmaError.js';
+import { FigmaError } from './figmaError.js';
 
 export async function figmaGet<T = any>(route: string, init: RequestInit = {}): Promise<T> {
   const { figmaToken } = await settings();

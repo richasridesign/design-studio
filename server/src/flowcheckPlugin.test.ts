@@ -2,9 +2,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { checkFlows, NO_FIGMA_ACCESS, runFlowCheck } from './flowcheck.js';
-import { captureUseFigma, findPayload, flowCheckScript, loadDocumentViaPlugin, type PluginPayload } from './flowcheckPlugin.js';
-import { FigmaError } from './figma.js';
+import { checkFlows, runFlowCheck } from './flowcheck.js';
+import { flowCheckBody, flowCheckScript, pluginFlowCheck } from './flowcheckPlugin.js';
+import { expandNode, runPayload, type PluginPayload } from './flowRules.js';
+import { pagedScript, unpack } from './pluginRead.js';
+import { FigmaError } from './figmaError.js';
 
 // A fake Plugin API: nodes are Proxies that throw on any write, so the script is proven read only, and instances
 // throw on the sync mainComponent getter, as they do in dynamic-page mode.
@@ -82,11 +84,8 @@ describe('flowCheckScript', () => {
   });
 
   it('feeds checkFlows real findings once expanded', async () => {
-    const fake = fakeFigma();
-    const wrapped = { content: [{ type: 'text', text: JSON.stringify(await runScript(flowCheckScript(), fake.figma)) }] };
-    const payload = findPayload(wrapped)!;
-    const { document, maps } = await loadFromPayload(payload);
-    const r = checkFlows(document, maps);
+    const payload = await runScript(flowCheckScript(), fakeFigma().figma);
+    const r = checkFlows(expandNode(payload.document), { components: payload.components, componentSets: payload.componentSets });
     const mainFlow = r.flows.find((f) => f.name === 'Main')!;
     const rules = mainFlow.findings.map((f) => `${f.rule}:${f.nodeId}`);
     expect(rules).toContain('no-click:3:2');
@@ -110,92 +109,63 @@ describe('flowCheckScript', () => {
   });
 });
 
-async function loadFromPayload(payload: PluginPayload) {
-  const msgs = toolMessages(JSON.stringify(payload));
-  return loadDocumentViaPlugin('abc', { dir: os.tmpdir(), mcp: MCP, run: fakeLean(msgs) });
-}
+describe('flowCheckBody (the check inside Figma)', () => {
+  it('gives the same findings inside the plugin as on the server, through one packed page', async () => {
+    const body = await flowCheckBody();
+    const script = pagedScript(body, 0);
+    expect(script.length).toBeLessThan(50000);
+    expect(script).not.toMatch(/setCurrentPageAsync|loadAllPagesAsync|saveVersionHistoryAsync|setPluginData/);
+    const page = (await runScript(script, fakeFigma().figma)) as any;
+    expect(page).toMatchObject({ ds: 1, page: 0, pages: 1 });
+    const inPlugin = JSON.parse(unpack(page.data));
+    const onServer = runPayload(await runScript(flowCheckScript(), fakeFigma().figma));
+    expect(inPlugin).toEqual(JSON.parse(JSON.stringify(onServer)));
+    expect(inPlugin.flows.find((f: any) => f.name === 'Main').state).toBe('fail');
+  });
+
+  it('passes the scope into the check', async () => {
+    const body = await flowCheckBody({ ...(await import('../../shared/scope.js')).EMPTY_SCOPE });
+    expect(body).toContain('__fc.runPayload(__payload,');
+  });
+});
+
+describe('pluginFlowCheck', () => {
+  it('hands the bundled check to the plugin reader and returns its findings with the cost', async () => {
+    const seen: { prompt?: string; opts?: any } = {};
+    const run = (async (prompt: string, opts: any) => {
+      seen.prompt = prompt;
+      seen.opts = opts;
+      // Play one use_figma call through the hooks, running the injected code against the fake file.
+      const pre = await opts.hooks.PreToolUse[0].hooks[0]({ tool_name: 'mcp__plugin_figma_figma__use_figma', tool_input: { code: 'PAGE' } }, 'tu1');
+      const code = pre.hookSpecificOutput.updatedInput.code;
+      const out = await runScript(code, fakeFigma().figma);
+      await opts.hooks.PostToolUse[0].hooks[0]({ tool_name: 'mcp__plugin_figma_figma__use_figma', tool_input: {}, tool_response: [{ type: 'text', text: JSON.stringify(out) }] }, 'tu1');
+      return { data: { ok: true }, tokens: 10, costUsd: 0.002, text: '' };
+    }) as any;
+    const r = await pluginFlowCheck('KEY123', (await import('../../shared/scope.js')).EMPTY_SCOPE, { dir: os.tmpdir(), mcp: MCP, run });
+    expect(r.flows.find((f) => f.name === 'Main')!.state).toBe('fail');
+    expect(r.costUsd).toBe(0.002);
+    expect(seen.prompt).toContain('fileKey "KEY123"');
+    expect(seen.opts.allowed).toContain('mcp__plugin_figma_figma__use_figma');
+    expect(seen.opts.tools).toEqual([]);
+  });
+});
 
 const MCP = { servers: {}, plugins: [], configured: true, via: 'plugin' as const, name: 'plugin_figma_figma' };
 
-function toolMessages(content: unknown): any[] {
-  return [
-    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu1', name: 'mcp__plugin_figma_figma__use_figma', input: {} }] } },
-    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content }] } },
-  ];
-}
-
-// Plays messages into onMessage like the SDK stream, and stops when aborted.
-function fakeLean(msgs: any[], seen?: { prompt?: string; opts?: any }) {
-  return (async (prompt: string, opts: any) => {
-    if (seen) Object.assign(seen, { prompt, opts });
-    for (const m of msgs) {
-      if (opts.signal?.aborted) return { data: null, tokens: 0, costUsd: 0, text: '', error: 'aborted' };
-      opts.onMessage?.(m);
-    }
-    return { data: { ok: false, note: 'nothing' }, tokens: 0, costUsd: 0, text: '' };
-  }) as any;
-}
-
-describe('findPayload', () => {
-  const p = { flowcheck: 1, document: { i: '0:0', n: 'D', t: 'DOCUMENT', c: [] }, components: {}, componentSets: {}, nodes: 1, truncated: false };
-  it('reads the payload from text blocks, double-encoded strings, wrapped text and structured content', () => {
-    expect(findPayload([{ type: 'text', text: JSON.stringify(p) }])).toEqual(p);
-    expect(findPayload([{ type: 'text', text: JSON.stringify(JSON.stringify(p)) }])).toEqual(p);
-    expect(findPayload(`Result: ${JSON.stringify(p)}`)).toEqual(p);
-    expect(findPayload({ structuredContent: { result: p } })).toEqual(p);
-    expect(findPayload([{ type: 'text', text: 'Error: not logged in' }])).toBeNull();
-  });
-});
-
-describe('loadDocumentViaPlugin', () => {
-  it('asks for one use_figma call with the script, captures the tool result and stops the query', async () => {
-    const seen: { prompt?: string; opts?: any } = {};
-    const payload = await runScript(flowCheckScript(), fakeFigma().figma);
-    const msgs = [...toolMessages([{ type: 'text', text: JSON.stringify(payload) }]), { type: 'assistant', message: { content: [{ type: 'text', text: 'should not be read' }] } }];
-    const r = await loadDocumentViaPlugin('KEY123', { dir: os.tmpdir(), mcp: MCP, run: fakeLean(msgs, seen) });
-    expect(r.document.children[0].name).toBe('Flows');
-    expect(seen.opts.allowed).toEqual(['mcp__plugin_figma_figma__use_figma']);
-    expect(seen.opts.tools).toEqual([]);
-    expect(seen.opts.maxTurns).toBeLessThanOrEqual(4);
-    expect(seen.opts.signal.aborted).toBe(true);
-    expect(seen.prompt).toContain('fileKey "KEY123"');
-    expect(seen.prompt).toContain(flowCheckScript());
-  });
-
-  it('names the plugin error when the tool result has no data', async () => {
-    const run = fakeLean(toolMessages([{ type: 'text', text: 'You need to log in to Figma' }]));
-    await expect(loadDocumentViaPlugin('abc', { dir: os.tmpdir(), mcp: MCP, run })).rejects.toThrow(/Figma plugin: You need to log in to Figma\. Log in to the Figma plugin, or add a Figma token in Settings/);
-  });
-
-  it('ignores tool results for other tools', () => {
-    const got: any[] = [];
-    const on = captureUseFigma((c) => got.push(c));
-    on({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'x', name: 'mcp__plugin_figma_figma__get_metadata' }] } } as any);
-    on({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: '{"flowcheck":1,"document":{}}' }] } } as any);
-    expect(got).toEqual([]);
-  });
-});
-
-describe('runFlowCheck through the plugin', () => {
-  const noToken = async () => { throw new FigmaError('Add a Figma personal access token in Settings first', 412); };
-
-  it('falls back to the plugin without a token and stores via plugin', async () => {
+describe('runFlowCheck', () => {
+  it('stores what the plugin read found, via plugin', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
     const payload = await runScript(flowCheckScript(), fakeFigma().figma);
-    const loadPlugin = (key: string, o: { dir: string }) => loadDocumentViaPlugin(key, { dir: o.dir, mcp: MCP, run: fakeLean(toolMessages(JSON.stringify(payload))) });
-    const run = await runFlowCheck({ dir, fileKey: 'abc', load: noToken, loadPlugin, figma: async () => ({ configured: true }) });
+    const read = async () => runPayload(payload);
+    const run = await runFlowCheck({ dir, fileKey: 'abc', read });
     expect(run.via).toBe('plugin');
     expect(run.flows.find((f) => f.name === 'Main')!.state).toBe('fail');
   });
 
-  it('names both ways in when there is no token and no plugin', async () => {
+  it('passes plugin errors through', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
-    await expect(runFlowCheck({ dir, fileKey: 'abc', load: noToken, loadPlugin: async () => { throw new Error('not called'); }, figma: async () => ({ configured: false }) })).rejects.toThrow(NO_FIGMA_ACCESS);
-  });
-
-  it('does not fall back on other REST errors', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
-    const load = async () => { throw new FigmaError('Figma file not found, or the token cannot open it', 404); };
-    await expect(runFlowCheck({ dir, fileKey: 'abc', load, loadPlugin: async () => { throw new Error('not called'); }, figma: async () => ({ configured: true }) })).rejects.toThrow(/not found/);
+    const read = async () => { throw new FigmaError('Figma is not logged in. Log in to Figma, then try again.', 401); };
+    await expect(runFlowCheck({ dir, fileKey: 'abc', read })).rejects.toThrow(/Log in to Figma/);
   });
 });
