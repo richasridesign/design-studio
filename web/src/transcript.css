@@ -33,7 +33,7 @@
 .tr-step.err .tr-mark { color: var(--err); }
 .tr-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-obj { color: var(--fg); }
-.tr-obj.mono { font-family: var(--mono, Menlo, monospace); font-size: 12px; }
+.tr-obj.mono { font-family: var(--mono, Menlo, monospace); font-size: 12px; line-height: 16px; }
 .tr-dur { font-size: var(--text-xs); color: var(--fg-faint); font-variant-numeric: tabular-nums; padding-right: 2px; }
 .tr-err {
   grid-column: 2 / -1; font-size: var(--text-xs); line-height: 16px; color: var(--err);
