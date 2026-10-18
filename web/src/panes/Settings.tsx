@@ -53,7 +53,7 @@ function CheckSetup() {
               </div>
               <div className="check-actions">
                 {r && r.tone !== 'ok' && !row?.busy && r.fixId && <button onClick={() => void fix(id, r.fixId!)}>{r.fixLabel}</button>}
-                <button className="ghost" disabled={row?.busy} onClick={() => void run(id)}>Check</button>
+                <button disabled={row?.busy} onClick={() => void run(id)}>Check</button>
               </div>
             </li>
           );
