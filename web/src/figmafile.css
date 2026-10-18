@@ -5,6 +5,9 @@
 .ff-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
 .ff-name { margin: 0; font-size: var(--text-xl); line-height: 28px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
 .ff-open { font-size: var(--text-sm); line-height: 20px; }
+/* A 24px target (36px on a phone); .ff-head wins over .link, which loads later and sets no height. */
+.ff-head .ff-open { display: inline-flex; align-items: center; min-height: 24px; }
+@media (max-width: 900px) { .ff-head .ff-open { min-height: 36px; } }
 .ff-meta { font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 .ff-line { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 
