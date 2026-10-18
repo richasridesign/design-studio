@@ -125,6 +125,9 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
   );
 }
 
+// Every gate shares one heading; the state reads from this line, not from the heading style.
+const STATE_LABEL: Record<Stage['state'], string> = { approved: 'Approved', ready: 'Ready to approve', open: 'Current stage', later: 'Later' };
+
 function Gate({ stage, current, brief, onChange }: { stage: Stage; current: boolean; brief: string; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void }) {
   const open = stage.checks.filter((c) => c.state === 'open').length;
   const next = nextStep(stage, brief);
@@ -139,7 +142,8 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
   };
   return (
     <div className="gate">
-      <div className="gate-head">
+      <div className={`gate-head ${stage.state}`}>
+        <span className="gate-state"><span className="stage-mark" aria-hidden="true">{stage.state === 'approved' && <Icon name="check" small />}</span>{STATE_LABEL[stage.state]}</span>
         <b>{stage.name}</b>
         <span className="muted">{stage.goal}</span>
       </div>
