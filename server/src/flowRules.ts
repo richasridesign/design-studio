@@ -1,6 +1,6 @@
 import { FLOW_RULES, flowMatches, namedLike, type FlowFinding, type FlowRef, type FlowResult, type FlowRule } from '../../shared/flowcheck.js';
 import { EMPTY_SCOPE, type Scope } from '../../shared/scope.js';
-import { CONTROL } from './check.js';
+import { CONTROL } from './controls.js';
 
 // The Flow check rules. This module has no Node imports on purpose: it is bundled into the Plugin API script that
 // use_figma runs (see flowcheckPlugin.ts), so the check runs inside Figma and only the findings come back.
@@ -62,7 +62,14 @@ const CLOSE = /\b(close|dismiss)\b|(^|[\s/_-])x$/i;
 const DECISION = /^\s*decision\s*(\d+)\s*[·•:|-]\s*(.*)$/i;
 const NOT_SCREEN = /^\s*(decision|note|notes|flow note|section note|changelog|review|readme|legend|title|label|sticky|arrow)\b/i;
 const LINKS = new Set(['NAVIGATE', 'OVERLAY', 'SWAP']);
-const MAJOR = new Set<FlowRule>(['no-click', 'no-close', 'stale-link', 'parked-link']);
+const MAJOR = new Set<FlowRule>(['no-click', 'no-close', 'wrong-hover', 'stale-link', 'parked-link']);
+const TOAST = /\btoast\b/i;
+// Keys a hover may change besides a value that names Hover, like State=Default to State=Hover.
+const STATE_KEY = /^\s*(state|interaction|hover|show tooltip|tooltip)\s*$/i;
+const HOVER_WORD = /\b(hover|hovered)\b/i;
+const NOTE_LIMIT = 230;
+const NOTE_SKIP = /\b(change ?log|version history|readme)\b/i;
+const BULLETS = /•|(^|\n)\s*([-*–]|\d+[.)])\s/;
 const CANVAS = new Set(['FRAME', 'COMPONENT', 'INSTANCE']);
 
 type Maps = { components?: Record<string, any>; componentSets?: Record<string, any> };
@@ -165,12 +172,29 @@ function dialogFindings(node: any, maps: Maps, add: (node: any, rule: FlowRule, 
     }
     return null;
   };
+  // A close inside a button, chip or other control is already checked by the No click rule, so it is not flagged twice.
+  const closes = (dialog: any) => {
+    const out: Array<{ node: any; wired: boolean; covered: boolean }> = [];
+    const find = (x: any, wired: boolean, covered: boolean) => {
+      for (const c of kids(x)) {
+        const w = wired || hasClick(c);
+        const cov = covered || (CANVAS.has(c.type) && STRONG.test(label(c, maps)) && !CONTAINER.test(c.name ?? ''));
+        if (isClose(c)) out.push({ node: c, wired: w || some(c, hasClick), covered: cov });
+        else find(c, w, cov);
+      }
+    };
+    find(dialog, false, false);
+    return out;
+  };
   // The outermost dialog decides: a close anywhere inside it passes, so parts like "Dialog buttons" are not checked alone.
   const visit = (n: any) => {
     if (isDialog(n)) {
-      if (!some(n, isClose)) {
+      const found = closes(n);
+      if (!found.length) {
         const target = n === node ? (deepest(n) ?? n) : n;
         add(target, 'no-close', `${describe(target)} has no close icon.`, 'Add an icon-only Close button, top right, with a Close tooltip and a click back to the screen that opened it.');
+      } else if (!found.some((c) => c.wired || c.covered)) {
+        add(found[0].node, 'no-close', `The close icon in ${describe(n)} does nothing when clicked.`, 'Add On click: Close overlay (or Back) to the screen that opened it, and a Close tooltip on hover.');
       }
       return;
     }
@@ -179,7 +203,127 @@ function dialogFindings(node: any, maps: Maps, add: (node: any, rule: FlowRule, 
   visit(node);
 }
 
+// "Type=Primary, State=Default" as key and value pairs, keyed by the lower-case key.
+function variantPairs(name: string) {
+  const out = new Map<string, { key: string; value: string }>();
+  for (const part of String(name ?? '').split(',')) {
+    const i = part.indexOf('=');
+    if (i > 0) out.set(part.slice(0, i).trim().toLowerCase(), { key: part.slice(0, i).trim(), value: part.slice(i + 1).trim() });
+  }
+  return out;
+}
+
+const plain = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+const isDefault = (s: string) => !s || /^(default|rest|none|off|false|no)$/i.test(s.trim());
+
+/** What a hover changes besides the state, as Key: own value and Key: hover value. Empty when the hover is right. */
+export function hoverDrift(own: string, hover: string): Array<{ key: string; from: string; to: string }> {
+  const a = variantPairs(own);
+  const b = variantPairs(hover);
+  if (!a.size || !b.size) return [];
+  const out: Array<{ key: string; from: string; to: string }> = [];
+  for (const k of new Set([...a.keys(), ...b.keys()])) {
+    const from = a.get(k)?.value ?? '';
+    const to = b.get(k)?.value ?? '';
+    if (plain(from) === plain(to)) continue;
+    // Status=Partly ready to Status=Partly ready Hover is right. Status=Needs setup Hover is not.
+    if (HOVER_WORD.test(to)) {
+      const rest = plain(to.replace(HOVER_WORD, ' '));
+      if (rest === plain(from) || (isDefault(rest) && isDefault(from))) continue;
+    } else if (STATE_KEY.test(k)) continue;
+    out.push({ key: a.get(k)?.key ?? b.get(k)!.key, from, to });
+  }
+  return out;
+}
+
 type Adder = (node: any, rule: FlowRule, message: string, fix: string, suffix?: string) => void;
+
+// A hover that changes an instance to a variant with other properties than its own: another status, decider or icon.
+function hoverFindings(screen: any, maps: Maps, add: Adder) {
+  const groups = new Map<string, { node: any; dest: string; message: string; fix: string; n: number }>();
+  const check = (c: any) => {
+    const own = maps.components?.[c.componentId];
+    if (!own) return;
+    for (const r of reactionsOf(c)) {
+      if (r.kind !== 'hover') continue;
+      for (const a of r.actions) {
+        if (a.navigation !== 'CHANGE_TO' || !a.destinationId || a.destinationId === c.componentId) continue;
+        const to = maps.components?.[a.destinationId];
+        if (!to) continue;
+        const key = `${c.componentId}|${a.destinationId}`;
+        const seen = groups.get(key);
+        if (seen) { seen.n++; continue; }
+        let message = '';
+        let fix = '';
+        if (own.componentSetId && to.componentSetId && own.componentSetId !== to.componentSetId) {
+          message = `${describe(c)} changes on hover to ${quote(String(to.name))}, a variant of another component.`;
+          fix = 'Point While hovering to the Hover variant in its own component set.';
+        } else {
+          const drift = hoverDrift(String(own.name ?? ''), String(to.name ?? ''));
+          if (!drift.length) continue;
+          message = `${describe(c)} changes on hover to ${drift.map((d) => `${d.key}=${d.to || 'none'}`).join(', ')}, but its own is ${drift.map((d) => `${d.key}=${d.from || 'none'}`).join(', ')}.`;
+          fix = drift.some((d) => /\b(selected|disabled|active)\b/i.test(d.from))
+            ? 'A selected or disabled item stays as it is on hover: remove the While hovering reaction.'
+            : `Point While hovering to the Hover variant with ${drift.map((d) => `${d.key}=${d.from || 'none'}`).join(', ')} and the same other properties.`;
+        }
+        groups.set(key, { node: c, dest: a.destinationId, message, fix, n: 1 });
+      }
+    }
+  };
+  const visit = (n: any) => {
+    for (const c of kids(n)) {
+      if (c.type === 'INSTANCE') check(c);
+      if (c.type !== 'COMPONENT_SET') visit(c);
+    }
+  };
+  visit(screen);
+  for (const g of groups.values()) add(g.node, 'wrong-hover', g.n > 1 ? g.message.replace(/\.$/, ` (and ${g.n - 1} more like it).`) : g.message, g.fix, g.dest);
+}
+
+// Toasts sit 24px from the top of the screen, centred, as the top layer. 1px of slack covers rounding.
+function toastFindings(screen: any, maps: Maps, add: Adder) {
+  const s = screen.absoluteBoundingBox;
+  if (!s) return;
+  const toasts: any[] = [];
+  const visit = (n: any) => {
+    for (const c of kids(n)) {
+      if (CANVAS.has(c.type) && c.absoluteBoundingBox && TOAST.test(label(c, maps))) toasts.push(c);
+      else if (c.type !== 'COMPONENT_SET') visit(c);
+    }
+  };
+  visit(screen);
+  const top = kids(screen);
+  for (const t of toasts) {
+    const b = t.absoluteBoundingBox;
+    const dy = b.y - s.y;
+    const dx = b.x + b.width / 2 - (s.x + s.width / 2);
+    const off: string[] = [];
+    if (Math.abs(dy - 24) > 1) off.push(`${Math.round(dy)}px from the top of the screen`);
+    if (Math.abs(dx) > 1) off.push(`${Math.round(Math.abs(dx))}px ${dx < 0 ? 'left' : 'right'} of centre`);
+    if (top.includes(t) && top[top.length - 1] !== t) off.push('under layers drawn after it');
+    if (off.length) add(t, 'toast', `${describe(t)} sits ${off.join(', ')}.`, 'Place the toast 24px from the top of the screen, centred, as the top layer.');
+  }
+}
+
+/** The rules that read one screen on its own. The Code scan runs them on reviewed frames too. */
+function screenRules(screen: any, maps: Maps, add: Adder) {
+  controlFindings(screen, maps, add);
+  dialogFindings(screen, maps, add);
+  hoverFindings(screen, maps, add);
+  toastFindings(screen, maps, add);
+}
+
+export type ScreenFinding = { id: string; rule: FlowRule; nodeId: string; nodeName: string; message: string; fix: string; severity: 'major' | 'minor' };
+
+/** Per-screen prototype findings for one frame, for the Code scan. Ids are stable for triage. */
+export function screenFindings(screen: any, maps: Maps): ScreenFinding[] {
+  const out: ScreenFinding[] = [];
+  screenRules(screen, maps, (node, rule, message, fix, suffix) => {
+    const id = `${rule}:${node.id}${suffix ? `:${suffix}` : ''}`;
+    if (!out.some((f) => f.id === id)) out.push({ id, rule, nodeId: node.id, nodeName: String(node.name ?? node.id), message, fix, severity: MAJOR.has(rule) ? 'major' : 'minor' });
+  });
+  return out;
+}
 // Where a link lands when it lands in a parked feature: the feature's name if known, else the Parked section's.
 type ParkedTarget = { name: string; feature: boolean };
 const PARKED_FIX = 'Remove the entry point, or restore the feature in Scope.';
@@ -248,6 +392,26 @@ const contains = (outer: Box, inner: Box) => inner.x >= outer.x && inner.y >= ou
 type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null };
 type Item = { id: string; name: string; box: Box; section: boolean; ancestors: string[]; flow: FlowRef; parent: string | null };
 
+// Flow and section notes: text in a section outside its screens, Decision stickies and the changelog. A note over
+// 230 characters with no bullets reads as a paragraph. The plugin walker sends the full length and a bullet flag,
+// since it clips the text itself.
+function noteFindings(f: Flow, add: Adder) {
+  const visit = (n: any) => {
+    for (const c of kids(n)) {
+      if (c.type === 'SECTION' || f.screens.includes(c) || DECISION.test(String(c.name ?? '')) || NOTE_SKIP.test(String(c.name ?? ''))) continue;
+      if (c.type === 'TEXT') {
+        const text = String(c.characters ?? '');
+        const length = typeof c.textLength === 'number' ? c.textLength : text.length;
+        const bullets = typeof c.bullets === 'boolean' ? c.bullets : BULLETS.test(text);
+        if (length > NOTE_LIMIT && !bullets) add(c, 'long-note', `The note ${quote(`${text.replace(/\s+/g, ' ').trim().slice(0, 40).trim()}…`)} is ${length} characters with no bullets.`, 'Cut it to at most 5 short bullets (•), one idea each, about 200 characters in all. Move the version trail to the changelog.');
+        continue;
+      }
+      visit(c);
+    }
+  };
+  visit(f.node);
+}
+
 export const isParkedSection = (name: string, path: string[]) => [...path, name].some((n) => namedLike(n, 'parked'));
 
 export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
@@ -257,6 +421,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
   const owner = new Map<string, Flow>();
   const parkedNames = scope.parked.map((p) => p.name);
   const pageItems: Item[][] = [];
+  const looseScreens: Array<{ flow: FlowRef; node: any }> = [];
   let decisions = false;
   const scanDecisions = (n: any) => {
     if (decisions) return;
@@ -289,6 +454,8 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     if (loose.length) {
       const ref = { id: page.id, name: `Not in a section (${page.name})` };
       flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null });
+      // Only frames: a main component or an instance on the canvas can be a deliberate reference.
+      for (const sc of loose) if (sc.type === 'FRAME') looseScreens.push({ flow: ref, node: sc });
       for (const sc of loose) {
         screens.set(sc.id, { id: sc.id, name: String(sc.name ?? sc.id), flow: ref });
         if (sc.absoluteBoundingBox) items.push({ id: sc.id, name: String(sc.name ?? sc.id), box: sc.absoluteBoundingBox, section: false, ancestors: [], flow: ref, parent: null });
@@ -324,11 +491,11 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       }
     };
     collect(f.node);
+    if (f.section) noteFindings(f, adder(f.ref, null));
     for (const sc of f.screens) {
       const screen = { id: sc.id, name: String(sc.name ?? sc.id) };
       const add = adder(f.ref, screen);
-      controlFindings(sc, maps, add);
-      dialogFindings(sc, maps, add);
+      screenRules(sc, maps, add);
       const flagged = new Set<string>();
       linkFindings(sc, f.ref, screens, scanParked ? parkedAt : () => null, add, flagged);
       if (scanParked) parkedNameFindings(sc, parkedNames, add, flagged);
@@ -338,6 +505,11 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
         if (missing.length) add(sc, 'no-stickies', `${quote(screen.name)} is missing ${missing.map((n) => `Decision ${n}`).join(' and ')}.`, `Add ${missing.map((n) => `"Decision ${n} · ${screen.name}"`).join(' and ')} under the screen: one bold decision line and one Why line.`);
       }
     }
+  }
+
+  for (const { flow, node } of looseScreens) {
+    const name = String(node.name ?? node.id);
+    adder(flow, { id: node.id, name })(node, 'loose-screen', `${quote(name)} sits loose on the canvas, outside any section.`, 'Move it into the section of its flow, or into a named section beside the main one if it is a side scenario, and grow that section.');
   }
 
   const frozen = new Set(flows.filter((f) => f.parked).map((f) => f.ref.id));
@@ -388,7 +560,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
   return { flows: results, unchecked: decisions ? [] : ['no-stickies'], missing };
 }
 
-type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; c?: Compact[] };
+type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; L?: number; u?: 0 | 1; c?: Compact[] };
 export type PluginPayload = { flowcheck: 1; document: Compact; components: Record<string, any>; componentSets: Record<string, any>; nodes: number; truncated: boolean };
 
 /** Turns the script's short keys into the node shape checkFlows reads (Plugin API `reactions`, REST-like box and ids). */
@@ -400,6 +572,10 @@ export function expandNode(c: Compact): any {
   if (c.m) o.componentId = c.m;
   if (c.p) o.componentProperties = Object.fromEntries(c.p.map((value, i) => [`variant${i}`, { type: 'VARIANT', value }]));
   if (c.x !== undefined) o.characters = c.x;
+  if (c.L !== undefined) {
+    o.textLength = c.L;
+    o.bullets = c.u === 1;
+  }
   if (c.c) o.children = c.c.map(expandNode);
   return o;
 }

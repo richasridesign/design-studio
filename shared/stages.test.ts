@@ -208,6 +208,10 @@ describe('flow check on the Review step', () => {
     const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', {})]) });
     expect(s.validate.checks.at(-1)).toMatchObject({ state: 'met', detail: 'Flow check: the flow passed' });
   });
+  it('lets toast, note and loose screen issues through the gate, and names them', () => {
+    const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', { toast: 1, 'long-note': 1 }, 'fail'), flow('b', {})]) });
+    expect(s.validate.checks.at(-1)).toMatchObject({ state: 'met', detail: 'Flow check: wired, 2 other issues to tidy' });
+  });
   it('keeps Prototype wired open while a flow named in Scope is not in the file', () => {
     const s = byId({ ...none, review: { runs: [run()] }, flowcheck: { ...fc([flow('a', {})]), missing: ['Checkout'] } });
     expect(s.validate.checks.at(-1)).toMatchObject({ state: 'open', detail: 'Flow check: not found in the file: Checkout' });

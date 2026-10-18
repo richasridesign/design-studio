@@ -70,4 +70,27 @@ describe('checkFrames', () => {
     const ds = { builtAt: 0, libraries: [], colors: [], text: [], spacing: [0, 8, 16], radius: [], components: [], rules: [] };
     expect(checkFrames([frame([row, boundRow])], ds).map((x) => x.id)).toEqual(['check:spacing-off-scale:1:8']);
   });
+
+  it('runs the prototype rules on frames that link somewhere, with interaction marks and stable ids', () => {
+    const click = (dest: string, navigation = 'NAVIGATE') => ({ trigger: { type: 'ON_CLICK' }, actions: [{ type: 'NODE', destinationId: dest, navigation }] });
+    const hover = (dest: string) => ({ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: dest, navigation: 'CHANGE_TO' }] });
+    const components = {
+      'C:btn': { name: 'Type=Primary, State=Default', remote: true, componentSetId: 'S:btn', setName: 'Button' },
+      'C:btnHover': { name: 'Type=Secondary, State=Hover', remote: true, componentSetId: 'S:btn', setName: 'Button' },
+      'C:toast': { name: 'Toast', remote: true },
+    };
+    const btn = (id: string, reactions: any[]) => ({ id, name: 'Button', type: 'INSTANCE', componentId: 'C:btn', reactions, absoluteBoundingBox: box(80, 36), children: [{ id: `${id}t`, name: 'Label', type: 'TEXT', characters: id }] });
+    const toast = { id: '1:9', name: 'Toast', type: 'INSTANCE', componentId: 'C:toast', absoluteBoundingBox: { x: 0, y: 700, width: 390, height: 48 }, children: [] };
+    const linked = { ...frame([btn('Next', [click('2:1'), hover('C:btnHover')]), btn('Save', [hover('C:btnHover')]), toast]), components };
+    const f = checkFrames([linked], null);
+    expect(f.map((x) => [x.id, x.area, x.severity])).toEqual([
+      ['check:no-click:Save', 'interaction', 'major'],
+      ['check:wrong-hover:Next:C:btnHover', 'interaction', 'major'],
+      ['check:toast:1:9', 'visual', 'minor'],
+    ]);
+    expect(f[1].rule).toBe('Button "Next" changes on hover to Type=Secondary, but its own is Type=Primary (and 1 more like it).');
+    // A frame whose only clicks change a component's own variant is not a prototype yet.
+    const still = { ...frame([btn('Save', [click('C:btnHover', 'CHANGE_TO')])]), components };
+    expect(checkFrames([still], null)).toEqual([]);
+  });
 });

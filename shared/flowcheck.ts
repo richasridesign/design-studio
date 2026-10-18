@@ -1,18 +1,25 @@
 import { figmaNodeUrl } from './design.js';
 
-export const FLOW_RULES = ['no-click', 'no-hover', 'no-close', 'no-tooltip', 'stale-link', 'parked-link', 'overlap', 'no-stickies'] as const;
+export const FLOW_RULES = ['no-click', 'no-hover', 'wrong-hover', 'no-close', 'no-tooltip', 'stale-link', 'parked-link', 'toast', 'overlap', 'loose-screen', 'no-stickies', 'long-note'] as const;
 export type FlowRule = (typeof FLOW_RULES)[number];
 
 export const FLOW_RULE_LABEL: Record<FlowRule, string> = {
   'no-click': 'No click',
   'no-hover': 'No hover',
+  'wrong-hover': 'Wrong hover',
   'no-close': 'No close icon',
   'no-tooltip': 'No tooltip',
   'stale-link': 'Old link',
   'parked-link': 'Link to parked',
+  toast: 'Toast place',
   overlap: 'Overlap',
+  'loose-screen': 'Loose screen',
   'no-stickies': 'No stickies',
+  'long-note': 'Long note',
 };
+
+// Canvas tidiness and toast placement are craft: they show in Flow check but do not hold back the Prototype wired gate.
+const NOT_WIRING = new Set<FlowRule>(['toast', 'loose-screen', 'long-note']);
 
 export type FlowRef = { id: string; name: string };
 
@@ -63,6 +70,9 @@ export type FlowCheckRun = {
 };
 
 export const flowIssues = (f: FlowResult) => Object.values(f.counts).reduce((n, c) => n + (c ?? 0), 0);
+
+/** Issues that count for the Prototype wired gate. */
+export const wiringIssues = (f: FlowResult) => Object.entries(f.counts).reduce((n, [r, c]) => n + (NOT_WIRING.has(r as FlowRule) ? 0 : c ?? 0), 0);
 
 export function flowLabel(f: FlowResult) {
   if (f.state === 'unchecked') return 'Not checked';

@@ -1,7 +1,10 @@
 import type { Area, DesignSystem, Finding, Severity } from '../../shared/design.js';
+import { CONTROL } from './controls.js';
+import { screenFindings } from './flowRules.js';
+
+export { CONTROL };
 
 export const DEFAULT_SPACING = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 80, 96, 128];
-export const CONTROL = /\b(button|btn|cta|link|tab|checkbox|radio|toggle|switch|chip|icon[- ]?button|menu item|select|dropdown)\b/i;
 const HAND_BUILT = /\b(button|btn|input|text ?field|checkbox|radio|toggle|switch|chip|avatar|badge)\b/i;
 const MAX = 200;
 
@@ -24,6 +27,13 @@ const RULE_AREA: Record<string, Area> = {
   'no-auto-layout': 'visual',
   'type-off-scale': 'visual',
   'em-dash': 'writing',
+  // Prototype rules shared with the Flow check (flowRules.ts).
+  'no-click': 'interaction',
+  'no-hover': 'interaction',
+  'wrong-hover': 'interaction',
+  'no-close': 'interaction',
+  'no-tooltip': 'interaction',
+  toast: 'visual',
 };
 
 export function ruleArea(rule: string): Area {
@@ -107,6 +117,18 @@ function walk(node: any, ctx: Ctx, bg: Rgba, depth: number, inInstance: boolean)
   for (const child of node.children ?? []) walk(child, ctx, nextBg, depth + 1, inInstance || node.type === 'INSTANCE');
 }
 
+const CLICK = new Set(['ON_CLICK', 'ON_PRESS', 'MOUSE_DOWN', 'MOUSE_UP']);
+
+/** True when a node or anything in it has a click that leaves the component: a screen, an overlay, Back or Close. */
+export function linksOut(node: any): boolean {
+  if (!node || node.visible === false) return false;
+  for (const r of node.reactions ?? []) {
+    if (!CLICK.has(r?.trigger?.type)) continue;
+    for (const a of r.actions ?? (r.action ? [r.action] : [])) if (a && (a.type !== 'NODE' || a.navigation !== 'CHANGE_TO')) return true;
+  }
+  return (node.children ?? []).some(linksOut);
+}
+
 /** The profile's text sizes, when it has at least three, so a file with one odd style does not flag everything. */
 export function typeScale(ds: DesignSystem | null): Set<number> | null {
   const sizes = new Set((ds?.text ?? []).map((t) => Number(t.size)).filter((n) => n > 0));
@@ -122,7 +144,20 @@ export function checkFrames(frames: Array<{ document: any; components?: Record<s
     tokens: ds?.tokens !== false,
     out: [],
   };
-  for (const f of frames) walk(f.document, ctx, { r: 1, g: 1, b: 1, a: 1 }, 0, false);
+  const componentSets: Record<string, { name: string }> = {};
+  for (const c of Object.values(ctx.components)) if (c?.componentSetId && c.setName) componentSets[c.componentSetId] = { name: c.setName };
+  // Frames with no click-through link are not a prototype yet, so the prototype rules wait. Hovers alone do not
+  // count: instances of interactive components carry their main component's hover everywhere.
+  const prototyped = frames.some((f) => linksOut(f.document));
+  for (const f of frames) {
+    walk(f.document, ctx, { r: 1, g: 1, b: 1, a: 1 }, 0, false);
+    if (!prototyped) continue;
+    // Each reviewed frame is read as a screen: clicks, hovers, hover targets, close icons, tooltips and toasts.
+    for (const x of screenFindings(f.document, { components: ctx.components, componentSets })) {
+      if (ctx.out.length >= MAX) break;
+      ctx.out.push({ id: `check:${x.id}`, area: ruleArea(x.rule), node: x.nodeId, nodeName: x.nodeName, severity: x.severity, rule: x.message, fix: x.fix });
+    }
+  }
   return ctx.out;
 }
 

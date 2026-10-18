@@ -16,13 +16,16 @@ export type Loaded = { id: string; document: any; components: Record<string, any
 /**
  * Plugin API code that walks the given frames and returns a compact tree per frame. It only reads.
  * Keys: i id, n name, t type, h hidden, o opacity, f fills, s strokes, bv bound variable keys, y style ids
- * (fill, stroke, text), b box, fs font size, fw font weight, x characters, r reaction count, m main component,
- * lm layout mode, sp item spacing, p paddings, cr corner radius, c children.
+ * (fill, stroke, text), b box, fs font size, fw font weight, x characters, r reaction count, ra reactions
+ * ([trigger, [[action type, destination, navigation]]]), m main component, lm layout mode, sp item spacing,
+ * p paddings, cr corner radius, c children. Components carry their set's name, and hover targets are looked up so
+ * the Code scan can compare a hover variant with the instance's own.
  */
 export function framesScript(ids: string[], maxNodes = MAX_NODES) {
   return `const IDS = ${JSON.stringify(ids)};
 const MAX_NODES = ${maxNodes};
 const components = {};
+const dests = new Set();
 const missing = [];
 let count = 0;
 let truncated = false;
@@ -68,7 +71,25 @@ async function walk(n) {
     if (x) o.x = String(x).slice(0, ${MAX_CHARS});
   }
   const re = get(n, 'reactions');
-  if (Array.isArray(re) && re.length) o.r = re.length;
+  if (Array.isArray(re) && re.length) {
+    o.r = re.length;
+    const ra = [];
+    for (const x of re) {
+      if (!x || !x.trigger || !x.trigger.type) continue;
+      const acts = [];
+      const flat = (list) => {
+        for (const a of list || []) {
+          if (!a || typeof a !== 'object') continue;
+          if (a.type === 'CONDITIONAL') { for (const b of a.conditionalBlocks || []) flat(b && b.actions); continue; }
+          acts.push([String(a.type || ''), a.destinationId || null, a.navigation || null]);
+          if (a.navigation === 'CHANGE_TO' && a.destinationId) dests.add(a.destinationId);
+        }
+      };
+      flat(x.actions || (x.action ? [x.action] : []));
+      if (acts.length) ra.push([String(x.trigger.type), acts]);
+    }
+    if (ra.length) o.ra = ra;
+  }
   if (n.type === 'INSTANCE') {
     try {
       const m = await n.getMainComponentAsync();
@@ -77,7 +98,7 @@ async function walk(n) {
         if (!components[m.id]) {
           const p = m.parent;
           const set = p && p.type === 'COMPONENT_SET' ? p : null;
-          components[m.id] = { name: m.name, remote: !!m.remote, ...(set ? { componentSetId: set.id } : {}) };
+          components[m.id] = { name: m.name, remote: !!m.remote, ...(set ? { componentSetId: set.id, setName: set.name } : {}) };
         }
       }
     } catch (e) {}
@@ -108,10 +129,20 @@ for (const id of IDS) {
   if (!n || n.type === 'PAGE' || n.type === 'DOCUMENT') { missing.push(id); continue; }
   frames.push(await walk(n));
 }
+for (const id of dests) {
+  if (components[id]) continue;
+  try {
+    const d = await figma.getNodeByIdAsync(id);
+    if (!d || d.type !== 'COMPONENT') continue;
+    const p = d.parent;
+    const set = p && p.type === 'COMPONENT_SET' ? p : null;
+    components[id] = { name: d.name, remote: !!d.remote, ...(set ? { componentSetId: set.id, setName: set.name } : {}) };
+  } catch (e) {}
+}
 return { frames, components, missing, nodes: count, truncated };`;
 }
 
-type Compact = { i: string; n: string; t: string; h?: 1; o?: number; f?: any[]; s?: any[]; bv?: string[]; y?: number[]; b?: number[]; fs?: number; fw?: number; x?: string; r?: number; m?: string; lm?: string; sp?: number; p?: number[]; cr?: number; c?: Compact[] };
+type Compact = { i: string; n: string; t: string; h?: 1; o?: number; f?: any[]; s?: any[]; bv?: string[]; y?: number[]; b?: number[]; fs?: number; fw?: number; x?: string; r?: number; ra?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; lm?: string; sp?: number; p?: number[]; cr?: number; c?: Compact[] };
 export type FramesPart = { frames: Compact[]; components: Record<string, any>; missing: string[]; nodes: number; truncated: boolean };
 
 const paint = (p: any[]) => (p[0] === 'S' ? { type: 'SOLID', color: { r: p[1], g: p[2], b: p[3], a: 1 }, opacity: p[4], visible: p[5] !== 0 } : { type: p[0], visible: p[1] !== 0 });
@@ -136,7 +167,9 @@ export function expandFrame(c: Compact): any {
     n.style = { ...(c.fs !== undefined ? { fontSize: c.fs } : {}), ...(c.fw !== undefined ? { fontWeight: c.fw } : {}) };
     n.characters = c.x ?? '';
   }
-  if (c.r) n.reactions = Array.from({ length: c.r }, () => ({}));
+  // Plugin API reactions, so the Code scan's prototype rules read them like the Flow check does.
+  if (c.ra) n.reactions = c.ra.map(([type, acts]) => ({ trigger: { type }, actions: acts.map(([t, destinationId, navigation]) => ({ type: t, destinationId, navigation })) }));
+  else if (c.r) n.reactions = Array.from({ length: c.r }, () => ({}));
   if (c.m) n.componentId = c.m;
   if (c.lm) {
     n.layoutMode = c.lm;
