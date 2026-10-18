@@ -10,7 +10,7 @@ export function family(id: string | null | undefined): string | null {
 
 /** Which option the current model is: exact value first, then the same family. */
 export function currentOption(model: string | null, options: ModelOption[]): ModelOption | null {
-  if (!model) return null;
+  if (!model) return options.find((o) => o.value === 'default') ?? null;
   const exact = options.find((o) => o.value === model);
   if (exact) return exact;
   const fam = family(model);
@@ -24,4 +24,12 @@ export function modelLabel(model: string | null, options: ModelOption[]): string
   const fam = family(model) ?? family(opt?.displayName) ?? family(opt?.description);
   if (fam) return fam[0].toUpperCase() + fam.slice(1);
   return opt?.displayName ?? 'Model';
+}
+
+/** The menu: the SDK's short aliases (default, opus, sonnet...), plus the current model if it is a pinned id. */
+export function pickerOptions(model: string | null, options: ModelOption[]): ModelOption[] {
+  const aliases = options.filter((o) => !o.value.startsWith('claude-'));
+  const list = aliases.length ? aliases : options;
+  const cur = currentOption(model, options);
+  return cur && !list.includes(cur) ? [...list, cur] : list;
 }
