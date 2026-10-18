@@ -12,6 +12,10 @@ describe('instructions', () => {
     expect(text).not.toMatch(/save a version with use_figma/i);
   });
 
+  it('tells Claude where the findings closed by hand are, so her fix request can stay in plain words', () => {
+    expect(instructions(null)).toContain('closed by hand on the Review tab (fixed, won\'t fix or parked) are listed in triage.json');
+  });
+
   it('leaves the Figma speed notes out when no file is attached', () => {
     expect(instructions(null)).not.toContain('DS.');
   });

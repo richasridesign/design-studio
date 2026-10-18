@@ -117,6 +117,14 @@ describe('steps', () => {
     expect(s.spec.checks[2]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
   });
 
+  it('hints at research for new work only, and shows research that exists for any kind', () => {
+    const labels = (kind: 'new' | 'fix' | 'batch', research: string | null = null) => stages({ ...none, research }, empty, kind)[0].checks.map((c) => c.label);
+    expect(labels('new')).toContain('Research written');
+    expect(labels('fix')).not.toContain('Research written');
+    expect(labels('batch')).not.toContain('Research written');
+    expect(labels('fix', '## Looked at\n- Linear')).toContain('Research written');
+  });
+
   it('is happy with one direction per screen, and says how many have more', () => {
     expect(byId({ ...none, sketch: { screens: [screen('a', 2), screen('b', 1)] } }).explore.checks[0]).toMatchObject({ state: 'met', detail: '2 screens, 1 with 2 or more directions' });
   });

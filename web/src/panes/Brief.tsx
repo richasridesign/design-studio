@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { ago } from '../ago';
 import { IconButton } from '../Tip';
 import { Pending } from './Pending';
 import { Composer } from './Chat';
@@ -98,7 +99,7 @@ export function Brief() {
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
                 {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : lastReply ? '' : 'Idle'}
-                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {time(lastReply.at)}</span>}
+                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {ago(lastReply.at)}</span>}
                 {state === 'running' && toolLine && <span className={`tool ${toolLine.mono ? 'mono' : ''}`} title={toolLine.object}>{toolLine.verb} {toolLine.object}</span>}
               </span>
               <ReadAloud />
@@ -183,13 +184,4 @@ function UpNextItem({ text, editing = false, onSave, onDrop }: { text: string; e
       </span>
     </li>
   );
-}
-
-function time(at: number) {
-  const ago = Date.now() - at;
-  if (ago < 60000) return 'just now';
-  if (ago < 3600000) return `${Math.floor(ago / 60000)} min ago`;
-  const d = new Date(at);
-  const clock = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  return d.toDateString() === new Date().toDateString() ? clock : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
 }

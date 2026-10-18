@@ -63,7 +63,7 @@
 .step-name { font-weight: 600; }
 .step-row.skipped .step-name { font-weight: 400; color: var(--fg-muted); }
 .step-meta { min-width: 0; color: var(--fg-muted); }
-.step-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0 0 8px 24px; font-size: var(--text-sm); line-height: 20px; }
+.step-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 0 8px 24px; font-size: var(--text-sm); line-height: 20px; }
 .step-acts .link { min-height: 24px; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 .step-btn { min-height: 36px; padding: 0 16px; border-radius: var(--radius-pill); font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
 
