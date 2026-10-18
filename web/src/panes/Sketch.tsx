@@ -6,24 +6,13 @@ import { insertPrompt } from './Files';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { REASON_MAX, type SketchDoc, type SketchScreen } from '../../../shared/design';
 import { dirKey } from './sketchLayout';
+import { useNarrow } from '../touch';
 
 const SketchCanvas = lazy(() => import('./SketchCanvas'));
 type CanvasFocus = { dir: string; n: number };
 const letter = (i: number) => String.fromCharCode(65 + i);
 const startDir = (s: SketchScreen, shown: Record<string, string>) => dirKey(s.id, shown[s.id] ?? s.chosen ?? s.directions[0]?.id ?? '');
 
-/** Phones show one direction at a time, so the sketch is big enough to read. */
-function useNarrow() {
-  const q = '(max-width: 900px)';
-  const [narrow, setNarrow] = useState(() => matchMedia(q).matches);
-  useEffect(() => {
-    const m = matchMedia(q);
-    const on = () => setNarrow(m.matches);
-    m.addEventListener('change', on);
-    return () => m.removeEventListener('change', on);
-  }, []);
-  return narrow;
-}
 
 export function Sketch() {
   const chat = useStore((s) => s.session.id);
