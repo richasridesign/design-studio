@@ -38,9 +38,20 @@ describe('typedAnswer', () => {
     expect(typedAnswer('make it calmer', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'make it calmer' });
     expect(typedAnswer('go through every dialog and list the ones with no close icon', plan)).toMatchObject({ allow: false });
   });
-  it('answers every question with her words', () => {
-    expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'error message B, voice 2', 'Which voice?': 'error message B, voice 2' } });
+  it('sends her words once, as one free answer to every question on the card', () => {
+    expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message? / Which voice?': 'error message B, voice 2' } });
+    expect(typedAnswer('option A', { ...question, questions: question.questions.slice(0, 1) })).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'option A' } });
   });
+  for (const t of ['y', 'Y', 'yes', 'Yes.', 'ok', 'OK', 'okay', 'yes please', 'Yes, please', 'lgtm', 'LGTM!', 'sure', 'sure go', 'Sure, go ahead', 'okay, go']) {
+    it(`approves a waiting plan on "${t}"`, () => {
+      expect(typedAnswer(t, plan)).toEqual({ type: 'permission', id: 'p1', allow: true });
+    });
+  }
+  for (const t of ['no', 'No.', 'not yet', 'nope', 'change the toast copy', 'yes but change the toast', 'ok, make it calmer', 'sure, what about the mic?']) {
+    it(`does not approve a waiting plan on "${t}"`, () => {
+      expect(typedAnswer(t, plan)).toMatchObject({ type: 'permission', allow: false, note: t });
+    });
+  }
   it('leaves other cards and empty text alone', () => {
     expect(typedAnswer('stop that', bash)).toBeNull();
     expect(typedAnswer('  ', plan)).toBeNull();

@@ -251,8 +251,10 @@ describe('stored steps', () => {
 
 describe('approvalReply', () => {
   it('takes her short approvals and nothing longer', () => {
-    for (const t of ['go', 'Go ahead', 'approved', 'A', 'option B', 'ok go', 'go, keep the voice button', 'go with A', 'Go with option B']) expect(approvalReply(t)).toBe(t);
+    for (const t of ['go', 'Go ahead', 'approved', 'A', 'option B', 'ok go', 'go, keep the voice button', 'go with A', 'Go with option B', 'lgtm', 'sure, go', 'okay go ahead']) expect(approvalReply(t)).toBe(t);
     for (const t of ['a lot of blue here', 'good morning', 'go through every dialog and list the ones with no close icon please']) expect(approvalReply(t)).toBeNull();
+    // A bare yes or ok in the chat could answer any question, so the You said go check does not count it.
+    for (const t of ['y', 'yes', 'ok', 'okay', 'sure', 'yes please', 'no', 'not yet']) expect(approvalReply(t)).toBeNull();
   });
   it('shows on Plan as information, with or without a written plan', () => {
     expect(byId({ ...none, approvedInChat: 'go' }).spec.checks.at(-1)).toMatchObject({ label: 'You said go', state: 'met', detail: '"go", no written plan' });
