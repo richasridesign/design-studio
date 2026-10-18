@@ -1,4 +1,5 @@
 /* Review pane: closing a finding by hand (triage). */
+.findings .f-body { flex: 1; }
 .findings .f-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
 .findings .f-foot .link { margin-top: 0; align-self: center; }
 
