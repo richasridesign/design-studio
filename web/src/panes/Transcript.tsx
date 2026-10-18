@@ -316,22 +316,22 @@ function ReviewCard({ runAt }: { runAt: number }) {
         {areaRows(run).map((a) => (
           <li
             key={a.key}
-            className={a.pass ? 'pass' : 'fail link'}
+            className={a.pass ? 'pass' : `fail tr-review-go ${a.tone}`}
             {...(a.pass ? {} : { role: 'button', tabIndex: 0, title: 'Show findings', onClick: () => focusReview({ runId: run.id, area: a.key }), onKeyDown: (e: React.KeyboardEvent) => e.key === 'Enter' && focusReview({ runId: run.id, area: a.key }) })}
           >
-            <Icon name={a.pass ? 'check' : 'close'} small />
-            <span>{a.name}</span>
+            <Icon name={a.pass ? 'check' : a.tone === 'major' ? 'warning' : 'close'} small />
+            <span className="tr-review-name">{a.name}</span>
             {a.failed && <span className="tr-review-failed">failed</span>}
           </li>
         ))}
       </ul>
-      {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review <button onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
+      {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review. <button className="link" onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
       <div className="tr-review-actions">
         <button onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }))}>Open Review</button>
-        {hasFindings && <button onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
-        {hasFile && pending.length > 0 && <button disabled={posting} onClick={post}>Post as Figma comments</button>}
-        {retryPrompt(run) && <button title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
-        {canGoDeeper(run) && <button onClick={() => insertPrompt('/review full')}>Review deeper</button>}
+        {hasFile && pending.length > 0 && <button className="link" disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={post}>Post {pending.length} to Figma</button>}
+        {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
+        {retryPrompt(run) && <button className="link" title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
+        {canGoDeeper(run) && <button className="link" onClick={() => insertPrompt('/review full')}>Review deeper</button>}
         {note && <span className="tr-review-note">{note}</span>}
       </div>
     </div>
