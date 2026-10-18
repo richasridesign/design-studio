@@ -350,7 +350,10 @@ function flowLine(run: FlowCheckRun) {
   if (!checked.length) return `${st('none', 'Prototype check:')} No flows checked`;
   // A large file read only in part can hide broken flows, so a clean partial run is not a pass (as in the Validate gate).
   const partial = run.truncated ? ', some flows not checked: the file is too large to read in full' : '';
-  if (failing.length) return `${st('fail', 'Prototype check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}${partial}`)}`;
+  // Flows named in Scope but not in the file keep the check open, as in the Validate gate.
+  const missing = run.missing?.length ? `. Not found in the file: ${run.missing.join(', ')}` : '';
+  if (failing.length) return `${st('fail', 'Prototype check:')} ${esc(`${plural(issues, 'issue')} in ${failing.length} of ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
+  if (missing) return `${st('fail', 'Prototype check:')} ${esc(`No issues in ${plural(checked.length, 'flow')}${partial}${missing}`)}`;
   if (partial) return `${st('none', 'Prototype check:')} ${esc(`No issues found${partial}`)}`;
   return `${st('pass', 'Prototype check:')} ${esc(checked.length === 1 ? 'The flow passed' : `All ${checked.length} flows passed`)}`;
 }
