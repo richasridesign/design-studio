@@ -107,9 +107,6 @@ export function approvePrompt(item: Pick<AwaitItem, 'rule' | 'fix' | 'impact' | 
   ].join('\n');
 }
 
-/** A link to the node in its Figma file, for items from any file. */
-export const nodeUrl = (fileKey: string, node: string) => `https://www.figma.com/design/${fileKey}/?node-id=${node.replace(':', '-')}`;
-
 /** How many of a run's findings still wait for her decision. Without the list (not loaded yet) every finding marked decide counts. */
 export function stillAwaiting(findings: Finding[], fileKey: string | undefined, list: AwaitItem[] | null): number {
   const asked = findings.filter((f) => f.decide);

@@ -1,5 +1,7 @@
 // Decision stickies: two product decisions per Figma screen, each a bold line plus a "Why:" line.
 
+import { figmaNodeUrl } from './design.js';
+
 export type Decision = { decision: string; why: string };
 export type FrameDecisions = { name: string; items: [Decision, Decision] };
 export type DecisionDoc = Record<string, FrameDecisions>;
@@ -11,7 +13,6 @@ const MAX = { text: 400, name: 200, frames: 1000 };
 
 const blank = (): Decision => ({ decision: '', why: '' });
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-const nodeUrl = (key: string, id: string) => `https://www.figma.com/design/${key}?node-id=${id.replace(':', '-')}`;
 
 export const wordCount = (...parts: string[]) => parts.join(' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
 
@@ -120,7 +121,7 @@ const RULES = [
 
 export function draftPrompt(key: string, screens: Screen[], doc: DecisionDoc): string {
   const todo = screens.filter((s) => !slots(doc, s.id).every(filled));
-  const list = (todo.length ? todo : screens).map((s) => `- ${s.name} (${s.id}): ${nodeUrl(key, s.id)}`).join('\n');
+  const list = (todo.length ? todo : screens).map((s) => `- ${s.name} (${s.id}): ${figmaNodeUrl(key, s.id)}`).join('\n');
   return [
     'Look at these Figma screens and propose the two most important product decisions for each one.',
     ...RULES.map((r) => `- ${r}`),
@@ -142,7 +143,7 @@ export function draftPrompt(key: string, screens: Screen[], doc: DecisionDoc): s
 export function stickyPrompt(key: string, screen: Screen, items: [Decision, Decision]): string {
   const body = items.map((d, i) => `Decision ${i + 1} · ${screen.name}\n${d.decision}\nWhy: ${d.why}`).join('\n\n');
   return [
-    `Place two Decision stickies under the screen "${screen.name}" (${nodeUrl(key, screen.id)}).`,
+    `Place two Decision stickies under the screen "${screen.name}" (${figmaNodeUrl(key, screen.id)}).`,
     '- Use the Decision sticky component if the file has one, otherwise a FigJam style sticky.',
     '- Put them 96px under the frame, side by side, with the same row spacing as other stickies in the file. Both share one height.',
     `- Name them "Decision 1 · ${screen.name}" and "Decision 2 · ${screen.name}". If stickies with those names exist, update them instead of adding new ones.`,
