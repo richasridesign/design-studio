@@ -51,11 +51,49 @@ function screenName(raw: string): string {
 function lineStates(text: string): string[] {
   const pair = SPLIT.exec(text);
   if (pair && /^states?$/i.test(clean(pair[1]))) return splitStates(pair[2]);
+  // "Card declined - error under the field" (any dash) reads as "Card declined: error under the field".
   if (pair && pair[2].trim()) {
-    const s = clean(text);
+    const s = clean(`${pair[1]}: ${pair[2]}`);
     return s ? [s] : [];
   }
   return splitStates(text);
+}
+
+/** "S1 Cart", "S1: Cart - item rows", "Cart (S1)" or a "| S1 | Cart |" row: the id and the name, or null without an id. */
+function idAndName(raw: string): [id: string, name: string] | null {
+  const t = raw.replace(/\*\*|__|`/g, '').trim();
+  const row = TABLE_ROW.exec(t);
+  if (row) {
+    const [a, b] = row[1].split('|').map((c) => c.trim());
+    return ID.test(a) && b && clean(b) ? [a, clean(b)] : null;
+  }
+  const pair = SPLIT.exec(t);
+  if (pair && ID.test(pair[1].trim())) {
+    const name = clean(SPLIT.exec(pair[2])?.[1] ?? pair[2]);
+    return name ? [pair[1].trim(), name] : null;
+  }
+  const head = pair ? pair[1] : t;
+  const inner = /^(.+?)\s*\(([^)]+)\)$/.exec(head);
+  if (inner && ID.test(inner[2].trim())) return [inner[2].trim(), clean(inner[1])];
+  if (inner && ID.test(inner[1].trim())) return [inner[1].trim(), clean(inner[2])];
+  const lead = /^(\S+?)[.:)\u00b7\u2013\u2014-]?\s+(?:[\u00b7\u2013\u2014-]\s+)?(\S.*)$/.exec(clean(head));
+  return lead && ID.test(lead[1]) ? [lead[1], lead[2]] : null;
+}
+
+/** Screen ids from the Screens section, so a States line that only says "S1: default" still names Cart. */
+function screenIds(lines: string[]): Map<string, string> {
+  const ids = new Map<string, string>();
+  const start = lines.findIndex((l) => { const h = heading(l); return !!h && (h.level <= 3 || h.level === 7) && /^screens?\b/i.test(h.text); });
+  if (start < 0) return ids;
+  const level = heading(lines[start])!.level;
+  for (const l of lines.slice(start + 1)) {
+    const h = heading(l);
+    if (h && h.level <= level) break;
+    const b = BULLET.exec(l);
+    const found = idAndName(h ? h.text : b ? b[2] : l);
+    if (found && !ids.has(found[0])) ids.set(found[0], found[1]);
+  }
+  return ids;
 }
 
 /** Rows of a Markdown table: Screen | States, Screen | State | Notes, or Screen | Default | Error with check marks. */
@@ -85,8 +123,10 @@ export function parseStates(md: string): BriefScreen[] {
   if (start < 0) return [];
   const level = heading(lines[start])!.level;
   const out = new Map<string, BriefScreen>();
+  const ids = screenIds(lines);
   const add = (screen: string, states: string[]) => {
-    const name = screenName(screen);
+    const short = screenName(screen);
+    const name = ids.get(short) ?? short;
     if (!name || !states.length) return;
     const key = norm(name);
     const entry = out.get(key) ?? { screen: name, states: [] };
