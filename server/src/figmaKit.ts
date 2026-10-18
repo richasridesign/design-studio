@@ -1,15 +1,20 @@
-import { CHECKPOINT } from './flow.js';
-
 // Helpers that Design Studio puts in front of every use_figma script that uses them, so Claude's edit scripts stay
 // short and the usual slips (a null node, an unloaded font, a hover that points at the wrong variant) fail with a
-// plain message instead. Claude calls them as DS.<name>. The PreToolUse hook adds them and, on the first Figma call
-// of a turn, a version save, so Claude no longer spends a call on either.
+// plain message instead. Claude calls them as DS.<name>, and the PreToolUse hook adds them to the scripts that do.
+// use_figma does not support figma.saveVersionHistoryAsync (it throws "not a supported API"), so no version is saved.
 
 /** Plain Plugin API JavaScript. Defines one constant, DS. Read only until a helper that edits is called. */
 export const FIGMA_KIT = `const DS = (() => {
   const norm = (id) => String(id).replace('-', ':');
   const short = (s, n = 60) => { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-  const box = (n) => { const b = n.absoluteBoundingBox || { x: n.x || 0, y: n.y || 0, width: n.width || 0, height: n.height || 0 }; return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; };
+  const sure = (n, what) => {
+    if (n && typeof n.then === 'function') throw new Error(what + ' got a Promise: write await DS.node(id) first.');
+    if (typeof n === 'string') throw new Error(what + ' needs a node, not an id: use await DS.node("' + n + '").');
+    if (!n) throw new Error(what + ' got no node.');
+    return n;
+  };
+  const get = async (x) => (x && typeof x.then === 'function' ? await x : typeof x === 'string' ? await node(x) : x);
+  const box = (n) => { sure(n, 'DS.box'); const b = n.absoluteBoundingBox || { x: n.x || 0, y: n.y || 0, width: n.width || 0, height: n.height || 0 }; return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; };
   const pageOf = (n) => { while (n && n.type !== 'PAGE') n = n.parent; return n; };
   async function node(id) {
     const n = await figma.getNodeByIdAsync(norm(id));
@@ -27,6 +32,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return (n) => n.name === s;
   }
   function find(root, m, type) {
+    sure(root, 'DS.find');
     const ok = matcher(m);
     const types = type ? [].concat(type) : null;
     const list = types && root.findAllWithCriteria ? root.findAllWithCriteria({ types }) : root.findAll ? root.findAll(() => true) : [];
@@ -38,6 +44,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return hit[0];
   }
   function texts(root, m) {
+    sure(root, 'DS.texts');
     const ok = typeof m === 'function' ? m : m instanceof RegExp ? (t) => m.test(t) : (t) => t.includes(String(m));
     return root.findAllWithCriteria({ types: ['TEXT'] }).filter((t) => ok(t.characters));
   }
@@ -46,7 +53,7 @@ export const FIGMA_KIT = `const DS = (() => {
     for (const f of list) if (f && typeof f === 'object') await figma.loadFontAsync(f);
   }
   async function setText(t, chars) {
-    if (typeof t === 'string') t = await node(t);
+    t = await get(t);
     if (t.type !== 'TEXT') throw new Error(t.name + ' (' + t.id + ') is a ' + t.type + ', not a text layer.');
     await fonts(t);
     t.characters = String(chars);
@@ -69,7 +76,7 @@ export const FIGMA_KIT = `const DS = (() => {
   }
   const plain = (r) => ({ trigger: r.trigger, actions: r.actions && r.actions.length ? r.actions : r.action ? [r.action] : [] });
   async function wireHover(inst) {
-    if (typeof inst === 'string') inst = await node(inst);
+    inst = await get(inst);
     if (inst.type !== 'INSTANCE') return null;
     const main = await inst.getMainComponentAsync();
     const hover = hoverOf(main);
@@ -80,13 +87,14 @@ export const FIGMA_KIT = `const DS = (() => {
     return hover.id;
   }
   async function setVariant(inst, props) {
-    if (typeof inst === 'string') inst = await node(inst);
+    inst = await get(inst);
     if (inst.type !== 'INSTANCE') throw new Error(inst.name + ' (' + inst.id + ') is a ' + inst.type + ', not an instance.');
     inst.setProperties(props);
     await wireHover(inst);
     return inst;
   }
   function moveTo(n, x, y) {
+    sure(n, 'DS.moveTo');
     const p = n.parent;
     const t = p && p.type !== 'PAGE' && p.absoluteTransform ? p.absoluteTransform : [[1, 0, 0], [0, 1, 0]];
     n.x = Math.round(x - t[0][2]);
@@ -96,6 +104,7 @@ export const FIGMA_KIT = `const DS = (() => {
   function placeBelow(n, ref, gap = 96) { const b = box(ref); return moveTo(n, b[0], b[1] + b[3] + gap); }
   function placeRight(n, ref, gap = 160) { const b = box(ref); return moveTo(n, b[0] + b[2] + gap, b[1]); }
   function clone(screen, opts = {}) {
+    sure(screen, 'DS.clone');
     const c = screen.clone();
     if (opts.parent) opts.parent.appendChild(c);
     if (opts.name) c.name = opts.name;
@@ -103,6 +112,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return c;
   }
   function fit(section, pad = 320) {
+    sure(section, 'DS.fit');
     const kids = section.children.filter((k) => k.visible !== false);
     if (!kids.length) return section;
     const s = box(section);
@@ -113,6 +123,7 @@ export const FIGMA_KIT = `const DS = (() => {
   }
   const hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
   function overlaps(parent) {
+    sure(parent, 'DS.overlaps');
     const kids = parent.children.filter((k) => k.visible !== false && k.type !== 'TEXT');
     const out = [];
     for (let i = 0; i < kids.length; i++) for (let j = i + 1; j < kids.length; j++) if (hit(box(kids[i]), box(kids[j]))) out.push([kids[i].id, kids[j].id]);
@@ -122,7 +133,7 @@ export const FIGMA_KIT = `const DS = (() => {
     const out = { hoverMissing: [], hoverWrong: [], outside: [], overlaps: [] };
     const seen = new Set();
     for (const id of [].concat(list)) {
-      const root = typeof id === 'string' ? await node(id) : id;
+      const root = await get(id);
       const instances = root.type === 'INSTANCE' ? [root] : root.findAllWithCriteria ? root.findAllWithCriteria({ types: ['INSTANCE'] }) : [];
       for (const inst of instances.slice(0, 400)) {
         if (inst.visible === false) continue;
@@ -150,6 +161,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return out;
   }
   function tree(n, depth = 2, max = 150) {
+    sure(n, 'DS.tree');
     const lines = [];
     const walk = (x, d) => {
       if (lines.length >= max) return;
@@ -169,6 +181,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return (await figma.variables.getLocalVariablesAsync()).filter((v) => ok(v));
   }
   async function bindColor(n, field, name) {
+    n = await get(n);
     const v = (await vars(name))[0];
     if (!v) throw new Error('No local variable named ' + name + '. List them with DS.vars("~part of name").');
     const list = (n[field] && n[field].length ? n[field] : [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }]).slice();
@@ -181,7 +194,7 @@ export const FIGMA_KIT = `const DS = (() => {
     if (s.length <= 18000) return value;
     return { truncated: true, note: 'The result was cut to fit: return fewer fields.', head: s.slice(0, 17000) };
   }
-  async function shot(n, opts) { if (typeof n === 'string') n = await node(n); await n.screenshot(opts); return n.id; }
+  async function shot(n, opts) { n = await get(n); await n.screenshot(opts); return n.id; }
   return { node, page, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, tree, vars, bindColor, box, done, shot };
 })();`;
 
@@ -195,6 +208,8 @@ export const KIT_GUIDE = [
   '- DS.clone(screen, { name, below?, gap? }), DS.placeRight(node, ref, gap=160), DS.placeBelow(node, ref, gap=96), DS.moveTo(node, absX, absY), DS.fit(section, pad=320) grows a section around its children.',
   '- DS.check([ids]): hover missing or pointing at the wrong variant, children outside their frame, overlaps in the section. DS.overlaps(parent). DS.tree(node, depth=2): compact layer list for discovery.',
   '- DS.shot(node|id): screenshot returned inline with the result, so no get_screenshot call is needed. DS.done(value) keeps the return value under the size limit.',
+  '- Await DS.node, DS.page, DS.check, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
+  'Example, one call that fixes, checks and shows: const s = await DS.node("1:31"); await DS.wireHover(DS.one(s, "~Button", "INSTANCE")); const t = DS.one(s, "~Toast"); DS.moveTo(t, DS.box(s)[0] + (s.width - t.width) / 2, DS.box(s)[1] + 24); await DS.shot(s); return DS.done({ check: await DS.check([s.id]) });',
 ].join('\n');
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (...args: string[]) => (...a: unknown[]) => Promise<unknown>;
@@ -218,29 +233,22 @@ export const usesKit = (code: string) => /\bDS\s*\.\s*[A-Za-z]/.test(code);
 const MAX_CODE = 50000;
 
 /**
- * Builds the code that runs: an optional version save, then the helpers and Claude's code in its own scope, so a
- * name Claude declares never clashes with one of ours. Returns null when nothing needs to change.
+ * Adds the helpers in front of code that uses DS, with Claude's code in its own scope so a name it declares never
+ * clashes with one of ours. Returns null when nothing needs to change or the result would be too long.
  */
-export function wrapFigmaCode(code: string, opts: { save?: string | null }): string | null {
-  const save = opts.save && !code.includes(CHECKPOINT) ? `await figma.${CHECKPOINT}(${JSON.stringify(opts.save.slice(0, 120))});\n` : '';
-  const kit = usesKit(code);
-  if (!save && !kit) return null;
-  const out = kit ? `${save}${FIGMA_KIT}\nreturn await (async () => {\n${code}\n})();` : `${save}${code}`;
-  return out.length <= MAX_CODE ? out : save ? `${save}${code}` : null;
+export function wrapFigmaCode(code: string): string | null {
+  if (!usesKit(code)) return null;
+  const out = `${FIGMA_KIT}\nreturn await (async () => {\n${code}\n})();`;
+  return out.length <= MAX_CODE ? out : null;
 }
 
-export type FigmaCall = { code?: unknown; description?: unknown; [k: string]: unknown };
+export type FigmaCall = { code?: unknown; [k: string]: unknown };
 
-/**
- * What the use_figma hook does with one call. `needSave` is true until a version is saved in this turn.
- * The version save goes into the call itself, so the first edit of a turn costs no extra round trip.
- */
-export function prepareFigmaCall(input: FigmaCall, needSave: boolean): { input: FigmaCall | null; saved: boolean } {
+/** What the use_figma hook does with one call: the input with the helpers added, or null to leave it as it is. */
+export function prepareFigmaCall(input: FigmaCall): FigmaCall | null {
   const code = typeof input.code === 'string' ? input.code : '';
-  // Code that does not parse fails before the save would run, so leave it alone and save with the next call.
-  if (!code || !parsesSafely(code)) return { input: null, saved: false };
-  const alreadySaves = code.includes(CHECKPOINT);
-  const label = `Design Studio: ${String(input.description ?? 'edit').replace(/\s+/g, ' ').trim().slice(0, 80) || 'edit'}`;
-  const wrapped = code ? wrapFigmaCode(code, { save: needSave ? label : null }) : null;
-  return { input: wrapped ? { ...input, code: wrapped } : null, saved: needSave && (alreadySaves || (wrapped?.includes(CHECKPOINT) ?? false)) };
+  // Code that does not parse fails the same way with or without the helpers, and Claude's error reads better alone.
+  if (!code || !parsesSafely(code)) return null;
+  const wrapped = wrapFigmaCode(code);
+  return wrapped ? { ...input, code: wrapped } : null;
 }
