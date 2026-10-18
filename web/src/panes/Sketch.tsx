@@ -10,6 +10,7 @@ import { dirKey } from './sketchLayout';
 const SketchCanvas = lazy(() => import('./SketchCanvas'));
 type CanvasFocus = { dir: string; n: number };
 const letter = (i: number) => String.fromCharCode(65 + i);
+const startDir = (s: SketchScreen, shown: Record<string, string>) => dirKey(s.id, shown[s.id] ?? s.chosen ?? s.directions[0]?.id ?? '');
 
 /** Phones show one direction at a time, so the sketch is big enough to read. */
 function useNarrow() {
@@ -157,7 +158,7 @@ export function Sketch() {
       {(doc || error) && <div className="sketch-canvas">
         {board && (
           <Suspense fallback={<div className="hint">Loading the canvas…</div>}>
-            <SketchCanvas key={chat} doc={doc} board={board} focus={focus} onBoard={(els) => postJson('/api/sketch/board', { elements: els }).catch(() => {})} />
+            <SketchCanvas key={chat} doc={doc} board={board} focus={focus} start={narrow && doc?.screens[0] ? startDir(doc.screens[0], shown) : undefined} onBoard={(els) => postJson('/api/sketch/board', { elements: els }).catch(() => {})} />
           </Suspense>
         )}
       </div>}
