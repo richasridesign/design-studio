@@ -8,7 +8,7 @@ import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { FileIcon } from './Explorer';
-import { insertPrompt, showNode } from './Files';
+import { focusComposer, insertPrompt, showNode } from './Files';
 import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
@@ -43,9 +43,19 @@ export function Transcript({ view = 'transcript', children }: { view?: ChatView;
   return <TranscriptView events={events} cwd={cwd} running={running} stopping={stopping} status={status} figmaKey={figmaKey} view={view}>{children}</TranscriptView>;
 }
 
-export function welcomeChips(fileName: string | null): Array<{ label: string; attach?: boolean }> {
-  if (fileName) return [`Review the frames in ${fileName} for spacing and contrast`, 'Add missing empty, loading and error states to the selected frame', 'Suggest three layout options for the selected frame', `Write a design brief for the next screen in ${fileName}`].map((label) => ({ label }));
-  return [{ label: 'Attach Figma file', attach: true }, { label: 'Suggest three layout options for a pricing page' }, { label: 'Write empty, loading and error states for a sign-up screen' }, { label: 'Turn these notes into a design brief' }];
+/**
+ * The four ways she starts a chat: a frame link with a note, a new flow plan, a fix across all flows, a review only.
+ * A chip with text puts the start of a prompt in the box for her to finish; one without text just opens the box for a paste.
+ */
+export type WelcomeChip = { label: string; text?: string; attach?: boolean };
+export function welcomeChips(fileName: string | null): WelcomeChip[] {
+  const starts: WelcomeChip[] = [
+    { label: 'Fix a frame: paste its link and a note' },
+    { label: 'Plan a new flow', text: 'List the screens, states and buttons for a new flow, then wait for my go. The flow:' },
+    ...(fileName ? [{ label: 'Fix something across all flows', text: 'Fix this across all flows:' }] : []),
+    { label: 'Review only, no changes', text: fileName ? `Review only, do not change anything. Review the latest flows in ${fileName}` : 'Review only, do not change anything. Review:' },
+  ];
+  return fileName ? starts : [{ label: 'Attach Figma file', attach: true }, ...starts];
 }
 
 function SetupBanner() {
@@ -85,7 +95,7 @@ function Welcome({ fileName }: { fileName: string | null }) {
     <div className="tl-welcome">
       <SetupBanner />
       <h2>What are we working on?</h2>
-      <p>Ask Claude about a design. Design mode (⌥M) plans, sketches, builds and reviews it in Figma.</p>
+      <p>Paste a frame link with a note, or start from one of these. Design mode plans, builds and reviews in Figma.</p>
       {attach && (
         <div className="tl-start">
           <button className="tl-attach" onClick={() => window.dispatchEvent(new Event('designstudio:attach'))}><Icon name="file-media" small />{attach.label}</button>
@@ -93,11 +103,11 @@ function Welcome({ fileName }: { fileName: string | null }) {
         </div>
       )}
       {sampleError && <p className="error-text" role="alert">{sampleError}</p>}
-      <div className="tl-suggest-label" id="tl-suggest-label">Or start from a prompt</div>
+      <div className="tl-suggest-label" id="tl-suggest-label">Start with</div>
       <ul className="tl-suggest" aria-labelledby="tl-suggest-label">
         {chips.filter((c) => !c.attach).map((c) => (
           <li key={c.label}>
-            <button title="Put this prompt in the message box" onClick={() => insertPrompt(c.label)}>
+            <button title={c.text ? 'Put the start of this prompt in the message box' : 'Go to the message box to paste a frame link'} onClick={() => (c.text ? insertPrompt(c.text) : focusComposer())}>
               <span>{c.label}</span>
               <Icon name="arrow-right" small />
             </button>
