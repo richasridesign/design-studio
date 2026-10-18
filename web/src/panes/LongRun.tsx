@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { send, useStore } from '../store';
+import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
-import { REASON_TEXT, hhmm, isActive, untilFrom, usedPct, type LongRun, type Report } from '../../../shared/longRun';
+import { REASON_TEXT, hhmm, isActive, stallReason, untilFrom, usedPct, type LongRun, type Report } from '../../../shared/longRun';
 import '../longrun.css';
 
 const TWO_HOURS = 2 * 3600_000;
@@ -17,12 +17,15 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (until
   const [open, setOpen] = useState(false);
   const [until, setUntil] = useState('');
   const [cap, setCap] = useState('90');
+  const mode = useStore((s) => s.session.permissionMode);
+  const [askBeforeEdit, setAskBeforeEdit] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
 
   useEffect(() => {
     if (!open) return;
     setUntil(hhmm(Date.now() + TWO_HOURS));
+    getJson<{ askBeforeEdit?: boolean }>('/api/settings').then((x) => setAskBeforeEdit(Boolean(x.askBeforeEdit)), () => {});
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', down);
@@ -64,6 +67,12 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (until
             <span className="lr-pct"><input id={`${id}-c`} type="number" inputMode="numeric" min={1} max={100} value={cap} onChange={(e) => setCap(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && start()} />%</span>
           </label>
           <span className="lr-help">Of the 5-hour limit{limit?.kind === 'five_hour' && limit.used !== null ? `. Now ${used}% used.` : '.'}</span>
+          {stallReason(mode, askBeforeEdit) && (
+            <p className="lr-warn" role="note">
+              <span className="lr-warn-mark" aria-hidden />
+              <span>{stallReason(mode, askBeforeEdit)}{askBeforeEdit && <> <button className="link" onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } })); }}>Open Settings</button></>}</span>
+            </p>
+          )}
           <div className="lr-pop-foot">
             <button className="primary" disabled={!!problem} onClick={start}>Start long run</button>
             {problem && <span className="lr-help" role="status">{problem}</span>}
