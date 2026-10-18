@@ -4,6 +4,7 @@
 import type { DesignDoc, ReviewDoc, SketchDoc } from './design.js';
 import type { DecisionDoc } from './decisions.js';
 import { filled } from './decisions.js';
+import { scopeSummary, type Scope } from './scope.js';
 
 export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -29,6 +30,8 @@ export type Stage = { id: StageId; name: string; goal: string; state: StageState
 export type StageEvidence = {
   brief: string | null;
   figma: boolean;
+  /** Older callers and tests leave it out. */
+  scope?: Scope | null;
   sketch: SketchDoc | null;
   design: DesignDoc | null;
   review: ReviewDoc | null;
@@ -46,6 +49,7 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
     case 'spec':
       return [
         check('Brief written', !!e.brief?.trim(), e.brief?.trim() ? short(e.brief) : 'Describe the work in the chat'),
+        check('Flows in scope named', !!e.scope?.flows.length, e.scope?.flows.length ? scopeSummary(e.scope) : 'Name the flows this work must keep'),
         check('Figma file attached', e.figma, e.figma ? 'Attached' : 'Attach the file Claude designs in', e.figma ? undefined : 'attach'),
       ];
     case 'explore': {

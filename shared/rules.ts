@@ -1,3 +1,5 @@
+import { parkedRules, type Scope } from './scope.js';
+
 export type RuleState = 'pass' | 'fail' | 'unchecked';
 export type RuleResult = { rule: string; state: RuleState; frames: string[] };
 
@@ -17,7 +19,8 @@ export function parseRules(text: string): string[] {
   return out;
 }
 
-export const allRules = (r: { global: string; file: string }) => [...new Set([...parseRules(r.global), ...parseRules(r.file)])];
+// Parked features join the rules, so every review checks they stay out.
+export const allRules = (r: { global: string; file: string; scope?: Scope }) => [...new Set([...parseRules(r.global), ...parseRules(r.file), ...parkedRules(r.scope)])];
 
 const ID = /^I?\d+[:-]\d+(?:;\d+[:-]\d+)*$/;
 const toId = (s: string) => s.trim().replace(/-/g, ':');

@@ -358,7 +358,7 @@ export class AgentSession {
   private async refreshRules() {
     const rules = rulesBlock(await readRules(this.cwd));
     if (rules !== this.rules) {
-      if (this.q) this.rulesNote = rules ? `House rules updated, follow these from now on:\n${rules}` : 'House rules updated: there are no house rules now.';
+      if (this.q) this.rulesNote = rules ? `House rules or scope updated, follow these from now on:\n${rules}` : 'House rules and scope cleared: there are none now.';
       this.rules = rules;
     }
     this.askBeforeEdit = (await settings()).askBeforeEdit;

@@ -19,9 +19,10 @@ describe('stages', () => {
   });
 
   it('is ready when every check is met, but stays current until approved', () => {
-    const list = stages({ ...none, brief: 'Saved items screen\nfor a grocery app', figma: true }, {});
+    const list = stages({ ...none, brief: 'Saved items screen\nfor a grocery app', figma: true, scope: { flows: ['Saved items'], parked: [] } }, {});
     expect(list[0].state).toBe('ready');
     expect(list[0].checks[0].detail).toBe('Saved items screen');
+    expect(list[0].checks[1]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
     expect(list[1].state).toBe('later');
   });
 
