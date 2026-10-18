@@ -88,6 +88,10 @@ describe('flow check on the Validate gate', () => {
     const s = byId({ ...none, review: { runs: [run()] }, flowcheck: fc([flow('a', {})]) });
     expect(s.validate.checks.at(-1)).toMatchObject({ state: 'met', detail: 'Flow check: the flow passed' });
   });
+  it('does not pass a clean run that read only part of a large file', () => {
+    const s = byId({ ...none, review: { runs: [run()] }, flowcheck: { ...fc([flow('a', {})]), truncated: true } });
+    expect(s.validate.checks.at(-1)).toMatchObject({ state: 'open', detail: 'Flow check: the file is too large to read in full, so some flows were not checked' });
+  });
 });
 
 describe('research', () => {
