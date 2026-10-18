@@ -347,7 +347,7 @@ export function App() {
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
               {content.decisions && <button onClick={() => open('decisions')}>Decisions</button>}
-              <button onClick={() => setSettings(true)}>Settings</button>
+              {/* Settings is the gear in the top bar, so it is not repeated here. */}
             </div>
           )}
           <ErrorBoundary label="sidebar">

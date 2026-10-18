@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson, useStore } from '../store';
 import { getOutline, refreshOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
+import { ago } from '../ago';
 import { attachFigma, insertPrompt } from './Files';
 import { DecisionLog } from './DecisionLog';
 import { FigmaErrorText } from '../FigmaLogin';
@@ -41,11 +42,6 @@ function useDraft(screens: Screen[]) {
     return null;
   }, [events, screens]);
 }
-
-const readAgo = (at: number) => {
-  const m = Math.floor((Date.now() - at) / 60000);
-  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} d ago`;
-};
 
 export function Decisions() {
   const figma = useStore((s) => s.session.figma);
@@ -179,7 +175,7 @@ export function Decisions() {
       {error && <p className="dec-line" role="alert">Could not read the screens. <FigmaErrorText text={error} /></p>}
       {outline?.readAt && !reading && (
         <p className="dec-line dec-read">
-          <span>Screens read from Figma: {readAgo(outline.readAt)}.</span>
+          <span>Screens read from Figma: {ago(outline.readAt)}.</span>
           <button className="link" onClick={() => { setReading(true); refreshOutline(key).catch(() => {}).finally(() => setReading(false)); }}>Read again</button>
         </p>
       )}

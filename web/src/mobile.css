@@ -111,4 +111,7 @@
 @media (max-width: 480px) {
   .topbar .file-pill.no-file { width: 36px; height: 36px; padding: 0; justify-content: center; }
   .topbar .file-pill.no-file .file-label, .topbar .file-pill.no-file .codicon-chevron-down { display: none; }
+  /* The cost reads as "$0.01" on its own, so its card icon gives the file name the room. */
+  .topbar .spend-pill > .codicon { display: none; }
+  .topbar .top-meta { gap: 4px; }
 }

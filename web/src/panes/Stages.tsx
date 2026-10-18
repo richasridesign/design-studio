@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
+import { ago } from '../ago';
 import { CHAT_KINDS, KIND_INFO, REPEATS, stepLine, type ChatKind, type Stage, type StageCheck, type StageId, type StageOpen, type StagesView, type StepAction } from '../../../shared/stages';
 import { RECIPES } from '../../../shared/recipes';
 import { focusComposer, insertPrompt } from './Files';
@@ -21,7 +22,7 @@ function go(to: StageOpen) {
   else window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: `page:${to}` } }));
 }
 
-export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I resolved by hand in triage.json (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
+export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I closed by hand (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
 const PLAN_ASK = 'Plan this before building: screens, buttons, copy and states. Wait for my approval.';
 const RESEARCH_ASK = RECIPES.find((r) => r.id === 'research')?.prompt ?? 'Research this before any design: ';
 
@@ -42,14 +43,6 @@ export function nextStep(stage: Stage, brief: string): { label: string; run: () 
       return null;
     default: return null;
   }
-}
-
-function ago(at: number) {
-  const m = Math.floor((Date.now() - at) / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m} min ago`;
-  if (m < 1440) return `${Math.floor(m / 60)} h ago`;
-  return new Date(at).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
 export type StageChange = { action: StepAction; id: StageId; note?: string } | { action: 'kind'; kind: ChatKind | 'none' };
@@ -206,17 +199,18 @@ function Step({ s, open, onOpen, brief, change, children }: { s: Stage; open: bo
         {(round || meta) && <span className="step-meta">{[round, meta].filter(Boolean).join(' · ')}{s.stale && <span className="step-stale"> · May be out of date</span>}</span>}
         <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
       </button>
-      {/* Actions sit under the step they change: on the next step, and on any step she opens. */}
+      {/* Actions sit under the step they change: on the next step, and on any step she opens. The main action is a
+          Secondary button and the other a Ghost button, so the two never share one weight. */}
       {(open || s.next) && (
         <div className="step-acts">
           {s.state === 'todo' && (
             <>
               <button className="step-btn" onClick={done}>Mark done</button>
-              <button className="link" onClick={() => change({ action: 'skip', id: s.id })}>Not needed</button>
+              <button className="step-btn ghost" onClick={() => change({ action: 'skip', id: s.id })}>Not needed</button>
             </>
           )}
           {s.state === 'done' && REPEATS.includes(s.id) && <button className="step-btn" onClick={() => change({ action: 'again', id: s.id })}>Start round {s.round + 1}</button>}
-          {s.state !== 'todo' && <button className="link" onClick={() => change({ action: 'undo', id: s.id })}>Undo</button>}
+          {s.state !== 'todo' && <button className={REPEATS.includes(s.id) && s.state === 'done' ? 'step-btn ghost' : 'step-btn'} onClick={() => change({ action: 'undo', id: s.id })}>Undo</button>}
         </div>
       )}
       {open && (

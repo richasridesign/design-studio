@@ -131,16 +131,17 @@ export const stageFrames = (design: DesignDoc | null, review: ReviewDoc | null):
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const check = (label: string, met: boolean, detail: string, open?: StageOpen): StageCheck => ({ label, state: met ? 'met' : 'open', detail, open });
 
-function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
+function checksFor(id: StageId, e: StageEvidence, kind: ChatKind): StageCheck[] {
   const screens = e.sketch?.screens ?? [];
   const frames = stageFrames(e.design, e.review);
   switch (id) {
     case 'spec':
       return [
         check('Brief written', !!e.brief?.trim(), e.brief?.trim() ? short(e.brief) : 'Describe the work in the chat'),
-        e.research?.trim()
-          ? check('Research written', true, researchSummary(e.research), 'research')
-          : { label: 'Research written', state: 'unchecked', detail: 'Optional: use the Research first recipe' },
+        // Research is a hint for new work only: a fix or a batch of fixes does not show it until there is research.
+        ...(e.research?.trim()
+          ? [check('Research written', true, researchSummary(e.research), 'research')]
+          : kind === 'new' ? [{ label: 'Research written', state: 'unchecked' as const, detail: 'Not needed for every flow. Try the Research first recipe' }] : []),
         check('Flows in scope named', !!e.scope?.flows.length, e.scope?.flows.length ? scopeSummary(e.scope) : 'Name the flows this work must keep'),
         check('Figma file attached', e.figma, e.figma ? 'Attached' : 'Attach the file Claude designs in', e.figma ? undefined : 'attach'),
         e.approvedInChat
@@ -323,7 +324,7 @@ export function stages(e: StageEvidence, c: ChatSteps, kind: ChatKind | null): S
     if (next) nextSet = true;
     const stale = state === 'done' && !!mark && mark.at < reopenedAt;
     if (mark && (mark.state === 'todo' || (mark.round ?? 1) > 1)) reopenedAt = Math.max(reopenedAt, mark.at);
-    return { id, ...STAGE_INFO[id], state, round, next, stale, checks: checksFor(id, e), ...(mark ? { mark } : {}), ...(state === 'done' && mark ? { approval: mark.note ? { at: mark.at, note: mark.note } : { at: mark.at } } : {}) };
+    return { id, ...STAGE_INFO[id], state, round, next, stale, checks: checksFor(id, e, kind), ...(mark ? { mark } : {}), ...(state === 'done' && mark ? { approval: mark.note ? { at: mark.at, note: mark.note } : { at: mark.at } } : {}) };
   });
 }
 
