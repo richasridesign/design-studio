@@ -275,6 +275,17 @@ describe('planApprovedOnCard', () => {
     expect(planApprovedOnCard([plan])).toBe(false);
     expect(planApprovedOnCard([{ id: 't2', kind: 'tool_use', name: 'Bash' }, { id: 'r2', kind: 'tool_result', toolUseId: 't2', isError: false }])).toBe(false);
   });
+  it('counts only a plan approved after the latest brief', () => {
+    const approved = [plan, { id: 'r1', kind: 'tool_result', toolUseId: 't1', isError: false, at: 2000 }];
+    // Brief, then the approved plan: ticks.
+    expect(planApprovedOnCard(approved, 1000)).toBe(true);
+    // Brief, approved plan, then a new brief: the old approval was for older work.
+    expect(planApprovedOnCard(approved, 3000)).toBe(false);
+    // A new plan approved after the new brief ticks again.
+    expect(planApprovedOnCard([...approved, { id: 't3', kind: 'tool_use', name: 'ExitPlanMode' }, { id: 'r3', kind: 'tool_result', toolUseId: 't3', isError: false, at: 4000 }], 3000)).toBe(true);
+    // No written brief: any approved plan in the chat counts, as before.
+    expect(planApprovedOnCard(approved)).toBe(true);
+  });
 });
 
 describe('stageNote', () => {

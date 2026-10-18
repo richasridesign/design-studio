@@ -370,10 +370,11 @@ export function stageNote(c: ChatSteps): string {
  * Claude's plan was approved on its card: a plan tool call (ExitPlanMode) whose result is not an error.
  * A plan card approved by a click or a typed go sends no chat message, so the chat replies alone miss it.
  * Asking for changes and the flow's own saved plan both come back as errors, so they do not count.
+ * `since` is when the latest brief was written: a plan approved before it was for older work, so it does not count.
  */
-export function planApprovedOnCard(events: ReadonlyArray<{ kind: string; id: string; name?: string; toolUseId?: string; isError?: boolean }>): boolean {
+export function planApprovedOnCard(events: ReadonlyArray<{ kind: string; id: string; name?: string; toolUseId?: string; isError?: boolean; at?: number }>, since = 0): boolean {
   const plans = new Set(events.filter((e) => e.kind === 'tool_use' && e.name === 'ExitPlanMode').map((e) => e.id));
-  return events.some((e) => e.kind === 'tool_result' && plans.has(e.toolUseId ?? '') && !e.isError);
+  return events.some((e) => e.kind === 'tool_result' && plans.has(e.toolUseId ?? '') && !e.isError && (since <= 0 || (e.at ?? 0) >= since));
 }
 
 /**
