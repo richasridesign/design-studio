@@ -21,3 +21,8 @@
   .sessions .tree .row.live .lines { line-height: 20px; }
   .sessions .tree .row.live .lines .l2 { font-size: var(--text-md); }
 }
+/* The desktop sidebar is 160px, so a chat title wraps to two lines instead of cutting off after a word. */
+@media (min-width: 901px) {
+  .sessions .tree .row.live .lines .l1 .name { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .sessions .tree .row.live .lines .l1 .when { padding-right: 8px; }
+}

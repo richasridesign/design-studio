@@ -14,7 +14,7 @@
 .topbar .icon-btn.active { color: var(--accent); background: var(--accent-soft); }
 .activitybar { width: 56px; }
 .activitybar button { height: 52px; }
-.sidebar { width: 320px; }
+.sidebar { width: 160px; }
 .tabs { height: 46px; padding: 0 6px; gap: 2px; background: var(--bg); }
 .tabs .tab { font-size: var(--text-md); padding: 0 16px; gap: 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fg-muted); }
 .tabs .tab { height: 100%; margin-bottom: 0; }
@@ -245,6 +245,14 @@
 .empty-art svg { width: 100%; height: 100%; display: block; }
 .empty-heading { margin: 0; font-family: var(--serif); font-size: var(--text-xl); font-weight: 500; color: var(--fg); }
 .empty-text { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--fg-muted); }
+@media (min-width: 901px) {
+  /* In the 160px sidebar the empty state shrinks so its heading keeps whole lines. */
+  .sidebar .empty { padding: 24px 12px; gap: 8px; }
+  .sidebar .empty-art { width: 64px; height: 64px; padding: 12px; margin-bottom: 4px; }
+  .sidebar .empty-heading { font-size: var(--text-md); }
+  .sidebar .empty-text { font-size: var(--text-sm); }
+  .sidebar .empty button { padding: 0 12px; font-size: var(--text-sm); }
+}
 .empty-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
 @media (max-width: 899px) {
   .empty { padding: 24px 16px; }

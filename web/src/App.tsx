@@ -135,6 +135,14 @@ export function App() {
   const content = useCanvasContent();
   const [dev, setDev] = useState(false);
   const [chatW, setChatW] = useState(() => stored('designstudio.chatW', 460));
+  // The chat column folds away so the Figma tab gets the width. ⌥⌘B, like the secondary sidebar in VS Code.
+  const [chatOpen, setChatOpen] = useState(() => {
+    try {
+      return localStorage.getItem('designstudio.chatOpen') !== '0';
+    } catch {
+      return true;
+    }
+  });
   const [termH, setTermH] = useState(() => stored('designstudio.termH', 240));
   const [terminal, setTerminal] = useState(false);
   const [focusMode, setFocusMode] = useState(() => {
@@ -201,6 +209,12 @@ export function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('designstudio.chatOpen', chatOpen ? '1' : '0');
+    } catch {}
+  }, [chatOpen]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('designstudio.chatW', String(chatW));
       localStorage.setItem('designstudio.termH', String(termH));
     } catch {}
@@ -213,7 +227,8 @@ export function App() {
       const k = e.key.toLowerCase();
       if (k === 'o') { e.preventDefault(); window.dispatchEvent(new Event('designstudio:attach')); }
       if (k === '.' && !narrow()) { e.preventDefault(); toggleFocus(); }
-      if (k === 'b') { e.preventDefault(); setSidebar((v) => !v); }
+      if (e.code === 'KeyB' && e.altKey && !narrow()) { e.preventDefault(); setChatOpen((v) => !v); }
+      else if (k === 'b') { e.preventDefault(); setSidebar((v) => !v); }
       if (k === 'j' && dev) { e.preventDefault(); setTerminal((v) => !v); }
     };
     window.addEventListener('keydown', onKey);
@@ -273,7 +288,7 @@ export function App() {
   };
 
   return (
-    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} style={{ '--chat-w': `${chatW}px` } as React.CSSProperties}>
+    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} style={{ '--chat-w': `${chatW}px` } as React.CSSProperties}>
       <Offline />
       <header className="topbar">
         <h1 style={HIDDEN}>Design Studio</h1>
@@ -305,7 +320,11 @@ export function App() {
 
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
         <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
-          <div className="sidebar-title">{(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}</div>
+          <div className="sidebar-title">
+            {(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}
+            <span className="spacer" />
+            <IconButton label="Hide sidebar" tip="Hide sidebar (⌘B)" aria-keyshortcuts="Meta+B" className="icon-btn side-hide desktop-only" onClick={() => setSidebar(false)}><Icon name="layout-sidebar-left" small /></IconButton>
+          </div>
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
@@ -332,6 +351,13 @@ export function App() {
               ))}
             </div>
             <span className="spacer" />
+            {/* With no panels the chat is the whole window, so it has nothing to fold into. */}
+            {!collapsed && (
+              <IconButton label={chatOpen ? 'Hide chat' : 'Show chat'} tip={chatOpen ? 'Hide chat (⌥⌘B)' : 'Show chat (⌥⌘B)'} aria-pressed={chatOpen} aria-keyshortcuts="Alt+Meta+B" className="icon-btn chat-toggle desktop-only" onClick={() => setChatOpen((v) => !v)}>
+                <Icon name={chatOpen ? 'layout-sidebar-right' : 'layout-sidebar-right-off'} small />
+                {!chatOpen && pendingCount > 0 && <span className="badge waiting"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{pendingCount === 1 ? ', 1 request waiting' : `, ${pendingCount} requests waiting`}</span></span>}
+              </IconButton>
+            )}
             <IconButton label="Focus mode" tip={focusMode ? 'Exit focus mode (⌘.)' : 'Focus mode (⌘.)'} aria-pressed={focusMode} aria-keyshortcuts="Meta+Period" className="icon-btn focus-btn desktop-only" onClick={toggleFocus}><Icon name={focusMode ? 'screen-normal' : 'screen-full'} small /></IconButton>
           </div>
           <ErrorBoundary label="panel">
