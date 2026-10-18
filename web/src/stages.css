@@ -38,10 +38,17 @@
 
 /* The panel scrolls on its own and stays short, so the conversation keeps most of the column. */
 .steps-panel {
-  flex: 0 0 auto; min-height: 0; max-height: clamp(240px, 60%, 560px); overflow-y: auto; overscroll-behavior: contain;
-  display: grid; gap: 8px; margin: 0 0 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
+  flex: 0 1 auto; min-height: 0; max-height: clamp(240px, 60%, 560px); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
 }
-.steps-panel ~ .tr { min-height: 144px; }
+/* A column, not a grid: a sticky child of a grid stays inside its own row, so the fade below could not pin. */
+.steps-panel > * { flex-shrink: 0; }
+/* A pinned plan or question card leaves the column short: then the panel and the conversation both shrink and scroll,
+   instead of the column cutting the panel's bottom and hiding the conversation. The conversation gives way first. */
+.steps-panel ~ .tr { min-height: min(144px, 30%); flex-shrink: 100; }
+/* More steps below the panel's bottom edge: the last 32px fade out, so a half button never looks cut off. The fade is
+   pinned to the bottom while it scrolls and goes at the end. The negative margin takes back its height and the gap. */
+.steps-panel.more::after { content: ''; position: sticky; bottom: -12px; height: 32px; margin: -40px 0 -12px; background: linear-gradient(to bottom, transparent, var(--bg-elevated)); pointer-events: none; }
 /* With the panel open the conversation scrolls right under it: fade the top 24px (one line, kept as padding at the top
    of the conversation) so a half line never looks cut off. */
 .steps-panel ~ .tr { padding-top: 24px; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px); mask-image: linear-gradient(to bottom, transparent, #000 24px); }

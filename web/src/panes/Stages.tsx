@@ -145,7 +145,26 @@ function closeOnEscape(e: React.KeyboardEvent) {
 const KIND_CHOICES: Array<ChatKind | 'none'> = [...CHAT_KINDS, 'none'];
 const kindLabel = (k: ChatKind | 'none') => (k === 'none' ? 'No steps' : KIND_INFO[k].label);
 
+/** True while a scrolling box has more below its bottom edge, so the cut-off part can fade out instead of looking cut. */
+function useMoreBelow(ref: React.RefObject<HTMLElement | null>) {
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setMore(el.scrollHeight - el.clientHeight - el.scrollTop > 2);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    el.addEventListener('scroll', check, { passive: true });
+    return () => { ro.disconnect(); el.removeEventListener('scroll', check); };
+  });
+  return more;
+}
+
 export function StepsPanel({ view, error, change, reload, sheet = false }: ReturnType<typeof useStages> & { view: StagesView; sheet?: boolean }) {
+  const box = useRef<HTMLElement>(null);
+  const more = useMoreBelow(box);
   const spec = view.steps.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
   const [shown, setShown] = useState<StageId | null>(null);
@@ -153,7 +172,7 @@ export function StepsPanel({ view, error, change, reload, sheet = false }: Retur
   const hasSpec = view.steps.some((s) => s.id === 'spec');
   const current = view.kind ?? 'none';
   return (
-    <section className="steps-panel" id="steps-panel" aria-label={sheet ? undefined : 'Steps'} onKeyDown={sheet ? undefined : closeOnEscape}>
+    <section ref={box} className={`steps-panel${more && !sheet ? ' more' : ''}`} id="steps-panel" aria-label={sheet ? undefined : 'Steps'} onKeyDown={sheet ? undefined : closeOnEscape}>
       <div className="steps-kind-row">
         <label htmlFor="steps-kind">Kind of work</label>
         <select id="steps-kind" value={current} aria-describedby={view.kind ? 'steps-guess' : undefined} onChange={(e) => change({ action: 'kind', kind: e.target.value as ChatKind | 'none' })}>
