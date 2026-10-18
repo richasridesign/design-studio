@@ -200,4 +200,3 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 Each Figma file gets a folder under `~/Design Studio` with the plan, sketches, the design system profile, review
 results and reference images. Settings are in `~/.designstudio/settings.json`.
 
-See [PLAN.md](PLAN.md) for the design decisions and what is still open.
