@@ -12,6 +12,7 @@ import { imageProblem, imagesIn } from './attach';
 import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton } from './LongRun';
+import { ModelPicker } from './ModelPicker';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -512,6 +513,7 @@ export function Composer() {
               </div>
             )}
           </div>
+          {!shell && flow.mode === 'chat' && <ModelPicker />}
           {!shell && <LongRunButton text={text} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
