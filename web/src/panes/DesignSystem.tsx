@@ -96,7 +96,7 @@ export function DesignSystem() {
   };
   const editor = editing && <DsEditor focus={editing === 'code' ? 'code' : undefined} onClose={() => { setEditing(false); getJson<DS | null>('/api/design-system').then(setDs).catch(() => {}); }} />;
 
-  const rules = <Section view="system" id="rules" title="Rules"><Rules /></Section>;
+  const rules = <Section view="system" id="rules" title="House rules"><Rules /></Section>;
 
   if (!ds) {
     return (

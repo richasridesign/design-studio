@@ -45,9 +45,9 @@
 .aw-body dt { display: inline; font-weight: 500; }
 .aw-body dd { display: inline; margin: 0; color: var(--fg-muted); }
 .aw-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 4px; }
-.aw-approve { min-height: 32px; height: 32px; padding: 0 12px; font-size: var(--text-sm); background: var(--bg); border: 1px solid var(--fg); border-radius: var(--radius-sm); font-weight: 500; }
+.aw-approve { min-height: 36px; height: 36px; padding: 0 12px; font-size: var(--text-sm); background: var(--bg); border: 1px solid var(--fg); border-radius: var(--radius-sm); font-weight: 500; }
 .aw-approve:hover { background: var(--bg-hover); }
-.awaiting .triage-link { background: transparent; border: 0; padding: 0; min-height: 32px; height: 32px; display: inline-flex; align-items: center; gap: 4px; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.awaiting .triage-link { background: transparent; border: 0; padding: 0; min-height: 36px; height: 36px; display: inline-flex; align-items: center; gap: 4px; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .awaiting .triage-link:hover { background: transparent; text-decoration-thickness: 2px; }
 .aw-hint { color: var(--fg-muted); font-size: var(--text-sm); }
 .aw-where { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--fg-muted); font-size: var(--text-sm); }
@@ -63,7 +63,7 @@
 .f-decide b { color: var(--warn); font-weight: 600; }
 @media (max-width: 600px) {
   .aw-list li { flex-direction: column; gap: 4px; }
-  .aw-approve, .awaiting .triage-link { min-height: 36px; height: 36px; }
+  .aw-approve, .awaiting .triage-link { min-height: 44px; height: 44px; }
 }
 
 /* Review areas and cost, under the Review button. Ticks are native checkboxes with a 36px row. */

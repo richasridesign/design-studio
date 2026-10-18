@@ -210,13 +210,13 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
           <div className="dse-foot dse-confirm" role="group" aria-labelledby={`${titleId}-rm`}>
             <span id={`${titleId}-rm`} className="dse-confirm-q">Remove the profile? Its sources, found items and principles are deleted. Your rule files stay.</span>
             <div className="dse-row">
-              <button ref={cancelRemove} onClick={stopConfirm}>Cancel</button>
-              <button className="destructive" disabled={!!busy} onClick={() => void run('clear', { action: 'clear' }, 'Profile removed. Designs and reviews carry on without one.').then(() => { setConfirming(false); requestAnimationFrame(() => done.current?.focus()); })}>Remove profile</button>
+              <button ref={cancelRemove} className="ghost" onClick={stopConfirm}>Cancel</button>
+              <button disabled={!!busy} onClick={() => void run('clear', { action: 'clear' }, 'Profile removed. Designs and reviews carry on without one.').then(() => { setConfirming(false); requestAnimationFrame(() => done.current?.focus()); })}>Remove profile</button>
             </div>
           </div>
         ) : (
           <div className="dse-foot">
-            {ds ? <button ref={removeLink} className="dse-link danger" disabled={!!busy} onClick={() => setConfirming(true)}>Remove profile</button> : <span />}
+            {ds ? <button ref={removeLink} disabled={!!busy} onClick={() => setConfirming(true)}>Remove profile</button> : <span />}
             <span className="dse-said" aria-hidden="true">{said}</span>
             <button ref={done} className="primary" onClick={onClose}>Done</button>
           </div>
