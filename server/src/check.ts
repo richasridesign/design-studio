@@ -4,6 +4,8 @@ import { screenFindings } from './flowRules.js';
 
 export { CONTROL };
 
+export const NESTED = 'it sits inside a component, so fixing the main changes every copy; fix it as an override on this copy, or on the main';
+
 export const DEFAULT_SPACING = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 80, 96, 128];
 const HAND_BUILT = /\b(button|btn|input|text ?field|checkbox|radio|toggle|switch|chip|avatar|badge)\b/i;
 const MAX = 200;
@@ -155,7 +157,10 @@ export function checkFrames(frames: Array<{ document: any; components?: Record<s
     // Each reviewed frame is read as a screen: clicks, hovers, hover targets, close icons, tooltips and toasts.
     for (const x of screenFindings(f.document, { components: ctx.components, componentSets })) {
       if (ctx.out.length >= MAX) break;
-      ctx.out.push({ id: `check:${x.id}`, area: ruleArea(x.rule), node: x.nodeId, nodeName: x.nodeName, severity: x.severity, rule: x.message, fix: x.fix });
+      // A layer inside an instance (id starting with I) takes its click and hover from the main component, so the
+      // fix changes every copy unless it is made as an override here: the designer decides, the fix round skips it.
+      const nested = x.nodeId.startsWith('I') && x.severity !== 'minor';
+      ctx.out.push({ id: `check:${x.id}`, area: ruleArea(x.rule), node: x.nodeId, nodeName: x.nodeName, severity: x.severity, rule: x.message, fix: x.fix, ...(nested ? { decide: NESTED } : {}) });
     }
   }
   return ctx.out;

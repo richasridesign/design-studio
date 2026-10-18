@@ -863,7 +863,7 @@ export class AgentSession {
     this.addTokens(done.tokens);
     this.recordBackground('review', done);
     this.reviewDone(done);
-    for (const f of done.results.flatMap((r) => r.findings)) if (f.decide) this.flowDecide.add(awaitKey(this.figma!.key, f));
+    for (const f of [...done.check, ...done.results.flatMap((r) => r.findings)]) if (f.decide) this.flowDecide.add(awaitKey(this.figma!.key, f));
     const pending = toFix(done);
     if (kind === 'verify') return this.finish(pending.length);
     const next = afterReview(preset, this.fixesDone, pending);

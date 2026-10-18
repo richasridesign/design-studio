@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkFrames, contrast } from './check.js';
+import { NESTED, checkFrames, contrast } from './check.js';
 
 const black = { r: 0, g: 0, b: 0, a: 1 };
 const white = { r: 1, g: 1, b: 1, a: 1 };
@@ -89,6 +89,10 @@ describe('checkFrames', () => {
       ['check:toast:1:9', 'visual', 'minor'],
     ]);
     expect(f[1].rule).toBe('Button "Next" changes on hover to Type=Secondary, but its own is Type=Primary (and 1 more like it).');
+    expect(f.every((x) => !x.decide)).toBe(true);
+    // A layer inside an instance takes its reactions from the main, so the designer decides and the fix round skips it.
+    const nested = checkFrames([{ ...frame([btn('Next', [click('2:1')]), btn('I1:5;2:3', [hover('C:btnHover')])]), components }], null);
+    expect(nested.find((x) => x.node === 'I1:5;2:3')).toMatchObject({ severity: 'major', decide: NESTED });
     // A frame whose only clicks change a component's own variant is not a prototype yet.
     const still = { ...frame([btn('Save', [click('C:btnHover', 'CHANGE_TO')])]), components };
     expect(checkFrames([still], null)).toEqual([]);
