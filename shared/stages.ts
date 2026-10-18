@@ -5,6 +5,7 @@ import type { DesignDoc, ReviewDoc, SketchDoc } from './design.js';
 import type { DecisionDoc } from './decisions.js';
 import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
+import { flowIssues, type FlowCheckRun } from './flowcheck.js';
 
 export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -35,6 +36,8 @@ export type StageEvidence = {
   sketch: SketchDoc | null;
   design: DesignDoc | null;
   review: ReviewDoc | null;
+  /** The last Flow check run on the file's prototype. */
+  flowcheck?: FlowCheckRun | null;
   decisions: DecisionDoc | null;
 };
 
@@ -72,7 +75,12 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
     }
     case 'validate': {
       const run = e.review?.runs.at(-1);
-      if (!run) return [check('Review run', false, 'No review yet', 'review')];
+      const flows = e.flowcheck?.flows.filter((f) => f.state !== 'unchecked') ?? [];
+      const failing = flows.filter((f) => flowIssues(f) > 0).length;
+      const wired: StageCheck = flows.length
+        ? check('Prototype wired', failing === 0, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
+        : { label: 'Prototype wired', state: 'unchecked', detail: 'Flow check has not run on this file', open: 'review' };
+      if (!run) return [check('Review run', false, 'No review yet', 'review'), wired];
       const open = [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor').length;
       const rules = run.rules ?? [];
       const failed = rules.filter((r) => r.state === 'fail').length;
@@ -82,6 +90,7 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
         rules.length
           ? check('House rules followed', failed === 0, failed ? `${failed} of ${rules.length} failed` : `All ${rules.length} followed`, 'review')
           : { label: 'House rules followed', state: 'unchecked', detail: 'No house rules checked in this review', open: 'review' },
+        wired,
       ];
     }
     case 'ship':

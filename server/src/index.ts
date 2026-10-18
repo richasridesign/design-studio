@@ -290,7 +290,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
       const brief = chat.state.events.find((e) => e.kind === 'user')?.text ?? null;
       const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
-      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), sketch, design, review, decisions }));
+      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions }));
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));

@@ -59,6 +59,12 @@ export function useStages() {
     const t = setTimeout(() => getJson<Stage[]>('/api/stages').then((l) => { if (alive) { setList(l); setError(''); } }).catch((e) => alive && setError(e.message)), 300);
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, phase, figma, tick]);
+  // Work done outside the chat, like a Flow check run, moves the gates too.
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    window.addEventListener('designstudio:evidence', bump);
+    return () => window.removeEventListener('designstudio:evidence', bump);
+  }, []);
   const change = async (action: 'approve' | 'reopen', id: StageId, note?: string) => {
     try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); window.dispatchEvent(new Event('designstudio:stages')); } catch (e) { setError((e as Error).message); }
   };
