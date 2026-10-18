@@ -108,6 +108,13 @@
 @media (max-width: 900px) { .screen-name { flex-basis: 100%; } }
 .dir { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px; display: inline-flex; align-items: center; gap: 6px; }
 .dir.chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+/* The Why field, or Claude's pick with Confirm, sits on a line under the direction pills, aligned with them. */
+.sketch-sub { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding-left: 128px; }
+.sketch-sub button.link { min-height: 24px; font-size: 14px; }
+.sketch-why label { font-size: 14px; line-height: 20px; color: var(--fg-muted); }
+.sketch-why input { flex: 1; min-width: 0; max-width: 480px; height: 36px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--fg); background: var(--input); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.sketch-why input:hover, .sketch-why input:focus { border-color: var(--border-strong); }
+@media (max-width: 900px) { .sketch-sub { padding-left: 0; } }
 .sketch-canvas { flex: 1; min-height: 0; position: relative; }
 .sketch-canvas .excalidraw { --color-primary: var(--link); }
 

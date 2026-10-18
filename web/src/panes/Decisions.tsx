@@ -3,6 +3,7 @@ import { getJson, getState, postJson, send, steer, useStore } from '../store';
 import { getOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
 import { attachFigma } from './Files';
+import { DecisionLog } from './DecisionLog';
 import { WARN_WORDS, draftPrompt, filled, fills, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';
 import '../decisions.css';
 
@@ -126,7 +127,8 @@ export function Decisions() {
   if (!figma || !key) {
     return (
       <div className="dec-page">
-        <p className="dec-empty">Decisions belong to a Figma file. <button className="link" onClick={attachFigma}>Attach a Figma file</button></p>
+        <DecisionLog />
+        <p className="dec-empty">Screen decisions belong to a Figma file. <button className="link" onClick={attachFigma}>Attach a Figma file</button></p>
       </div>
     );
   }
@@ -164,6 +166,8 @@ export function Decisions() {
         <p className="dec-line" role="status">Claude is drafting in the chat. The draft shows up here when the reply is in.</p>
       ) : null}
       {local && <p className="dec-line">Saved in this browser only. Restart Design Studio to save decisions with the file.</p>}
+
+      <DecisionLog />
 
       {error && <p className="dec-line" role="alert">Could not load the screens: {error}</p>}
       {!outline && !error && (
