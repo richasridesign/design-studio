@@ -42,6 +42,14 @@ describe('review events', () => {
     expect(vi.mocked(runReview).mock.calls[1][0].areas).toEqual(['accessibility']);
   });
 
+  it('a starter sets the ticks and removing the profile gives the default back', () => {
+    const s = new AgentSession('/tmp/project', null);
+    s.useProfileAreas({ areas: ['interaction', 'writing'] });
+    expect(s.state.session.flow.areas).toEqual(['interaction', 'writing']);
+    s.useProfileAreas(null);
+    expect(s.state.session.flow.areas).toEqual(['system', 'interaction', 'visual', 'writing', 'accessibility']);
+  });
+
   it('the design run line says what is left and what waits for her decision', () => {
     expect(finishText(0, 0)).toBe(', review passed');
     expect(finishText(2, 0)).toBe(', 2 issues left for you to look at');

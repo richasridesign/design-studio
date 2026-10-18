@@ -171,6 +171,7 @@ export class AgentSession {
     this.rules = rulesBlock(await readRules(this.cwd));
     this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     // The profile's review areas (a starter's) are this chat's ticks until she changes them.
+    this.defaultAreas = s.areas;
     this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
     // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
@@ -603,18 +604,19 @@ export class AgentSession {
   /** True once she ticks review areas in this chat; until then the profile's areas are the default. */
   private areasChosen = false;
 
-  /** A new starter's areas become this chat's ticks; she can tick others on the Review tab. */
+  /** The Settings default, for a chat with neither her ticks nor a profile with areas. */
+  private defaultAreas: Area[] = [...AREAS];
+
+  /** A new starter's areas become this chat's ticks, and a removed profile gives the default back. She can tick others on the Review tab. */
   useProfileAreas(ds: { areas?: unknown } | null) {
-    const own = reviewAreas([], false, ds?.areas);
-    if (!own.length) return;
     this.areasChosen = false;
-    this.setFlow({ areas: own });
+    this.setFlow({ areas: reviewAreas(this.defaultAreas, false, ds?.areas) });
   }
 
   /** The areas a review covers now, shown on the Review tab too. */
   private async areasForReview(): Promise<Area[]> {
     const flow = this.state.session.flow.areas;
-    const areas = reviewAreas(flow, this.areasChosen, this.areasChosen ? null : (await readProfile(this.cwd))?.areas);
+    const areas = this.areasChosen ? flow : reviewAreas(this.defaultAreas, false, (await readProfile(this.cwd))?.areas);
     if (areas.join() !== flow.join()) this.setFlow({ areas });
     return areas;
   }
