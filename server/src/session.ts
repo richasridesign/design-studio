@@ -74,7 +74,7 @@ export class AgentSession {
   private lrErrors = 0;
   /** The long run report seen in this turn's text, if any. */
   private lrReport: Report | null = null;
-  /** Start options sent just before long_run_start: weekly cap and rounds. */
+  /** Weekly cap and rounds from an older client's long_run_options message; long_run_start now carries them itself. */
   private lrOpts: { weeklyCap?: number; rounds?: number } = {};
   /** Lets the Mac sleep again; set while a long run keeps it awake. */
   private lrAwake: (() => void) | null = null;
@@ -458,7 +458,7 @@ export class AgentSession {
     this.sendPrompt(text, images);
   }
 
-  /** The weekly cap and rounds for the next long run (the composer sends them just before it starts one). */
+  /** The weekly cap and rounds for the next long run, from an older client that sent them in long_run_options. */
   setLongRunOptions(o: { weeklyCap?: unknown; rounds?: unknown }) {
     const n = (v: unknown) => (v === undefined || v === null || v === '' ? undefined : Number(v));
     this.lrOpts = { weeklyCap: n(o.weeklyCap), rounds: n(o.rounds) };

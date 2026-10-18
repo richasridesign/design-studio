@@ -16,8 +16,10 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-dig
 const allLimits = (limits: Limits | null | undefined, limit: PlanLimit | null | undefined) => (limit ? withLimit(limits, limit) : limits ?? {});
 const pctOk = (n: number) => Number.isFinite(n) && n >= 1 && n <= 100;
 
+export type LongRunStart = { until: number; cap: number; weeklyCap: number; rounds: number };
+
 /** Composer control: starts a long run with the message as the task. */
-export function LongRunButton({ text, onStart }: { text: string; onStart: (until: number, cap: number) => void }) {
+export function LongRunButton({ text, onStart }: { text: string; onStart: (o: LongRunStart) => void }) {
   const run = useStore((s) => s.session.longRun);
   const running = useStore((s) => s.session.running);
   const limit = useStore((s) => s.session.limit);
@@ -61,9 +63,7 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (until
     : '';
   const start = () => {
     if (problem || !end) return;
-    // The composer sends the task with the time and 5-hour cap; the weekly cap and rounds go just before it.
-    send({ type: 'long_run_options', weeklyCap: Math.round(week), rounds: n });
-    onStart(end, Math.round(pct));
+    onStart({ until: end, cap: Math.round(pct), weeklyCap: Math.round(week), rounds: n });
     setOpen(false);
   };
   const enter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') start(); };
