@@ -25,6 +25,7 @@ export function nextStep(stage: Stage, brief: string): { label: string; run: () 
   const missing = (label: string) => stage.checks.find((c) => c.label === label)?.state === 'open';
   const about = brief ? ` ${brief}` : '';
   switch (stage.id) {
+    // The brief comes first, so a new chat always has a next step. Attaching the file has its own link on its check.
     case 'spec':
       if (missing('Brief written')) return { label: 'Describe the work', run: focusComposer };
       return missing('Figma file attached') ? null : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
