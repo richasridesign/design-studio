@@ -89,7 +89,9 @@ export const SKETCH_ITEMS = ['box', 'text', 'heading', 'button', 'input', 'image
 export type SketchItemType = (typeof SKETCH_ITEMS)[number];
 export type SketchItem = { t: SketchItemType; x: number; y: number; w: number; h: number; label?: string };
 export type SketchDirection = { id: string; name: string; rationale: string; w: number; h: number; items: SketchItem[] };
-export type SketchScreen = { id: string; name: string; directions: SketchDirection[]; chosen?: string; chosenBy?: 'claude' | 'designer' };
+/** reason, rejected and at record the pick for the decision log. Older sketch.json files do not have them. */
+export type SketchScreen = { id: string; name: string; directions: SketchDirection[]; chosen?: string; chosenBy?: 'claude' | 'designer'; reason?: string; rejected?: string[]; at?: number };
+export const REASON_MAX = 200;
 export type SketchDoc = { screens: SketchScreen[] };
 
 export type DesignFrame = { screen: string; state: string; nodeId: string; name?: string };

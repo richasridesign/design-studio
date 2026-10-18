@@ -143,7 +143,7 @@ export type ClientMessage =
   | { type: 'set_model'; model: string }
   | { type: 'set_flow'; patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas' | 'stopAfterSketch'>> }
   | { type: 'flow_continue' }
-  | { type: 'flow_pick'; screen: string; direction: string }
+  | { type: 'flow_pick'; screen: string; direction: string; reason?: string }
   | { type: 'interrupt' }
   | { type: 'long_run_start'; text: string; until: number; cap: number; images?: string[] }
   | { type: 'long_run_stop' }

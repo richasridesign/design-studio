@@ -324,8 +324,8 @@ const server = http.createServer(async (req, res) => {
       return json({ result: await focusFigma(needFigma().key, String(nodeId), true) });
     }
     if (url.pathname === '/api/sketch/pick' && req.method === 'POST') {
-      const { screen, direction } = await readJsonBody();
-      return json(await pickDirection(chat.cwd, String(screen), String(direction)));
+      const { screen, direction, reason } = await readJsonBody();
+      return json(await pickDirection(chat.cwd, String(screen), String(direction), reason));
     }
     if (url.pathname === '/api/sketch/board' && req.method === 'POST') {
       await writeBoard(chat.cwd, (await readJsonBody()).elements);
@@ -460,7 +460,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         chat.continueFlow();
         break;
       case 'flow_pick':
-        pickDirection(chat.cwd, String(msg.screen), String(msg.direction)).catch(fail);
+        pickDirection(chat.cwd, String(msg.screen), String(msg.direction), msg.reason).catch(fail);
         break;
       case 'new_chat':
         (msg.url?.trim() ? chatForUrl(msg.url) : freshChatFolder().then(createChat)).then((c) => view(client, c), fail);
