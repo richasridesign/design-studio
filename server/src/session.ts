@@ -221,8 +221,8 @@ export class AgentSession {
     if (list) this.setSession({ mcp: mcpFrom(list) });
   }
 
-  async reconnectMcp(name: string) {
-    await this.q?.reconnectMcpServer(name).catch((err) => this.system(`Reconnecting ${name} failed: ${err instanceof Error ? err.message : String(err)}`));
+  async reconnectMcp(name: string, quiet = false) {
+    await this.q?.reconnectMcpServer(name).catch((err) => quiet || this.system(`Reconnecting ${name} failed: ${err instanceof Error ? err.message : String(err)}`));
     await this.refreshMcp();
   }
 
