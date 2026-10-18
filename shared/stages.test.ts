@@ -52,7 +52,29 @@ describe('stages', () => {
   it('wants frames and two decisions on each', () => {
     const design = { frames: [{ screen: 'Home', state: 'default', nodeId: '1:1' }, { screen: 'Home', state: 'empty', nodeId: '1:2' }] };
     const s = byId({ ...none, design, decisions: { '1:1': pair } });
-    expect(s.build.checks.map((c) => [c.state, c.detail])).toEqual([['met', '2 frames'], ['open', '1 of 2 frames']]);
+    expect(s.build.checks.map((c) => [c.state, c.detail])).toEqual([['met', '2 frames'], ['open', '1 of 2 frames'], ['unchecked', 'The brief lists no states']]);
+  });
+
+  it('checks every state the brief lists against the frames', () => {
+    const plan = '## States\n- Home: default, empty\n- Cart: default, payment failed, signed out';
+    const design = { frames: [{ screen: 'home', state: 'default', nodeId: '1:1' }, { screen: 'home', state: 'empty', nodeId: '1:2' }, { screen: 'cart', state: 'payment-failed', nodeId: '1:3' }] };
+    expect(byId({ ...none, plan, design }).build.checks[2]).toEqual({ label: 'Every state designed', state: 'open', detail: '2 of 5 states missing', open: 'states' });
+    const all = { frames: [...design.frames, { screen: 'cart', state: 'default', nodeId: '1:4' }, { screen: 'cart', state: 'signed out', nodeId: '1:5' }] };
+    expect(byId({ ...none, plan, design: all }).build.checks[2]).toMatchObject({ state: 'met', detail: 'All 5 states designed' });
+    expect(byId({ ...none, plan: '## States\n- Home: empty', design: { frames: [{ screen: 'Home', state: 'Empty', nodeId: '1:1' }] } }).build.checks[2].detail).toBe('The state is designed');
+  });
+
+  it('lists every state as missing before any frame exists', () => {
+    expect(byId({ ...none, plan: '## States\n- Home: default, empty' }).build.checks[2]).toMatchObject({ state: 'open', detail: '2 of 2 states missing' });
+  });
+
+  it('reads the states from the first message when there is no plan.md', () => {
+    expect(byId({ ...none, brief: 'Design a cart\n\n## States\n- Cart: default' }).build.checks[2]).toMatchObject({ state: 'open', detail: '1 of 1 state missing' });
+  });
+
+  it('does not judge states when the frames have no names', () => {
+    const s = byId({ ...none, plan: '## States\n- Home: default', review: { runs: [run({ frames: ['1:1'] })] } });
+    expect(s.build.checks[2]).toMatchObject({ state: 'unchecked', detail: 'The frames have no names to match states against' });
   });
 
   it('falls back to the frames of the last review', () => {
