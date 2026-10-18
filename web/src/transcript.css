@@ -69,7 +69,7 @@
 .tr-agent .tr-text { color: var(--fg); }
 .tr-agent .tr-state { color: var(--fg-faint); }
 .tr-agent.err .tr-state { color: var(--err); }
-.tr-agent .tr-text .codicon { margin-left: 6px; color: var(--fg-faint); vertical-align: -1px; }
+.tr-agent .tr-text .codicon { margin-left: 8px; color: var(--fg-faint); vertical-align: -1px; }
 .tr-report {
   padding: 8px 12px; max-height: 50vh; overflow: auto; font-size: var(--text-sm); line-height: 20px;
   background: var(--bg-sunken); border-radius: var(--radius-sm, 4px);
