@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
-import { Empty, SystemArt } from './Empty';
-import { insertPrompt } from './Files';
 import { Rules } from './Rules';
 import { Section } from '../Section';
 import { FORMATS, type TokenFormat } from '../tokens';
 import type { DesignSystem as DS } from '../../../shared/design';
+import { STARTERS } from '../../../shared/dsProfiles';
+import { DsEditor, changeDs } from './DsEditor';
 
 function ExportTokens({ ds }: { ds: DS }) {
   const [format, setFormat] = useState<TokenFormat>('css');
@@ -58,23 +58,52 @@ export function DesignSystem() {
 
   const match = (s: string) => !q || s.toLowerCase().includes(q.toLowerCase());
   const rebuild = () => send({ type: 'prompt', text: '/system' });
+  const [editing, setEditing] = useState<false | true | 'code'>(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const start = async (id: string) => {
+    setBusy(true);
+    setError('');
+    try { setDs((await changeDs({ action: 'starter', id })).ds); if (id === 'code') setEditing('code'); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+  const editor = editing && <DsEditor focus={editing === 'code' ? 'code' : undefined} onClose={() => { setEditing(false); getJson<DS | null>('/api/design-system').then(setDs).catch(() => {}); }} />;
 
   const rules = <Section view="system" id="rules" title="Rules"><Rules /></Section>;
 
   if (!ds) {
     return (
       <div className="side-scroll">
-        <Empty art={<SystemArt />} title="No design system profile" text="Claude reads your library once and remembers its components, variables and text styles, so designs and reviews use them." action={figma ? { label: 'Build profile', onClick: () => insertPrompt('/system') } : undefined} />
+        <section className="side-section ds-start">
+          <h2 className="ds-start-h">Design system</h2>
+          <p className="ds-start-p">Optional. Designs and reviews work without one. Start from:</p>
+          <ul className="ds-starters">
+            {STARTERS.map((st) => (
+              <li key={st.id}>
+                <button disabled={busy} onClick={() => start(st.id)} title={st.detail}>
+                  <span className="t">{st.name}</span>
+                  <span className="d">{st.detail}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="ds-link" onClick={() => setEditing(true)}>Or add sources yourself</button>
+          {error && <p className="ds-err" role="alert">{error}</p>}
+        </section>
         {rules}
+        {editor}
       </div>
     );
   }
   return (
     <div className="side-scroll ds">
       <section className="side-section">
+        <div className="ds-head">
+          <span className="ds-name">{ds.name || 'Design system'}</span>
+          <button className="ds-edit" onClick={() => setEditing(true)}>Edit</button>
+        </div>
         <div className="ds-meta">
-          <span>{ds.libraries.join(', ') || 'Libraries unknown'}</span>
-          <button className="icon-btn" title="Rebuild the profile" disabled={running} onClick={rebuild}><Icon name="sync" small /></button>
+          <span>{[ds.libraries.join(', '), ds.tokens === false ? 'Lo-fi: no token checks' : ''].filter(Boolean).join(' · ') || `${(ds.sources ?? []).length} ${(ds.sources ?? []).length === 1 ? 'source' : 'sources'}`}</span>
+          {figma && <button className="icon-btn" title="Read the Figma file again" aria-label="Read the Figma file again" disabled={running} onClick={rebuild}><Icon name="sync" small /></button>}
         </div>
         <input placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
       </section>
@@ -120,11 +149,12 @@ export function DesignSystem() {
       <ExportTokens ds={ds} />
       {ds.rules.length > 0 && (
         <section className="side-section">
-          <div className="side-label">Detected rules</div>
+          <div className="side-label">Principles</div>
           <ul className="rules">{ds.rules.map((r) => <li key={r}>{r}</li>)}</ul>
         </section>
       )}
       {rules}
+      {editor}
     </div>
   );
 }

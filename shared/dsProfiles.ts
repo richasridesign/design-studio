@@ -7,9 +7,9 @@ export type StarterId = 'nordic' | 'code' | 'lofi';
 export type Starter = { id: StarterId; name: string; detail: string };
 
 export const STARTERS: Starter[] = [
-  { id: 'nordic', name: 'Nordic calm B2B', detail: 'Neutral surfaces, one brand blue, 4px grid, type 12 to 24. Uses your rule files.' },
-  { id: 'code', name: 'From your code', detail: 'Starts empty. Add a CSS or JSON tokens file and it fills in.' },
-  { id: 'lofi', name: 'Lo-fi sketch', detail: 'Black, white and one grey. Reviews skip tokens and look at flow and copy.' },
+  { id: 'nordic', name: 'Nordic calm B2B', detail: 'Neutral, one brand blue, 4px grid. Uses your rule files.' },
+  { id: 'code', name: 'From your code', detail: 'Tokens from a CSS or JSON file.' },
+  { id: 'lofi', name: 'Lo-fi sketch', detail: 'Black and white. Reviews look at flow and copy.' },
 ];
 
 export const SKILLS_DIR = '~/design-skills';
