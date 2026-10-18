@@ -130,7 +130,7 @@ export function Chats() {
                 <span className="name">{g.name}</span>
               </span>
               {!open && <span className="count" title={`${g.open.length + g.recent.length} chats`}>{g.open.length + g.recent.length}</span>}
-              {g.stage && <span className="stage-tag" title={`Stage: ${g.stage}`}>{g.stage}</span>}
+              {g.stage && <span className="stage-tag" title={`Next step: ${g.stage}`}>{g.stage}</span>}
               <span className="acts">
                 <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={(e) => { e.stopPropagation(); send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' }); }}><Icon name="add" small /></button>
               </span>

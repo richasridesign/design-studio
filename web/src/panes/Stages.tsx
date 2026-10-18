@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
-import { currentStage, type Stage, type StageCheck, type StageId, type StageOpen } from '../../../shared/stages';
+import { CHAT_KINDS, KIND_INFO, REPEATS, stepLine, type ChatKind, type Stage, type StageCheck, type StageId, type StageOpen, type StagesView, type StepAction } from '../../../shared/stages';
+import { RECIPES } from '../../../shared/recipes';
 import { focusComposer, insertPrompt } from './Files';
 import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
@@ -19,179 +20,218 @@ function go(to: StageOpen) {
 
 const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I resolved by hand in triage.json (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
 const PLAN_ASK = 'Plan this before building: screens, buttons, copy and states. Wait for my approval.';
+const RESEARCH_ASK = RECIPES.find((r) => r.id === 'research')?.prompt ?? 'Research this before any design: ';
 
-/** The one thing to do next in a stage that is not ready yet. Fills the message box, never sends. */
+/** One way to move a step on. Fills the message box, never sends. */
 export function nextStep(stage: Stage, brief: string): { label: string; run: () => void } | null {
   const missing = (label: string) => stage.checks.find((c) => c.label === label)?.state === 'open';
   const about = brief ? ` ${brief}` : '';
   switch (stage.id) {
-    // The brief comes first, so a new chat always has a next step. Attaching the file has its own link on its check.
     case 'spec':
       if (missing('Brief written')) return { label: 'Describe the work', run: focusComposer };
-      return missing('Figma file attached') ? null : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
-    case 'explore': return { label: 'Sketch directions', run: () => insertPrompt(`/sketch${about}`) };
-    // Decide and the decisions check already link to where the work happens.
-    case 'decide': return null;
+      return { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
+    case 'research': return missing('Research written') ? { label: 'Ask Claude to research it', run: () => insertPrompt(`${RESEARCH_ASK}${brief}`) } : null;
+    case 'explore': return missing('Directions sketched') ? { label: 'Sketch directions', run: () => insertPrompt(`/sketch${about}`) } : null;
     case 'build': return missing('Frames in Figma') ? { label: 'Design it in Figma', run: () => insertPrompt(`/design${about}`) } : null;
     case 'validate':
       if (missing('Review run')) return { label: 'Run a review', run: () => insertPrompt('/review') };
       if (missing('No blocking or major issues') || missing('House rules followed')) return { label: 'Ask Claude to fix the open issues', run: () => insertPrompt(FIX_ASK) };
       return null;
-    case 'ship': return null;
+    default: return null;
   }
 }
 
 function ago(at: number) {
   const m = Math.floor((Date.now() - at) / 60000);
-  if (m < 1) return 'now';
-  if (m < 60) return `${m}m ago`;
-  if (m < 1440) return `${Math.floor(m / 60)}h ago`;
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  if (m < 1440) return `${Math.floor(m / 60)} h ago`;
   return new Date(at).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
-/** Loads the stages for the open chat and reloads when the chat moves on. */
+export type StageChange = { action: StepAction; id: StageId; note?: string } | { action: 'kind'; kind: ChatKind | 'none' };
+
+/** Loads the steps for the open chat and reloads when the chat moves on. */
 export function useStages() {
   const chat = useStore((s) => s.session.id);
   const count = useStore((s) => s.events.length);
   const phase = useStore((s) => s.session.flow.phase);
   const figma = useStore((s) => s.session.figma?.key);
-  const [list, setList] = useState<Stage[] | null>(null);
+  const [view, setView] = useState<StagesView | null>(null);
   const [error, setError] = useState('');
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    const t = setTimeout(() => getJson<Stage[]>('/api/stages').then((l) => { if (alive) { setList(l); setError(''); } }).catch((e) => alive && setError(e.message)), 300);
+    const t = setTimeout(() => getJson<StagesView>('/api/stages').then((v) => { if (alive) { setView(v); setError(''); } }).catch((e) => alive && setError(e.message)), 300);
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, phase, figma, tick]);
-  // Work done outside the chat, like a Flow check run, moves the gates too.
+  // Work done outside the chat, like a Flow check run, changes the checks too.
   useEffect(() => {
     const bump = () => setTick((t) => t + 1);
     window.addEventListener('designstudio:evidence', bump);
     return () => window.removeEventListener('designstudio:evidence', bump);
   }, []);
-  const change = async (action: 'approve' | 'reopen', id: StageId, note?: string) => {
-    try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); window.dispatchEvent(new Event('designstudio:stages')); } catch (e) { setError((e as Error).message); }
+  const change = async (c: StageChange) => {
+    try { setView(await postJson<StagesView>('/api/stages', c)); setError(''); window.dispatchEvent(new Event('designstudio:stages')); } catch (e) { setError((e as Error).message); }
   };
-  return { list, error, change, reload: () => setTick((t) => t + 1) };
+  return { view, error, change, reload: () => setTick((t) => t + 1) };
 }
 
-export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boolean; onToggle: () => void }) {
-  const now = currentStage(list);
-  const i = now ? list.indexOf(now) + 1 : list.length;
+/** Open or closed, remembered per chat. Closed by default, so the chat keeps its room. */
+export function useStepsOpen() {
+  const sid = useStore((s) => s.session.sessionId);
+  const key = `designstudio.steps.${sid ?? 'new'}`;
+  const read = () => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
+  const [open, setOpen] = useState(read);
+  useEffect(() => setOpen(read()), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem(key, v ? '1' : '0'); } catch {} };
+  return { open, toggle };
+}
+
+const STATE_WORD: Record<Stage['state'], string> = { done: 'done', skipped: 'not needed', todo: 'to do' };
+
+function Mark({ s }: { s: Pick<Stage, 'state' | 'next'> }) {
+  return <span className={`step-mark ${s.state}${s.next ? ' next' : ''}`} aria-hidden="true">{s.state === 'done' ? <Icon name="check" small /> : s.state === 'skipped' ? <Icon name="dash" small /> : null}</span>;
+}
+
+/** The compact line in the chat header: a mark per step and the next one. A plain chat shows a quiet Steps button. */
+export function StepsButton({ view, open, onToggle }: { view: StagesView; open: boolean; onToggle: () => void }) {
+  const kind = view.kind;
+  const line = stepLine(view.steps);
+  const done = view.steps.filter((s) => s.state !== 'todo').length;
+  const title = open ? 'Hide steps' : kind ? `Steps: ${done} of ${view.steps.length} done or not needed` : 'Show steps for this chat';
   return (
-    <button className={`stage-btn ${now?.state ?? 'approved'} st-${now?.id ?? 'ship'}`} aria-expanded={open} aria-controls="stage-panel" title={open ? 'Hide stages' : 'Show stages and what passes each gate'} onClick={onToggle}
+    <button className={`steps-btn${kind ? '' : ' plain'}`} aria-expanded={open} aria-controls="steps-panel" title={title} onClick={onToggle}
       onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.preventDefault(); onToggle(); } }}>
-      <span className="stage-mark" aria-hidden="true" />
-      <span>{now ? <><span className="stage-long">Stage {i} of {list.length}: </span><span className="stage-short" aria-hidden="true">{i}/{list.length} </span><b>{now.name}</b></> : <b>All stages approved</b>}</span>
+      {kind ? (
+        <>
+          <span className="steps-marks" aria-hidden="true">{view.steps.map((s) => <Mark key={s.id} s={s} />)}</span>
+          <span className="steps-kind">{KIND_INFO[kind].label}<span aria-hidden="true"> ·</span></span>
+          <span className="sr-only">, next: </span>
+          <b>{line}</b>
+        </>
+      ) : <span>Steps</span>}
       <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
     </button>
   );
 }
 
-// Esc closes the panel and puts focus back on the Stages button. Fields handle their own Esc first.
+// Esc closes the panel and puts focus back on the Steps button. Fields handle their own Esc first.
 function closeOnEscape(e: React.KeyboardEvent) {
-  if (e.key !== 'Escape' || e.defaultPrevented || (e.target as Element).closest('input, textarea, .dialog-overlay')) return;
-  const btn = document.querySelector<HTMLButtonElement>('.stage-btn[aria-controls="stage-panel"]');
+  if (e.key !== 'Escape' || e.defaultPrevented || (e.target as Element).closest('input, textarea, select, .dialog-overlay')) return;
+  const btn = document.querySelector<HTMLButtonElement>('.steps-btn[aria-controls="steps-panel"]');
   if (!btn) return;
   e.preventDefault();
   btn.click();
   btn.focus();
 }
 
-export function StagePanel({ list, error, change, reload }: ReturnType<typeof useStages> & { list: Stage[] }) {
-  const now = currentStage(list);
-  const [picked, setPicked] = useState<StageId | null>(null);
-  const shown = list.find((s) => s.id === picked) ?? now ?? list[list.length - 1];
-  const spec = list.find((s) => s.id === 'spec')?.checks[0];
+const KIND_CHOICES: Array<ChatKind | 'none'> = [...CHAT_KINDS, 'none'];
+const kindLabel = (k: ChatKind | 'none') => (k === 'none' ? 'No steps' : KIND_INFO[k].label);
+
+export function StepsPanel({ view, error, change, reload }: ReturnType<typeof useStages> & { view: StagesView }) {
+  const spec = view.steps.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
+  const firstNext = view.steps.find((s) => s.next)?.id ?? null;
+  const [shown, setShown] = useState<StageId | null>(firstNext);
+  useEffect(() => setShown(firstNext), [view.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hasSpec = view.steps.some((s) => s.id === 'spec');
+  const current = view.kind ?? 'none';
   return (
-    <section className={`stage-panel st-${shown.id}`} id="stage-panel" aria-label="Stages" onKeyDown={closeOnEscape}>
-      <ol className="stage-rail">
-        {list.map((s, i) => (
-          <li key={s.id} className={`${s.state} st-${s.id} ${s.id === shown.id ? 'shown' : ''}`}>
-            <button title={s.name} aria-current={s === now ? 'step' : undefined} aria-pressed={s.id === shown.id} onClick={() => setPicked(s.id)}>
-              <span className="stage-mark" aria-hidden="true">{s.state === 'approved' && <Icon name="check" small />}</span>
-              <span className="stage-name">{s.name}</span>
-              <span className="sr-only">{s.state === 'approved' ? ', approved' : s === now ? ', current stage' : ', later'}</span>
-            </button>
-            {i < list.length - 1 && <span className="stage-line" aria-hidden="true" />}
-          </li>
+    <section className="steps-panel" id="steps-panel" aria-label="Steps" onKeyDown={closeOnEscape}>
+      <div className="steps-kinds" role="radiogroup" aria-label="Kind of work">
+        {KIND_CHOICES.map((k) => (
+          <button key={k} role="radio" aria-checked={current === k} className={current === k ? 'on' : ''} onClick={() => current !== k && change({ action: 'kind', kind: k })}>
+            {kindLabel(k)}
+          </button>
         ))}
-      </ol>
-      {/* The gate comes first, so its stage, state and Approve show in a short panel; scope and states sit under its checks. */}
-      <Gate stage={shown} current={shown === now} brief={brief} onChange={change}>
-        <ScopeBox onChange={reload} />
-        <StateBox />
-      </Gate>
+      </div>
+      {view.guessed && view.kind && <p className="steps-hint">Guessed from your first message. Pick another kind any time.</p>}
+      {view.kind ? (
+        <ol className="steps-list">
+          {view.steps.map((s) => (
+            <Step key={s.id} s={s} open={shown === s.id} onOpen={() => setShown(shown === s.id ? null : s.id)} brief={brief} change={change}>
+              {s.id === 'spec' && <ScopeBox onChange={reload} />}
+              {s.id === 'build' && <StateBox />}
+            </Step>
+          ))}
+        </ol>
+      ) : (
+        <p className="steps-hint">This chat shows no steps. Pick a kind above to see the steps it usually takes.</p>
+      )}
+      {/* Scope matters to every kind of work, so it stays in reach when the list has no Plan step. */}
+      {!hasSpec && <div className="steps-scope"><ScopeBox onChange={reload} /></div>}
+      {view.kind && <p className="steps-hint">A guide, not a gate: take the steps in any order. Checks never block.</p>}
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
   );
 }
 
-// Every gate shares one heading; the state reads from this line, not from the heading style.
-const STATE_LABEL: Record<Stage['state'], string> = { approved: 'Approved', ready: 'Ready to approve', open: 'Current stage', later: 'Later' };
-
-function Gate({ stage, current, brief, onChange, children }: { stage: Stage; current: boolean; brief: string; onChange: (a: 'approve' | 'reopen', id: StageId, note?: string) => void; children?: React.ReactNode }) {
-  const open = stage.checks.filter((c) => c.state === 'open').length;
-  const next = nextStep(stage, brief);
+function Step({ s, open, onOpen, brief, change, children }: { s: Stage; open: boolean; onOpen: () => void; brief: string; change: (c: StageChange) => void; children?: React.ReactNode }) {
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState('');
-  useEffect(() => { setNoting(false); setNote(''); }, [stage.id]);
-  // Approving with open checks needs a reason, so the gate never passes by a stray click.
-  const needsNote = open > 0 && !note.trim();
-  // Approve is the main action once every check is met. The run card's Attach or Open Sketch keeps the one primary while a run waits on the designer.
-  const runWaits = useStore((s) => s.session.flow.phase === 'pick' || s.session.flow.phase === 'file');
-  const main = stage.state === 'ready' && !runWaits;
-  const approve = () => {
-    if (needsNote) return setNoting(true);
-    onChange('approve', stage.id, note);
-  };
+  useEffect(() => { setNoting(false); setNote(''); }, [s.id, s.state]);
+  const next = s.state === 'todo' ? nextStep(s, brief) : null;
+  const met = s.checks.filter((c) => c.state === 'met').length;
+  const counted = s.checks.filter((c) => c.state !== 'unchecked').length;
+  const round = s.round > 1 ? `Round ${s.round}` : '';
+  const meta = s.state === 'done' && s.mark ? `Done ${ago(s.mark.at)}` : s.state === 'skipped' ? 'Not needed' : s.mark && s.round < 2 ? `Reopened ${ago(s.mark.at)}` : counted ? `${met} of ${counted} checks met` : '';
+  const done = () => change({ action: 'done', id: s.id, note });
+  const bodyId = `step-${s.id}`;
   return (
-    <div className="gate">
-      <div className={`gate-head ${stage.state}`}>
-        <span className="gate-state"><span className="stage-mark" aria-hidden="true">{stage.state === 'approved' && <Icon name="check" small />}</span>{STATE_LABEL[stage.state]}</span>
-        <b>{stage.name}</b>
-        <span className="muted">{stage.goal}</span>
+    <li className={`step-row ${s.state}${s.next ? ' next' : ''}${open ? ' shown' : ''}`}>
+      <div className="step-line">
+        <button className="step-toggle" aria-expanded={open} aria-controls={bodyId} onClick={onOpen}>
+          <Mark s={s} />
+          <span className="step-name">{s.name}<span className="sr-only">, {STATE_WORD[s.state]}{s.next ? ', next' : ''}</span></span>
+          {(round || meta) && <span className="step-meta">{[round, meta].filter(Boolean).join(' · ')}{s.stale && <span className="step-stale"> · May be out of date</span>}</span>}
+          <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
+        </button>
+        <span className="step-acts">
+          {s.state === 'todo' && (
+            <>
+              <button className="step-btn" onClick={done}>Mark done</button>
+              <button className="link" onClick={() => change({ action: 'skip', id: s.id })}>Not needed</button>
+            </>
+          )}
+          {s.state === 'done' && REPEATS.includes(s.id) && <button className="step-btn" onClick={() => change({ action: 'again', id: s.id })}>Start round {s.round + 1}</button>}
+          {s.state !== 'todo' && <button className="link" onClick={() => change({ action: 'undo', id: s.id })}>Undo</button>}
+        </span>
       </div>
-      {current && stage.state === 'open' && next && <p className="gate-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
-      <div className="gate-label">Passes when{open > 0 && <span className="gate-open"> · {open} not met yet</span>}</div>
-      <ul className="gate-checks">{stage.checks.map((c, i) => <Check key={c.label} c={c} link={c.open !== stage.checks[i - 1]?.open} />)}</ul>
-      {children}
-      {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
-      {current && noting && (
-        <label className="gate-note-field">
-          <span>{open > 0 ? <>Why approve with {open === 1 ? '1 check' : `${open} checks`} open?<span aria-hidden="true"> *</span></> : 'Note for Claude'}</span>
-          <input autoFocus required={open > 0} value={note} maxLength={400} placeholder={open > 0 ? 'For example: the brief is in the Figma file' : 'For example: direction B, keep the voice button'} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && note.trim()) approve(); if (e.key === 'Escape') { setNoting(false); setNote(''); } }} />
-          {open > 0 && <span className="muted gate-req">* Required</span>}
-        </label>
+      {open && (
+        <div className="step-body" id={bodyId}>
+          <p className="step-goal">{s.goal}</p>
+          {s.stale && <p className="step-stale-note">A step before this one was reopened or run again after you marked this done. Check it still holds, then mark it done again.</p>}
+          {next && <p className="step-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
+          {s.checks.length > 0 && (
+            <>
+              <div className="step-label">What the app sees</div>
+              <ul className="step-checks">{s.checks.map((c, i) => <Check key={c.label} c={c} link={c.open !== s.checks[i - 1]?.open} />)}</ul>
+            </>
+          )}
+          {children}
+          {s.mark?.note && <p className="step-note"><span className="muted">Note: </span>{s.mark.note}</p>}
+          {s.state === 'todo' && (noting ? (
+            <label className="step-note-field">
+              <span>Note for Claude</span>
+              <input autoFocus value={note} maxLength={400} placeholder="For example: option B, keep the voice button" onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && note.trim()) done(); if (e.key === 'Escape') { e.preventDefault(); setNoting(false); setNote(''); } }} />
+              <span className="muted step-note-help">Saved with Mark done, and shown in the decision log.</span>
+            </label>
+          ) : <button className="link step-add-note" onClick={() => setNoting(true)}>Add a note</button>)}
+        </div>
       )}
-      <div className="gate-foot">
-        <span className="muted">Approves: <b>You</b></span>
-        {stage.state === 'approved' && stage.approval ? (
-          <span className="gate-done">
-            Approved {ago(stage.approval.at)}
-            <button className="link" onClick={() => onChange('reopen', stage.id)}>Reopen</button>
-          </span>
-        ) : current ? (
-          <span className="gate-act">
-            {!noting && <button className="link" onClick={() => setNoting(true)}>Add a note</button>}
-            <button className={main ? 'primary' : undefined} disabled={noting && needsNote} title={noting && needsNote ? 'Write why first' : undefined} onClick={approve}>Approve {stage.name}</button>
-          </span>
-        ) : (
-          <span className="muted">Opens after the stages before it are approved</span>
-        )}
-      </div>
-    </div>
+    </li>
   );
 }
 
 // Checks in a row that open the same place share one link, on the first of them.
 function Check({ c, link }: { c: StageCheck; link: boolean }) {
   return (
-    <li className={`gate-check ${c.state}`}>
-      <span className="gate-icon" aria-hidden="true">{c.state === 'met' ? <Icon name="check" small /> : c.state === 'open' ? <i /> : <Icon name="dash" small />}</span>
-      <span className="gate-text">
-        <span>{c.label}<span className="sr-only">{c.state === 'met' ? ': met' : c.state === 'open' ? ': not met' : ': not checked'}</span></span>
+    <li className={`step-check ${c.state}`}>
+      <span className="step-check-icon" aria-hidden="true">{c.state === 'met' ? <Icon name="check" small /> : c.state === 'open' ? <i /> : <Icon name="dash" small />}</span>
+      <span className="step-check-text">
+        <span>{c.label}<span className="sr-only">{c.state === 'met' ? ': yes' : c.state === 'open' ? ': not yet' : ': not checked'}</span></span>
         <span className="muted">{c.detail}</span>
       </span>
       {c.open && link && <button className="link" onClick={() => go(c.open!)}>{OPEN_LABEL[c.open]}</button>}
