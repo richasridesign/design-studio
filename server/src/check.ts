@@ -1,7 +1,7 @@
 import type { Area, DesignSystem, Finding, Severity } from '../../shared/design.js';
 
 export const DEFAULT_SPACING = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 80, 96, 128];
-const CONTROL = /\b(button|btn|cta|link|tab|checkbox|radio|toggle|switch|chip|icon[- ]?button|menu item|select|dropdown)\b/i;
+export const CONTROL = /\b(button|btn|cta|link|tab|checkbox|radio|toggle|switch|chip|icon[- ]?button|menu item|select|dropdown)\b/i;
 const HAND_BUILT = /\b(button|btn|input|text ?field|checkbox|radio|toggle|switch|chip|avatar|badge)\b/i;
 const MAX = 200;
 
