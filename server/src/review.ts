@@ -150,6 +150,8 @@ export type ReviewInput = {
   areas: Area[];
   round: number;
   kind: ReviewRun['kind'];
+  /** false for the auto check after an edit: its decisions stay on the run and do not fill Awaiting your decision. */
+  awaiting?: boolean;
   onlyFailed?: Area[] | null;
   signal?: AbortSignal;
   onProgress?: (text: string) => void;
@@ -215,8 +217,23 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   // The plugin read is a short Claude run too, so its cost counts.
   run.costUsd = readCost + run.results.reduce((n, r) => n + r.costUsd, 0);
   await saveRun(dir, run);
-  await awaitFindings(dir, fileKey, [...run.check, ...run.results.flatMap((r) => r.findings)]).catch((err) => console.error('awaiting list:', err));
+  if (input.awaiting !== false) await awaitFindings(dir, fileKey, forAwaiting(run)).catch((err) => console.error('awaiting list:', err));
   return run;
+}
+
+/** Most decisions one run adds to Awaiting your decision, so one large review cannot flood the list. */
+export const MAX_AWAIT_PER_RUN = 20;
+const RANK = { blocking: 0, major: 1, minor: 2 } as const;
+
+/**
+ * The findings of a run that wait for the designer's decision, at most `max`: reviewer findings before Code scan
+ * ones (a reviewer's are about shared tokens and features, the scan's about copies of a component), then by severity.
+ */
+export function forAwaiting(run: Pick<ReviewRun, 'check' | 'results'>, max = MAX_AWAIT_PER_RUN): Finding[] {
+  const fromReviewers = run.results.flatMap((r) => r.findings).filter((f) => f.decide);
+  const fromCheck = run.check.filter((f) => f.decide);
+  const bySeverity = (a: Finding, b: Finding) => RANK[a.severity] - RANK[b.severity];
+  return [...fromReviewers.sort(bySeverity), ...fromCheck.sort(bySeverity)].slice(0, max);
 }
 
 type ReviewOneInput = { dir: string; plan: string; ds: DesignSystem | null; outlines: string; covers: Area[]; shots: string[]; check: Finding[]; rules: string[] | null; rulesText: string; frames: string[]; signal?: AbortSignal };
