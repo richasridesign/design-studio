@@ -322,7 +322,9 @@ const server = http.createServer(async (req, res) => {
       // The written brief (plan.md) wins over the first message, so the steps and the report agree.
       const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
       const brief = (plan && briefLede(plan)) || first;
-      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
+      // A plan approved on its card counts only after the latest brief: plan.md's last write when it holds the brief.
+      const briefAt = plan && briefLede(plan) ? (await stat(path.join(chat.cwd, 'plan.md')).catch(() => null))?.mtimeMs ?? 0 : 0;
+      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events, briefAt), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
       return json({ ...view, approvals: await readApprovals(chat.cwd) });
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
