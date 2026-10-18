@@ -364,7 +364,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/report') {
       const figma = chat.state.session.figma;
       const headers: Record<string, string> = { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'" };
-      if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-design-report.html"`;
+      if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-handoff-report.html"`;
       res.writeHead(200, headers);
       return void res.end(await buildReport(chat.cwd, figma, summary(chat).title));
     }
