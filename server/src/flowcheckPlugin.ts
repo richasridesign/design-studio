@@ -25,13 +25,18 @@ const BULLETS = /•|(^|\n)\s*([-*–]|\d+[.)])\s/;
  * It builds a compact tree (short keys, see expandNode) plus the component maps checkFlows groups copies by.
  * Like the REST loader, pages with a top-level SECTION get full SECTION and FRAME subtrees and shallow other nodes.
  */
-type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[] };
+type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[]; first?: string[] };
+
+/** Sections walked before the rest, so the node cap never cuts them: her live work sits in LATEST and Parked. */
+export const FIRST = /\b(latest|parked)\b/i;
 
 function flowWalk(opts: WalkOpts = {}) {
   const maxNodes = opts.maxNodes ?? PLUGIN_MAX_NODES;
   const maxDepth = opts.maxDepth ?? PLUGIN_MAX_DEPTH;
   return `const MAX_NODES = ${maxNodes};
 const ONLY = ${JSON.stringify(opts.only ?? null)};
+const FIRST = new RegExp(${JSON.stringify(FIRST.source)}, 'i');
+const FIRST_NAMES = ${JSON.stringify((opts.first ?? []).map((f) => f.toLowerCase()).filter(Boolean))};
 const TOAST = new RegExp(${JSON.stringify(TOAST.source)}, 'i');
 const NOTE_LIMIT = ${NOTE_LIMIT};
 const BULLETS = new RegExp(${JSON.stringify(BULLETS.source)});
@@ -140,23 +145,39 @@ async function walk(n, depth, parentType, full) {
   }
   return o;
 }
-const pages = [];
+// The node cap cuts the walk short on big files, so sections named LATEST or Parked, or after a flow in Scope, go
+// first on every page, then the rest. The tree keeps the canvas order.
+const first = (t) => {
+  const name = String(t.name || '');
+  return FIRST.test(name) || FIRST_NAMES.some((f) => name.toLowerCase().includes(f));
+};
+const plan = [];
 for (const page of figma.root.children) {
   if (typeof page.loadAsync === 'function') await page.loadAsync();
   const tops = page.children || [];
-  const flows = tops.some((t) => t.type === 'SECTION');
-  const c = [];
-  for (const t of tops) {
-    if (flows) {
+  plan.push({ page, tops, flows: tops.some((t) => t.type === 'SECTION'), out: [] });
+}
+for (const pass of [true, false]) {
+  for (const p of plan) {
+    if (!p.flows) continue;
+    for (let k = 0; k < p.tops.length; k++) {
+      const t = p.tops[k];
+      if (first(t) !== pass) continue;
       // ONLY (a measuring aid) walks the named top-level nodes in full and keeps the rest shallow.
       const deep = (t.type === 'SECTION' || t.type === 'FRAME') && (!ONLY || ONLY.includes(t.id));
-      const w = await walk(t, 1, 'PAGE', deep);
-      if (w) c.push(w);
-    } else if (KEEP.test(t.name || '')) {
-      c.push({ i: t.id, n: clip(t.name), t: t.type });
+      p.out[k] = await walk(t, 1, 'PAGE', deep);
     }
   }
-  pages.push({ i: page.id, n: clip(page.name), t: page.type, c });
+}
+const pages = [];
+for (const p of plan) {
+  const c = [];
+  for (let k = 0; k < p.tops.length; k++) {
+    const t = p.tops[k];
+    if (p.flows) { if (p.out[k]) c.push(p.out[k]); }
+    else if (KEEP.test(t.name || '')) c.push({ i: t.id, n: clip(t.name), t: t.type });
+  }
+  pages.push({ i: p.page.id, n: clip(p.page.name), t: p.page.type, c });
 }
 // Hover targets are variants that often have no instance in the file, so they are looked up by id to read their
 // properties (the wrong hover rule compares them with the instance's own).
@@ -196,7 +217,7 @@ export function rulesBundle(): Promise<string> {
 
 /** The whole use_figma body: rules, walker, then the check. Only reads. */
 export async function flowCheckBody(scope: Scope = EMPTY_SCOPE, opts: WalkOpts = {}) {
-  return `${await rulesBundle()}\n${flowWalk(opts)}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)});`;
+  return `${await rulesBundle()}\n${flowWalk({ first: scope.flows, ...opts })}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)});`;
 }
 
 export type PluginCheck = { flows: FlowCheckRun['flows']; unchecked: FlowCheckRun['unchecked']; missing: string[]; truncated: boolean; nodes: number; costUsd: number; ms: number };
