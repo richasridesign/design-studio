@@ -36,7 +36,7 @@ export const KIND_INFO: Record<ChatKind, { label: string; steps: StageId[] }> = 
   review: { label: 'Review only', steps: ['validate'] },
   explore: { label: 'Explore or research', steps: ['research', 'explore'] },
   // A long run: agree the checklist and scope, then review and fix in rounds until the stop time.
-  batch: { label: 'Overnight batch', steps: ['spec', 'validate'] },
+  batch: { label: 'Long run', steps: ['spec', 'validate'] },
 };
 
 /** Steps that can run again. Review rounds also come from the review runs. */
@@ -362,11 +362,14 @@ export function stageNote(c: ChatSteps): string {
   ].join(' ');
 }
 
-/** A short reply that approves Claude's last proposal: "go", "go ahead", "approved", "A", "error message B, voice 2". */
+/**
+ * A short reply that approves Claude's last proposal: "go", "go ahead", "approved", "lgtm", "sure, go", "A".
+ * A bare "yes" or "ok" is left out: in the chat it could answer any question. On a waiting plan card it does approve (typedAnswer.ts).
+ */
 export function approvalReply(text: string): string | null {
   const t = text.trim().replace(/\s+/g, ' ');
   if (t.length > 40) return null;
-  if (/^(go( ahead)?|ok,? go( ahead)?|yes,? go( ahead)?|approved?|looks good,? go( ahead)?|build it|do it|(go with )?(option )?[a-c])([.!]|,? (please|thanks))?$/i.test(t)) return t;
+  if (/^(go( ahead)?|(ok|okay|yes|sure),? go( ahead)?|approved?|lgtm|looks good,? go( ahead)?|build it|do it|(go with )?(option )?[a-c])([.!]|,? (please|thanks))?$/i.test(t)) return t;
   // "go, keep the voice button"
   return /^(go|approved?)[,.:] \S/i.test(t) ? t : null;
 }
