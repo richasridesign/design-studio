@@ -105,6 +105,7 @@
 .sketch-head { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .sketch-screen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .screen-name { font-weight: 600; min-width: 120px; }
+@media (max-width: 900px) { .screen-name { flex-basis: 100%; } }
 .dir { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px; display: inline-flex; align-items: center; gap: 6px; }
 .dir.chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .sketch-canvas { flex: 1; min-height: 0; position: relative; }
