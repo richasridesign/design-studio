@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { FLOW_RULES, type FlowCheckRun, type FlowFinding, type FlowRef, type FlowResult, type FlowRule } from '../../shared/flowcheck.js';
 import { CONTROL } from './check.js';
-import { figmaGet, nodes, SAMPLE_KEY } from './figma.js';
+import { FigmaError, figmaGet, nodes, SAMPLE_KEY } from './figma.js';
+import { figmaMcp } from './lean.js';
+import { loadDocumentViaPlugin } from './flowcheckPlugin.js';
 
 export const FLOWCHECK_FILE = 'flowcheck.json';
 const MAX_PER_FLOW = 100;
@@ -342,13 +344,29 @@ export async function loadDocument(fileKey: string) {
   return { document, maps };
 }
 
-export async function runFlowCheck(input: { dir: string; fileKey: string; load?: typeof loadDocument }): Promise<FlowCheckRun> {
+export const NO_FIGMA_ACCESS = 'Log in to the Figma plugin, or add a Figma token in Settings';
+
+type Loaded = { document: any; maps: Maps; truncated?: boolean };
+
+// REST first. Without a token (412), the Figma plugin reads the file instead, when it is installed.
+export async function runFlowCheck(input: { dir: string; fileKey: string; load?: (fileKey: string) => Promise<Loaded>; loadPlugin?: (fileKey: string, opts: { dir: string; signal?: AbortSignal }) => Promise<Loaded>; figma?: () => Promise<{ configured: boolean }>; signal?: AbortSignal }): Promise<FlowCheckRun> {
   const { dir, fileKey } = input;
+  let via: FlowCheckRun['via'] = 'rest';
+  let truncated = false;
   const result = fileKey === SAMPLE_KEY ? { flows: [], unchecked: [] as FlowRule[] } : await (async () => {
-    const { document, maps } = await (input.load ?? loadDocument)(fileKey);
-    return checkFlows(document, maps);
+    let loaded: Loaded;
+    try {
+      loaded = await (input.load ?? loadDocument)(fileKey);
+    } catch (err) {
+      if (!(err instanceof FigmaError && err.status === 412)) throw err;
+      if (!(await (input.figma ?? figmaMcp)()).configured) throw new FigmaError(NO_FIGMA_ACCESS, 412);
+      loaded = await (input.loadPlugin ?? loadDocumentViaPlugin)(fileKey, { dir, signal: input.signal });
+      via = 'plugin';
+    }
+    truncated = !!loaded.truncated;
+    return checkFlows(loaded.document, loaded.maps);
   })();
-  const run: FlowCheckRun = { id: randomUUID(), at: Date.now(), fileKey, flows: result.flows, unchecked: result.unchecked };
+  const run: FlowCheckRun = { id: randomUUID(), at: Date.now(), fileKey, flows: result.flows, unchecked: result.unchecked, via, ...(truncated ? { truncated } : {}) };
   const runs = await readFlowChecks(dir);
   await writeFile(path.join(dir, FLOWCHECK_FILE), JSON.stringify({ runs: [...runs, run].slice(-5) }, null, 2));
   return run;
