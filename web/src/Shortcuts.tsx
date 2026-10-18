@@ -7,7 +7,7 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     title: 'General',
     rows: [
       [['⌘', '⇧', 'P'], 'Command palette (or F1)'],
-      [['⌘', 'O'], 'Attach a Figma file'],
+      [['⌘', 'O'], 'Attach Figma file'],
       [['⌘', 'B'], 'Toggle sidebar'],
       [['⌘', '.'], 'Toggle focus mode'],
       [['⌘', 'J'], 'Toggle terminal (dev tools)'],

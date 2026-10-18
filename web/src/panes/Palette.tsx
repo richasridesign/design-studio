@@ -25,7 +25,7 @@ export function buildCommands(_models: { value: string; displayName: string }[] 
   return [
     ...VIEWS.map(([id, title]) => ({ id: `view:${id}`, label: `View: Show ${title}` })),
     ...CENTER.map(([id, title]) => ({ id: `page:${id}`, label: `Open: ${title}` })),
-    { id: 'repo', label: 'Chat: Attach Figma File', key: '⌘O' },
+    { id: 'repo', label: 'Chat: Attach Figma file', key: '⌘O' },
     { id: 'design', label: 'Design: Toggle Design Run for the Next Message' },
     { id: 'review', label: 'Design: Review the Design' },
     { id: 'audit', label: 'Design: Audit the File' },

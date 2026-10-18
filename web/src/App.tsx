@@ -58,7 +58,7 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
 ];
 
 const PHASE_TAB: Record<string, Center> = { sketch: 'sketch', pick: 'sketch', file: 'figma', design: 'figma', fix: 'figma', review: 'review' };
-const PHASE_LABEL: Record<string, string> = { plan: 'Plan', sketch: 'Sketch', pick: 'Pick a direction', file: 'Attach a Figma file', system: 'Design system', design: 'Design', review: 'Review', fix: 'Fix', done: 'Done', stopped: 'Stopped' };
+const PHASE_LABEL: Record<string, string> = { plan: 'Plan', sketch: 'Sketch', pick: 'Pick a direction', file: 'Attach Figma file', system: 'Design system', design: 'Design', review: 'Review', fix: 'Fix', done: 'Done', stopped: 'Stopped' };
 const narrow = () => window.innerWidth <= 900;
 // Visually hidden, still read by screen readers (the page's one h1).
 const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };

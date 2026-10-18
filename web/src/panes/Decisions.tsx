@@ -128,7 +128,7 @@ export function Decisions() {
           <p>What was chosen, over what, and why.</p>
         </div>
         <DecisionLog />
-        <p className="dec-empty">Screen decisions belong to a Figma file. <button className="link" onClick={attachFigma}>Attach a Figma file</button></p>
+        <p className="dec-empty">Screen decisions belong to a Figma file. <button className="link" onClick={attachFigma}>Attach Figma file</button></p>
       </div>
     );
   }
