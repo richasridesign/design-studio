@@ -159,11 +159,12 @@ describe('sumEdits and replyLine', () => {
 });
 
 describe('welcomeChips', () => {
-  it('names the attached file and offers no attach chip', () => {
+  it('offers her four starts and names the attached file', () => {
     const chips = welcomeChips('Checkout');
-    expect(chips).toHaveLength(4);
+    expect(chips.map((c) => c.label)).toEqual(['Fix a frame: paste its link and a note', 'Plan a new flow', 'Fix something across all flows', 'Review only, no changes']);
     expect(chips.some((c) => c.attach)).toBe(false);
-    expect(chips.filter((c) => c.label.includes('Checkout'))).toHaveLength(2);
+    expect(chips[0].text).toBeUndefined();
+    expect(chips[3].text).toContain('Checkout');
   });
 
   it('leads with an attach chip when no file is attached', () => {
