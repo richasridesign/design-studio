@@ -125,13 +125,13 @@ function PlanDecision({ p, mode, first, cardRef }: CardProps & { cardRef: RefObj
     );
   }
   return (
-    <>
+    <div className="pd-foot">
       <div className="pd-actions">
         <button className="pd-btn primary" onClick={() => reply(true)}>Approve<kbd>Y</kbd></button>
         <button className="pd-btn" onClick={() => setNote('')}>Ask for changes<kbd>N</kbd></button>
       </div>
       {MODE_HINTS[mode] && <div className="pd-hint">{MODE_HINTS[mode]}</div>}
-    </>
+    </div>
   );
 }
 
@@ -147,14 +147,14 @@ function Decision({ p, mode, first, cardRef, yes, no }: CardProps & { cardRef: R
     return true;
   });
   return (
-    <>
+    <div className="pd-foot">
       <div className="pd-actions">
         <button className="pd-btn primary" onClick={() => reply(true)}>{yes}{keys && <kbd>Y</kbd>}</button>
         {always && <button className="pd-btn" onClick={() => reply(true, true)}>Always allow{keys && <kbd>A</kbd>}</button>}
         <button className="pd-btn" autoFocus={p.confirmFirst} onClick={() => reply(false)}>{no}<kbd>N</kbd></button>
       </div>
       {MODE_HINTS[mode] && <div className="pd-hint">{MODE_HINTS[mode]}</div>}
-    </>
+    </div>
   );
 }
 
