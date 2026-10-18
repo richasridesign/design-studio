@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
-import { AREA_NAMES } from '../../../shared/design';
-import { AWAIT_LABEL, answerPrompt, approvePrompt, nodeUrl, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
+import { AREA_NAMES, figmaNodeUrl } from '../../../shared/design';
+import { AWAIT_LABEL, answerPrompt, approvePrompt, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
 import { insertPrompt, showNode } from './Files';
 import { useNodeLabel } from './Triage';
 
@@ -34,7 +34,7 @@ export function Awaiting() {
       insertPrompt(answerPrompt(item.rule));
       setSaid('The question is in the message box: write your answer, then send it.');
     } else if (state === 'approved') {
-      insertPrompt(approvePrompt(item, nodeUrl(item.fileKey, item.node)));
+      insertPrompt(approvePrompt(item, figmaNodeUrl(item.fileKey, item.node)));
       setSaid('Approved. The fix is in the message box: read it, then send it to start.');
     } else setSaid(state === 'open' ? `Reopened: ${item.rule}` : `${AWAIT_LABEL[state]}: ${item.rule}`);
   };
@@ -82,7 +82,7 @@ export function Awaiting() {
                       {item.node ? ' · ' : !local && item.fileName ? ` · ${item.fileName}` : null}
                       {!item.node ? null : local
                         ? <button className="node-chip" title="Show in Figma" onClick={() => showNode(item.node)}>{label(item.node, item.nodeName)}</button>
-                        : <a className="node-chip" href={nodeUrl(item.fileKey, item.node)} target="_blank" rel="noreferrer">{item.fileName || 'Other file'}</a>}
+                        : <a className="node-chip" href={figmaNodeUrl(item.fileKey, item.node)} target="_blank" rel="noreferrer">{item.fileName || 'Other file'}</a>}
                     </span>
                   </div>
                 </div>
