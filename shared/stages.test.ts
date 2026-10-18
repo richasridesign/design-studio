@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHASE_STAGE, approve, cleanApprovals, phaseLine, stageFrames, currentStage, reopen, researchSummary, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
+import { KIND_INFO, PHASE_STAGE, approvalReply, chatKind, cleanApprovals, cleanChatSteps, guessKind, markStep, phaseLine, researchSummary, stageFrames, stageLabel, stageNote, stages, stepLine, type ChatSteps, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -8,45 +8,118 @@ const screen = (id: string, n: number, chosen?: string, chosenBy?: 'claude' | 'd
 const run = (over: Partial<ReviewRun> = {}): ReviewRun => ({ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:1'], check: [], results: [], tokens: 0, costUsd: 0, ...over });
 const finding = (severity: 'blocking' | 'major' | 'minor') => ({ id: severity, area: 'check' as const, node: '1:1', severity, rule: 'x', fix: 'y' });
 const pair = { name: 'Home', items: [{ decision: 'A', why: 'B' }, { decision: 'C', why: 'D' }] as [{ decision: string; why: string }, { decision: string; why: string }] };
+const empty: ChatSteps = { marks: {} };
 
-const byId = (e: StageEvidence, a = {}) => Object.fromEntries(stages(e, a).map((s) => [s.id, s]));
+// Every step a check can sit on, in one list, so the check tests do not depend on a kind.
+const byId = (e: StageEvidence, c: ChatSteps = empty) => Object.fromEntries([...stages(e, c, 'new'), ...stages(e, c, 'explore')].map((s) => [s.id, s]));
 
-describe('stages', () => {
-  it('starts at Spec with every later stage waiting', () => {
-    const list = stages(none, {});
-    expect(list.map((s) => s.state)).toEqual(['open', 'later', 'later', 'later', 'later', 'later']);
-    expect(currentStage(list)?.id).toBe('spec');
+describe('kinds', () => {
+  it('shows only the steps a kind needs', () => {
+    expect(stages(none, empty, 'review').map((s) => s.name)).toEqual(['Review']);
+    expect(stages(none, empty, 'fix').map((s) => s.name)).toEqual(['Plan', 'Build', 'Review']);
+    expect(stages(none, empty, 'new').map((s) => s.name)).toEqual(['Plan', 'Sketch', 'Build', 'Review']);
+    expect(stages(none, empty, 'explore').map((s) => s.name)).toEqual(['Research', 'Sketch']);
+    expect(stages(none, empty, 'batch').map((s) => s.name)).toEqual(['Plan', 'Review']);
   });
 
-  it('is ready when every check is met, but stays current until approved', () => {
-    const list = stages({ ...none, brief: 'Saved items screen\nfor a grocery app', figma: true, scope: { flows: ['Saved items'], parked: [] } }, {});
-    expect(list[0].state).toBe('ready');
-    expect(list[0].checks[0].detail).toBe('Saved items screen');
-    expect(list[0].checks[1]).toMatchObject({ label: 'Research written', state: 'unchecked' });
-    expect(list[0].checks[2]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
-    expect(list[1].state).toBe('later');
+  it('shows no steps for a plain chat', () => expect(stages(none, empty, null)).toEqual([]));
+
+  it('guesses the kind from the first message', () => {
+    expect(guessKind('Review only, do not build anything. Run the accessibility review on the LATEST flows.')).toBe('review');
+    expect(guessKind("Review the cards, don't change anything")).toBe('review');
+    expect(guessKind('The close icon is missing on the dialogs. Fix it across all 8 flows.')).toBe('fix');
+    expect(guessKind('icons colour differ, apply it to every screen in all the flows')).toBe('fix');
+    expect(guessKind('Design a new onboarding flow for HR admins')).toBe('new');
+    expect(guessKind('What if the approvals lived in Slack? Explore some ideas')).toBe('explore');
+    expect(guessKind('Run all of this until 4 AM, figure out yourself')).toBe('batch');
+    expect(guessKind('What does this error mean?')).toBeNull();
+    expect(guessKind('')).toBeNull();
   });
 
-  it('moves on once a stage is approved', () => {
-    const list = stages(none, { spec: { at: 5 } });
-    expect(list[0]).toMatchObject({ state: 'approved', approval: { at: 5 } });
-    expect(currentStage(list)?.id).toBe('explore');
+  it('uses her pick over the guess, and none turns the steps off', () => {
+    expect(chatKind(empty, 'Fix it across all 8 flows')).toEqual({ kind: 'fix', guessed: true });
+    expect(chatKind({ marks: {}, kind: 'review' }, 'Fix it across all 8 flows')).toEqual({ kind: 'review', guessed: false });
+    expect(chatKind({ marks: {}, kind: 'none' }, 'Fix it across all 8 flows')).toEqual({ kind: null, guessed: false });
+  });
+});
+
+describe('steps', () => {
+  it('suggests the first step still to do, and locks none', () => {
+    const list = stages(none, empty, 'fix');
+    expect(list.map((s) => [s.state, s.next])).toEqual([['todo', true], ['todo', false], ['todo', false]]);
+    expect(stepLine(list)).toBe('Plan');
   });
 
-  it('ignores an approval that sits after the current stage', () => {
-    const list = stages(none, { explore: { at: 5 } });
-    expect(list[0].state).toBe('open');
-    expect(list[1]).toMatchObject({ state: 'later', approval: undefined });
+  it('takes steps in any order', () => {
+    const c = markStep(empty, 'validate', 'done', 5);
+    const list = stages(none, c, 'fix');
+    expect(list.map((s) => s.state)).toEqual(['todo', 'todo', 'done']);
+    expect(list[2]).toMatchObject({ approval: { at: 5 }, next: false });
   });
 
-  it('needs two directions on every screen to finish exploring', () => {
-    expect(byId({ ...none, sketch: { screens: [screen('a', 2), screen('b', 1)] } }, { spec: { at: 1 } }).explore.checks[0]).toMatchObject({ state: 'open', detail: '2 screens, 1 with 2 or more directions' });
-    expect(byId({ ...none, sketch: { screens: [screen('a', 2)] } }, { spec: { at: 1 } }).explore.state).toBe('ready');
+  it('never clears another step when one is reopened, and flags the later ones as maybe out of date', () => {
+    let c = markStep(markStep(markStep(empty, 'spec', 'done', 1), 'build', 'done', 2), 'validate', 'done', 3, 'all clean');
+    c = markStep(c, 'spec', 'undo', 4);
+    expect(c.marks).toEqual({ spec: { state: 'todo', at: 4 }, build: { state: 'done', at: 2 }, validate: { state: 'done', at: 3, note: 'all clean' } });
+    c = markStep(c, 'explore', 'skip', 5);
+    const list = stages(none, c, 'new');
+    expect(list.map((s) => s.state)).toEqual(['todo', 'skipped', 'done', 'done']);
+    expect(list.map((s) => s.stale)).toEqual([false, false, true, true]);
+    // Done again after the reopen: up to date.
+    expect(stages(none, markStep(c, 'build', 'done', 6), 'new').map((s) => s.stale)).toEqual([false, false, false, true]);
+  });
+
+  it('flags Review as maybe out of date when Build runs another round after it', () => {
+    let c = markStep(markStep(empty, 'build', 'done', 1), 'validate', 'done', 2);
+    c = markStep(c, 'build', 'again', 3);
+    expect(stages(none, c, 'fix').map((s) => [s.id, s.stale])).toEqual([['spec', false], ['build', false], ['validate', true]]);
+  });
+
+  it('runs a step again as round 2 and keeps the round when undone or done', () => {
+    let c = markStep(markStep(empty, 'build', 'done', 1), 'build', 'again', 2);
+    expect(c.marks.build).toEqual({ state: 'todo', at: 2, round: 2 });
+    expect(stepLine(stages(none, markStep(c, 'spec', 'done', 3), 'fix'))).toBe('Build, round 2');
+    c = markStep(c, 'build', 'done', 3);
+    expect(c.marks.build).toEqual({ state: 'done', at: 3, round: 2 });
+    expect(markStep(c, 'build', 'undo', 4).marks.build).toEqual({ state: 'todo', at: 4, round: 2 });
+  });
+
+  it('counts review rounds from the review runs', () => {
+    const review = { runs: [run({ round: 2, at: 10 })] };
+    expect(stages({ ...none, review }, empty, 'review')[0]).toMatchObject({ state: 'todo', round: 2 });
+    expect(markStep(empty, 'validate', 'again', 11, undefined, 2).marks.validate).toEqual({ state: 'todo', at: 11, round: 3 });
+  });
+
+  it('opens Review again on its own when a newer review run comes in', () => {
+    const c = markStep(empty, 'validate', 'done', 20);
+    expect(stages({ ...none, review: { runs: [run({ round: 1, at: 10 })] } }, c, 'review')[0].state).toBe('done');
+    expect(stages({ ...none, review: { runs: [run({ round: 2, at: 30 })] } }, c, 'review')[0]).toMatchObject({ state: 'todo', round: 2, next: true });
+  });
+
+  it('says All done when nothing is left', () => {
+    expect(stepLine(stages(none, markStep(empty, 'validate', 'skip', 1), 'review'))).toBe('All done');
+  });
+
+  it('keeps checks as information: a step with open checks can be done', () => {
+    const list = stages(none, markStep(empty, 'spec', 'done', 1), 'fix');
+    expect(list[0].checks.some((c) => c.state === 'open')).toBe(true);
+    expect(list[0].state).toBe('done');
+  });
+
+  it('reads the spec checks', () => {
+    const s = byId({ ...none, brief: 'Saved items screen\nfor a grocery app', figma: true, scope: { flows: ['Saved items'], parked: [] } });
+    expect(s.spec.checks[0].detail).toBe('Saved items screen');
+    expect(s.spec.checks[1]).toMatchObject({ label: 'Research written', state: 'unchecked' });
+    expect(s.spec.checks[2]).toMatchObject({ label: 'Flows in scope named', state: 'met', detail: '1 flow' });
+  });
+
+  it('is happy with one direction per screen, and says how many have more', () => {
+    expect(byId({ ...none, sketch: { screens: [screen('a', 2), screen('b', 1)] } }).explore.checks[0]).toMatchObject({ state: 'met', detail: '2 screens, 1 with 2 or more directions' });
   });
 
   it('says which picks Claude made', () => {
     const s = byId({ ...none, sketch: { screens: [screen('a', 2, 'a0', 'claude'), screen('b', 2, 'b1', 'designer'), screen('c', 2)] } });
-    expect(s.decide.checks[0]).toMatchObject({ state: 'open', detail: '2 of 3 picked, 1 by Claude' });
+    expect(s.explore.checks[1]).toMatchObject({ state: 'open', detail: '2 of 3 picked, 1 by Claude' });
   });
 
   it('wants frames and two decisions on each', () => {
@@ -107,14 +180,12 @@ describe('stages', () => {
     expect(byId({ ...none, review, triage: all }).validate.checks[1]).toMatchObject({ state: 'met', detail: "None open, 1 fixed, 1 won't fix, 1 parked" });
   });
 
-  it('marks house rules as not checked when the review had none, which does not block the gate', () => {
-    const s = byId({ ...none, review: { runs: [run()] } }, { spec: { at: 1 }, explore: { at: 1 }, decide: { at: 1 }, build: { at: 1 } });
-    expect(s.validate.checks[2].state).toBe('unchecked');
-    expect(s.validate.state).toBe('ready');
+  it('marks house rules as not checked when the review had none', () => {
+    expect(byId({ ...none, review: { runs: [run()] } }).validate.checks[2].state).toBe('unchecked');
   });
 });
 
-describe('flow check on the Validate gate', () => {
+describe('flow check on the Review step', () => {
   const flow = (id: string, counts: Record<string, number>, state: 'pass' | 'fail' | 'unchecked' = 'pass') => ({ id, name: id, path: [], page: 'p', screens: 1, state, counts, unchecked: [], findings: [], more: 0 });
   const fc = (flows: ReturnType<typeof flow>[]) => ({ id: 'f', at: 1, fileKey: 'k', flows, unchecked: [] });
   it('blocks while a flow has issues and ignores flows it could not check', () => {
@@ -141,51 +212,69 @@ describe('research', () => {
     expect(researchSummary(md)).toBe('3 references, 2 options');
     expect(researchSummary('Some notes')).toBe('Findings written');
   });
-  it('is met once research.md exists, and never blocks Spec', () => {
-    expect(byId({ ...none, research: '## Looked at\n- A' }).spec.checks[1]).toMatchObject({ state: 'met', detail: '1 reference', open: 'research' });
+  it('is met once research.md exists, on Plan and on the Research step', () => {
+    const s = byId({ ...none, research: '## Looked at\n- A' });
+    expect(s.spec.checks[1]).toMatchObject({ state: 'met', detail: '1 reference', open: 'research' });
+    expect(s.research.checks[0]).toMatchObject({ state: 'met', detail: '1 reference', open: 'research' });
   });
 });
 
-describe('approve and reopen', () => {
-  it('keeps earlier approvals and drops later ones', () => {
-    const a = { spec: { at: 1 }, explore: { at: 2 }, decide: { at: 3 } };
-    expect(approve(a, 'explore', 9, '  looks good ')).toEqual({ spec: { at: 1 }, explore: { at: 9, note: 'looks good' } });
-    expect(reopen(a, 'explore')).toEqual({ spec: { at: 1 } });
+describe('stored steps', () => {
+  it('cleans what it reads', () => {
+    expect(cleanChatSteps({ kind: 'fix', marks: { build: { state: 'done', at: 1, note: ' ok ', round: 2 }, spec: { state: 'todo', at: 1 }, nope: { state: 'done', at: 1 }, validate: { state: 'x', at: 1 } } }))
+      .toEqual({ kind: 'fix', marks: { build: { state: 'done', at: 1, note: 'ok', round: 2 }, spec: { state: 'todo', at: 1 } } });
+    expect(cleanChatSteps({ kind: 'other' })).toEqual({ marks: {} });
+    expect(cleanChatSteps([1])).toEqual({ marks: {} });
   });
 
-  it('cleans stored approvals', () => {
-    expect(cleanApprovals({ spec: { at: 1, note: ' ' }, nope: { at: 2 }, build: { at: 'x' } })).toEqual({ spec: { at: 1 } });
+  it('still reads old approvals', () => {
+    expect(cleanApprovals({ spec: { at: 1, note: ' ' }, nope: { at: 2 }, build: { at: 'x' }, chats: {} })).toEqual({ spec: { at: 1 } });
     expect(cleanApprovals([1])).toEqual({});
   });
 });
 
-describe('stageNote', () => {
-  it('says nothing until a stage is approved', () => expect(stageNote({})).toBe(''));
-  it('names the approved stages, the current one and the notes', () => {
-    const t = stageNote({ spec: { at: 1, note: 'Mobile only' }, explore: { at: 2 } });
-    expect(t).toContain('approved Spec, Explore. Current stage: Decide (pick one direction per screen).');
-    expect(t).toContain('ask before doing it');
-    expect(t).toContain('Approval notes: Spec: Mobile only');
+describe('approvalReply', () => {
+  it('takes her short approvals and nothing longer', () => {
+    for (const t of ['go', 'Go ahead', 'approved', 'A', 'option B', 'ok go', 'go, keep the voice button']) expect(approvalReply(t)).toBe(t);
+    for (const t of ['a lot of blue here', 'good morning', 'go through every dialog and list the ones with no close icon please']) expect(approvalReply(t)).toBeNull();
   });
-  it('says the work is handed off when every stage is approved', () => {
-    expect(stageNote(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toMatch(/^Stages: the designer approved every stage/);
+  it('shows on Plan as information, with or without a written plan', () => {
+    expect(byId({ ...none, approvedInChat: 'go' }).spec.checks.at(-1)).toMatchObject({ label: 'You said go', state: 'met', detail: '"go", no written plan' });
+    expect(byId(none).spec.checks.at(-1)).toMatchObject({ state: 'unchecked' });
   });
 });
 
+describe('stageNote', () => {
+  it('says nothing until she sets something', () => expect(stageNote(empty)).toBe(''));
+  it('names the kind, the marks and the notes, and never asks Claude to hold back', () => {
+    let c: ChatSteps = { kind: 'fix', marks: {} };
+    c = markStep(markStep(markStep(c, 'spec', 'done', 1, 'Mobile only'), 'build', 'done', 2), 'build', 'again', 3);
+    const t = stageNote(markStep(c, 'validate', 'skip', 4));
+    expect(t).toContain('a guide only');
+    expect(t).toContain('Fix across flows (Plan, Build, Review)');
+    expect(t).toContain('Done: Plan.');
+    expect(t).toContain('Not needed: Review.');
+    expect(t).toContain('Started again: Build round 2.');
+    expect(t).toContain('Notes: Plan: Mobile only');
+    expect(t).not.toMatch(/ask before|wait|jumps ahead/i);
+  });
+  it('names a kind with nothing marked yet', () => expect(stageNote({ kind: 'review', marks: {} })).toContain('Review only (Review)'));
+});
+
 describe('stageLabel', () => {
-  it('is empty until a stage is approved, then names the current one', () => {
+  it('is empty until a step is done, then names the next one of a new flow', () => {
     expect(stageLabel({})).toBeNull();
-    expect(stageLabel({ spec: { at: 1 } })).toBe('Explore');
-    expect(stageLabel(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toBe('Shipped');
+    expect(stageLabel({ spec: { at: 1 } })).toBe('Sketch');
+    expect(stageLabel(Object.fromEntries(KIND_INFO.new.steps.map((id) => [id, { at: 1 }])))).toBe('All done');
   });
 });
 
 describe('phaseLine', () => {
   it('names a run phase by its stage, with the phase as the sub-line', () => {
     expect(phaseLine('design')).toBe('Build: designing in Figma');
-    expect(phaseLine('plan')).toBe('Spec: writing the plan');
-    expect(phaseLine('pick')).toBe('Decide: pick a direction');
-    expect(phaseLine('fix')).toBe('Validate: fixing issues');
+    expect(phaseLine('plan')).toBe('Plan: writing the plan');
+    expect(phaseLine('pick')).toBe('Sketch: pick a direction');
+    expect(phaseLine('fix')).toBe('Review: fixing issues');
   });
 
   it('keeps done and stopped as run states', () => {
@@ -194,8 +283,8 @@ describe('phaseLine', () => {
     expect(phaseLine('stopped')).toBe('Design run stopped');
   });
 
-  it('maps phases onto the stages in order', () => {
-    const order = ['spec', 'explore', 'decide', 'build', 'validate'];
+  it('maps phases onto the steps in order', () => {
+    const order = ['spec', 'explore', 'build', 'validate'];
     const seen = Object.values(PHASE_STAGE).map((p) => order.indexOf(p.stage));
     expect(seen.every((i, k) => i >= 0 && (k === 0 || i >= seen[k - 1]))).toBe(true);
   });

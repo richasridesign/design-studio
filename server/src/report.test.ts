@@ -62,7 +62,7 @@ describe('buildReport', () => {
     await writeFile(path.join(dir, 'stages.json'), JSON.stringify({ spec: { at: Date.UTC(2026, 9, 2, 9), note: 'Brief is clear' }, explore: { at: Date.UTC(2026, 9, 3, 9) } }));
     const html = await buildReport(dir, figma);
     const log = html.slice(html.indexOf('<h2>Decision log</h2>'));
-    expect(log).toContain('<strong>Stage</strong>: Approved Spec<br>Why: Brief is clear');
+    expect(log).toContain('<strong>Step</strong>: Approved Plan<br>Why: Brief is clear');
     expect(log).toContain('<strong>Empty</strong>: Chose Plain<br>Over: Hints<br>Why: Calm &lt;b&gt;');
     expect(log).toContain('Picked by the designer');
     expect(log).toContain('<strong>Cart</strong>: Chose List<br>Over: Cards<br>Why: List fits<br><small>Picked by Claude</small>');
@@ -108,10 +108,10 @@ describe('buildReport', () => {
     expect(top).toContain('<p class="lede">Let people &lt;check out&gt; fast.</p>');
     expect(top).toContain(`<a class="file" href="${figma.url}">Open in Figma</a>`);
     expect(top).toContain('<dt>Frames:</dt><dd>2 frames, 1 screen</dd>');
-    expect(top).toContain('<dt>Stage:</dt><dd>Decide</dd>');
-    expect(top).toContain('<span class="st pass">Explore</span><small>Approved</small>');
-    expect(top).toContain('<span class="st current">Decide</span><small>Current</small>');
-    expect(top).toContain('<span class="st none">Ship</span><small>Later</small>');
+    expect(top).toContain('<dt>Next step:</dt><dd>Build</dd>');
+    expect(top).toContain('<span class="st pass">Sketch</span><small>Done</small>');
+    expect(top).toContain('<span class="st current">Build</span><small>Next</small>');
+    expect(top).toContain('<span class="st none">Review</span><small>To do</small>');
     expect(top).toContain('<span class="num">1</span><span class="st blocking">Blocking</span>');
     expect(top).toContain('<span class="num">2</span><span class="st major">Major</span>');
     expect(top).toContain('<span class="num">1</span><span class="st minor">Minor</span>');
@@ -220,7 +220,7 @@ describe('buildReport', () => {
     const html = await buildReport(dir, figma);
     expect(html).not.toContain('<nav');
     expect(html).not.toContain('Open issues');
-    expect(html).not.toContain('<dt>Stage:</dt>');
+    expect(html).not.toContain('<dt>Next step:</dt>');
   });
 
   it('drops a title heading and starts headings at h3', () => {
