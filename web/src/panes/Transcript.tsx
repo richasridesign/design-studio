@@ -19,6 +19,7 @@ import { reviewChecklist, type ReviewDoc, type ReviewRun } from '../../../shared
 import type { ChatEvent } from '../../../shared/protocol';
 import '../transcript.css';
 import '../timeline.css';
+import { runningText } from '../StatusBar';
 
 export type ChatView = 'timeline' | 'transcript';
 
@@ -104,7 +105,7 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
         {running && children === undefined && (
           <div className="tr-working">
             <span className="tr-mark"><Icon name="loading" small spin /></span>
-            <span className="tr-text">{stopping ? 'Stopping…' : status === 'Idle' ? 'Working' : status}</span>
+            <span className="tr-text">{stopping ? 'Stopping…' : runningText(status)}</span>
           </div>
         )}
         {children}

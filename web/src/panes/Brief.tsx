@@ -9,6 +9,7 @@ import { touch } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
+import { runningText } from '../StatusBar';
 
 export function nextSteps(events: ChatEvent[]) {
   let next: string[] = [];
@@ -78,7 +79,7 @@ export function Brief() {
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
-                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? status : lastReply ? 'Idle · last reply' : 'Idle'}
+                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : lastReply ? 'Idle · last reply' : 'Idle'}
                 {state === 'running' && lastTool?.kind === 'tool_use' && <span className="tool">{lastTool.summary}</span>}
               </span>
               <span className="tl-side">

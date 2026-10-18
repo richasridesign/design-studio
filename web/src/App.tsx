@@ -21,7 +21,7 @@ import { Icon } from './Icon';
 import { FilePill } from './AttachFile';
 import { ConnectPopover } from './ConnectPopover';
 import { McpItem, McpPage } from './panes/McpStatus';
-import { StatusBar } from './StatusBar';
+import { StatusBar, runningText } from './StatusBar';
 import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
 import { openSection } from './Section';
@@ -259,7 +259,7 @@ export function App() {
         <FilePill />
         <span className="spacer" />
         <span className={`run-state ${session.running ? 'busy' : ''}`}>
-          <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} /> <span className="label">{session.running ? status : 'Idle'}</span>
+          <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} /> <span className="label">{session.running ? runningText(status) : 'Idle'}</span>
         </span>
         <span className="mobile-only top-meta"><SpendPill /><McpItem /></span>
         {canNotify && <button className="icon-btn" title={notifying ? 'Notifications on' : 'Notify me when Claude finishes or needs me'} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></button>}
