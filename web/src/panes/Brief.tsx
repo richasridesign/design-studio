@@ -169,5 +169,5 @@ function time(at: number) {
   if (ago < 3600000) return `${Math.floor(ago / 60000)} min ago`;
   const d = new Date(at);
   const clock = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  return d.toDateString() === new Date().toDateString() ? `at ${clock}` : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
+  return d.toDateString() === new Date().toDateString() ? clock : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
 }

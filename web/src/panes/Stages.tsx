@@ -136,6 +136,9 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
   useEffect(() => { setNoting(false); setNote(''); }, [stage.id]);
   // Approving with open checks needs a reason, so the gate never passes by a stray click.
   const needsNote = open > 0 && !note.trim();
+  // Approve is the main action once every check is met. The run card's Attach or Open Sketch keeps the one primary while a run waits on the designer.
+  const runWaits = useStore((s) => s.session.flow.phase === 'pick' || s.session.flow.phase === 'file');
+  const main = stage.state === 'ready' && !runWaits;
   const approve = () => {
     if (needsNote) return setNoting(true);
     onChange('approve', stage.id, note);
@@ -168,7 +171,7 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
         ) : current ? (
           <span className="gate-act">
             {!noting && <button className="link" onClick={() => setNoting(true)}>Add a note</button>}
-            <button disabled={noting && needsNote} title={noting && needsNote ? 'Write why first' : undefined} onClick={approve}>Approve {stage.name}</button>
+            <button className={main ? 'primary' : undefined} disabled={noting && needsNote} title={noting && needsNote ? 'Write why first' : undefined} onClick={approve}>Approve {stage.name}</button>
           </span>
         ) : (
           <span className="muted">Opens after the stages before it are approved</span>
