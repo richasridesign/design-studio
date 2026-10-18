@@ -6,6 +6,7 @@ import { showNode, insertPrompt } from './Files';
 import { Empty, ReviewArt } from './Empty';
 import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
+import { FlowCheck } from './FlowCheck';
 import { FrameNames } from '../FrameNames';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
@@ -21,6 +22,7 @@ const when = (t: number) => new Date(t).toLocaleString([], { month: 'short', day
 export function Review({ dev = false }: { dev?: boolean }) {
   const chat = useStore((s) => s.session.id);
   const preset = useStore((s) => shownPreset(s.session.flow.preset));
+  const hasFigma = useStore((s) => !!s.session.figma);
   const reviewRev = useRev('review.json');
   const critRev = useRev('crit.json');
   const copyRev = useRev('copy.json');
@@ -62,7 +64,8 @@ export function Review({ dev = false }: { dev?: boolean }) {
         <button className="ghost export-report" onClick={() => window.open(api('/api/report'), '_blank')}>Export report</button>
         <a className="ghost" href={api('/api/report?download=1')} download aria-label="Download report" title="Download report"><Icon name="cloud-download" /></a>
       </div>
-      {!rows.length && <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />}
+      <FlowCheck />
+      {!rows.length && hasFigma && <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />}
       {!!rows.length && (
         <ul className="run-list">
           {rows.map((row, i) => {
