@@ -186,12 +186,16 @@ export function buildChecklist(run: Pick<BuildRun, 'url' | 'frameName' | 'matchS
 
 const SEVERITY_ORDER: Severity[] = ['blocking', 'major', 'minor'];
 
-export function reviewChecklist(run: Pick<ReviewRun, 'check' | 'results' | 'frames'>, fileKey: string | null) {
+export function reviewChecklist(run: Pick<ReviewRun, 'check' | 'results' | 'frames' | 'rules'>, fileKey: string | null) {
   const findings = [...run.check, ...run.results.flatMap((r) => r.findings)].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const lines = findings.map((f) => `- [ ] **${f.severity}** ${f.nodeName ?? f.node}: ${f.rule.replace(/\.$/, '')}. Fix: ${f.fix}${fileKey && f.node ? ` (${figmaNodeUrl(fileKey, f.node)})` : ''}`);
+  const failed = (run.rules ?? []).filter((r) => r.state === 'fail');
+  const where = (ids: string[]) => (ids.length ? `: fails on ${ids.map((id) => (fileKey ? figmaNodeUrl(fileKey, id) : id)).join(', ')}` : '');
+  const rules = failed.map((r) => `- [ ] **house rule** ${r.rule.replace(/\.$/, '')}${where(r.frames)}`);
   const n = run.frames.length;
-  const head = `Review of ${n} ${n === 1 ? 'frame' : 'frames'}: ${findings.length} ${findings.length === 1 ? 'issue' : 'issues'}`;
-  return lines.length ? [head, '', ...lines].join('\n') : head;
+  const ruleNote = failed.length ? `, ${failed.length} ${failed.length === 1 ? 'house rule' : 'house rules'} failed` : '';
+  const head = `Review of ${n} ${n === 1 ? 'frame' : 'frames'}: ${findings.length} ${findings.length === 1 ? 'issue' : 'issues'}${ruleNote}`;
+  return lines.length || rules.length ? [head, '', ...lines, ...rules].join('\n') : head;
 }
 
 const POINT_LABEL: Record<CritPoint['kind'], string> = { like: 'Like', concern: 'Concern', idea: 'Idea' };
