@@ -198,7 +198,7 @@ export function Palette() {
             }}
           />
         </div>
-        <ul ref={list} role="listbox">
+        <ul ref={list} role="listbox" aria-label="Commands">
           {rows.map((r, i) => {
             const group = i === 0 && r.recent ? 'recently used' : !r.recent && rows[i - 1]?.recent ? 'other commands' : '';
             return (
