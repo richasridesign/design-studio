@@ -4,7 +4,7 @@ import type { PlanLimit } from '../../shared/protocol';
 import { Icon } from './Icon';
 import { SpendPill } from './SpendPill';
 import { McpItem, openMcp } from './panes/McpStatus';
-import { FigmaLogin } from './FigmaLogin';
+import { openFigmaLogin } from './FigmaLogin';
 import './statusbar.css';
 
 const FIGMA: Record<string, [tone: string, label: string]> = {
@@ -83,22 +83,14 @@ export function StatusBar() {
   const figma = mcp.find((m) => /figma/i.test(m.name));
   useFigmaRetry(figma);
   const stuck = figma && (figma.status === 'needs-auth' || figma.status === 'failed');
-  const [help, setHelp] = useState(false);
-  const status = useRef<HTMLButtonElement>(null);
   const retry = () => { if (figma) send({ type: 'mcp_reconnect', name: figma.name }); };
-  const closeHelp = () => {
-    setHelp(false);
-    // The "How to log in" link is gone once Figma connects, so focus goes back to the Figma status.
-    requestAnimationFrame(() => requestAnimationFrame(() => { if (!document.querySelector('.statusbar .sb-help')) status.current?.focus(); }));
-  };
 
   return (
     <footer className="statusbar desktop-only">
-      <button ref={status} className="sb-item" title="Figma connection, open MCP servers" onClick={openMcp}>
+      <button className="sb-item" title="Figma connection, open MCP servers" onClick={openMcp}>
         <span className={`sb-dot ${tone}`} aria-hidden="true" /> Figma: {label}
       </button>
-      {figma?.status === 'needs-auth' && <button className="sb-link sb-help" onClick={() => setHelp(true)}>How to log in</button>}
-      {help && figma && <FigmaLogin name={figma.name} tone={tone} label={label} onClose={closeHelp} onRetry={retry} />}
+      {figma?.status === 'needs-auth' && <button className="sb-link sb-help" onClick={openFigmaLogin}>How to log in</button>}
       {/* Needing login, Try again lives in the How to log in dialog, so the footer keeps one action. */}
       {stuck && figma.status !== 'needs-auth' && (
         <button

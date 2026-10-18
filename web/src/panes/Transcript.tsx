@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getJson, postJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
+import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { FileIcon } from './Explorer';
@@ -45,21 +46,31 @@ export function welcomeChips(fileName: string | null): Array<{ label: string; at
 }
 
 function SetupBanner() {
-  const [problem, setProblem] = useState<{ tone: 'warn' | 'bad'; text: string } | null>(null);
+  const [problem, setProblem] = useState<{ tone: 'warn' | 'bad'; text: string; login: boolean } | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => {
+    const run = () => void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => {
       // The Figma tools matter most for a chat, so their state wins over the token's.
       const c = [r[1], r[0]].find((x) => x.tone !== 'ok');
-      if (live && c && c.tone !== 'ok') setProblem({ tone: c.tone, text: [c.detail, c.fix].filter(Boolean).join('. ').replace(/\.\./g, '.') });
+      if (!live) return;
+      // Needing login, the steps live in the How to log in dialog, so the notice keeps one short line and one action.
+      const login = c?.fixId === 'figma-login';
+      setProblem(c && c.tone !== 'ok' ? { tone: c.tone, text: login ? `${c.detail}.` : [c.detail, c.fix].filter(Boolean).join('. ').replace(/\.\./g, '.'), login } : null);
     });
-    return () => { live = false; };
+    run();
+    // Try again in the login dialog checks again, so the notice goes once Figma connects.
+    window.addEventListener(RECHECK, run);
+    return () => { live = false; window.removeEventListener(RECHECK, run); };
   }, []);
   if (!problem) return null;
   return (
     <div className="tl-setup" role="status">
       <span className={`tl-setup-mark ${problem.tone}`} aria-hidden />
-      <span>{problem.text} <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button></span>
+      <span>{problem.text}{' '}
+        {problem.login
+          ? <button className="link" onClick={openFigmaLogin}>How to log in</button>
+          : <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button>}
+      </span>
     </div>
   );
 }

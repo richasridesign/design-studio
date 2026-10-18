@@ -5,6 +5,7 @@ import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, type CheckId, type C
 import { PRESET_INFO, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
 import { figmaState } from '../StatusBar';
+import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 
 type McpInfo = { configured: boolean; status: { status: string; error?: string } | null };
 
@@ -22,6 +23,7 @@ function CheckSetup() {
   const fix = async (id: CheckId, fixId: string) => {
     setFixErr('');
     if (fixId === 'open-figma') return window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } }));
+    if (fixId === 'figma-login') return openFigmaLogin();
     try {
       await addFigmaToClaude();
     } catch (e) {
@@ -124,7 +126,7 @@ export function Settings() {
           {mcp?.configured ? (
             <>
               <McpState status={mcp.status?.status} />
-              {mcp.status?.status === 'needs-auth' && <span className="muted">The Figma plugin needs you to log in. Run claude in a terminal, type /mcp and pick plugin:figma:figma.</span>}
+              {mcp.status?.status === 'needs-auth' && <span className="muted">The Figma plugin needs you to log in. <button className="link" onClick={openFigmaLogin}>How to log in</button></span>}
             </>
           ) : (
             <div className="inline"><span className="muted">Not set up yet.</span><button onClick={addMcp}>Add Figma to Claude</button></div>
