@@ -514,7 +514,9 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 .tl-welcome { display: flex; flex-direction: column; gap: 8px; padding: 12px 2px 4px; }
 .tl-welcome h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: var(--text-lg); }
 .tl-welcome p { margin: 0; font-size: var(--text-sm); color: var(--fg-muted); }
-.tl-setup { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-muted); }
+.tl-setup { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.tl-setup-mark { flex: none; width: 8px; height: 8px; margin-top: 6px; background: var(--warn); }
+.tl-setup-mark.bad { width: 0; height: 0; background: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--err); margin-top: 5px; }
 .tl-setup .link { background: none; border: 0; padding: 0; color: var(--link); cursor: pointer; font-size: inherit; }
 .tl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tl-chips button { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: var(--text-sm); color: var(--fg); text-align: left; cursor: pointer; }

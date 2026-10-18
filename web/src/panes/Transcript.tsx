@@ -13,8 +13,9 @@ import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
-import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
-import { reviewChecklist, type ReviewDoc } from '../../../shared/design';
+import { areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize, unposted } from './reviewRuns';
+import { rulesLine } from '../../../shared/rules';
+import { reviewChecklist, type ReviewDoc, type ReviewRun } from '../../../shared/design';
 import type { ChatEvent } from '../../../shared/protocol';
 import '../transcript.css';
 import '../timeline.css';
@@ -39,15 +40,21 @@ export function welcomeChips(fileName: string | null): Array<{ label: string; at
 }
 
 function SetupBanner() {
-  const [missing, setMissing] = useState(false);
+  const [problem, setProblem] = useState<{ tone: 'warn' | 'bad'; text: string } | null>(null);
   useEffect(() => {
-    void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => setMissing(r.some((c) => c.tone !== 'ok')));
+    let live = true;
+    void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => {
+      // The Figma tools matter most for a chat, so their state wins over the token's.
+      const c = [r[1], r[0]].find((x) => x.tone !== 'ok');
+      if (live && c && c.tone !== 'ok') setProblem({ tone: c.tone, text: [c.detail, c.fix].filter(Boolean).join('. ').replace(/\.\./g, '.') });
+    });
+    return () => { live = false; };
   }, []);
-  if (!missing) return null;
+  if (!problem) return null;
   return (
-    <div className="tl-setup">
-      <span>Figma is not connected yet.</span>
-      <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button>
+    <div className="tl-setup" role="status">
+      <span className={`tl-setup-mark ${problem.tone}`} aria-hidden />
+      <span>{problem.text} <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button></span>
     </div>
   );
 }
@@ -275,6 +282,17 @@ function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
   );
 }
 
+function HouseRulesRow({ run }: { run: ReviewRun }) {
+  const tone = rulesTone(run);
+  const go = () => focusReview({ runId: run.id, area: 'rules' });
+  return (
+    <li className={`tr-review-go ${tone === 'pass' ? 'pass' : `fail ${tone}`}`} role="button" tabIndex={0} title="Show house rules" onClick={go} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }}>
+      <Icon name={tone === 'pass' ? 'check' : tone === 'major' ? 'warning' : tone === 'error' ? 'close' : 'circle-large-outline'} small />
+      <span className="tr-review-name">House rules: {rulesLine(run.rules!)}</span>
+    </li>
+  );
+}
+
 function ReviewCard({ runAt }: { runAt: number }) {
   const chat = useStore((s) => s.session.id);
   const hasFile = useStore((s) => !!s.session.figma);
@@ -329,6 +347,7 @@ function ReviewCard({ runAt }: { runAt: number }) {
             {a.failed && <span className="tr-review-failed">failed</span>}
           </li>
         ))}
+        {!!run.rules?.length && <HouseRulesRow run={run} />}
       </ul>
       {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review. <button className="link" onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
       <div className="tr-review-actions">
