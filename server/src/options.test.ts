@@ -14,6 +14,7 @@ describe('instructions', () => {
 
   it('tells Claude where the findings closed by hand are, so her fix request can stay in plain words', () => {
     expect(instructions(null)).toContain('closed by hand on the Review tab (fixed, won\'t fix or parked) are listed in triage.json');
+    expect(instructions(null)).toContain('Leave the findings that wait for the designer\'s decision');
   });
 
   it('leaves the Figma speed notes out when no file is attached', () => {
