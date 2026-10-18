@@ -22,7 +22,7 @@ function go(to: StageOpen) {
   else window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: `page:${to}` } }));
 }
 
-export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I closed by hand (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
+export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I closed by hand (fixed, won't fix or parked). Leave the findings that wait for my decision. Plan the fixes first and wait for my approval.";
 const PLAN_ASK = 'Plan this before building: screens, buttons, copy and states. Wait for my approval.';
 const RESEARCH_ASK = RECIPES.find((r) => r.id === 'research')?.prompt ?? 'Research this before any design: ';
 
@@ -39,7 +39,7 @@ export function nextStep(stage: Stage, brief: string): { label: string; run: () 
     case 'build': return missing('Frames in Figma') ? { label: 'Design it in Figma', run: () => insertPrompt(`/design${about}`) } : null;
     case 'validate':
       if (missing('Review run')) return { label: 'Run a review', run: () => insertPrompt('/review') };
-      if (missing('No blocking or major issues') || missing('House rules followed')) return { label: 'Ask Claude to fix the open issues', run: () => insertPrompt(FIX_ASK) };
+      if (missing('No blocking or major issues') || missing('House rules followed')) return { label: 'Fix the issues', run: () => insertPrompt(FIX_ASK) };
       return null;
     default: return null;
   }
