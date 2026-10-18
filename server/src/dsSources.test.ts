@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { changeDesignSystem, listSkills, readCodeTokens, skillRulesFor } from './dsSources.js';
 import { starterProfile } from '../../shared/dsProfiles.js';
+import { profileOff } from './profile.js';
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), 'ds-'));
 
@@ -54,6 +55,15 @@ describe('changeDesignSystem', () => {
     r = await changeDesignSystem(dir, null, { action: 'clear' });
     expect(r.ds).toBeNull();
     await expect(readFile(path.join(dir, 'design-system.json'), 'utf8')).rejects.toThrow();
+  });
+  it('keeps a removed profile off until she adds one', async () => {
+    const dir = await tmp();
+    expect(await profileOff(dir)).toBe(false);
+    await changeDesignSystem(dir, null, { action: 'starter', id: 'nordic' });
+    await changeDesignSystem(dir, null, { action: 'clear' });
+    expect(await profileOff(dir)).toBe(true);
+    await changeDesignSystem(dir, null, { action: 'starter', id: 'lofi' });
+    expect(await profileOff(dir)).toBe(false);
   });
   it('records a failed Figma read on the source instead of failing', async () => {
     const dir = await tmp();
