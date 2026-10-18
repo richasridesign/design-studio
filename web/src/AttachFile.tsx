@@ -71,7 +71,7 @@ export function FilePill() {
               <div className="attach-label">Open in Chrome</div>
               <ul>
                 {chromeTabs.map((t) => (
-                  <li key={t.url} title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></li>
+                  <li key={t.url}><button type="button" title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></button></li>
                 ))}
               </ul>
             </>
@@ -81,7 +81,7 @@ export function FilePill() {
               <div className="attach-label">Recent files</div>
               <ul>
                 {recent.map((f) => (
-                  <li key={f.url} title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></li>
+                  <li key={f.url}><button type="button" title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></button></li>
                 ))}
               </ul>
             </>
