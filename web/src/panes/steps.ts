@@ -171,3 +171,27 @@ export function groupTurns(items: Item[]): Turn[] {
     return { id: seg[0].id, blocks };
   });
 }
+
+const QUIET = /^(Permission mode:|Session started with)/;
+
+/** Per turn: the prompt, done lines, notes, reviews, notices and the latest reply. Tool steps are left out. */
+export function timelineTurns(items: Item[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const it of items) {
+    if (it.kind === 'user' || it.kind === 'phase' || !turns.length) turns.push({ id: it.id, blocks: [] });
+    const blocks = turns[turns.length - 1].blocks;
+    if (isTool(it) || (it.kind === 'system' && QUIET.test(it.text))) continue;
+    if (it.kind === 'assistant') {
+      const prev = blocks.findIndex((b) => b.kind === 'assistant');
+      if (prev >= 0) blocks.splice(prev, 1);
+    }
+    blocks.push(it);
+  }
+  return turns.filter((t) => t.blocks.length);
+}
+
+/** Where to start so only the last `keep` prompts show, and how many earlier prompts that hides. */
+export function recentTurns(turns: Turn[], keep = 3) {
+  const starts = turns.flatMap((t, i) => (t.blocks[0]?.kind === 'user' ? [i] : []));
+  return starts.length > keep ? { from: starts[starts.length - keep], hidden: starts.length - keep } : { from: 0, hidden: 0 };
+}
