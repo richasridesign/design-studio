@@ -7,7 +7,8 @@ import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
 import { flowIssues, type FlowCheckRun } from './flowcheck.js';
 import { stateMap } from './stateMap.js';
-import { closedTally, splitRun, type Triage } from './triage.js';
+import { closedTally, splitRun, triagedRules, type Triage } from './triage.js';
+import { rulesSummary } from './rules.js';
 
 export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -104,13 +105,15 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
       const split = splitRun(run, e.triage);
       const open = split.open.filter((f) => f.severity !== 'minor').length;
       const closed = closedTally(split.closed.filter((f) => f.severity !== 'minor'));
-      const rules = run.rules ?? [];
-      const failed = rules.filter((r) => r.state === 'fail').length;
+      // A failed house rule resolved by hand (fixed, won't fix, parked) counts as met, like a resolved finding.
+      const rules = triagedRules(run, e.triage) ?? [];
+      const { failed, resolved } = rulesSummary(rules);
+      const resolvedNote = resolved ? `, ${resolved} resolved by hand` : '';
       return [
         check('Review run', true, `Round ${run.round}, ${plural(run.frames.length, 'frame')}`, 'review'),
         check('No blocking or major issues', open === 0, `${open ? `${plural(open, 'issue')} open` : 'None open'}${closed ? `, ${closed}` : ''}`, 'review'),
         rules.length
-          ? check('House rules followed', failed === 0, failed ? `${failed} of ${rules.length} failed` : `All ${rules.length} followed`, 'review')
+          ? check('House rules followed', failed === 0, failed ? `${failed} of ${rules.length} failed${resolvedNote}` : resolved ? `${rules.length - resolved} of ${rules.length} followed${resolvedNote}` : `All ${rules.length} followed`, 'review')
           : { label: 'House rules followed', state: 'unchecked', detail: 'No house rules checked in this review', open: 'review' },
         wired,
       ];

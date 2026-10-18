@@ -111,7 +111,7 @@ describe('house rules', () => {
   });
   it('picks the card tone', () => {
     expect(rulesTone({ rules: [rule('pass'), rule('pass')] })).toBe('pass');
-    expect(rulesTone({ rules: [rule('pass'), rule('fail')] })).toBe('major');
+    expect(rulesTone({ rules: [rule('pass'), rule('fail')] })).toBe('fail');
     expect(rulesTone({ rules: [rule('pass'), rule('unchecked')] })).toBe('unchecked');
     expect(rulesTone({ rules: [rule('unchecked')], rulesError: 'x' })).toBe('error');
   });

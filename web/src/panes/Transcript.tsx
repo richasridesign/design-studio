@@ -16,7 +16,8 @@ import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
-import { areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize, unposted } from './reviewRuns';
+import { TONE_MARK, areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize, unposted } from './reviewRuns';
+import '../marks';
 import { rulesLine } from '../../../shared/rules';
 import { openRun } from '../../../shared/triage';
 import { useTriage } from './Triage';
@@ -323,13 +324,16 @@ function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
   );
 }
 
+// Every mark on the card has a word next to it, so the shape and colour are never the only cue.
+const TONE_WORD = { pass: 'Passed', blocking: 'Blocking issues', major: 'Major issues', error: 'Failed' } as const;
+
 function HouseRulesRow({ run }: { run: ReviewRun }) {
   const tone = rulesTone(run);
   const go = () => focusReview({ runId: run.id, area: 'rules' });
   return (
     <li className={`tr-review-go ${tone === 'pass' ? 'pass' : `fail ${tone}`}`}>
       <button className="tr-review-btn" title="Show house rules" onClick={go}>
-        <Icon name={tone === 'pass' ? 'check' : tone === 'major' ? 'warning' : tone === 'error' ? 'close' : 'circle-large-outline'} small />
+        <span className={`mk tr-mark ${TONE_MARK[tone]}`} aria-hidden="true" />
         <span className="tr-review-name">House rules: {rulesLine(run.rules!)}</span>
       </button>
     </li>
@@ -381,19 +385,18 @@ function ReviewCard({ runAt }: { runAt: number }) {
       <div className="tr-review-head">
         <b>{runLabel(run)}</b>
         <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}</span>
-        {run.tokens > 0 && <span className="tr-dur">{Math.round(run.tokens / 1000)}k tokens</span>}
       </div>
       {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
       <ul className="tr-review-rows">
         {areaRows(run).map((a) => (
           <li key={a.key} className={a.pass ? 'pass' : `fail tr-review-go ${a.tone}`}>
             {a.pass ? (
-              <><Icon name="check" small /><span className="tr-review-name">{a.name}</span></>
+              <><span className="mk tr-mark pass" aria-hidden="true" /><span className="tr-review-name">{a.name}</span><span className="tr-review-state">Passed</span></>
             ) : (
               <button className="tr-review-btn" title="Show findings" onClick={() => focusReview({ runId: run.id, area: a.key })}>
-                <Icon name={a.tone === 'major' ? 'warning' : 'close'} small />
+                <span className={`mk tr-mark ${TONE_MARK[a.tone]}`} aria-hidden="true" />
                 <span className="tr-review-name">{a.name}</span>
-                {a.failed && <span className="tr-review-failed">failed</span>}
+                <span className={a.failed ? 'tr-review-failed' : 'tr-review-state'}>{TONE_WORD[a.tone]}</span>
               </button>
             )}
           </li>

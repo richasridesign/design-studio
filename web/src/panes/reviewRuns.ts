@@ -1,3 +1,5 @@
+import { rulesSummary } from '../../../shared/rules';
+import type { MarkKind } from '../../../shared/marks';
 import { AREA_NAMES, PRESET_INFO, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun } from '../../../shared/design';
 
 export type RunRow =
@@ -28,7 +30,8 @@ export function summarize(row: RunRow): string {
   const findings = [...row.run.check, ...row.run.results.flatMap((r) => r.findings)];
   const blocking = findings.filter((f) => f.severity === 'blocking').length;
   const major = findings.filter((f) => f.severity === 'major').length;
-  const rules = row.run.rules?.filter((r) => r.state === 'fail').length ?? 0;
+  // Rules resolved by hand carry their triage (see openRun) and do not count as failed.
+  const rules = rulesSummary(row.run.rules ?? []).failed;
   const parts = [...(blocking || major ? [`${blocking} blocking, ${major} major`] : []), ...(rules ? [`${plural(rules, 'rule')} failed`] : [])];
   return parts.length ? parts.join(', ') : 'No issues';
 }
@@ -65,11 +68,16 @@ export function isStale(run: Pick<ReviewRun, 'at'>, lastModified: string | null 
   return run.at === latestAt && !Number.isNaN(t) && t > run.at;
 }
 
-// House rules: a failed rule needs attention (amber), never an error. Unchecked rules keep the card neutral.
-export type RulesTone = AreaTone | 'unchecked';
+// House rules: a failed rule is the red X of the shared marks (shared/marks.ts). Unchecked rules keep the card neutral.
+// Pass the run through openRun first, so rules resolved by hand count as followed.
+export type RulesTone = AreaTone | 'fail' | 'unchecked';
 export function rulesTone(run: Pick<ReviewRun, 'rules' | 'rulesError'>): RulesTone {
   const rules = run.rules ?? [];
-  if (rules.some((r) => r.state === 'fail')) return 'major';
+  const s = rulesSummary(rules);
+  if (s.failed) return 'fail';
   if (run.rulesError) return 'error';
-  return rules.length && rules.every((r) => r.state === 'pass') ? 'pass' : 'unchecked';
+  return rules.length && s.passed + s.resolved === rules.length ? 'pass' : 'unchecked';
 }
+
+/** The shared mark (shared/marks.ts) for a card or row tone. */
+export const TONE_MARK: Record<RulesTone, MarkKind> = { pass: 'pass', major: 'major', blocking: 'blocking', error: 'error', fail: 'fail', unchecked: 'none' };

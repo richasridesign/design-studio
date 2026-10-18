@@ -210,6 +210,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
         throw err;
       }
     }));
+    // Model findings name only a node id, so each one takes the name of the frame it sits in.
+    run.results = run.results.map((r) => ({ ...r, findings: r.findings.map((f) => (f.nodeName ? f : { ...f, nodeName: frameOf(docs, f.node) })) }));
     if (checker) {
       run.rules = ruleResults(ruleList, verdicts, docs.map((d) => d.id));
       const failed = run.results.find((r) => r.area === checker)?.error;
@@ -247,6 +249,14 @@ async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaRes
   if (!r.data) return { area, pass: false, summary: 'The reviewer did not return a result', findings: [], tokens: r.tokens, costUsd: r.costUsd, error: r.error };
   const findings = r.data.findings.slice(0, MAX_FINDINGS).map((f, i) => ({ ...f, area: (AREAS.includes(f.area as Area) ? f.area : area === 'all' ? 'brief' : area) as Area, id: `${area}:${i}:${f.node}` }));
   return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd, ...(c.rules ? { verdicts: r.data.rules } : {}) };
+}
+
+const holds = (n: any, id: string): boolean => n?.id === id || (n?.children ?? []).some((c: any) => holds(c, id));
+
+/** The name of the reviewed frame that holds a node, if any. */
+export function frameOf(docs: Array<{ document: any }>, id: string): string | undefined {
+  const name = docs.find((d) => holds(d.document, id))?.document?.name;
+  return typeof name === 'string' && name ? name : undefined;
 }
 
 export function failedAreas(run: ReviewRun): Area[] {

@@ -1,7 +1,9 @@
 import { parkedRules, type Scope } from './scope.js';
+import type { TriageEntry } from './triage.js';
 
 export type RuleState = 'pass' | 'fail' | 'unchecked';
-export type RuleResult = { rule: string; state: RuleState; frames: string[] };
+/** triage is set on a failed rule the designer resolved by hand (see openRun). It is never stored in review.json. */
+export type RuleResult = { rule: string; state: RuleState; frames: string[]; triage?: TriageEntry };
 
 export const MAX_CHECKED_RULES = 40;
 
@@ -42,13 +44,15 @@ export function ruleResults(rules: string[], raw: unknown, frames: string[]): Ru
   return out;
 }
 
+/** failed counts only rules still open; a failed rule resolved by hand counts as resolved. */
 export function rulesSummary(results: RuleResult[]) {
   const passed = results.filter((r) => r.state === 'pass').length;
-  const failed = results.filter((r) => r.state === 'fail').length;
-  return { passed, failed, unchecked: results.length - passed - failed, total: results.length };
+  const resolved = results.filter((r) => r.state === 'fail' && r.triage).length;
+  const failed = results.filter((r) => r.state === 'fail' && !r.triage).length;
+  return { passed, failed, resolved, unchecked: results.length - passed - failed - resolved, total: results.length };
 }
 
 export function rulesLine(results: RuleResult[]) {
   const s = rulesSummary(results);
-  return `${s.passed} of ${s.total} passed${s.unchecked ? `, ${s.unchecked} not checked` : ''}`;
+  return `${s.passed} of ${s.total} passed${s.resolved ? `, ${s.resolved} resolved by hand` : ''}${s.unchecked ? `, ${s.unchecked} not checked` : ''}`;
 }

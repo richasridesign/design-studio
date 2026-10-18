@@ -369,8 +369,15 @@ const server = http.createServer(async (req, res) => {
       const figma = chat.state.session.figma;
       const headers: Record<string, string> = { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'" };
       if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-handoff-report.html"`;
+      // Frame names from the file, so findings and frames never show as raw layer ids. A slow or failed read is skipped.
+      const names = figma
+        ? await Promise.race([
+            fileOutline(figma.key).then((o) => Object.fromEntries(o.pages.flatMap((p) => p.frames.map((f) => [f.id, f.name])))),
+            new Promise<Record<string, string>>((r) => setTimeout(() => r({}), 4000)),
+          ]).catch(() => ({}))
+        : {};
       res.writeHead(200, headers);
-      return void res.end(await buildReport(chat.cwd, figma, summary(chat).title));
+      return void res.end(await buildReport(chat.cwd, figma, summary(chat).title, names));
     }
     if (url.pathname === '/api/review') return json(await readReview(chat.cwd));
     if (url.pathname === '/api/design') return json(await readDesign(chat.cwd));
