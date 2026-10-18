@@ -102,7 +102,7 @@ export function McpPage() {
           <div className="mcp-stats">
             <Stat n={ok} of={rows.length} label="connected" tone={attention ? 'warn' : 'ok'} />
             <Stat n={tools} label="tools" />
-            {attention > 0 && <Stat n={attention} label="need you" tone="bad" />}
+            {attention > 0 && <Stat n={attention} label="need you" tone={rows.some((r) => r.status === 'failed') ? 'bad' : 'warn'} />}
             <button className={`mcp-refresh ${busy ? 'busy' : ''}`} onClick={() => load(true)} disabled={busy} title="Connect to every server again">
               <Icon name={busy ? 'loading' : 'refresh'} small spin={busy} /> {busy ? 'Checking' : at ? `Checked ${ago(at)}` : 'Check'}
             </button>
