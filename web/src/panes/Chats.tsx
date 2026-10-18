@@ -83,7 +83,7 @@ export function Chats() {
   return (
     <div className="sessions chats">
       <div className="sessions-bar">
-        <button className="new-chat primary" onClick={() => send({ type: 'new_chat' })}><Icon name="add" small /> New chat</button>
+        <button className="new-chat" onClick={() => send({ type: 'new_chat' })}><Icon name="add" small /> New chat</button>
       </div>
       <div className="sessions-bar">
         <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />

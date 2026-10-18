@@ -1,6 +1,6 @@
 .sessions .sessions-bar { gap: 4px; padding: 0 12px 6px 8px; align-items: center; }
 .sessions .sessions-bar input {
-  height: 24px; padding: 0 8px; font-size: var(--text-md); line-height: 22px;
+  height: 32px; padding: 0 12px; font-size: var(--text-md); line-height: 30px;
   background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
 }
 .sessions .sessions-bar input:focus { outline: 0; border-color: var(--focus); }
@@ -47,8 +47,8 @@
 .sessions .tree .row.more { font-size: var(--text-sm); color: var(--fg-muted); }
 .sessions .tree .row.more:hover { color: var(--fg); text-decoration: underline; }
 .sessions .sessions-bar .new-chat {
-  flex: 1; height: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  font-size: var(--text-sm); border-radius: var(--radius-sm);
+  flex: 1; height: 32px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--text-md); font-weight: 500; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
 }
 .side-switch { display: flex; gap: 4px; padding: 0 12px 8px 8px; }
 .side-switch button { flex: 1; height: 32px; font-size: var(--text-md); color: var(--fg-muted); background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
