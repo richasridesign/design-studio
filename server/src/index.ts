@@ -29,6 +29,7 @@ import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { markPosted, readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
 import { buildReport, reportSlug } from './report.js';
+import { changeStage, readStages } from './stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -280,6 +281,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/decisions') {
       const key = url.searchParams.get('key') || figma?.key || '';
       return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
+    }
+    if (url.pathname === '/api/stages') {
+      if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
+      const brief = chat.state.events.find((e) => e.kind === 'user')?.text ?? null;
+      const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
+      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, sketch, design, review, decisions }));
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));

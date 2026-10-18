@@ -1,0 +1,134 @@
+// Stages: the six gates a piece of design work passes, from Richa's brief for an ideal tool.
+// Each gate lists what passes it, the evidence the app already has, and who approves (the designer).
+
+import type { DesignDoc, ReviewDoc, SketchDoc } from './design.js';
+import type { DecisionDoc } from './decisions.js';
+import { filled } from './decisions.js';
+
+export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
+export type StageId = (typeof STAGE_IDS)[number];
+
+export const STAGE_INFO: Record<StageId, { name: string; goal: string }> = {
+  spec: { name: 'Spec', goal: 'Agree what to design and for whom' },
+  explore: { name: 'Explore', goal: 'Sketch more than one direction per screen' },
+  decide: { name: 'Decide', goal: 'Pick one direction per screen' },
+  build: { name: 'Build', goal: 'Design the picked direction in Figma' },
+  validate: { name: 'Validate', goal: 'Review the frames against the checks and house rules' },
+  ship: { name: 'Ship', goal: 'Hand off the frames' },
+};
+
+export type Approval = { at: number; note?: string };
+export type StageApprovals = Partial<Record<StageId, Approval>>;
+
+/** Where a check's evidence lives in the app. */
+export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach';
+export type StageCheck = { label: string; state: 'met' | 'open' | 'unchecked'; detail: string; open?: StageOpen };
+export type StageState = 'approved' | 'ready' | 'open' | 'later';
+export type Stage = { id: StageId; name: string; goal: string; state: StageState; checks: StageCheck[]; approval?: Approval };
+
+export type StageEvidence = {
+  brief: string | null;
+  figma: boolean;
+  sketch: SketchDoc | null;
+  design: DesignDoc | null;
+  review: ReviewDoc | null;
+  decisions: DecisionDoc | null;
+};
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const check = (label: string, met: boolean, detail: string, open?: StageOpen): StageCheck => ({ label, state: met ? 'met' : 'open', detail, open });
+
+function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
+  const screens = e.sketch?.screens ?? [];
+  const frames = e.design?.frames ?? [];
+  switch (id) {
+    case 'spec':
+      return [
+        check('Brief written', !!e.brief?.trim(), e.brief?.trim() ? short(e.brief) : 'Describe the work in the chat'),
+        check('Figma file attached', e.figma, e.figma ? 'Attached' : 'Attach the file Claude designs in', e.figma ? undefined : 'attach'),
+      ];
+    case 'explore': {
+      const multi = screens.filter((s) => s.directions.length >= 2).length;
+      return [check('Directions sketched', screens.length > 0 && multi === screens.length, screens.length ? `${plural(screens.length, 'screen')}, ${multi} with 2 or more directions` : 'No sketch yet', 'sketch')];
+    }
+    case 'decide': {
+      const picked = screens.filter((s) => s.chosen);
+      const byClaude = picked.filter((s) => s.chosenBy === 'claude').length;
+      const detail = screens.length ? `${picked.length} of ${screens.length} picked${byClaude ? `, ${byClaude} by Claude` : ''}` : 'No sketch yet';
+      return [check('A direction picked for every screen', screens.length > 0 && picked.length === screens.length, detail, 'sketch')];
+    }
+    case 'build': {
+      const ids = new Set(frames.map((f) => f.nodeId));
+      const written = [...ids].filter((nid) => e.decisions?.[nid]?.items.every(filled)).length;
+      return [
+        check('Frames in Figma', frames.length > 0, frames.length ? plural(frames.length, 'frame') : 'Claude has not designed any frames yet', 'figma'),
+        check('Two decisions per frame', ids.size > 0 && written === ids.size, ids.size ? `${written} of ${ids.size} frames` : 'No frames yet', 'decisions'),
+      ];
+    }
+    case 'validate': {
+      const run = e.review?.runs.at(-1);
+      if (!run) return [check('Review run', false, 'No review yet', 'review')];
+      const open = [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor').length;
+      const rules = run.rules ?? [];
+      const failed = rules.filter((r) => r.state === 'fail').length;
+      return [
+        check('Review run', true, `Round ${run.round}, ${plural(run.frames.length, 'frame')}`, 'review'),
+        check('No blocking or major issues', open === 0, open ? `${plural(open, 'issue')} open` : 'None open', 'review'),
+        rules.length
+          ? check('House rules followed', failed === 0, failed ? `${failed} of ${rules.length} failed` : `All ${rules.length} followed`, 'review')
+          : { label: 'House rules followed', state: 'unchecked', detail: 'No house rules checked in this review', open: 'review' },
+      ];
+    }
+    case 'ship':
+      return [check('Handoff report', frames.length > 0, frames.length ? 'Frames, decisions and review in one page' : 'Nothing to hand off yet', frames.length ? 'report' : undefined)];
+  }
+}
+
+const short = (t: string) => {
+  const line = t.trim().split('\n')[0];
+  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+};
+
+/** Current stage: the first one not approved. Only it can be approved; later ones wait. */
+export function stages(e: StageEvidence, approvals: StageApprovals): Stage[] {
+  let reached = false;
+  return STAGE_IDS.map((id) => {
+    const checks = checksFor(id, e);
+    const approval = approvals[id];
+    let state: StageState;
+    if (approval && !reached) state = 'approved';
+    else if (!reached) {
+      reached = true;
+      state = checks.every((c) => c.state !== 'open') ? 'ready' : 'open';
+    } else state = 'later';
+    return { id, ...STAGE_INFO[id], state, checks, approval: state === 'approved' ? approval : undefined };
+  });
+}
+
+export const currentStage = (list: Stage[]) => list.find((s) => s.state !== 'approved') ?? null;
+
+/** Approving a stage keeps the ones before it. Reopening one clears it and every later approval. */
+export function approve(a: StageApprovals, id: StageId, at: number, note?: string): StageApprovals {
+  const i = STAGE_IDS.indexOf(id);
+  const out: StageApprovals = {};
+  for (const s of STAGE_IDS.slice(0, i)) if (a[s]) out[s] = a[s];
+  out[id] = note?.trim() ? { at, note: note.trim().slice(0, 400) } : { at };
+  return out;
+}
+
+export function reopen(a: StageApprovals, id: StageId): StageApprovals {
+  const i = STAGE_IDS.indexOf(id);
+  const out: StageApprovals = {};
+  for (const s of STAGE_IDS.slice(0, i)) if (a[s]) out[s] = a[s];
+  return out;
+}
+
+export function cleanApprovals(input: unknown): StageApprovals {
+  const out: StageApprovals = {};
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+  for (const id of STAGE_IDS) {
+    const v = (input as Record<string, unknown>)[id] as { at?: unknown; note?: unknown } | undefined;
+    if (v && typeof v.at === 'number' && Number.isFinite(v.at)) out[id] = typeof v.note === 'string' && v.note.trim() ? { at: v.at, note: v.note.trim().slice(0, 400) } : { at: v.at };
+  }
+  return out;
+}
