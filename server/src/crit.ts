@@ -1,40 +1,16 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { MODELS, PERSONAS, TONES, type CopyItem, type CopyRun, type CritRun, type Tone } from '../../shared/design.js';
 import { readRules, rulesBlock } from './rules.js';
-import { download, images, nodes } from './figma.js';
+import { readFrames, readingText } from './frameRead.js';
 import { lean } from './lean.js';
-import { outline } from './review.js';
+import { outline, SHOT_MAX } from './review.js';
 
 export const CRIT_FILE = 'crit.json';
 export const COPY_FILE = 'copy.json';
 const MAX_ITEMS = 40;
 const MAX_TEXT = 600;
-
-type Loaded = { id: string; document: any; components: Record<string, any> };
-
-async function loadFrames(fileKey: string, frames: string[]): Promise<Loaded[]> {
-  const docs: Loaded[] = [];
-  for (let i = 0; i < frames.length; i += 20) {
-    const r = await nodes(fileKey, frames.slice(i, i + 20));
-    for (const [id, n] of Object.entries(r.nodes)) if (n) docs.push({ id, document: n.document, components: n.components ?? {} });
-  }
-  return docs;
-}
-
-async function takeShots(dir: string, fileKey: string, ids: string[]) {
-  const shots: string[] = [];
-  await mkdir(path.join(dir, 'review', 'shots'), { recursive: true });
-  const urls = await images(fileKey, ids, 1).catch(() => ({}) as Record<string, string | null>);
-  for (const id of ids) {
-    const url = urls[id];
-    if (!url) continue;
-    const file = path.join('review', 'shots', `${id.replace(/[:;]/g, '-')}.png`);
-    await download(url, path.join(dir, file)).then(() => shots.push(file)).catch(() => {});
-  }
-  return shots;
-}
 
 export function textNodes(doc: any): Array<{ id: string; name: string; characters: string }> {
   const out: Array<{ id: string; name: string; characters: string }> = [];
@@ -108,11 +84,8 @@ const CRIT_SYSTEM = 'You give design critique on UI frames from Figma. You get s
 
 export async function runCrit(input: { dir: string; fileKey: string; frames: string[]; signal?: AbortSignal; onProgress?: (t: string) => void }): Promise<CritRun> {
   const { dir, fileKey, frames } = input;
-  input.onProgress?.('Reading the frames from Figma');
-  const docs = await loadFrames(fileKey, frames);
-  if (!docs.length) throw new Error('None of the frames could be read from Figma');
-  input.onProgress?.('Taking screenshots');
-  const shots = await takeShots(dir, fileKey, docs.map((d) => d.id));
+  input.onProgress?.(readingText(frames.length));
+  const { docs, shots } = await readFrames(fileKey, frames, { dir, signal: input.signal, shots: { dir: path.join('review', 'shots'), maxDimension: SHOT_MAX } });
   const plan = await readFile(path.join(dir, 'plan.md'), 'utf8').catch(() => '');
   const prompt = [
     plan ? `The brief:\n${plan.slice(0, 3000)}` : 'There is no written brief.',
@@ -157,8 +130,8 @@ const COPY_SYSTEM = 'You edit UI copy. You get every text string in some Figma f
 
 export async function runCopy(input: { dir: string; fileKey: string; frames: string[]; tone: Tone; signal?: AbortSignal; onProgress?: (t: string) => void }): Promise<CopyRun> {
   const { dir, fileKey, frames, tone } = input;
-  input.onProgress?.('Reading the text from Figma');
-  const docs = await loadFrames(fileKey, frames);
+  input.onProgress?.(readingText(frames.length, false));
+  const { docs } = await readFrames(fileKey, frames, { dir, signal: input.signal });
   const texts = docs.flatMap((d) => textNodes(d.document).map((t) => ({ ...t, frame: d.document.name as string })));
   if (!texts.length) throw new Error('The frames have no text layers');
   const prompt = [

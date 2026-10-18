@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { BUILD_KINDS, MODELS, nodeIdsIn, type BuildDiff, type BuildRun } from '../../shared/design.js';
-import { download, images, nodes } from './figma.js';
+import { readFrames, readingText } from './frameRead.js';
 import { screenshotUrl } from './chrome.js';
 import { lean } from './lean.js';
 import { outline } from './review.js';
@@ -60,25 +60,23 @@ export const readBuildChecks = (dir: string) => readFile(path.join(dir, BUILDCHE
 
 export async function runBuildCheck(input: { dir: string; fileKey: string; frame: string; url: string; width?: number | null; signal?: AbortSignal; onProgress?: (t: string) => void }): Promise<BuildRun> {
   const { dir, fileKey, frame, url } = input;
-  input.onProgress?.('Reading the frame from Figma');
-  const doc = (await nodes(fileKey, [frame])).nodes[frame];
-  if (!doc) throw new Error('Figma could not read that frame');
-  const frameName = String(doc.document.name ?? frame);
-  const width = clampWidth(input.width ?? doc.document.absoluteBoundingBox?.width ?? 1440);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const rel = path.join('buildcheck', stamp);
-  await mkdir(path.join(dir, rel), { recursive: true });
-  input.onProgress?.('Rendering the frame');
-  const figmaUrl = (await images(fileKey, [frame], 1))[frame];
-  if (!figmaUrl) throw new Error('Figma could not render that frame');
-  await download(figmaUrl, path.join(dir, rel, 'figma.png'));
+  input.onProgress?.(readingText(1));
+  // The design is screenshot at its own size (up to 4096px on the long edge) to compare pixel for pixel.
+  const read = await readFrames(fileKey, [frame], { dir, signal: input.signal, shots: { dir: rel, maxDimension: 4096 } });
+  const doc = read.docs[0];
+  if (!read.shots.length) throw new Error('Figma could not render that frame');
+  await rename(path.join(dir, read.shots[0]), path.join(dir, rel, 'figma.png'));
+  const frameName = String(doc.document.name ?? frame);
+  const width = clampWidth(input.width ?? doc.document.absoluteBoundingBox?.width ?? 1440);
   input.onProgress?.(`Screenshotting the page at ${width}px`);
   await writeFile(path.join(dir, rel, 'site.png'), await screenshotUrl(url, width));
   input.onProgress?.('Comparing');
   const prompt = [
     `Design: ${path.join(rel, 'figma.png')} (frame "${frameName}", ${Math.round(doc.document.absoluteBoundingBox?.width ?? 0)}px wide).`,
     `Live page: ${path.join(rel, 'site.png')} (${url}, rendered at ${width}px wide, full page).`,
-    `Outline of the design:\n${outline(doc.document, doc.components ?? {})}`,
+    `Outline of the design:\n${outline(doc.document, doc.components)}`,
   ].join('\n\n');
   const r = await lean<{ summary: string; matchScore: number; diffs: BuildDiff[] }>(prompt, { cwd: dir, model: MODELS.work, system: SYSTEM, schema: SCHEMA, tools: ['Read'], maxTurns: 6, signal: input.signal });
   if (!r.data) throw new Error(r.error ?? 'No comparison returned');

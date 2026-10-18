@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { AREAS, AREA_NAMES, MODELS, type Area, type AreaResult, type DesignDoc, type DesignSystem, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { checkFrames } from './check.js';
 import { readRules, rulesBlock } from './rules.js';
 import { allRules, MAX_CHECKED_RULES, ruleResults } from '../../shared/rules.js';
-import { download, images, nodes } from './figma.js';
+import { readFrames, readingText, type Loaded } from './frameRead.js';
 import { lean } from './lean.js';
 
 export const REVIEW_FILE = 'review.json';
@@ -155,47 +155,36 @@ export type ReviewInput = {
   onArea?: (area: ReviewerState['area'], state: ReviewerState['state']) => void;
 };
 
+/** Longest screenshot edge for reviewers: a 1440 frame keeps its size, tall pages are scaled down. */
+export const SHOT_MAX = 1600;
+
 export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   const { dir, fileKey, frames } = input;
   const run: ReviewRun = { id: randomUUID(), kind: input.kind, at: Date.now(), round: input.round, preset: input.preset, frames, check: [], results: [], tokens: 0, costUsd: 0 };
   const ds: DesignSystem | null = await readFile(path.join(dir, 'design-system.json'), 'utf8').then(JSON.parse).catch(() => null);
   const plan = await readFile(path.join(dir, 'plan.md'), 'utf8').catch(() => '');
 
-  input.onProgress?.('Reading the frames from Figma');
+  const reviewers = reviewersFor(input.preset, input.areas, input.onlyFailed ?? null);
+  input.onProgress?.(readingText(frames.length, reviewers.length > 0));
   input.onArea?.('check', 'running');
-  const docs: Array<{ id: string; document: any; components: Record<string, any> }> = [];
+  let docs: Loaded[] = [];
+  let shots: string[] = [];
   try {
-    for (let i = 0; i < frames.length; i += 20) {
-      const r = await nodes(fileKey, frames.slice(i, i + 20));
-      for (const [id, n] of Object.entries(r.nodes)) if (n) docs.push({ id, document: n.document, components: n.components ?? {} });
-    }
+    // One plugin read gets the frames and, when a reviewer will look at them, their screenshots.
+    const read = await readFrames(fileKey, frames, { dir, signal: input.signal, shots: reviewers.length ? { dir: path.join('review', 'shots'), maxDimension: SHOT_MAX } : undefined });
+    docs = read.docs;
+    shots = read.shots;
     run.check = checkFrames(docs, ds);
   } catch (err) {
     run.checkError = (err as Error).message;
   }
   input.onArea?.('check', run.checkError ? 'error' : run.check.some((f) => f.severity !== 'minor') ? 'fail' : 'pass');
 
-  const reviewers = reviewersFor(input.preset, input.areas, input.onlyFailed ?? null);
   if (reviewers.length && docs.length) {
     const rules = await readRules(dir);
     const ruleList = allRules(rules);
     const checker = ruleList.length ? rulesReviewer(reviewers) : null;
     let verdicts: unknown;
-    input.onProgress?.('Taking screenshots');
-    const shotDir = path.join(dir, 'review', 'shots');
-    await mkdir(shotDir, { recursive: true });
-    const shots: string[] = [];
-    try {
-      const urls = await images(fileKey, docs.map((d) => d.id), 1);
-      for (const d of docs) {
-        const url = urls[d.id];
-        if (!url) continue;
-        const file = path.join('review', 'shots', `${d.id.replace(/[:;]/g, '-')}.png`);
-        await download(url, path.join(dir, file)).then(() => shots.push(file)).catch(() => {});
-      }
-    } catch (err) {
-      console.error('review shots:', (err as Error).message);
-    }
     const outlines = docs.map((d) => outline(d.document, d.components)).join('\n\n');
     input.onProgress?.(`Reviewing with ${reviewers.length === 1 ? 'one reviewer' : `${reviewers.length} reviewers`}`);
     run.results = await Promise.all(reviewers.map(async (area) => {

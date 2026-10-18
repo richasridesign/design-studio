@@ -167,7 +167,7 @@ export function findIn<T>(v: unknown, test: (x: any) => boolean, depth = 0): T |
 
 export const textOf = (v: unknown): string => (typeof v === 'string' ? v : Array.isArray(v) ? v.map(textOf).join('\n') : v && typeof v === 'object' ? textOf((v as any).text ?? (v as any).error ?? (v as any).content ?? '') : '');
 
-const isPage = (x: any) => x && x.ds === 1 && typeof x.page === 'number' && typeof x.data === 'string';
+const isPage = (x: any) => x && x.ds === 1 && typeof x.page === 'number' && typeof x.len === 'number' && typeof x.data === 'string';
 const URL_RE = /https:\/\/[^\s"'\\)]+/;
 const normId = (id: unknown) => String(id ?? '').replace('-', ':');
 
@@ -181,22 +181,36 @@ export function figmaFailure(text: string): FigmaError {
   return new FigmaError(`Figma could not read the file: ${t.slice(0, 200)}`, 502);
 }
 
-/** The state of one read, driven by the hooks. Kept apart from the SDK so tests can play calls into it. */
+/**
+ * The state of one read, driven by the hooks. Kept apart from the SDK so tests can play calls into it.
+ * A read has one or more script parts (say, a few frames each), and each part is paged on its own, so a page call
+ * only walks its own part.
+ */
 export class ReadState {
-  readonly chunks = new Map<number, string>();
-  pages: number | null = null;
-  len: number | null = null;
+  readonly bodies: string[];
+  readonly chunks = new Map<string, string>();
+  readonly pages: Array<number | null>;
+  readonly lens: Array<number | null>;
   readonly shots = new Map<string, string | null>();
-  readonly tries = new Map<number, number>();
-  readonly inFlight = new Map<string, number>();
+  readonly tries = new Map<string, number>();
+  readonly inFlight = new Map<string, [number, number]>();
   errors: string[] = [];
   calls = 0;
   fatal: string | null = null;
 
-  constructor(readonly opts: { fileKey: string; what: string; body?: string; shots?: { ids: string[]; maxDimension: number }; use: string; shot: string }) {}
+  constructor(readonly opts: { fileKey: string; what: string; body?: string | string[]; shots?: { ids: string[]; maxDimension: number }; use: string; shot: string }) {
+    this.bodies = opts.body === undefined ? [] : Array.isArray(opts.body) ? opts.body : [opts.body];
+    this.pages = this.bodies.map(() => null);
+    this.lens = this.bodies.map(() => null);
+  }
+
+  /** Page calls still to make, counting one for each part whose page count is not known yet. */
+  get pagesLeft() {
+    return this.bodies.reduce((n, _, part) => n + (this.pages[part] ?? 1), 0) - this.chunks.size;
+  }
 
   get pagesDone() {
-    return !this.opts.body || (this.pages !== null && this.chunks.size >= this.pages);
+    return this.pages.every((p) => p !== null) && this.pagesLeft <= 0;
   }
 
   get shotsLeft() {
@@ -207,17 +221,19 @@ export class ReadState {
     return this.pagesDone && !this.shotsLeft.length;
   }
 
-  private nextPage(): number | null {
-    const busy = new Set(this.inFlight.values());
-    const total = this.pages ?? 1;
-    for (let p = 0; p < total; p++) if (!this.chunks.has(p) && !busy.has(p)) return p;
+  private nextPage(): [number, number] | null {
+    const busy = new Set([...this.inFlight.values()].map(([a, b]) => `${a}:${b}`));
+    for (let part = 0; part < this.bodies.length; part++) {
+      const total = this.pages[part] ?? 1;
+      for (let p = 0; p < total; p++) if (!this.chunks.has(`${part}:${p}`) && !busy.has(`${part}:${p}`)) return [part, p];
+    }
     return null;
   }
 
   private nextStep(): string {
     if (this.fatal) return `Stop now and reply with ok false and this note: ${this.fatal}`;
     if (!this.pagesDone) {
-      const left = (this.pages ?? 1) - this.chunks.size;
+      const left = Math.max(1, this.pagesLeft);
       return `Saved. Call ${this.opts.use} again with code "PAGE" (${left} more ${left === 1 ? 'call' : 'calls'}).`;
     }
     const left = this.shotsLeft;
@@ -229,12 +245,13 @@ export class ReadState {
   pre(toolName: string, input: any, id: string): HookJSONOutput {
     const deny = (reason: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
     if (toolName === this.opts.use) {
-      if (!this.opts.body) return deny(`Do not call ${this.opts.use} for this read. ${this.nextStep()}`);
-      const page = this.nextPage();
-      if (page === null) return deny(this.nextStep());
-      this.inFlight.set(id, page);
+      if (!this.bodies.length) return deny(`Do not call ${this.opts.use} for this read. ${this.nextStep()}`);
+      if (this.fatal) return deny(this.nextStep());
+      const next = this.nextPage();
+      if (next === null) return deny(this.nextStep());
+      this.inFlight.set(id, next);
       this.calls++;
-      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, description: this.opts.what, code: pagedScript(this.opts.body, page) } } };
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, description: this.opts.what, code: pagedScript(this.bodies[next[0]], next[1]) } } };
     }
     if (toolName === this.opts.shot) {
       const nodeId = normId(input?.nodeId);
@@ -249,17 +266,19 @@ export class ReadState {
   post(toolName: string, input: any, response: unknown, id: string): HookJSONOutput {
     const reply = (text: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', updatedMCPToolOutput: [{ type: 'text', text }] } });
     if (toolName === this.opts.use) {
-      const page = this.inFlight.get(id);
+      const at = this.inFlight.get(id);
       this.inFlight.delete(id);
       const got = findIn<PageResult>(response, isPage);
-      if (!got || page === undefined) return reply(this.failed(page ?? 0, textOf(response) || 'The script returned nothing'));
-      if (this.len !== null && got.len !== this.len) {
+      if (!at) return reply(this.nextStep());
+      if (!got || got.page !== at[1]) return reply(this.failed(at, textOf(response) || 'The script returned nothing'));
+      const [part] = at;
+      if (this.lens[part] !== null && got.len !== this.lens[part]) {
         this.fatal = 'The file changed while it was being read. Try again.';
         return reply(this.nextStep());
       }
-      this.len = got.len;
-      this.pages = got.pages;
-      this.chunks.set(got.page, got.data);
+      this.lens[part] = got.len;
+      this.pages[part] = got.pages;
+      this.chunks.set(`${part}:${got.page}`, got.data);
       return reply(this.nextStep());
     }
     if (toolName === this.opts.shot) {
@@ -276,9 +295,9 @@ export class ReadState {
   fail(toolName: string, input: any, error: string, id: string): HookJSONOutput {
     const extra = (text: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext: text } });
     if (toolName === this.opts.use) {
-      const page = this.inFlight.get(id) ?? 0;
+      const at = this.inFlight.get(id);
       this.inFlight.delete(id);
-      return extra(this.failed(page, error));
+      return extra(at ? this.failed(at, error) : this.nextStep());
     }
     if (toolName === this.opts.shot) {
       this.errors.push(error);
@@ -288,20 +307,21 @@ export class ReadState {
     return {};
   }
 
-  private failed(page: number, error: string) {
+  private failed([part, page]: [number, number], error: string) {
     this.errors.push(error);
-    const n = (this.tries.get(page) ?? 0) + 1;
-    this.tries.set(page, n);
+    const key = `${part}:${page}`;
+    const n = (this.tries.get(key) ?? 0) + 1;
+    this.tries.set(key, n);
     if (n >= MAX_TRIES) this.fatal = error.replace(/\s+/g, ' ').slice(0, 300);
     return this.nextStep();
   }
 
-  /** The script's value, rebuilt from its pages. */
+  /** The script's value rebuilt from its pages: one value, or one per part when the body was a list. */
   value(): unknown {
-    if (!this.opts.body) return null;
+    if (!this.bodies.length) return null;
     if (!this.pagesDone) throw figmaFailure(this.fatal ?? this.errors.at(-1) ?? (this.calls ? 'The read stopped before every page came back' : ''));
-    const packed = [...Array(this.pages!).keys()].map((p) => this.chunks.get(p)!).join('');
-    return JSON.parse(unpack(packed));
+    const values = this.bodies.map((_, part) => JSON.parse(unpack([...Array(this.pages[part]!).keys()].map((p) => this.chunks.get(`${part}:${p}`)!).join(''))));
+    return Array.isArray(this.opts.body) ? values : values[0];
   }
 }
 
@@ -310,8 +330,11 @@ export type ReadSpec = {
   dir: string;
   /** Shown in Figma as the call's description. */
   what: string;
-  /** Plugin API code ending with `return value`. Read only: no setters, no page switches, no version saves. */
-  body?: string;
+  /**
+   * Plugin API code ending with `return value`. Read only: no setters, no page switches, no version saves.
+   * A list is read part by part, and the value is then a list too.
+   */
+  body?: string | string[];
   shots?: { ids: string[]; maxDimension: number };
   signal?: AbortSignal;
   /** Reads with the same key share one run while it is in flight. */
@@ -358,8 +381,8 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
   const ids = [...new Set((spec.shots?.ids ?? []).map(normId))];
   const state = new ReadState({ fileKey: spec.fileKey, what: spec.what, body: spec.body, shots: spec.shots ? { ids, maxDimension: spec.shots.maxDimension } : undefined, use, shot });
   const steps = [
-    spec.body ? `Call ${use} with fileKey "${spec.fileKey}", description "${spec.what}" and code "PAGE". Each result says whether to call it again; keep calling until it says so no more.` : '',
-    ids.length ? `${spec.body ? 'Then call' : 'Call'} ${shot} once for each of these node ids, with fileKey "${spec.fileKey}": ${ids.join(', ')}. You may put several of these calls in one message.` : '',
+    state.bodies.length ? `Call ${use} with fileKey "${spec.fileKey}", description "${spec.what}" and code "PAGE". Each result says whether to call it again; keep calling until it says so no more.` : '',
+    ids.length ? `${state.bodies.length ? 'Then call' : 'Call'} ${shot} once for each of these node ids, with fileKey "${spec.fileKey}": ${ids.join(', ')}. You may put several of these calls in one message.` : '',
     'When a result says everything is read, reply with ok true. If a result tells you to stop, reply with ok false and the note it gives.',
   ].filter(Boolean);
   const t0 = Date.now();
@@ -372,15 +395,15 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
     mcp: servers,
     plugins,
     allowed: [use, shot],
-    // One turn per page or batch of shots, plus room for a retry and the reply.
-    maxTurns: 8 + ids.length + (spec.body ? 30 : 0),
+    // One turn per page or batch of shots, plus room for retries and the reply.
+    maxTurns: 10 + ids.length + (state.bodies.length ? 24 + 2 * state.bodies.length : 0),
     signal: spec.signal,
     hooks: hookFor(state, [use, shot]),
   });
   if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
   if (!state.done && !state.fatal && !state.errors.length && r.error) state.errors.push(r.error);
   const value = state.value();
-  if (ids.length && !spec.body && ![...state.shots.values()].some(Boolean)) throw figmaFailure(state.errors.at(-1) ?? r.data?.note ?? '');
+  if (ids.length && !state.bodies.length && ![...state.shots.values()].some(Boolean)) throw figmaFailure(state.errors.at(-1) ?? r.data?.note ?? '');
   return { value, shots: Object.fromEntries(ids.map((id) => [id, state.shots.get(id) ?? null])), costUsd: r.costUsd, tokens: r.tokens, ms: Date.now() - t0 };
 }
 

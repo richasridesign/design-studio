@@ -4,7 +4,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { failedAreas, outline, reviewersFor, rulesPrompt, rulesReviewer, runReview, toFix } from './review.js';
 
-vi.mock('./figma.js', () => ({ nodes: vi.fn(async () => ({ nodes: {} })), images: vi.fn(async () => ({})), download: vi.fn() }));
+vi.mock('./frameRead.js', async (orig) => ({ ...(await orig<typeof import('./frameRead.js')>()), readFrames: vi.fn(async () => ({ docs: [], shots: [], missing: [], truncated: false, costUsd: 0, ms: 0 })) }));
 vi.mock('./rules.js', async (orig) => ({ ...(await orig<typeof import('./rules.js')>()), readRules: vi.fn(async () => ({ global: '', file: '' })) }));
 vi.mock('./lean.js', () => ({ lean: vi.fn(async () => ({ data: { pass: true, summary: 'ok', findings: [] }, tokens: 1, costUsd: 0, text: '' })) }));
 
@@ -45,10 +45,12 @@ describe('outline', () => {
   });
 });
 
+const frame = { docs: [{ id: '1:1', document: { id: '1:1', name: 'Home', type: 'FRAME', children: [] }, components: {} }], shots: [], missing: [], truncated: false, costUsd: 0, ms: 0 };
+
 describe('runReview progress', () => {
   it('reports the check then the quick reviewer', async () => {
-    const { nodes } = await import('./figma.js');
-    vi.mocked(nodes).mockResolvedValueOnce({ nodes: { '1:1': { document: { id: '1:1', name: 'Home', type: 'FRAME', children: [] }, components: {} } } } as never);
+    const { readFrames } = await import('./frameRead.js');
+    vi.mocked(readFrames).mockResolvedValueOnce(frame);
     const dir = await mkdtemp(path.join(os.tmpdir(), 'review-'));
     const calls: string[] = [];
     await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'quick', areas: [], round: 1, kind: 'review', onArea: (a, s) => calls.push(`${a}:${s}`) });
@@ -57,7 +59,6 @@ describe('runReview progress', () => {
 });
 
 describe('house rules in a review', () => {
-  const frame = { nodes: { '1:1': { document: { id: '1:1', name: 'Home', type: 'FRAME', children: [] }, components: {} } } } as never;
 
   it('picks one reviewer to check the rules', () => {
     expect(rulesReviewer(['all'])).toBe('all');
@@ -73,10 +74,10 @@ describe('house rules in a review', () => {
   });
 
   it('asks only the checker for verdicts and stores them on the run', async () => {
-    const { nodes } = await import('./figma.js');
+    const { readFrames } = await import('./frameRead.js');
     const { lean } = await import('./lean.js');
     const { readRules } = await import('./rules.js');
-    vi.mocked(nodes).mockResolvedValueOnce(frame);
+    vi.mocked(readFrames).mockResolvedValueOnce(frame);
     vi.mocked(readRules).mockResolvedValueOnce({ global: '- No shadows', file: '- 4px grid\n- Sentence case' });
     vi.mocked(lean).mockClear();
     vi.mocked(lean).mockImplementation(async (_p: string, o: { schema?: any }) => ({
@@ -96,9 +97,9 @@ describe('house rules in a review', () => {
   });
 
   it('leaves rules off a check-only run', async () => {
-    const { nodes } = await import('./figma.js');
+    const { readFrames } = await import('./frameRead.js');
     const { readRules } = await import('./rules.js');
-    vi.mocked(nodes).mockResolvedValueOnce(frame);
+    vi.mocked(readFrames).mockResolvedValueOnce(frame);
     vi.mocked(readRules).mockResolvedValue({ global: '- No shadows', file: '' });
     const dir = await mkdtemp(path.join(os.tmpdir(), 'review-'));
     const run = await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'check', areas: [], round: 0, kind: 'audit' });
