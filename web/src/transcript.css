@@ -103,17 +103,18 @@
   .tr-detail pre, .tr-report { font-size: var(--text-sm); max-height: 40vh; }
 }
 
-.tr-phase { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; color: var(--agent); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.02em; }
+.tr-phase { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; line-height: 20px; color: var(--agent); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.02em; }
 .tr-phase::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-.tr-review { margin: 6px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--text-sm); color: var(--fg-muted); }
+.tr-review { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 /* Label and tokens on the first line, the summary on its own line under them. */
-.tr-review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--fg); }
+.tr-review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--fg); }
+.tr-review-head .tr-dur { line-height: 16px; }
 .tr-review-head b, .tr-review-head .tr-dur { white-space: nowrap; }
 .tr-review-sum { order: 1; flex-basis: 100%; color: var(--fg-muted); }
 .tr-review-head .tr-dur { margin-left: auto; }
-.tr-review-rows { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.tr-review-rows li { display: flex; align-items: center; gap: 8px; line-height: 20px; }
+.tr-review-rows { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tr-review-rows li { display: flex; align-items: center; gap: 8px; min-height: 24px; line-height: 20px; }
 .tr-review-rows li.pass .codicon { color: var(--ok); }
 .tr-review-rows li.fail .codicon { color: var(--err); }
 .tr-review-rows li.major .codicon { color: var(--warn); }
@@ -132,5 +133,13 @@
   display: inline; padding: 1px 6px; border: 0; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--fg);
   font: inherit; cursor: pointer; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: baseline;
 }
-.tr-review-frames { color: var(--fg-muted); font-size: var(--text-sm); margin: 2px 0 6px; }
+.tr-review-frames { color: var(--fg-muted); font-size: var(--text-sm); margin: 4px 0 0; }
 .md a.frame-chip { text-decoration: none; display: inline-block; vertical-align: bottom; }
+
+@media (max-width: 900px) {
+  .tr-review { font-size: var(--text-md); line-height: 24px; }
+  .tr-review-rows li, .tr-review-btn { min-height: 36px; }
+  .tr-review-rows { gap: 0; }
+  .tr-review-actions .link, .tr-review-stale .link { min-height: 36px; font-size: var(--text-md); }
+  .tr-review-frames { font-size: var(--text-md); }
+}

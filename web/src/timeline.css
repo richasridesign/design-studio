@@ -67,3 +67,17 @@
 @media (max-width: 900px) { .brief .brief-status > .tr { padding-right: 0; } }
 .tl-foot .tl-now::before { content: none; }
 .tl-foot .tl-now .text .when { font-size: inherit; color: var(--fg-muted); font-variant-numeric: normal; }
+
+/* Idle line: the mark shares the 16px icon column of the rows above, text on the 24px edge. */
+.brief .tl-foot { padding: 4px 0 12px; }
+.tl-foot .tl-now { grid-template-columns: 16px minmax(0, 1fr) auto auto; line-height: 20px; }
+.tl-foot .tl-now .mark { width: 16px; height: 20px; }
+.tl-foot .steps { padding-left: 24px; }
+@media (min-width: 901px) { .tl-foot .step { min-height: 24px; } }
+@media (max-width: 900px) { .tl-foot .tl-now { line-height: 24px; } .tl-foot .tl-now .mark { height: 24px; } }
+
+/* Run card sits in the timeline flow: same padding and fill as the review card, rows on a 24px rhythm. */
+.tr .run-card { margin: 0; padding: 12px 16px; gap: 8px; line-height: 20px; }
+.tr .run-head { line-height: 20px; }
+.tr .run-rows { gap: 4px; }
+.tr .run-rows li { min-height: 20px; line-height: 20px; }
