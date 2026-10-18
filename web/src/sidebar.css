@@ -16,7 +16,7 @@
 .sessions .tree .row:hover, .sessions .tree .row.selected { background: transparent; }
 .sessions .tree .row:is(:hover, .selected)::before { content: ''; position: absolute; inset: 0 8px; z-index: -1; border-radius: var(--radius-sm); background: var(--bg-hover); }
 .sessions .tree .row.selected::before { background: var(--tint-lavender); }
-.sessions .tree .row.selected:hover::before { background: color-mix(in srgb, var(--tint-lavender) 88%, var(--ink-lavender)); }
+.sessions .tree .row.selected:hover::before { background: color-mix(in srgb, var(--tint-lavender) 92%, var(--ink-lavender)); }
 /* Sample tour: its compass sits on a small peach disc. */
 .sessions .tree .row.session.sample .twistie { width: 20px; height: 20px; align-items: center; border-radius: 50%; background: var(--tint-peach); color: var(--ink-terracotta); }
 .sessions .tree .row .name { flex: 1; min-width: 0; }
