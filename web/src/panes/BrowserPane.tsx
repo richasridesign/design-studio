@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
 import { useStore, postJson } from '../store';
 import { Empty, BrowserArt } from './Empty';
+import { FigmaFile } from './FigmaFile';
 
 type Tab = { id: string; title: string; url: string };
 type State = { state: 'off' | 'connecting' | 'on'; reason: string; retry?: boolean };
@@ -212,30 +213,33 @@ const REASONS: Record<string, string> = {
 };
 
 function Connect({ state, onSetup }: { state: State; onSetup: () => void }) {
+  return <FigmaFile chrome={<ChromeLine state={state} onSetup={onSetup} />} />;
+}
+
+/** A quiet way to show the real Chrome tab here instead of the file summary. */
+function ChromeLine({ state, onSetup }: { state: State; onSetup: () => void }) {
   const [asked, setAsked] = useState(false);
-  if (state.state === 'connecting') {
-    return (
-      <div className="browser-pane">
-        <Empty art={<BrowserArt />} title="Connecting to Chrome" text="If Chrome asks to allow remote debugging, click Allow." />
-      </div>
-    );
-  }
+  if (state.state === 'on' || state.reason === 'server') return null;
   const fda = state.reason === 'nofda';
+  const connecting = state.state === 'connecting';
   return (
-    <div className="browser-pane">
-      <Empty
-        art={<BrowserArt />}
-        title="Show your Chrome here"
-        text={REASONS[state.reason] ?? state.reason}
-        action={state.reason !== 'server' ? { label: fda ? 'Open Full Disk Access settings' : 'Connect Chrome', onClick: () => { setAsked(true); onSetup(); } } : undefined}
-      />
+    <section className="ff-chrome" aria-labelledby="ff-chrome-title">
+      <h3 id="ff-chrome-title" className="ff-chrome-title">See it live in Chrome</h3>
+      <p className="ff-chrome-text">
+        {connecting ? 'Connecting to Chrome. If Chrome asks to allow remote debugging, click Allow.' : REASONS[state.reason] ?? state.reason}
+      </p>
+      {!connecting && (
+        <button className="ff-chrome-btn" onClick={() => { setAsked(true); onSetup(); }}>
+          {fda ? 'Open Full Disk Access settings' : 'Connect Chrome'}
+        </button>
+      )}
       {asked && (
-        <div className="muted small chrome-setup-note">
+        <p className="ff-chrome-text" role="status">
           {fda
             ? 'Drag Design Studio from the Finder window into the Full Disk Access list and turn it on. Design Studio connects on its own; if it does not, quit and reopen it from the menu bar.'
             : 'In the Chrome tab that opened, tick "Allow remote debugging for this browser instance", then click Allow. Design Studio connects on its own.'}
-        </div>
+        </p>
       )}
-    </div>
+    </section>
   );
 }
