@@ -214,7 +214,7 @@ export class AgentSession {
         { name: 'design', description: 'Plan, sketch, design in Figma and review' },
         { name: 'sketch', description: 'Plan and sketch directions only' },
         { name: 'review', description: 'Review frames: /review [check|quick|focused|full] [frame links]' },
-        { name: 'audit', description: 'Design system check across the whole file, no model calls' },
+        { name: 'audit', description: 'Design system check across the whole file. Reads every frame through the Figma plugin, a few minutes on a large file' },
         { name: 'crit', description: 'Design crit from four viewpoints: /crit [frame links]' },
         { name: 'buildcheck', description: 'Compare a live page with a frame: /buildcheck <url> [frame link]' },
         { name: 'copy', description: 'Copy pass: /copy [frame links] [tone:friendly|neutral|formal]' },

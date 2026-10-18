@@ -110,7 +110,7 @@ These commands run on the server:
 | `/design <brief>` | The full run: plan, sketch, design, review |
 | `/sketch <brief>` | Plan and sketch only |
 | `/review [quick\|full] [frame links]` | Review frames without changing them |
-| `/audit` | Design system check across the whole file, no model calls |
+| `/audit` | Design system check across the whole file. Reads every frame through the Figma plugin, a few minutes on a large file |
 | `/system` | Rebuild the design system profile |
 | `/crit [frame links]` | Same as the recipe, with frame links |
 | `/copy [tone:friendly] [frame links]` | Tones are friendly, neutral and formal |
@@ -152,7 +152,8 @@ budget in Settings; the pill turns amber at 80% and red past 100%. The daily tot
 `~/.designstudio/spend.json`, and each chat's spend in its chat folder.
 
 These use no tokens: the sample tour, token export, the report export and Check setup. `/audit`, the check after
-edits and the Flow check read the file through the Figma plugin, which costs under a cent each.
+edits and the Flow check read the file through the Figma plugin on Haiku. On one large test file, reading 6 frames cost
+about half a cent and the Flow check about a third of a cent. `/audit` reads every frame, so it costs more on a large file.
 
 ## Sample tour
 

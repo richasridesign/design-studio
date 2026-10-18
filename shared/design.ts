@@ -16,7 +16,7 @@ export const PRESETS = ['check', 'quick', 'focused', 'full'] as const;
 export type ReviewPreset = (typeof PRESETS)[number];
 
 export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; fixRounds: number }> = {
-  check: { label: 'Check', detail: 'Design system check only, no model calls', fixRounds: 1 },
+  check: { label: 'Check', detail: 'Design system check only, no reviewers', fixRounds: 1 },
   quick: { label: 'Quick', detail: 'Check plus one reviewer covering all areas', fixRounds: 1 },
   focused: { label: 'Focused', detail: 'Check plus one reviewer per area you tick', fixRounds: 1 },
   full: { label: 'Full', detail: 'Check plus all six area reviewers in parallel', fixRounds: 2 },
