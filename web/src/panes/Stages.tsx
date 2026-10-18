@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 import { currentStage, type Stage, type StageCheck, type StageId, type StageOpen } from '../../../shared/stages';
 import { insertPrompt } from './Files';
 import { ScopeBox } from './Scope';
+import { StateBox } from './StateMap';
 import '../stages.css';
 
 const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open report', attach: 'Attach file', research: 'Open research', states: 'Show states' };
@@ -116,6 +117,7 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
         ))}
       </ol>
       <ScopeBox onChange={reload} />
+      <StateBox />
       <Gate stage={shown} current={shown === now} brief={brief} onChange={change} />
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
