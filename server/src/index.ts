@@ -366,7 +366,7 @@ const server = http.createServer(async (req, res) => {
       const headers: Record<string, string> = { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'" };
       if (url.searchParams.get('download') === '1') headers['content-disposition'] = `attachment; filename="${reportSlug(figma)}-design-report.html"`;
       res.writeHead(200, headers);
-      return void res.end(await buildReport(chat.cwd, figma));
+      return void res.end(await buildReport(chat.cwd, figma, summary(chat).title));
     }
     if (url.pathname === '/api/review') return json(await readReview(chat.cwd));
     if (url.pathname === '/api/design') return json(await readDesign(chat.cwd));

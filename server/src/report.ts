@@ -525,8 +525,9 @@ async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
   };
 }
 
-export async function buildReport(dir: string, figma: FigmaFile | null): Promise<string> {
-  const title = figma?.name || path.basename(dir);
+/** `chatTitle` names a report that has no Figma file yet, instead of the chat's folder name. */
+export async function buildReport(dir: string, figma: FigmaFile | null, chatTitle?: string): Promise<string> {
+  const title = figma?.name || chatTitle?.trim() || path.basename(dir);
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const d = await load(dir, figma);
   // Older chats only list frames on their review runs.
