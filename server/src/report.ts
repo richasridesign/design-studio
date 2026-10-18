@@ -172,7 +172,8 @@ async function shotFor(dir: string, nodeId: string) {
 }
 
 async function design(d: Data): Promise<Section | null> {
-  const frames = d.design?.frames ?? [];
+  // Older chats only list frames on their review runs, so the summary count and this list agree.
+  const frames = d.design?.frames.length ? d.design.frames : (d.run?.frames ?? []).map((nodeId) => ({ nodeId, screen: '', state: '', name: `Layer ${nodeId}` }));
   if (!frames.length) return null;
   let shots = 0;
   const figs: string[] = [];
@@ -250,9 +251,9 @@ const CRIT_KIND: Record<string, string> = { like: 'Like', concern: 'Concern', id
 
 function crit(d: Data): Section | null {
   const run = d.crit;
-  if (!run || (!run.summary && !run.personas.length)) return null;
+  if (!run || (!run.summary && !run.personas.some((x) => x.verdict || x.points.length))) return null;
   const parts = [run.summary ? `<p>${esc(run.summary)}</p>` : ''];
-  for (const p of run.personas) {
+  for (const p of run.personas.filter((x) => x.verdict || x.points.length)) {
     parts.push(`<h3>${esc(PERSONA_NAMES[p.id] ?? p.id)}</h3>${p.verdict ? `<p>${esc(p.verdict)}</p>` : ''}`);
     if (p.points.length) parts.push(`<ul>${p.points.map((x) => `<li><strong>${esc(CRIT_KIND[x.kind] ?? x.kind)}</strong>: ${esc(x.text)}</li>`).join('')}</ul>`);
   }
@@ -397,7 +398,7 @@ nav.toc small { margin-left: 4px; }
 .stages { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 20px 0 0; }
 .stages li { margin: 0; flex: 1 1 96px; border-top: 4px solid var(--line); padding-top: 8px; }
 .stages li:has(.pass) { border-top-color: var(--green); }
-.stages li:has(.current) { border-top-color: var(--accent); }
+.stages li:has(.current) { border-top-color: var(--text); }
 .stages small { display: block; padding-left: 18px; }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; list-style: none; padding: 0; margin: 0 0 12px; }
 .tile { margin: 0 !important; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
@@ -411,7 +412,7 @@ nav.toc small { margin-left: 4px; }
 .st.minor::before { border: 2px solid var(--muted); border-radius: 50%; }
 .st.pass::before { background: var(--green); border-radius: 50%; }
 .st.none::before { background: linear-gradient(var(--muted), var(--muted)) center / 12px 2px no-repeat; }
-.st.current::before { background: var(--accent); transform: rotate(45deg) scale(0.8); }
+.st.current::before { background: var(--text); transform: rotate(45deg) scale(0.8); }
 h3 .st { margin-left: 8px; vertical-align: 2px; font-family: system-ui, sans-serif; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
