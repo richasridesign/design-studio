@@ -14,6 +14,7 @@ import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton, LongRunHint, type LongRunStart } from './LongRun';
 import { ModelPicker } from './ModelPicker';
+import { usePopAbove } from './abovePop';
 import { focusChecked, menuKeys } from '../press';
 import { useTip } from '../Tip';
 import { typedAnswer, waitingPlaceholder } from './typedAnswer';
@@ -239,6 +240,8 @@ export function Composer() {
   const [modeOpen, setModeOpen] = useState(false);
   const modePop = useRef<HTMLDivElement>(null);
   const modeBtn = useRef<HTMLButtonElement>(null);
+  const modeWrap = useRef<HTMLDivElement>(null);
+  const modePopStyle = usePopAbove(modeOpen, modeWrap);
   const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
@@ -571,12 +574,12 @@ export function Composer() {
           />
         </div>
         <div className="cp-foot">
-          <div className="cp-mode">
+          <div className="cp-mode" ref={modeWrap}>
             <button ref={modeBtn} className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
               <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
             </button>
             {modeOpen && (
-              <div ref={modePop} className="cp-modepop" role="menu" aria-label="Mode" onKeyDown={menuKeys}>
+              <div ref={modePop} className="cp-modepop" style={modePopStyle} role="menu" aria-label="Mode" onKeyDown={menuKeys}>
                 {FLOW_MODES.map((m) => (
                   <button key={m} role="menuitemradio" aria-checked={flow.mode === m} className={flow.mode === m ? 'active' : ''} onClick={() => { setMode(m); if (m !== 'design') setModeOpen(false); }}>
                     <Icon name={MODE_INFO[m].icon} small />
@@ -593,7 +596,7 @@ export function Composer() {
           {!shell && <LongRunButton text={full} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
-          <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="file-media" small /></button>
+          <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="paperclip" small /></button>
           <Voice onText={dictate} />
           {running && (
             <button className="cp-stop" title={stopping ? 'Stopping…' : 'Stop Claude'} aria-label={stopping ? 'Stopping' : 'Stop'} disabled={stopping} onClick={() => send({ type: 'interrupt' })}>

@@ -157,6 +157,8 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .icon { flex: none; }
 .codicon.icon { font-size: 18px; line-height: 1; }
 .codicon.icon.small { font-size: 16px; }
+.svg-icon.icon { width: 18px; height: 18px; flex: none; display: inline-block; vertical-align: middle; }
+.svg-icon.icon.small { width: 16px; height: 16px; }
 .icon-btn {
   width: 24px; height: 24px; min-height: 0; padding: 0; flex: none; border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--fg-muted); display: inline-flex; align-items: center; justify-content: center;

@@ -39,8 +39,9 @@
 .cp-modebtn { color: var(--fg); font-weight: 600; }
 .cp[data-mode='design'] .cp-modebtn { color: var(--accent); }
 .cp[data-mode='review'] .cp-modebtn { color: var(--fg); }
+/* Mode and model menus sit above the whole message card, 4px clear of it (usePopAbove sets the lift), never over the text. */
 .cp-modepop {
-  position: absolute; z-index: 20; left: 0; bottom: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); padding: 4px;
+  position: absolute; z-index: 20; left: 0; bottom: calc(100% + 4px); width: min(340px, calc(100vw - 32px)); padding: 4px;
   background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius, 8px); box-shadow: var(--shadow-md);
 }
 .cp-modepop > button {

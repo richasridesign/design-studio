@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { focusChecked, menuKeys } from '../press';
+import { usePopAbove } from './abovePop';
 import { currentOption, modelLabel, pickerOptions } from '../../../shared/models';
 
 /** Composer pill that switches the model for the next chat turn. */
@@ -11,6 +12,7 @@ export function ModelPicker() {
   const running = useStore((s) => s.session.running);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const popStyle = usePopAbove(open, box);
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +45,7 @@ export function ModelPicker() {
         <span>{label}</span><Icon name="chevron-down" small />
       </button>
       {open && (
-        <div className="cp-modepop" role="menu" aria-label="Model" onKeyDown={menuKeys}>
+        <div className="cp-modepop" style={popStyle} role="menu" aria-label="Model" onKeyDown={menuKeys}>
           {pickerOptions(model, models).map((m) => (
             <button key={m.value} role="menuitemradio" aria-checked={m.value === current?.value} className={m.value === current?.value ? 'active' : ''} onClick={() => pick(m.value)}>
               <Icon name={m.value === current?.value ? 'check' : 'blank'} small />
