@@ -1,7 +1,11 @@
 import type { ChatEvent } from '../../../shared/protocol';
 
-/** One click under Claude's last reply. Answers (go, go with A) send at once; follow-ups fill the message box and wait for her. */
-export type QuickReply = { label: string; text: string; send: boolean; title: string };
+/**
+ * One click under Claude's last reply. Answers (go, go with A) send at once; follow-ups fill the message box and wait for her.
+ * `main` marks the one chip with Secondary weight (Go, or the first Go with): the rest are quieter outline chips, so two
+ * chips side by side never share one weight.
+ */
+export type QuickReply = { label: string; text: string; send: boolean; title: string; main?: boolean };
 
 const LINE_OPTION = /^\s*(?:[-*]\s+|\d+\.\s+|#{1,4}\s+)?(?:\*\*)?(?:option\s+)?([A-C])(?:\*\*)?\s*[:.)]/gim;
 const INLINE_OPTION = /\boption\s+([A-C])\b/gi;
@@ -34,7 +38,7 @@ export function quickReplies(reply: string): QuickReply[] {
   const answers: QuickReply[] = letters.length
     ? letters.map((l) => ({ label: `Go with ${l}`, text: `go with ${l}`, send: true, title: `Send "go with ${l}"` }))
     : asksForGo(reply) ? [{ label: 'Go', text: 'go', send: true, title: 'Send "go"' }] : [];
-  return [...answers, ...FOLLOW_UPS].slice(0, 4);
+  return [...answers.map((a, i) => (i === 0 ? { ...a, main: true } : a)), ...FOLLOW_UPS].slice(0, 4);
 }
 
 /** The reply quick replies hang under: Claude's last finished reply, when nothing of hers came after it and the turn was not a review. */

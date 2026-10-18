@@ -107,7 +107,7 @@ export function Brief() {
             {quick.length > 0 && (
               <div className="quick-replies" role="group" aria-label="Quick replies">
                 {quick.map((q) => (
-                  <button key={q.label} className={q.send ? 'qr answer' : 'qr'} title={q.title} onClick={() => (q.send ? send({ type: 'prompt', text: q.text }) : insertPrompt(q.text))}>{q.label}</button>
+                  <button key={q.label} className={q.main ? 'qr qr-main' : 'qr'} title={q.title} onClick={() => (q.send ? send({ type: 'prompt', text: q.text }) : insertPrompt(q.text))}>{q.label}</button>
                 ))}
               </div>
             )}
