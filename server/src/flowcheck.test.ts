@@ -87,6 +87,14 @@ describe('checkFlows', () => {
     expect(rules(checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', [card({})])])]), maps))).toEqual(['no-click']);
   });
 
+  it('lets one wired row cover its copies, even when each row is a different variant of the set', () => {
+    const rowMaps = { ...maps, components: { ...maps.components, 'c:rowA': { name: 'Decider=Person', componentSetId: 'set:row' }, 'c:rowB': { name: 'Decider=Team', componentSetId: 'set:row' } }, componentSets: { 'set:row': { name: 'Workflow row' } } };
+    const row = (componentId: string, extra: any = {}) => ({ id: `row${++seq}`, type: 'INSTANCE', name: 'Workflow row', componentId, children: [text('Leave request')], ...extra });
+    const rows = [row('c:rowA', { interactions: [click()] }), row('c:rowB'), row('c:rowA')];
+    expect(rules(checkFlows(doc([section('1:1', 'F', [screen('s1', 'Workflows', rows)])]), rowMaps))).toEqual([]);
+    expect(rules(checkFlows(doc([section('1:1', 'F', [screen('s1', 'Workflows', [row('c:rowA'), row('c:rowB')])])]), rowMaps))).toEqual(['no-click']);
+  });
+
   it('ignores plain frames named like containers', () => {
     const f = { id: 'f1', type: 'FRAME', name: 'Title row', children: [text('Hi')] };
     const bar = { id: 'f2', type: 'FRAME', name: 'Tab bar', children: [] };
@@ -107,6 +115,18 @@ describe('checkFlows', () => {
     expect(open.flows[0].findings[0].severity).toBe('major');
     const closeBtn = { id: 'x1', type: 'INSTANCE', name: 'Icon/x', componentId: 'c:icon', interactions: [click('s0'), hover()], children: [] };
     expect(rules(checkFlows(doc([section('1:1', 'F', [screen('s1', 'Disconnect', [dialog([closeBtn])])])]), maps))).toEqual([]);
+  });
+
+  it('passes a dialog whose close sits in its header next to a part named like a dialog', () => {
+    const closeBtn = { id: 'x2', type: 'INSTANCE', name: 'Icon/x', componentId: 'c:icon', interactions: [click('s0'), hover()], children: [] };
+    const d = { id: 'd9', type: 'INSTANCE', name: 'Dialog', componentId: 'c:dialog', children: [{ id: 'h9', type: 'FRAME', name: 'Dialog header', children: [text('Invite'), closeBtn] }, { id: 'f9', type: 'FRAME', name: 'Dialog buttons', children: [] }] };
+    expect(rules(checkFlows(doc([section('1:1', 'F', [screen('s1', 'Invite', [d])])]), maps))).toEqual([]);
+  });
+
+  it('points a dialog screen with no close at the dialog inside it', () => {
+    const d = { id: 'd10', type: 'INSTANCE', name: 'Dialog', componentId: 'c:dialog', children: [text('Disconnect')] };
+    const r = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Disconnect dialog', [d])])]), maps);
+    expect(r.flows[0].findings.map((f) => [f.rule, f.nodeId])).toEqual([['no-close', 'd10']]);
   });
 
   it('checks a screen that is itself a drawer', () => {

@@ -126,9 +126,11 @@ function collectControls(node: any, maps: Maps, clickAbove: boolean, out: Contro
       out.push({ node: c, key, wired: click || clickAbove, hover: hasHover(c), iconOnly: ICON_BUTTON.test(lab) || !textIn(c), buttonish });
       continue;
     }
-    if (inst && SOFT.test(lab) && !click && !clickAbove && !some(c, hasClick)) {
-      out.push({ node: c, key: String(c.componentId), wired: false, hover: true, iconOnly: false, buttonish: false });
-      continue;
+    if (inst && SOFT.test(lab) && !clickAbove) {
+      // Rows of one table are often different variants of one set, so the set is the group.
+      const wired = click || some(c, hasClick);
+      out.push({ node: c, key: String(maps.components?.[c.componentId]?.componentSetId ?? c.componentId), wired, hover: true, iconOnly: false, buttonish: false });
+      if (!wired) continue;
     }
     collectControls(c, maps, clickAbove || click, out);
   }
@@ -154,9 +156,22 @@ function controlFindings(screen: any, maps: Maps, add: (node: any, rule: FlowRul
 
 function dialogFindings(node: any, maps: Maps, add: (node: any, rule: FlowRule, message: string, fix: string) => void) {
   const isDialog = (n: any) => CANVAS.has(n.type) && DIALOG.test(label(n, maps)) && !DIALOG_PART.test(n.name ?? '');
+  const isClose = (c: any) => CLOSE.test(String(c.name ?? '')) || CLOSE.test(label(c, maps));
+  const deepest = (n: any): any => {
+    for (const c of kids(n)) {
+      const d = deepest(c);
+      if (d) return d;
+      if (isDialog(c)) return c;
+    }
+    return null;
+  };
+  // The outermost dialog decides: a close anywhere inside it passes, so parts like "Dialog buttons" are not checked alone.
   const visit = (n: any) => {
-    if (isDialog(n) && !some(n, isDialog)) {
-      if (!some(n, (c) => CLOSE.test(String(c.name ?? '')) || CLOSE.test(label(c, maps)))) add(n, 'no-close', `${describe(n)} has no close icon.`, 'Add an icon-only Close button, top right, with a Close tooltip and a click back to the screen that opened it.');
+    if (isDialog(n)) {
+      if (!some(n, isClose)) {
+        const target = n === node ? (deepest(n) ?? n) : n;
+        add(target, 'no-close', `${describe(target)} has no close icon.`, 'Add an icon-only Close button, top right, with a Close tooltip and a click back to the screen that opened it.');
+      }
       return;
     }
     for (const c of kids(n)) if (c.type !== 'COMPONENT_SET') visit(c);
