@@ -156,7 +156,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
     setPosting(true);
     try {
       const r = await postJson<{ posted: number }>('/api/review/post', { ids: pending.map((f) => f.id) });
-      setNote(`Posted ${r.posted} comments in Figma`);
+      setNote(`Posted ${r.posted} ${r.posted === 1 ? 'comment' : 'comments'} in Figma`);
       onDoc(await getJson<ReviewDoc>('/api/review'));
     } catch (e) {
       setNote((e as Error).message);
@@ -170,7 +170,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
       <div className="review-summary">
         <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
         <div className="muted">{run.tokens ? `${k(run.tokens)} tokens · $${run.costUsd.toFixed(2)}` : 'No tokens used'}</div>
-        {pending.length > 0 && <button ref={postBtn} disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={() => setAsking(true)}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
+        {pending.length > 0 && <button ref={postBtn} disabled={posting} title={`Post ${pending.length} ${pending.length === 1 ? 'finding' : 'findings'} as Figma comments`} onClick={() => setAsking(true)}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {note && <span className="muted" role="status">{note}</span>}
       </div>
