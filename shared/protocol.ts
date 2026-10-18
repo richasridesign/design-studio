@@ -56,6 +56,7 @@ export type SessionInfo = {
   mcp: McpServer[];
   flow: FlowState;
   spend: Spend;
+  limit?: PlanLimit | null;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };
@@ -75,6 +76,8 @@ export type McpServer = {
 export type McpConfigEntry = { name: string; scope: 'user' | 'local' | 'project' | 'plugin'; type: string; command?: string; env?: string[] };
 
 export const MCP_BAD = ['failed', 'needs-auth'];
+
+export type PlanLimit = { kind: string; used: number | null; resetsAt: number | null; status: 'allowed' | 'allowed_warning' | 'rejected' };
 
 export type CacheInfo = { at: number; ttlMs: number; readTokens: number; writeTokens: number };
 

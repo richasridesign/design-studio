@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cacheLeft, figmaState } from './StatusBar';
+import { cacheLeft, figmaState, limitText } from './StatusBar';
 
 describe('figmaState', () => {
   it('reads the Figma plugin status', () => {
@@ -17,5 +17,16 @@ describe('cacheLeft', () => {
     expect(cacheLeft({ at: 1000, ttlMs: 300000 }, 61000)).toBe(240000);
     expect(cacheLeft({ at: 1000, ttlMs: 300000 }, 999999)).toBe(0);
     expect(cacheLeft(null, 0)).toBe(0);
+  });
+});
+
+describe('limitText', () => {
+  it('names the window and the share used', () => {
+    expect(limitText({ kind: 'five_hour', used: 0.12, resetsAt: null, status: 'allowed' })).toEqual({ label: '5-hour limit: 12% used', resets: '', tone: '' });
+  });
+
+  it('warns near the limit and says when it is reached', () => {
+    expect(limitText({ kind: 'seven_day', used: 0.85, resetsAt: null, status: 'allowed' }).tone).toBe('warn');
+    expect(limitText({ kind: 'five_hour', used: 1, resetsAt: null, status: 'rejected' })).toMatchObject({ label: '5-hour limit: reached', tone: 'bad' });
   });
 });

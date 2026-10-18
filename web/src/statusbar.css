@@ -12,3 +12,6 @@
 .statusbar .spend-pill { height: 24px; min-height: 0; padding: 0 4px; border: 0; border-radius: var(--radius-sm); font-size: var(--text-xs); }
 .statusbar .spend-pop { top: auto; bottom: calc(100% + 6px); }
 .top-meta { display: inline-flex; align-items: center; gap: 8px; }
+.statusbar .sb-faint { color: var(--fg-faint); }
+.statusbar .sb-limit.warn { color: var(--warn); }
+.statusbar .sb-limit.bad { color: var(--err); }
