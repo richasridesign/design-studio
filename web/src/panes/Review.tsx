@@ -186,7 +186,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
         />
       )}
       <div className="review-grid">
-        <AreaCard title="Design system check" sub={run.checkError ?? (check.length ? `${check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
+        <AreaCard title="Design system check" sub={run.checkError ?? (check.length ? `${check.length} ${check.length === 1 ? 'issue' : 'issues'}` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
         {!!run.rules?.length && (
           <AreaCard title="House rules" sub={run.rulesError ? `${rulesLine(run.rules)}. ${run.rulesError}` : rulesLine(run.rules)} tone={rulesTone(run)} tokens={0} findings={[]} focusAt={focusAt('rules')}>
             <RuleList rules={run.rules} />
