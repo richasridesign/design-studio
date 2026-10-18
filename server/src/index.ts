@@ -32,6 +32,7 @@ import { readBuildChecks } from './buildcheck.js';
 import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
+import { readAwaiting, updateAwaiting } from './awaiting.js';
 import { readProfile } from './profile.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
@@ -291,6 +292,7 @@ const server = http.createServer(async (req, res) => {
       return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
     }
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
+    if (url.pathname === '/api/awaiting') return json(req.method === 'POST' ? await updateAwaiting(await readJsonBody()) : await readAwaiting());
     if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
     if (url.pathname === '/api/stages') {
       // Steps are kept per chat, by Claude's session id, which survives a resume. The first message guesses the kind.

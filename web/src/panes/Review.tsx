@@ -7,6 +7,7 @@ import { Empty, ReviewArt } from './Empty';
 import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FlowCheck } from './FlowCheck';
+import { Awaiting } from './Awaiting';
 import { FrameNames } from '../FrameNames';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, TONE_MARK, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, type RulesTone, type RunRow } from './reviewRuns';
@@ -68,6 +69,7 @@ export function Review({ dev = false }: { dev?: boolean }) {
         <button className="ghost" title="Open the handoff report in a new tab" onClick={() => window.open(api('/api/report'), '_blank')}>Handoff report</button>
         <a className="ghost report-download" href={api('/api/report?download=1')} download aria-label="Download handoff report" title="Download handoff report"><Icon name="cloud-download" /></a>
       </div>
+      <Awaiting />
       <FlowCheck />
       {!rows.length && (hasFigma
         ? <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />
@@ -243,6 +245,7 @@ function AreaCard({ title, sub, tone, tokens, dev = false, frames, findings, gro
               <div className="f-body">
                 <div className="f-rule">{f.rule}</div>
                 <div className="f-fix">{f.fix}</div>
+                {f.decide && <div className="f-decide"><b>Your call:</b> touches {f.decide}. Waiting in Awaiting your decision, fix rounds skip it.</div>}
                 <div className="f-foot">
                   <button className="link" title="Show in Figma" onClick={() => showNode(f.node)}>{grouped ? `${AREA_NAMES[f.area as Area] ?? f.area} · ` : ''}{label(f.node, f.nodeName)}</button>
                   {triage && closing !== f.id && <button ref={(el) => { triggers.current[f.id] = el; }} className="triage-link" aria-label={`Resolve finding: ${f.rule}`} onClick={() => setClosing(f.id)}>Resolve</button>}

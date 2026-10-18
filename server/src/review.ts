@@ -7,6 +7,7 @@ import { readRules, rulesBlock } from './rules.js';
 import { allRules, MAX_CHECKED_RULES, ruleResults } from '../../shared/rules.js';
 import { readFrames, readingText, type Loaded } from './frameRead.js';
 import { lean } from './lean.js';
+import { awaitFindings } from './awaiting.js';
 
 export const REVIEW_FILE = 'review.json';
 const MAX_FINDINGS = 8;
@@ -33,13 +34,15 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['area', 'node', 'severity', 'rule', 'fix'],
+        required: ['area', 'node', 'severity', 'rule', 'fix', 'global'],
         properties: {
           area: { type: 'string', enum: [...AREAS] },
           node: { type: 'string', description: 'Figma node id like 12:34, from the outline' },
           severity: { type: 'string', enum: ['blocking', 'major', 'minor'] },
           rule: { type: 'string', description: 'What is wrong, one sentence' },
           fix: { type: 'string', description: 'What to change, one sentence' },
+          global: { type: 'boolean', description: 'true when the fix changes something shared: a variable or style, a main component, a feature, or screens outside these frames. The designer decides those; they are not fixed automatically.' },
+          impact: { type: 'string', description: 'When global: what the fix touches, for example "the text/muted token, about 70 layers". Empty otherwise.' },
         },
       },
     },
@@ -209,6 +212,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   // The plugin read is a short Claude run too, so its cost counts.
   run.costUsd = readCost + run.results.reduce((n, r) => n + r.costUsd, 0);
   await saveRun(dir, run);
+  await awaitFindings(dir, fileKey, run.results.flatMap((r) => r.findings)).catch((err) => console.error('awaiting list:', err));
   return run;
 }
 
@@ -230,12 +234,17 @@ async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaRes
     '',
     `Outline of the frames:\n${c.outlines}`,
     '',
-    `Return at most ${MAX_FINDINGS} findings.`,
+    `Return at most ${MAX_FINDINGS} findings. Mark a finding global when fixing it means changing a shared variable, style or main component, removing a feature, or changing screens outside these frames: the designer decides those.`,
     c.rules ? rulesPrompt(c.rules, c.frames) : c.rulesText,
   ].join('\n');
-  const r = await lean<{ pass: boolean; summary: string; findings: Array<Omit<Finding, 'id'>>; rules?: unknown }>(prompt, { cwd: c.dir, model: MODELS.work, system: SYSTEM, schema: c.rules ? RULES_SCHEMA : SCHEMA, maxTurns: 10, signal: c.signal });
+  const r = await lean<{ pass: boolean; summary: string; findings: Array<Omit<Finding, 'id' | 'decide'> & { global?: boolean; impact?: string }>; rules?: unknown }>(prompt, { cwd: c.dir, model: MODELS.work, system: SYSTEM, schema: c.rules ? RULES_SCHEMA : SCHEMA, maxTurns: 10, signal: c.signal });
   if (!r.data) return { area, pass: false, summary: 'The reviewer did not return a result', findings: [], tokens: r.tokens, costUsd: r.costUsd, error: r.error };
-  const findings = r.data.findings.slice(0, MAX_FINDINGS).map((f, i) => ({ ...f, area: (areas.includes(f.area as Area) ? f.area : areas[0]) as Area, id: `${area}:${i}:${f.node}` }));
+  const findings: Finding[] = r.data.findings.slice(0, MAX_FINDINGS).map(({ global, impact, ...f }, i) => ({
+    ...f,
+    area: (areas.includes(f.area as Area) ? f.area : areas[0]) as Area,
+    id: `${area}:${i}:${f.node}`,
+    ...(global ? { decide: impact?.trim() || 'Something shared beyond these frames' } : {}),
+  }));
   return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd, ...(c.rules ? { verdicts: r.data.rules } : {}) };
 }
 
@@ -253,7 +262,8 @@ export function failedAreas(run: ReviewRun): Area[] {
   return AREAS.filter((a) => out.has(a));
 }
 
-export const toFix = (run: ReviewRun) => [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor');
+/** What a fix round works on: blocking and major findings, except those that wait for the designer's decision. */
+export const toFix = (run: ReviewRun) => [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor' && !f.decide);
 
 export async function readDesign(dir: string): Promise<DesignDoc | null> {
   return readFile(path.join(dir, 'design.json'), 'utf8').then(JSON.parse).catch(() => null);

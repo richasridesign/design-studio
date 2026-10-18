@@ -6,6 +6,7 @@ import { failedAreas, outline, reviewersFor, rulesPrompt, rulesReviewer, runRevi
 
 vi.mock('./frameRead.js', async (orig) => ({ ...(await orig<typeof import('./frameRead.js')>()), readFrames: vi.fn(async () => ({ docs: [], shots: [], missing: [], truncated: false, costUsd: 0, ms: 0 })) }));
 vi.mock('./rules.js', async (orig) => ({ ...(await orig<typeof import('./rules.js')>()), readRules: vi.fn(async () => ({ global: '', file: '' })) }));
+vi.mock('./awaiting.js', () => ({ awaitFindings: vi.fn(async () => null) }));
 vi.mock('./lean.js', () => ({ lean: vi.fn(async () => ({ data: { pass: true, summary: 'ok', findings: [] }, tokens: 1, costUsd: 0, text: '' })) }));
 
 describe('reviewersFor', () => {
@@ -30,6 +31,10 @@ describe('review results', () => {
   };
   it('lists failed areas from major findings only', () => expect(failedAreas(run)).toEqual(['visual']));
   it('fixes check and major findings, not minor', () => expect(toFix(run).map((f) => f.id)).toEqual(['c', 'a']));
+  it('leaves findings that need her decision out of the fix round', () => {
+    const shared = { ...run, results: [{ ...run.results[0], findings: [{ ...run.results[0].findings[0], decide: 'text/muted token' }] }] };
+    expect(toFix(shared).map((f) => f.id)).toEqual(['c']);
+  });
 });
 
 describe('outline', () => {
@@ -94,6 +99,27 @@ describe('house rules in a review', () => {
       { rule: 'Sentence case', state: 'unchecked', frames: [] },
     ]);
     expect(run.rulesError).toBeUndefined();
+  });
+
+  it('turns a global finding into one that waits for her decision', async () => {
+    const { readFrames } = await import('./frameRead.js');
+    const { lean } = await import('./lean.js');
+    const { awaitFindings } = await import('./awaiting.js');
+    vi.mocked(readFrames).mockResolvedValueOnce(frame);
+    vi.mocked(lean).mockImplementation(async () => ({
+      data: { pass: false, summary: 's', findings: [
+        { area: 'accessibility', node: '1:1', severity: 'major', rule: 'Muted text fails contrast', fix: 'Darken text/muted', global: true, impact: 'text/muted token, 70 layers' },
+        { area: 'visual', node: '1:1', severity: 'major', rule: 'Card is short', fix: 'Fill height', global: false, impact: '' },
+      ] },
+      tokens: 1, costUsd: 0, text: '',
+    }) as never);
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'review-'));
+    const run = await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'quick', areas: [], round: 1, kind: 'review' });
+    const found = run.results[0].findings;
+    expect(found.map((f) => f.decide)).toEqual(['text/muted token, 70 layers', undefined]);
+    expect(found[0]).not.toHaveProperty('global');
+    expect(toFix(run).map((f) => f.rule)).toEqual(['Card is short']);
+    expect(vi.mocked(awaitFindings)).toHaveBeenCalledWith(dir, 'k', found);
   });
 
   it('leaves rules off a check-only run', async () => {
