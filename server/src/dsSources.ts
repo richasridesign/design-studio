@@ -7,7 +7,7 @@ import {
   starterProfile, withSource, withoutSource, type DsKind, type FigmaKitRaw, type StarterId,
 } from '../../shared/dsProfiles.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
-import { PROFILE_FILE, profileMarkdown, readProfile } from './profile.js';
+import { PROFILE_FILE, PROFILE_OFF_FILE, profileMarkdown, readProfile } from './profile.js';
 
 // Where a profile's items come from: a starter, the Figma file (read through the plugin), a tokens file in code,
 // and her rule files. The rule files are only listed here; reviewers read them live.
@@ -111,9 +111,11 @@ export async function skillRulesFor(ds: DesignSystem | null, areas: Area[]): Pro
   return parts.join('\n\n');
 }
 
+/** Every saved profile goes through here, so adding one in any way lifts "removed on purpose". */
 export async function writeProfile(dir: string, ds: DesignSystem) {
   await writeFile(path.join(dir, PROFILE_FILE), JSON.stringify(ds, null, 2));
   await writeFile(path.join(dir, 'design-system.md'), profileMarkdown(ds));
+  await rm(path.join(dir, PROFILE_OFF_FILE), { force: true });
   return ds;
 }
 
@@ -208,6 +210,8 @@ export async function changeDesignSystem(dir: string, figma: FigmaFile | null, b
   }
   if (next === null) {
     await Promise.all([PROFILE_FILE, 'design-system.md'].map((f) => rm(path.join(dir, f), { force: true })));
+    // Removed on purpose: design runs carry on without a profile until she adds one.
+    await writeFile(path.join(dir, PROFILE_OFF_FILE), `Removed ${new Date(now).toISOString()}\n`);
     return { ds: null, costUsd };
   }
   return { ds: await writeProfile(dir, next), costUsd };

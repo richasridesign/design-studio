@@ -11,7 +11,7 @@ import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResul
 import { afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
-import { buildProfile, readProfile } from './profile.js';
+import { buildProfile, profileOff, readProfile } from './profile.js';
 import { parseTone, runCopy, runCrit } from './crit.js';
 import { parseBuildArg, runBuildCheck } from './buildcheck.js';
 import { failedAreas, readDesign, readReview, runReview, toFix } from './review.js';
@@ -798,7 +798,8 @@ export class AgentSession {
       this.system('Attach a Figma file to continue the design run');
       return;
     }
-    if (!(await readProfile(this.cwd))) {
+    // A profile she removed stays removed: the run goes on without one.
+    if (!(await readProfile(this.cwd)) && !(await profileOff(this.cwd))) {
       this.setFlow({ phase: 'system' });
       this.pushEvent({ id: randomUUID(), kind: 'user', text: 'Design system · Sonnet', at: Date.now(), phase: 'system' });
       await this.background('Building the design system profile', async (signal) => {

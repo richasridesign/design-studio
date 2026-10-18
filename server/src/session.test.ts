@@ -104,6 +104,19 @@ describe('AgentSession design run without a file', () => {
     expect(next).toHaveBeenCalledTimes(2);
   });
 
+  it('does not build a profile she removed on purpose', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'ds-off-'));
+    await writeFile(path.join(dir, 'design-system.off'), 'Removed\n');
+    const s = new AgentSession(dir, file);
+    const runStep = vi.spyOn(s as unknown as { runStep: (o: { phase: string }) => Promise<void> }, 'runStep').mockResolvedValue();
+    await toDesign(s);
+    expect(s.state.events.some((e) => e.kind === 'user' && e.text.startsWith('Design system'))).toBe(false);
+    expect(runStep).toHaveBeenCalledWith(expect.objectContaining({ phase: 'design' }));
+  });
+
   it('ends as stopped on interrupt', async () => {
     const { s } = fakeSession();
     Object.assign(s, { setModel: async () => {}, setPermissionMode: async () => {} });
