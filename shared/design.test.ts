@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reviewChecklist } from './design';
+import { reviewChecklist, tickedAreas } from './design';
 
 describe('reviewChecklist', () => {
   const base = { check: [], results: [], frames: ['1:2'] };
@@ -19,4 +19,10 @@ describe('reviewChecklist', () => {
   it('keeps the plain head when no rule failed', () => {
     expect(reviewChecklist(base, null)).toBe('Review of 1 frame: 0 issues');
   });
+});
+
+describe('tickedAreas', () => {
+  it('keeps her ticks in her order', () => expect(tickedAreas(['accessibility', 'system'])).toEqual(['system', 'accessibility']));
+  it('keeps an empty list (Quick then covers all five)', () => expect(tickedAreas([])).toEqual([]));
+  it('turns an old default nobody chose into all five', () => expect(tickedAreas(['components', 'accessibility', 'brief'])).toEqual(['system', 'interaction', 'visual', 'writing', 'accessibility']));
 });

@@ -40,6 +40,10 @@ export function toAreas(list: unknown): Area[] {
   return AREAS.filter((a) => want.has(a));
 }
 
+/** Areas saved before the five areas (old chats and settings) held a default nobody chose: they become all five. */
+export const tickedAreas = (list: unknown): Area[] =>
+  Array.isArray(list) && !list.some((a) => (LEGACY_AREAS as readonly unknown[]).includes(a)) ? toAreas(list) : [...AREAS];
+
 export const PRESETS = ['check', 'quick', 'focused', 'full'] as const;
 export type ReviewPreset = (typeof PRESETS)[number];
 /** The presets the designer picks from. Check runs on its own after edits and as the final check. */

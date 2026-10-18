@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { DEFAULT_FIX_ROUNDS, DEFAULT_SETTINGS, LEGACY_AREAS, PRESETS, toAreas, type Settings } from '../../shared/design.js';
+import { DEFAULT_FIX_ROUNDS, DEFAULT_SETTINGS, PRESETS, tickedAreas, type Settings } from '../../shared/design.js';
 
 export const HOME = path.join(os.homedir(), '.designstudio');
 export const CHATS_ROOT = process.env.DESIGN_STUDIO_ROOT ?? path.join(os.homedir(), 'DesignStudio');
@@ -22,7 +22,7 @@ export function clean(s: Settings): Settings {
     stopAfterSketch: Boolean(s.stopAfterSketch),
     preset: PRESETS.includes(s.preset) ? s.preset : DEFAULT_SETTINGS.preset,
     // Old files hold the old default of three of the six old areas, which no screen let her change: they get all five.
-    areas: Array.isArray(s.areas) && !s.areas.some((a) => (LEGACY_AREAS as readonly string[]).includes(a)) ? toAreas(s.areas) : DEFAULT_SETTINGS.areas,
+    areas: tickedAreas(s.areas),
     askBeforeEdit: Boolean(s.askBeforeEdit),
     followClaude: s.followClaude !== false,
     autoCheck: s.autoCheck !== false,

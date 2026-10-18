@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { AREAS, AREA_NAMES, MODELS, type Area, type AreaResult, type DesignDoc, type DesignSystem, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
+import { AREAS, AREA_NAMES, MODELS, tickedAreas, type Area, type AreaResult, type DesignDoc, type DesignSystem, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { checkFrames } from './check.js';
 import { readRules, rulesBlock } from './rules.js';
 import { allRules, MAX_CHECKED_RULES, ruleResults } from '../../shared/rules.js';
@@ -163,7 +163,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   const ds: DesignSystem | null = await readFile(path.join(dir, 'design-system.json'), 'utf8').then(JSON.parse).catch(() => null);
   const plan = await readFile(path.join(dir, 'plan.md'), 'utf8').catch(() => '');
 
-  const reviewers = reviewersFor(input.preset, input.areas, input.onlyFailed ?? null);
+  const ticked = tickedAreas(input.areas);
+  const reviewers = reviewersFor(input.preset, ticked, input.onlyFailed ?? null);
   input.onProgress?.(readingText(frames.length, reviewers.length > 0));
   input.onArea?.('check', 'running');
   let docs: Loaded[] = [];
@@ -191,7 +192,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
     run.results = await Promise.all(reviewers.map(async (area) => {
       input.onArea?.(area, 'running');
       try {
-        const { verdicts: v, ...r } = await reviewOne(area, { dir, plan, ds, outlines, covers: input.areas, shots, check: run.check, rules: area === checker ? ruleList : null, rulesText: rulesBlock(rules), frames: docs.map((d) => d.id), signal: input.signal });
+        const { verdicts: v, ...r } = await reviewOne(area, { dir, plan, ds, outlines, covers: ticked, shots, check: run.check, rules: area === checker ? ruleList : null, rulesText: rulesBlock(rules), frames: docs.map((d) => d.id), signal: input.signal });
         if (area === checker) verdicts = v;
         input.onArea?.(area, r.error ? 'error' : r.pass ? 'pass' : 'fail');
         return r;

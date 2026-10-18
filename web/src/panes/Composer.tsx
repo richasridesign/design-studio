@@ -5,7 +5,7 @@ import { Voice, useDictation } from './Voice';
 import { FileIcon } from './Explorer';
 import { match } from './FileSwitcher';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
-import { FLOW_MODES, PRESET_INFO, TONES, figmaNodeUrl, type FlowMode, type Settings } from '../../../shared/design';
+import { FLOW_MODES, PRESET_INFO, SHOWN_PRESETS, TONES, figmaNodeUrl, type FlowMode, type Settings, type ShownPreset } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
 import { recipeText, useCustomRecipes } from '../recipes';
 import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
@@ -623,7 +623,7 @@ function RunOptions({ stopAfterSketch, preset }: { stopAfterSketch: boolean; pre
   useEffect(() => {
     fetch(api('/api/settings')).then((r) => r.json()).then(setDef, () => {});
   }, []);
-  const set = (patch: { stopAfterSketch?: boolean; preset?: 'quick' | 'full' }) => send({ type: 'set_flow', patch });
+  const set = (patch: { stopAfterSketch?: boolean; preset?: ShownPreset }) => send({ type: 'set_flow', patch });
   return (
     <div className="cp-modeopts">
       <div className="cp-opt" onClick={(e) => !(e.target as Element).closest('.switch') && set({ stopAfterSketch: !stopAfterSketch })}>
@@ -633,7 +633,7 @@ function RunOptions({ stopAfterSketch, preset }: { stopAfterSketch: boolean; pre
       <div className="cp-opt">
         <span className="cp-opt-text"><span id="cp-depth-l">Review depth</span>{def && <span className="cp-opt-def">Default: {PRESET_INFO[shownPreset(def.preset)].label}</span>}</span>
         <div className="seg" role="radiogroup" aria-labelledby="cp-depth-l">
-          {(['quick', 'full'] as const).map((p) => (
+          {SHOWN_PRESETS.map((p) => (
             <button key={p} role="radio" aria-checked={preset === p} className={preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => set({ preset: p })}>{PRESET_INFO[p].label}</button>
           ))}
         </div>
