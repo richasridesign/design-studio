@@ -503,7 +503,10 @@ wss.on('connection', (ws: WebSocket, req) => {
         void chat.interrupt();
         break;
       case 'long_run_start':
-        void chat.startLongRun(String(msg.text ?? ''), Number(msg.until), Number(msg.cap), msg.images);
+        void chat.startLongRun(String(msg.text ?? ''), Number(msg.until), Number(msg.cap), msg.images, { weeklyCap: msg.weeklyCap, rounds: msg.rounds });
+        break;
+      case 'long_run_options':
+        chat.setLongRunOptions({ weeklyCap: msg.weeklyCap, rounds: msg.rounds });
         break;
       case 'long_run_stop':
         void chat.stopLongRun();

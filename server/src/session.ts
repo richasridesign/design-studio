@@ -25,7 +25,9 @@ import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpe
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, refreshMapSoon, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
-import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
+import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, nodeLink, parseReport, reportAsk, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
+import { keepAwake } from './awake.js';
+import { awaitQuestions } from './awaiting.js';
 
 type Step = { phase: FlowPhase; model: string; mode: string; label: string; prompt: string };
 
@@ -33,6 +35,7 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
 
 let lastLimit: PlanLimit | null = null;
+let lastLimits: Limits = {};
 
 export class AgentSession {
   private q: Query | null = null;
@@ -69,11 +72,16 @@ export class AgentSession {
   private resumedAuto = false;
   private lastError = false;
   private lrErrors = 0;
-  private reportSeen = false;
+  /** The long run report seen in this turn's text, if any. */
+  private lrReport: Report | null = null;
+  /** Start options sent just before long_run_start: weekly cap and rounds. */
+  private lrOpts: { weeklyCap?: number; rounds?: number } = {};
+  /** Lets the Mac sleep again; set while a long run keeps it awake. */
+  private lrAwake: (() => void) | null = null;
 
   constructor(public cwd: string, private figma: FigmaFile | null, private resume?: string) {
     this.state = {
-      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend(), limit: lastLimit },
+      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend(), limit: lastLimit, limits: lastLimits },
       status: 'Idle',
       events: [],
       pending: [],
@@ -450,24 +458,42 @@ export class AgentSession {
     this.sendPrompt(text, images);
   }
 
-  async startLongRun(text: string, until: number, cap: number, refs?: unknown) {
+  /** The weekly cap and rounds for the next long run (the composer sends them just before it starts one). */
+  setLongRunOptions(o: { weeklyCap?: unknown; rounds?: unknown }) {
+    const n = (v: unknown) => (v === undefined || v === null || v === '' ? undefined : Number(v));
+    this.lrOpts = { weeklyCap: n(o.weeklyCap), rounds: n(o.rounds) };
+  }
+
+  async startLongRun(text: string, until: number, cap: number, refs?: unknown, opts?: { weeklyCap?: unknown; rounds?: unknown }) {
+    if (opts && (opts.weeklyCap !== undefined || opts.rounds !== undefined)) this.setLongRunOptions(opts);
+    const { weeklyCap = DEFAULT_WEEKLY_CAP, rounds = DEFAULT_ROUNDS } = this.lrOpts;
+    this.lrOpts = {};
     if (this.sampleBlocked()) return;
     const task = text.trim();
     if (!task) return this.system('Write the task for the long run in the message box first');
     if (this.state.session.running || this.flowActive() || isActive(this.state.session.longRun)) return this.system('Wait for the current turn to finish before starting a long run');
     const now = Date.now();
     if (!Number.isFinite(until) || until <= now) return this.system('Pick a time later than now for the long run');
-    if (!Number.isFinite(cap) || cap < 1 || cap > 100) return this.system('Set the plan usage cap between 1 and 100%');
-    const used = usedPct(this.state.session.limit);
-    if (used >= cap) return this.system(`Plan usage is already at ${Math.round(used)}%, above the ${Math.round(cap)}% cap`);
+    if (!Number.isFinite(cap) || cap < 1 || cap > 100) return this.system('Set the 5-hour usage cap between 1 and 100%');
+    if (!Number.isFinite(weeklyCap) || weeklyCap < 1 || weeklyCap > 100) return this.system('Set the weekly usage cap between 1 and 100%');
+    if (!Number.isInteger(rounds) || rounds < 1 || rounds > MAX_ROUNDS) return this.system(`Set the rounds between 1 and ${MAX_ROUNDS}`);
+    const limits = this.limits();
+    const used = windowPct(limits, 'five_hour') ?? 0;
+    if (used >= cap) return this.system(`5-hour usage is already at ${Math.round(used)}%, above the ${Math.round(cap)}% cap`);
+    const week = windowPct(limits, 'weekly') ?? 0;
+    if (week >= weeklyCap) return this.system(`Weekly usage is already at ${Math.round(week)}%, above the ${Math.round(weeklyCap)}% cap`);
     await this.refreshRules();
     const images = await loadImages(this.cwd, refs);
-    const run: LongRun = { until: Math.min(until, now + 24 * 3600_000), cap: Math.round(cap), startedAt: now, turns: 1, state: 'running' };
+    const run: LongRun = { until: Math.min(until, now + 24 * 3600_000), cap: Math.round(cap), weeklyCap: Math.round(weeklyCap), rounds, startedAt: now, turns: 1, state: 'running' };
     this.lrErrors = 0;
-    this.reportSeen = false;
+    this.lrReport = null;
+    this.lrAwake?.();
+    this.lrAwake = keepAwake(run.until + AWAKE_GRACE, { now });
+    if (this.lrAwake) run.awakeUntil = run.until;
     this.setSession({ longRun: run });
     this.pushEvent({ id: randomUUID(), kind: 'user', text: withRefs(task, images.refs), at: now });
-    this.enqueue(withRefs(longRunPrompt(task, run.until, run.cap), images.refs), images.blocks);
+    const mapFile = this.figma && this.figma.key !== SAMPLE_KEY ? mapFiles(this.cwd, this.figma.key).md : null;
+    this.enqueue(withRefs(longRunPrompt(task, run.until, { cap: run.cap, weeklyCap: run.weeklyCap, rounds, mapFile }), images.refs), images.blocks);
   }
 
   async stopLongRun() {
@@ -485,7 +511,15 @@ export class AgentSession {
     if (run) this.setSession({ longRun: { ...run, ...patch } });
   }
 
+  /** The latest plan limit per window, with the latest single event folded in. */
+  private limits(): Limits {
+    const l = this.state.session.limit;
+    return l ? withLimit(this.state.session.limits, l) : { ...(this.state.session.limits ?? {}) };
+  }
+
   private endLongRun(state: 'done' | 'stopped', reason: LongRunReason) {
+    this.lrAwake?.();
+    this.lrAwake = null;
     const run = this.state.session.longRun;
     if (!isActive(run)) return;
     this.setLongRun({ state, reason });
@@ -498,9 +532,9 @@ export class AgentSession {
     const run = this.state.session.longRun;
     if (!run || !isActive(run)) return null;
     this.lrErrors = this.lastError ? this.lrErrors + 1 : 0;
-    const reported = this.reportSeen || (!this.lastError && parseReport(this.lastResult) !== null);
-    this.reportSeen = false;
-    const d = decide(run, { now: Date.now(), limit: this.state.session.limit, errorStreak: this.lrErrors, reported });
+    const report = this.lrReport ?? (this.lastError ? null : parseReport(this.lastResult));
+    this.lrReport = null;
+    const d = decide(run, { now: Date.now(), limit: this.state.session.limit, limits: this.limits(), errorStreak: this.lrErrors, reported: report !== null });
     switch (d.action) {
       case 'continue':
         this.setLongRun({ turns: run.turns + 1 });
@@ -512,12 +546,26 @@ export class AgentSession {
         return reportAsk(d.reason);
       case 'done':
         this.endLongRun('done', 'reported');
+        if (report) void this.awaitReport(report);
         return null;
       case 'stop':
         this.endLongRun('stopped', d.reason);
         return null;
       default:
         return null;
+    }
+  }
+
+  /** The report's "Needs your decision" items go to the Awaiting your decision list, so they outlast the chat. */
+  private async awaitReport(report: Report) {
+    const key = this.figma && this.figma.key !== SAMPLE_KEY ? this.figma.key : '';
+    const items = report.decide.map((text) => ({ text, ...(nodeLink(text) ?? { fileKey: key, node: '' }) })).filter((q) => q.fileKey && q.fileKey !== SAMPLE_KEY);
+    if (!items.length) return;
+    try {
+      await awaitQuestions(this.cwd, key, items);
+      this.setLongRun({ awaiting: items.length });
+    } catch (err) {
+      console.error('could not save long run questions', err);
     }
   }
 
@@ -661,6 +709,15 @@ export class AgentSession {
   }
 
   private planSaved = false;
+
+  /** Reads a long run's turn text: the round Claude says it is on, and the report. */
+  private longRunText(text: string) {
+    const run = this.state.session.longRun;
+    const round = roundFrom(text);
+    if (run && round !== null && round !== run.round && round <= (run.rounds ?? MAX_ROUNDS)) this.setLongRun({ round });
+    const report = parseReport(text);
+    if (report) this.lrReport = report;
+  }
 
   private longRunTool(toolName: string): Promise<PermissionResult> | null {
     if (toolName !== 'AskUserQuestion' || !isActive(this.state.session.longRun)) return null;
@@ -982,7 +1039,8 @@ export class AgentSession {
 
       case 'rate_limit_event':
         lastLimit = limitFrom(msg.rate_limit_info);
-        this.setSession({ limit: lastLimit });
+        lastLimits = withLimit(lastLimits, lastLimit);
+        this.setSession({ limit: lastLimit, limits: withLimit(this.state.session.limits, lastLimit) });
         if (lastLimit.status === 'rejected') this.endLongRun('stopped', 'rejected');
         return;
       case 'stream_event': {
@@ -1017,7 +1075,7 @@ export class AgentSession {
         if (msg.parent_tool_use_id) return;
         this.setSession({ cache: cacheFrom(msg.message.usage, Date.now(), this.state.session.cache), context: contextFrom(msg.message.usage) ?? this.state.session.context });
         for (const block of msg.message.content) {
-          if (block.type === 'text' && isActive(this.state.session.longRun) && parseReport(block.text)) this.reportSeen = true;
+          if (block.type === 'text' && isActive(this.state.session.longRun)) this.longRunText(block.text);
           if (block.type === 'server_tool_use' && block.name === 'advisor') this.pushEvent(advisorEvent(block.id, Date.now()));
           if (block.type === 'tool_use') {
             this.pushEvent(toolUseEvent(block.id, block.name, block.input, Date.now()));
