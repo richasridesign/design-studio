@@ -36,6 +36,20 @@ export function sketchFixPrompt(error: string) {
   return `sketch.json could not be read: ${error}. Fix the file so it matches the format and finish.\n\n${SKETCH_FORMAT}`;
 }
 
+const sentence = (t: string) => (t && !/[.!?]$/.test(t) ? `${t}.` : t);
+
+/** One line per screen for the design phase: the direction, what it was picked over, and the designer's reason. */
+function pickLine({ screen: s, direction: d }: ReturnType<typeof chosenSummary>[number]) {
+  const parts = [`- ${s.name}: ${d.name}.`, sentence(d.rationale)];
+  if (s.chosen === d.id) {
+    const over = s.rejected ?? s.directions.filter((x) => x.id !== d.id).map((x) => x.name);
+    const designer = s.chosenBy === 'designer';
+    if (over.length) parts.push(`${designer ? 'The designer picked it' : 'Picked'} over ${over.join(', ')}.`);
+    if (designer && s.reason) parts.push(`Why: ${sentence(s.reason)}`);
+  }
+  return parts.filter(Boolean).join(' ');
+}
+
 export function designPrompt(sketch: SketchDoc | null, hasProfile: boolean, task: string, notes: string[] = []) {
   const chosen = sketch ? chosenSummary(sketch) : [];
   return [
@@ -46,7 +60,7 @@ export function designPrompt(sketch: SketchDoc | null, hasProfile: boolean, task
     `4. Build one frame per screen and state, left to right, named "<Screen> / <State>". ${hasProfile ? 'Use the library components, variables and text styles listed in design-system.md: import components by key, bind fills and strokes to color variables, apply text styles, use auto layout with spacing from the scale.' : 'There is no design system profile; use the components, variables and styles the file already uses.'}`,
     '5. Call set_status with nodes set to the frame you are working on, so the designer can follow along.',
     '6. When done, write design.json in this folder: { "page": "Design Studio", "frames": [ { "screen": "home", "state": "default", "nodeId": "12:34", "name": "Home / Default" } ] }. The review reads this file.',
-    chosen.length ? `Chosen sketch directions:\n${chosen.map((c) => `- ${c.screen.name}: ${c.direction.name}. ${c.direction.rationale}`).join('\n')}` : '',
+    chosen.length ? `Chosen sketch directions. Follow the designer's reasons where given:\n${chosen.map(pickLine).join('\n')}` : '',
     notes.length ? `The designer wrote these notes on the sketches. Follow them:\n${notes.map((n) => `- ${n}`).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
 }

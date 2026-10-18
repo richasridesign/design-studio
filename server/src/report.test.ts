@@ -52,6 +52,29 @@ describe('buildReport', () => {
     for (const id of ['../x', 'a..b', 'a/b', 'a b', '', 5, null]) expect(safeId(id), String(id)).toBe(false);
   });
 
+  it('lists the decision log, newest first, with reasons escaped', async () => {
+    const d = (id: string, name: string) => ({ id, name, rationale: `${name} fits`, items: [] });
+    await writeFile(path.join(dir, 'sketch.json'), JSON.stringify({ screens: [
+      { id: 'cart', name: 'Cart', chosen: 'a', directions: [d('a', 'List'), d('b', 'Cards')] },
+      { id: 'empty', name: 'Empty', chosen: 'b', chosenBy: 'designer', reason: 'Calm <b>', rejected: ['Hints'], at: Date.UTC(2026, 9, 1, 9), directions: [d('a', 'Hints'), d('b', 'Plain')] },
+    ] }));
+    await writeFile(path.join(dir, 'stages.json'), JSON.stringify({ spec: { at: Date.UTC(2026, 9, 2, 9), note: 'Brief is clear' }, explore: { at: Date.UTC(2026, 9, 3, 9) } }));
+    const html = await buildReport(dir, figma);
+    const log = html.slice(html.indexOf('<h2>Decision log</h2>'));
+    expect(log).toContain('<strong>Stage</strong>: Approved Spec<br>Why: Brief is clear');
+    expect(log).toContain('<strong>Empty</strong>: Chose Plain<br>Over: Hints<br>Why: Calm &lt;b&gt;');
+    expect(log).toContain('Picked by the designer');
+    expect(log).toContain('<strong>Cart</strong>: Chose List<br>Over: Cards<br>Why: List fits<br><small>Picked by Claude</small>');
+    expect(log).not.toContain('Approved Explore');
+    expect(log.indexOf('Approved Spec')).toBeLessThan(log.indexOf('Chose Plain'));
+    expect(log.indexOf('Chose Plain')).toBeLessThan(log.indexOf('Chose List'));
+  });
+
+  it('leaves the decision log out when nothing was decided', async () => {
+    await writeFile(path.join(dir, 'stages.json'), JSON.stringify({ spec: { at: 1 } }));
+    expect(await buildReport(dir, figma)).not.toContain('Decision log');
+  });
+
   it('inlines sketches as data images, not markup', async () => {
     await mkdir(path.join(dir, 'sketches'));
     await writeFile(path.join(dir, 'sketches', 's1--d1.svg'), '<svg><script>alert(1)</script></svg>');
