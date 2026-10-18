@@ -44,5 +44,6 @@ describe('replyToAnswer', () => {
     expect(replyToAnswer([u('hi'), a('Reply go')])).toBe('Reply go');
     expect(replyToAnswer([a('Reply go'), u('go')])).toBeNull();
     expect(replyToAnswer([u('hi'), a('typing', true)])).toBeNull();
+    expect(replyToAnswer([u('review'), { id: 'r', kind: 'review', at: 2, runAt: 2 }, a('1 blocking')])).toBeNull();
   });
 });

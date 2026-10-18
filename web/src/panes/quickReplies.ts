@@ -37,12 +37,18 @@ export function quickReplies(reply: string): QuickReply[] {
   return [...answers, ...FOLLOW_UPS].slice(0, 4);
 }
 
-/** The reply quick replies hang under: Claude's last finished reply, when nothing of hers came after it. */
+/** The reply quick replies hang under: Claude's last finished reply, when nothing of hers came after it and the turn was not a review. */
 export function replyToAnswer(events: ChatEvent[]): string | null {
+  let reply: string | null = null;
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
-    if (e.kind === 'user') return null;
-    if (e.kind === 'assistant' && e.text.trim()) return e.streaming ? null : e.text;
+    if (e.kind === 'user') return reply;
+    // A review card carries its own next step (Fix the issues), so the reply under it gets no quick replies.
+    if (e.kind === 'review') return null;
+    if (reply === null && e.kind === 'assistant' && e.text.trim()) {
+      if (e.streaming) return null;
+      reply = e.text;
+    }
   }
-  return null;
+  return reply;
 }

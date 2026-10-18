@@ -132,7 +132,7 @@
 .cp-attach span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-attach button.primary { height: 24px; padding: 0 10px; }
 .cp-nodes { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 0; }
-.cp-node { display: inline-flex; align-items: center; gap: 8px; height: 36px; max-width: 240px; padding: 0 4px 0 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: var(--text-sm); color: var(--fg); }
+.cp-node { display: inline-flex; align-items: center; gap: 8px; height: 36px; max-width: min(100%, 360px); padding: 0 8px 0 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: var(--text-sm); color: var(--fg); }
 .cp-node img, .cp-node-ph { width: 40px; height: 28px; flex: none; border-radius: 2px; object-fit: cover; background: var(--bg-sunken); display: inline-flex; align-items: center; justify-content: center; color: var(--fg-muted); }
 .cp-node-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-model .cp-modepop { width: min(280px, calc(100vw - 32px)); }

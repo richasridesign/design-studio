@@ -18,7 +18,7 @@ function go(to: StageOpen) {
   else window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: `page:${to}` } }));
 }
 
-const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I resolved by hand in triage.json (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
+export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I resolved by hand in triage.json (fixed, won't fix or parked). Plan the fixes first and wait for my approval.";
 const PLAN_ASK = 'Plan this before building: screens, buttons, copy and states. Wait for my approval.';
 const RESEARCH_ASK = RECIPES.find((r) => r.id === 'research')?.prompt ?? 'Research this before any design: ';
 
