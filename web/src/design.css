@@ -154,17 +154,29 @@
 .seg { display: inline-flex; padding: 3px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 10px; gap: 2px; width: fit-content; }
 .seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: transparent; border-radius: 8px; padding: 4px 14px; min-height: 32px; color: var(--fg-muted); }
 .seg button.on { background: var(--bg-elevated); color: var(--fg); font-weight: 600; }
-.toggle-row input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* Settings */
-.settings-page { flex: 1; overflow: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
-.set-card { background: var(--bg-sunken); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.settings-page { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.set-card { background: var(--bg-sunken); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 80px; }
+.set-nav { position: sticky; top: 0; z-index: 1; display: flex; gap: 4px; margin: -24px -24px 0; padding: 12px 24px; background: var(--bg-raised); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.set-nav a { flex: none; display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--text-sm); text-decoration: none; white-space: nowrap; }
+.set-nav a:hover { background: var(--bg-hover); color: var(--fg); }
+.set-nav a[aria-current] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.mcp-state { gap: 8px; }
 .set-card h2 { font-weight: 600; margin: 0; font-size: var(--text-md); }
 .set-card p { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span:first-child { font-weight: 600; }
 .inline { display: flex; gap: 8px; align-items: center; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; }
+/* Switch: the off track and thumb use --fg-faint so both stay above 3:1 on the card. */
+.switch { flex: none; position: relative; width: 40px; height: 24px; min-height: 0; padding: 0; border: 1px solid var(--fg-faint); border-radius: 999px; background: var(--bg); }
+.switch:hover { background: var(--bg); border-color: var(--fg-muted); }
+.switch-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--fg-faint); transition: transform 0.15s ease; }
+.switch[aria-checked='true'] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked='true']:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.switch[aria-checked='true'] .switch-thumb { background: var(--on-accent); transform: translateX(16px); }
+@media (prefers-reduced-motion: reduce) { .switch-thumb { transition: none; } }
 .tl-text { display: flex; flex-direction: column; }
 .tl-text .t { font-weight: 600; }
 
