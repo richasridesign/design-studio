@@ -64,9 +64,9 @@
 .cp-send, .cp-stop {
   width: 28px; height: 28px; padding: 0; flex: none; border: 1px solid transparent; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--fg); color: var(--bg-sunken);
+  background: var(--accent); color: var(--on-accent);
 }
-.cp-send:hover:not(:disabled), .cp-stop:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+.cp-send:hover:not(:disabled), .cp-stop:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent); }
 .cp-send:disabled, .cp-stop:disabled { background: var(--bg-hover); color: var(--fg-faint); cursor: default; }
 .cp-send.steer:not(:disabled) { background: transparent; border-color: var(--border-strong); color: var(--fg); }
 .cp-send.steer:hover:not(:disabled) { background: var(--bg-hover); }
