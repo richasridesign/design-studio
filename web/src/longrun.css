@@ -17,6 +17,9 @@
 .lr-pct input { width: 72px; }
 .lr-help { color: var(--fg-muted); font-size: var(--text-xs); line-height: 16px; }
 .lr-field + .lr-help { margin-top: -4px; text-align: right; }
+.lr-warn { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 0; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
+.lr-warn-mark { flex: none; width: 8px; height: 8px; margin-top: 4px; background: var(--warn); }
+.lr-warn .link { font-size: inherit; min-height: 0; }
 .lr-pop-foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .lr-pop-foot .primary { height: 36px; padding: 0 16px; flex: none; }
 

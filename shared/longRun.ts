@@ -133,3 +133,10 @@ export function parseReport(text: string): Report | null {
   out.intro = intro.join('\n').trim();
   return out;
 }
+
+/** Why a run could stop overnight to wait for an approval, or '' when it will not. */
+export function stallReason(permissionMode: string | null | undefined, askBeforeEdit: boolean): string {
+  if (askBeforeEdit) return 'Ask before changing the file is on, so the run waits for you at each Figma change.';
+  if (permissionMode && !['auto', 'bypassPermissions'].includes(permissionMode)) return 'This chat asks before Claude uses tools, so the run waits for you at each one.';
+  return '';
+}

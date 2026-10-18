@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, parseReport, untilFrom, usedPct, type LongRun } from './longRun.js';
+import { decide, parseReport, stallReason, untilFrom, usedPct, type LongRun } from './longRun.js';
 import type { PlanLimit } from './protocol.js';
 
 const now = 1_000_000;
@@ -91,5 +91,14 @@ describe('parseReport', () => {
   it('stops a section at an unrelated heading', () => {
     const r = parseReport('## Fixed\n- a\n## Needs your decision\n- b\n## Not checked\n- c\n## Notes\n- extra')!;
     expect(r.unchecked).toEqual(['c']);
+  });
+});
+
+describe('stallReason', () => {
+  it('warns when a run would wait for approvals', () => {
+    expect(stallReason('auto', true)).toMatch(/Ask before changing the file/);
+    expect(stallReason('default', false)).toMatch(/asks before Claude uses tools/);
+    expect(stallReason('auto', false)).toBe('');
+    expect(stallReason(null, false)).toBe('');
   });
 });
