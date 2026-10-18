@@ -8,7 +8,7 @@ import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { FileIcon } from './Explorer';
-import { focusComposer, insertPrompt, showNode } from './Files';
+import { focusComposer, insertPrompt, showNode } from './composerEvents';
 import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';

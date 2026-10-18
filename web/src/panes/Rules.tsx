@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
-import { insertPrompt } from './Files';
+import { insertPrompt } from './composerEvents';
 import { focusReview } from './reviewFocus';
 import { allRules, rulesLine } from '../../../shared/rules';
 import type { ReviewDoc, ReviewRun } from '../../../shared/design';

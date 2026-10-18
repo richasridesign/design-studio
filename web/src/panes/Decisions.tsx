@@ -3,7 +3,7 @@ import { getJson, postJson, useStore } from '../store';
 import { getOutline, refreshOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
 import { ago } from '../ago';
-import { attachFigma, insertPrompt } from './Files';
+import { attachFigma, insertPrompt } from './composerEvents';
 import { DecisionLog } from './DecisionLog';
 import { FigmaErrorText } from '../FigmaLogin';
 import { WARN_WORDS, draftPrompt, filled, fills, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';

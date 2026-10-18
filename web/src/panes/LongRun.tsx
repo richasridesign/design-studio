@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
-import { insertPrompt } from './Files';
+import { insertPrompt } from './composerEvents';
 import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, askedEnd, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
 import type { PlanLimit } from '../../../shared/protocol';
 import { answerPrompt } from '../../../shared/awaiting';

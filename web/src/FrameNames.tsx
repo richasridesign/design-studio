@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import { frameName, useOutline } from './outline';
-import { showNode } from './panes/Files';
+import { showNode } from './panes/composerEvents';
 
 export function FrameNames({ ids, max = 3 }: { ids: string[]; max?: number }) {
   const outline = useOutline(useStore((s) => s.session.figma?.key));

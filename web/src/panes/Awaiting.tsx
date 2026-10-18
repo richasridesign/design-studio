@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
 import { AREA_NAMES, figmaNodeUrl } from '../../../shared/design';
 import { AWAIT_LABEL, answerPrompt, approvePrompt, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
-import { insertPrompt, showNode } from './Files';
+import { insertPrompt, showNode } from './composerEvents';
 import { useNodeLabel } from './Triage';
 
 const SEV: Record<AwaitItem['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };

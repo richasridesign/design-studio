@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, getJson, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { buildChecklist, figmaNodeUrl, type BuildRun, type DesignDoc } from '../../../shared/design';
-import { showNode, insertPrompt } from './Files';
+import { showNode, insertPrompt } from './composerEvents';
 import { Empty, ReviewArt } from './Empty';
 import { useOutlineVersion, getOutline } from '../outline';
 

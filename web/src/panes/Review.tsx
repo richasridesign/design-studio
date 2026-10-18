@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { api, getJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { AREAS, AREA_NAMES, PRESET_INFO, type Area, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewRun, reviewChecklist } from '../../../shared/design';
-import { attachFigma, showNode, insertPrompt } from './Files';
+import { attachFigma, showNode, insertPrompt } from './composerEvents';
 import { Empty, ReviewArt } from './Empty';
 import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';

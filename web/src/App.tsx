@@ -10,7 +10,7 @@ import { FileSwitcher } from './panes/FileSwitcher';
 import { Palette } from './panes/Palette';
 import { Explorer } from './panes/Explorer';
 import { Chats } from './panes/Chats';
-import { insertPrompt } from './panes/Files';
+import { insertPrompt } from './panes/composerEvents';
 import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Sketch } from './panes/Sketch';
