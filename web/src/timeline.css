@@ -29,3 +29,32 @@
   .seg.chat-view button { min-height: 36px; font-size: var(--text-md); }
   .tl-earlier .link, .tr-assistant .tr-more, .tl-steps-toggle { min-height: 36px; font-size: var(--text-md); }
 }
+
+/* First-run state of a chat: title, one line, setup actions, then prompt suggestions as rows. */
+.tl-welcome { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 4px; }
+.tl-welcome h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: var(--text-xl); line-height: 28px; }
+.tl-welcome p { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.tl-welcome .error-text { margin: 0; color: var(--err); }
+.tl-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
+.tl-start .tl-attach {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; min-height: 36px; padding: 0 16px;
+  border: 1px solid var(--border-strong); background: var(--bg); font-size: var(--text-sm); font-weight: 500;
+}
+.tl-start .tl-attach:hover { background: var(--bg-hover); }
+.tl-start .link { min-height: 36px; font-size: var(--text-sm); }
+.tl-suggest-label { margin-top: 16px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+.tl-suggest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tl-suggest button {
+  width: 100%; min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg);
+  font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
+}
+.tl-suggest button > span { flex: 1; min-width: 0; }
+.tl-suggest button > .codicon { color: var(--fg-muted); }
+.tl-suggest button:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.tl-suggest button:hover > .codicon { color: var(--fg); }
+@media (max-width: 900px) {
+  .tl-welcome p, .tl-suggest button, .tl-start .tl-attach, .tl-start .link { font-size: var(--text-md); line-height: 24px; }
+  .tl-suggest button { min-height: 44px; }
+  .tl-start .tl-attach { height: 44px; }
+}
