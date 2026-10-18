@@ -5,8 +5,24 @@ import { Empty, SketchArt } from './Empty';
 import { insertPrompt } from './Files';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { REASON_MAX, type SketchDoc, type SketchScreen } from '../../../shared/design';
+import { dirKey } from './sketchLayout';
 
 const SketchCanvas = lazy(() => import('./SketchCanvas'));
+type CanvasFocus = { dir: string; n: number };
+const letter = (i: number) => String.fromCharCode(65 + i);
+
+/** Phones show one direction at a time, so the sketch is big enough to read. */
+function useNarrow() {
+  const q = '(max-width: 900px)';
+  const [narrow, setNarrow] = useState(() => matchMedia(q).matches);
+  useEffect(() => {
+    const m = matchMedia(q);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
 
 export function Sketch() {
   const chat = useStore((s) => s.session.id);
@@ -16,6 +32,11 @@ export function Sketch() {
   const [doc, setDoc] = useState<SketchDoc | null>(null);
   const [board, setBoard] = useState<any[] | null>(null);
   const [error, setError] = useState('');
+  const narrow = useNarrow();
+  const [focus, setFocus] = useState<CanvasFocus | null>(null);
+  // On a phone, the direction each screen shows. Starts on the picked one, else A.
+  const [shown, setShown] = useState<Record<string, string>>({});
+  const view = (screen: string, direction: string) => setFocus((f) => ({ dir: dirKey(screen, direction), n: (f?.n ?? 0) + 1 }));
 
   useEffect(() => {
     setBoard(null);
@@ -74,38 +95,69 @@ export function Sketch() {
         )}
         {error && <div className="error-text">{error}</div>}
         {!!doc?.screens.length && <p className="sketch-count muted small" role="status">Picked: {picked} of {doc.screens.length}</p>}
-        {doc?.screens.map((s) => (
+        {doc?.screens.map((s) => {
+          const at = shown[s.id] ?? s.chosen ?? s.directions[0]?.id;
+          const i = s.directions.findIndex((d) => d.id === at);
+          const cur = s.directions[i];
+          return (
           <div key={s.id} className="sketch-screen">
-            <span className="screen-name">{s.name}</span>
-            {s.directions.map((d, i) => (
-              <button key={d.id} className={`dir ${s.chosen === d.id ? 'chosen' : ''}`} aria-pressed={s.chosen === d.id} aria-describedby={!s.chosen || s.chosen === d.id ? `dir-${s.id}-${d.id}` : undefined} onClick={(e) => choose(s, d, e.currentTarget)}>
-                {s.chosen === d.id && <Icon name="check" small />}
-                {String.fromCharCode(65 + i)} · {d.name}
-              </button>
-            ))}
-            {s.chosen && s.chosenBy === 'designer' && <span className="muted small">Picked by you</span>}
-            {/* Each direction's reasoning, readable without hover. Once picked, only the chosen one stays. */}
-            <ul className="sketch-notes">
-              {s.directions.map((d, i) => (!s.chosen || s.chosen === d.id) && (
-                <li key={d.id} id={`dir-${s.id}-${d.id}`}><b>{String.fromCharCode(65 + i)}:</b> {d.rationale}</li>
-              ))}
-            </ul>
+            <span className="screen-name" id={`sk-${s.id}`}>{s.name}</span>
+            {narrow ? (
+              <>
+                {/* One direction at a time: a tab shows it on the canvas, Pick is its own button. */}
+                <div className="seg sketch-tabs" role="tablist" aria-labelledby={`sk-${s.id}`}>
+                  {s.directions.map((d, j) => (
+                    <button key={d.id} role="tab" aria-selected={d.id === at} aria-controls={`skp-${s.id}`} aria-label={`${letter(j)} · ${d.name}${s.chosen === d.id ? ', picked' : ''}`} className={d.id === at ? 'on' : ''} onClick={() => { setShown((x) => ({ ...x, [s.id]: d.id })); view(s.id, d.id); }}>
+                      {s.chosen === d.id && <Icon name="check" small />}{letter(j)}
+                    </button>
+                  ))}
+                </div>
+                {cur && (
+                  <div className="sketch-panel" role="tabpanel" id={`skp-${s.id}`}>
+                    <p className="sketch-dir"><b>{letter(i)} · {cur.name}:</b> {cur.rationale}</p>
+                    {s.chosen !== cur.id
+                      ? <button onClick={(e) => choose(s, cur, e.currentTarget)}>Pick {letter(i)}</button>
+                      : s.chosenBy === 'designer' && <span className="muted small sketch-picked"><Icon name="check" small /> Picked by you</span>}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {s.directions.map((d, j) => (
+                  <span key={d.id} className="dir-group">
+                    <button className={`dir ${s.chosen === d.id ? 'chosen' : ''}`} aria-pressed={s.chosen === d.id} aria-describedby={!s.chosen || s.chosen === d.id ? `dir-${s.id}-${d.id}` : undefined} onClick={(e) => choose(s, d, e.currentTarget)}>
+                      {s.chosen === d.id && <Icon name="check" small />}
+                      {letter(j)} · {d.name}
+                    </button>
+                    <button className="link dir-view" aria-label={`View ${letter(j)} · ${d.name} on the canvas`} onClick={() => view(s.id, d.id)}>View</button>
+                  </span>
+                ))}
+                {s.chosen && s.chosenBy === 'designer' && <span className="muted small">Picked by you</span>}
+                {/* Each direction's reasoning, readable without hover. Once picked, only the chosen one stays. */}
+                <ul className="sketch-notes">
+                  {s.directions.map((d, j) => (!s.chosen || s.chosen === d.id) && (
+                    <li key={d.id} id={`dir-${s.id}-${d.id}`}><b>{letter(j)}:</b> {d.rationale}</li>
+                  ))}
+                </ul>
+              </>
+            )}
             {s.chosen && s.chosenBy !== 'designer' && (
               <span className="muted small sketch-sub">
                 Picked by Claude
                 <button className="link" title="Keep Claude's pick and its reason" onClick={() => pick(s.id, s.chosen!, s.directions.find((d) => d.id === s.chosen)?.rationale.slice(0, REASON_MAX) ?? '')}>Confirm</button>
               </span>
             )}
-            {s.chosen && s.chosenBy === 'designer' && <Why screen={s} onSave={(reason) => pick(s.id, s.chosen!, reason)} />}
+            {s.chosen && s.chosenBy === 'designer' && (!narrow || at === s.chosen) && <Why screen={s} onSave={(reason) => pick(s.id, s.chosen!, reason)} />}
           </div>
-        ))}
+          );
+        })}
       </div>
       {ask && <Confirm {...ask} onClose={() => { setAsk(null); requestAnimationFrame(() => trigger.current?.focus()); }} />}
       {!doc && !error && <Empty art={<SketchArt />} title="No sketches yet" text="Claude sketches two or three low-fidelity directions per screen before it designs. You can draw and leave notes on them." action={{ label: 'Sketch with Claude', onClick: () => insertPrompt('/sketch') }} />}
       {(doc || error) && <div className="sketch-canvas">
         {board && (
           <Suspense fallback={<div className="hint">Loading the canvas…</div>}>
-            <SketchCanvas key={chat} doc={doc} board={board} onBoard={(els) => postJson('/api/sketch/board', { elements: els }).catch(() => {})} />
+            <SketchCanvas key={chat} doc={doc} board={board} focus={focus} onBoard={(els) => postJson('/api/sketch/board', { elements: els }).catch(() => {})} />
           </Suspense>
         )}
       </div>}
@@ -117,16 +169,25 @@ export function Sketch() {
 function Why({ screen, onSave }: { screen: SketchScreen; onSave: (reason: string) => void }) {
   const saved = screen.reason ?? '';
   const [value, setValue] = useState(saved);
+  const [note, setNote] = useState('');
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => setValue(saved), [saved, screen.chosen]);
+  useEffect(() => () => clearTimeout(timer.current), []);
   const save = () => {
     const next = value.replace(/\s+/g, ' ').trim();
-    if (next !== saved) onSave(next);
+    if (next === saved) return;
+    onSave(next);
+    setNote('Saved');
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setNote(''), 2000);
   };
   const id = `why-${screen.id}`;
   return (
     <span className="sketch-sub sketch-why">
       <label htmlFor={id}>Why</label>
       <input id={id} type="text" value={value} maxLength={REASON_MAX} placeholder="Optional, one line" aria-label={`Why this direction for ${screen.name}`} onChange={(e) => setValue(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') setValue(saved); }} />
+      {/* Always in the page, so screen readers announce the change of text. */}
+      <span className="sketch-saved muted small" role="status">{note && <><Icon name="check" small /> {note}</>}</span>
     </span>
   );
 }
