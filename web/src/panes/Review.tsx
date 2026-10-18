@@ -63,8 +63,8 @@ export function Review({ dev = false }: { dev?: boolean }) {
           ))}
         </div>
         <span className="spacer" />
-        <button className="ghost export-report" onClick={() => window.open(api('/api/report'), '_blank')}>Export report</button>
-        <a className="ghost" href={api('/api/report?download=1')} download aria-label="Download report" title="Download report"><Icon name="cloud-download" /></a>
+        <button className="ghost" title="Open the handoff report in a new tab" onClick={() => window.open(api('/api/report'), '_blank')}>Handoff report</button>
+        <a className="ghost report-download" href={api('/api/report?download=1')} download aria-label="Download handoff report" title="Download handoff report"><Icon name="cloud-download" /></a>
       </div>
       <FlowCheck />
       {!rows.length && (hasFigma

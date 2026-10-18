@@ -27,5 +27,6 @@
 .node-chip:hover, .findings .link:hover, .f-body .link:hover { background: var(--figma-soft); text-decoration: underline; }
 @media (max-width: 900px) {
   .crit-grid { grid-template-columns: 1fr; }
-  .review-bar .export-report { display: none; }
+  /* Phones keep the labelled button; the report page can be saved from there. */
+  .review-bar a.report-download { display: none; }
 }
