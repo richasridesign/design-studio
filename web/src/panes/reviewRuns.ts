@@ -41,10 +41,16 @@ export const runLabel = (run: ReviewRun) => (run.kind === 'audit' ? 'File audit'
 
 export const unposted = (run: ReviewRun, doc: ReviewDoc): Finding[] => [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => !doc.posted?.includes(f.id) && f.severity !== 'minor');
 
-export function areaRows(run: ReviewRun): Array<{ key: string; name: string; pass: boolean; failed: boolean }> {
+// Red is kept for blocking findings and reviewer errors; an area with only major findings is a warning.
+export type AreaTone = 'pass' | 'major' | 'blocking' | 'error';
+export const areaTone = (pass: boolean, failed: boolean, findings: Finding[]): AreaTone =>
+  failed ? 'error' : pass ? 'pass' : findings.some((f) => f.severity === 'blocking') ? 'blocking' : 'major';
+
+export function areaRows(run: ReviewRun): Array<{ key: string; name: string; pass: boolean; failed: boolean; tone: AreaTone }> {
+  const checkPass = !run.checkError && !run.check.some((f) => f.severity !== 'minor');
   return [
-    { key: 'check', name: 'Design system check', pass: !run.checkError && !run.check.some((f) => f.severity !== 'minor'), failed: !!run.checkError },
-    ...run.results.map((r) => ({ key: r.area, name: r.area === 'all' ? 'All areas' : AREA_NAMES[r.area], pass: r.pass, failed: !!r.error })),
+    { key: 'check', name: 'Design system check', pass: checkPass, failed: !!run.checkError, tone: areaTone(checkPass, !!run.checkError, run.check) },
+    ...run.results.map((r) => ({ key: r.area, name: r.area === 'all' ? 'All areas' : AREA_NAMES[r.area], pass: r.pass, failed: !!r.error, tone: areaTone(r.pass, !!r.error, r.findings) })),
   ];
 }
 

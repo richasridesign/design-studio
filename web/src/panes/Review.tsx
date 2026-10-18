@@ -8,9 +8,10 @@ import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FrameNames } from '../FrameNames';
 import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
-import { KIND_LABEL, ago, mergeRuns, runLabel, shownPreset, summarize, unposted, type RunRow } from './reviewRuns';
+import { KIND_LABEL, ago, areaTone, mergeRuns, runLabel, shownPreset, summarize, unposted, type AreaTone, type RunRow } from './reviewRuns';
 
 const SEV: Record<Finding['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
+const TONE_ICON: Record<AreaTone, string> = { pass: 'pass-filled', major: 'warning', blocking: 'error', error: 'error' };
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 const when = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -126,20 +127,21 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
         <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
         <div className="muted">{run.tokens ? `${k(run.tokens)} tokens · $${run.costUsd.toFixed(2)}` : 'No tokens used'}</div>
         {pending.length > 0 && <button disabled={posting} onClick={post}><Icon name="comment" small /> Post {pending.length} as Figma comments</button>}
-        {hasFindings && <button onClick={copy}><Icon name="copy" small /> {copied ? 'Copied' : 'Copy as checklist'}</button>}
+        {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {note && <span className="muted">{note}</span>}
       </div>
       <div className="review-grid">
-        <AreaCard title="Design system check" sub={run.checkError ?? (run.check.length ? `${run.check.length} issues` : 'No issues')} pass={!run.checkError && !run.check.some((f) => f.severity !== 'minor')} tokens={0} findings={run.check} grouped focusAt={focusAt('check')} />
+        <AreaCard title="Design system check" sub={run.checkError ?? (run.check.length ? `${run.check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !run.check.some((f) => f.severity !== 'minor'), !!run.checkError, run.check)} tokens={0} findings={run.check} grouped focusAt={focusAt('check')} />
         {run.results.map((r) => (
-          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} pass={r.pass} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} />
+          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} />
         ))}
       </div>
     </>
   );
 }
 
-function AreaCard({ title, sub, pass, tokens, findings, grouped = false, focusAt = 0 }: { title: string; sub: string; pass: boolean; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number }) {
+function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt = 0 }: { title: string; sub: string; tone: AreaTone; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number }) {
+  const pass = tone === 'pass';
   const [open, setOpen] = useState(!pass);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -149,9 +151,9 @@ function AreaCard({ title, sub, pass, tokens, findings, grouped = false, focusAt
   }, [focusAt]);
   const shown = grouped ? [...findings].sort((a, b) => AREAS.indexOf(a.area as Area) - AREAS.indexOf(b.area as Area)) : findings;
   return (
-    <section ref={ref} className={`area-card ${pass ? 'pass' : 'fail'}${focusAt ? ' focused' : ''}`}>
+    <section ref={ref} className={`area-card ${pass ? 'pass' : 'fail'} ${tone}${focusAt ? ' focused' : ''}`}>
       <header onClick={() => setOpen((v) => !v)}>
-        <Icon name={pass ? 'pass-filled' : 'error'} />
+        <Icon name={TONE_ICON[tone]} />
         <div className="area-title">
           <div className="t">{title}</div>
           <div className="s">{sub}</div>
