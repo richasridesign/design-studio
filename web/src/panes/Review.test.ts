@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ago, areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize } from './reviewRuns';
+import { areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize } from './reviewRuns';
+import { ago } from '../ago';
 import type { CopyRun, CritRun, Finding, ReviewRun } from '../../../shared/design';
 
 const finding = (severity: Finding['severity']): Finding => ({ id: severity, area: 'color', severity, rule: 'r', fix: 'f', node: '1:2' }) as Finding;
@@ -41,12 +42,13 @@ describe('shownPreset', () => {
   });
 });
 
-describe('ago', () => {
-  it('formats relative time', () => {
-    expect(ago(0, 30_000)).toBe('just now');
-    expect(ago(0, 5 * 60_000)).toBe('5m ago');
-    expect(ago(0, 3 * 3600_000)).toBe('3h ago');
-    expect(ago(0, 2 * 86400_000)).toBe('2d ago');
+describe('run row times', () => {
+  it('use the shared time helper, so they read like every other time in the app', () => {
+    const now = new Date(2026, 9, 18, 22, 0).getTime();
+    expect(ago(now - 30_000, now)).toBe('just now');
+    expect(ago(now - 10 * 60_000, now)).toBe('10 min ago');
+    expect(ago(now - 3 * 3600_000, now)).toBe('3 h ago');
+    expect(ago(new Date(2026, 9, 17, 9, 0).getTime(), now)).toBe('yesterday');
   });
 });
 

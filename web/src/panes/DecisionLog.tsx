@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getJson, useRev, useStore } from '../store';
-import { ago } from './reviewRuns';
+import { ago } from '../ago';
 import { decisionLog, whoLabel } from '../../../shared/decisionLog';
 import type { SketchDoc } from '../../../shared/design';
 import type { StageApprovals, StagesView } from '../../../shared/stages';

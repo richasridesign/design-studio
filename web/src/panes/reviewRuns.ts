@@ -37,12 +37,6 @@ export function summarize(row: RunRow): string {
   return parts.length ? parts.join(', ') : 'No issues';
 }
 
-export function ago(at: number, now = Date.now()): string {
-  const s = Math.max(0, (now - at) / 1000);
-  for (const [n, unit] of [[86400 * 7, 'w'], [86400, 'd'], [3600, 'h'], [60, 'm']] as const) if (s >= n) return `${Math.floor(s / n)}${unit} ago`;
-  return 'just now';
-}
-
 export const runLabel = (run: ReviewRun) => (run.kind === 'audit' ? 'File audit' : run.kind === 'verify' ? 'Final check' : `Review ${run.round} · Depth: ${PRESET_INFO[run.preset].label}`);
 
 // Red is kept for blocking findings and reviewer errors; an area with only major findings is a warning.
