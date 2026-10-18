@@ -7,6 +7,7 @@ import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
 import { flowIssues, type FlowCheckRun } from './flowcheck.js';
 import { stateMap } from './stateMap.js';
+import { closedTally, splitRun, type Triage } from './triage.js';
 
 export const STAGE_IDS = ['spec', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -43,6 +44,8 @@ export type StageEvidence = {
   review: ReviewDoc | null;
   /** The last Flow check run on the file's prototype. */
   flowcheck?: FlowCheckRun | null;
+  /** Findings the designer closed by hand (triage.json). */
+  triage?: Triage | null;
   decisions: DecisionDoc | null;
 };
 
@@ -97,12 +100,15 @@ function checksFor(id: StageId, e: StageEvidence): StageCheck[] {
         ? check('Prototype wired', failing === 0 && !partial && !missing.length, failing ? `Flow check: issues in ${failing} of ${plural(flows.length, 'flow')}` : missing.length ? `Flow check: not found in the file: ${missing.join(', ')}` : partial ? 'Flow check: the file is too large to read in full, so some flows were not checked' : `Flow check: ${flows.length === 1 ? 'the flow passed' : `all ${flows.length} flows passed`}`, 'review')
         : { label: 'Prototype wired', state: 'unchecked', detail: 'Flow check has not run on this file', open: 'review' };
       if (!run) return [check('Review run', false, 'No review yet', 'review'), wired];
-      const open = [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor').length;
+      // Findings closed by hand (fixed, won't fix, parked) do not count; the detail still names them.
+      const split = splitRun(run, e.triage);
+      const open = split.open.filter((f) => f.severity !== 'minor').length;
+      const closed = closedTally(split.closed.filter((f) => f.severity !== 'minor'));
       const rules = run.rules ?? [];
       const failed = rules.filter((r) => r.state === 'fail').length;
       return [
         check('Review run', true, `Round ${run.round}, ${plural(run.frames.length, 'frame')}`, 'review'),
-        check('No blocking or major issues', open === 0, open ? `${plural(open, 'issue')} open` : 'None open', 'review'),
+        check('No blocking or major issues', open === 0, `${open ? `${plural(open, 'issue')} open` : 'None open'}${closed ? `, ${closed}` : ''}`, 'review'),
         rules.length
           ? check('House rules followed', failed === 0, failed ? `${failed} of ${rules.length} failed` : `All ${rules.length} followed`, 'review')
           : { label: 'House rules followed', state: 'unchecked', detail: 'No house rules checked in this review', open: 'review' },

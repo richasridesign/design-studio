@@ -2,6 +2,7 @@ import { allowedHost, allowedOrigin } from './origin.js';
 import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
+import { readTriage, updateTriage } from './triage.js';
 import { readRecipes, writeRecipes } from './recipes.js';
 import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
@@ -286,13 +287,14 @@ const server = http.createServer(async (req, res) => {
       return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
     }
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
+    if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
     if (url.pathname === '/api/stages') {
       if (req.method === 'POST') await changeStage(chat.cwd, await readJsonBody());
       // The written brief (plan.md) wins over the first message, so the gate and the report agree.
       const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
       const brief = (plan && briefLede(plan)) || (chat.state.events.find((e) => e.kind === 'user')?.text ?? null);
       const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
-      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions }));
+      return json(await readStages(chat.cwd, { brief: brief as string | null, figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) }));
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));

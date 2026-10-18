@@ -3,11 +3,13 @@ import { readFile, stat } from 'node:fs/promises';
 import { AREA_NAMES, PERSONA_NAMES, figmaNodeUrl, type CopyRun, type CritRun, type DesignDoc, type Finding, type FigmaFile, type ReviewRun, type Severity, type SketchDoc } from '../../shared/design.js';
 import { readSketch } from './sketch.js';
 import { readCopy, readCrit } from './crit.js';
-import { readDesign, readReview, toFix } from './review.js';
+import { readDesign, readReview } from './review.js';
 import { rulesLine, rulesSummary, type RuleResult } from '../../shared/rules.js';
 import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
 import { readApprovals } from './stages.js';
 import { readScope } from './scope.js';
+import { readTriage } from './triage.js';
+import { TRIAGE_LABEL, closedTally, splitFindings, splitRun, type ClosedFinding, type Triage, type TriageState } from '../../shared/triage.js';
 import { readFlowChecks } from './flowcheck.js';
 import { STAGE_IDS, STAGE_INFO, stageLabel, type StageApprovals } from '../../shared/stages.js';
 import { FLOW_RULE_LABEL, flowIssues, type FlowCheckRun, type FlowRule } from '../../shared/flowcheck.js';
@@ -89,7 +91,7 @@ const dayTime = (at: number) => new Date(at).toLocaleString('en-GB', { day: 'num
 const read = (file: string) => readFile(file, 'utf8').catch(() => null);
 
 /** A status: a shape plus a label. The shape differs per kind, so it never relies on colour alone. */
-type Status = 'blocking' | 'major' | 'minor' | 'pass' | 'fail' | 'error' | 'none' | 'current';
+type Status = 'blocking' | 'major' | 'minor' | 'pass' | 'fail' | 'error' | 'none' | 'current' | 'wontfix' | 'parked';
 const st = (kind: Status, label: string) => `<span class="st ${kind}">${esc(label)}</span>`;
 const SEV_LABEL: Record<Severity, string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
 
@@ -106,6 +108,8 @@ type Data = {
   approvals: StageApprovals;
   design: DesignDoc | null;
   run: ReviewRun | undefined;
+  /** Findings closed by hand. Keys from older runs are ignored. */
+  triage: Triage;
   flow: FlowCheckRun | undefined;
   crit: CritRun | undefined;
   copy: CopyRun | undefined;
@@ -198,6 +202,13 @@ const bySeverity = (a: Finding, b: Finding) => SEV_ORDER[a.severity] - SEV_ORDER
 const findingRow = (d: Data) => (f: Finding) =>
   `<li>${st(f.severity, SEV_LABEL[f.severity] ?? f.severity)} <strong>${nodeLink(d, f.node, f.nodeName || `Layer ${f.node}`)}</strong>: ${esc(f.rule)}<br><small>Fix: ${esc(f.fix)}</small></li>`;
 
+const TRIAGE_STATUS: Record<TriageState, Status> = { fixed: 'pass', wontfix: 'wontfix', parked: 'parked' };
+
+const closedRow = (d: Data) => (f: ClosedFinding) => {
+  const why = f.triage.why ? `Why: ${f.triage.why}. ` : '';
+  return `<li>${st(TRIAGE_STATUS[f.triage.state], TRIAGE_LABEL[f.triage.state])} <strong>${nodeLink(d, f.node, f.nodeName || `Layer ${f.node}`)}</strong>: ${esc(f.rule)}<br><small>${esc(`Was: ${SEV_LABEL[f.severity] ?? f.severity}. ${why}Closed: ${day(f.triage.at)}`)}</small></li>`;
+};
+
 const RULE_STATE: Record<RuleResult['state'], [Status, string]> = { pass: ['pass', 'Passed'], fail: ['fail', 'Failed'], unchecked: ['none', 'Not checked'] };
 
 const ruleRow = (d: Data) => (r: RuleResult) => {
@@ -228,9 +239,11 @@ function review(d: Data): Section | null {
   if (!run && !flow) return null;
   const parts: string[] = [];
   if (run) {
+    const open = (list: Finding[]) => splitFindings(run, list, d.triage).open;
+    const check = open(run.check);
     parts.push(`<p class="meta">Reviewed: ${esc(dayTime(run.at))}, round ${run.round}, ${plural(run.frames.length, 'frame')}</p>`);
     if (run.checkError) parts.push(`<p>${st('error', 'Error')} Design system check: ${esc(run.checkError)}</p>`);
-    if (run.check.length) parts.push(`<h3>Design system check <small>${plural(run.check.length, 'finding')}</small></h3><ul class="rows">${[...run.check].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
+    if (check.length) parts.push(`<h3>Design system check <small>${plural(check.length, 'finding')}</small></h3><ul class="rows">${[...check].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
     if (run.rulesError) parts.push(`<p>${st('error', 'Error')} House rules: ${esc(run.rulesError)}</p>`);
     if (run.rules?.length) parts.push(`<h3>House rules <small>${esc(rulesLine(run.rules))}</small></h3><ul class="rows">${run.rules.map(ruleRow(d)).join('')}</ul>`);
     const passed = run.results.filter((r) => !r.error && r.pass && !r.findings.length);
@@ -238,9 +251,12 @@ function review(d: Data): Section | null {
       const name = r.area === 'all' ? 'All areas' : AREA_NAMES[r.area];
       parts.push(`<h3>${esc(name)} ${r.error ? st('error', 'Error') : r.pass ? st('pass', 'Passed') : st('fail', 'Needs work')}</h3>`);
       if (r.error || r.summary) parts.push(`<p>${esc(r.error || r.summary)}</p>`);
-      if (r.findings.length) parts.push(`<ul class="rows">${[...r.findings].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
+      const rest = open(r.findings);
+      if (rest.length) parts.push(`<ul class="rows">${[...rest].sort(bySeverity).map(findingRow(d)).join('')}</ul>`);
     }
     if (passed.length) parts.push(`<p class="passed">${st('pass', 'Passed')} ${esc(passed.map((r) => (r.area === 'all' ? 'All areas' : AREA_NAMES[r.area])).join(', '))}</p>`);
+    const { closed } = splitRun(run, d.triage);
+    if (closed.length) parts.push(`<h3>Closed by hand <small>${esc(closedTally(closed))}</small></h3><ul class="rows">${[...closed].sort(bySeverity).map(closedRow(d)).join('')}</ul>`);
     if (!run.check.length && !run.rules?.length && !run.results.length && !run.checkError) parts.push('<p>No findings.</p>');
   }
   parts.push(flow);
@@ -317,13 +333,14 @@ function summary(d: Data, frames: string[]) {
   if (frames.length || d.run || d.flow) {
     const lines: string[] = [];
     if (d.run) {
-      const all = [...d.run.check, ...d.run.results.flatMap((r) => r.findings)];
-      const open = toFix(d.run);
+      // Findings closed by hand do not count as open, as in the Validate gate.
+      const { open, closed } = splitRun(d.run, d.triage);
       const n = (s: Severity) => open.filter((f) => f.severity === s).length;
-      const minor = all.filter((f) => f.severity === 'minor').length;
+      const minor = n('minor');
       const tile = (kind: Severity, count: number) => `<li class="tile"><span class="num">${count}</span>${st(count ? kind : 'none', SEV_LABEL[kind])}</li>`;
       lines.push(`<ul class="tiles">${tile('blocking', n('blocking'))}${tile('major', n('major'))}${tile('minor', minor)}</ul>`);
       const facts2: string[] = [];
+      if (closed.length) facts2.push(`<li>${st('none', 'Closed by hand:')} ${esc(closedTally(closed))}</li>`);
       if (d.run.rules?.length) {
         const r = rulesSummary(d.run.rules);
         facts2.push(`<li>${r.failed ? st('fail', 'House rules:') : st('pass', 'House rules:')} ${esc(rulesLine(d.run.rules))}</li>`);
@@ -416,6 +433,8 @@ nav.toc small { margin-left: 4px; }
 .st.pass::before { background: var(--green); border-radius: 50%; }
 .st.none::before { background: linear-gradient(var(--muted), var(--muted)) center / 12px 2px no-repeat; }
 .st.current::before { background: var(--text); transform: rotate(45deg) scale(0.8); }
+.st.wontfix::before { background: linear-gradient(45deg, transparent 5px, var(--muted) 5px, var(--muted) 7px, transparent 7px), linear-gradient(-45deg, transparent 5px, var(--muted) 5px, var(--muted) 7px, transparent 7px); }
+.st.parked::before { border: 2px solid var(--muted); border-radius: 2px; }
 h3 .st { margin-left: 8px; vertical-align: 2px; font-family: system-ui, sans-serif; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
@@ -488,6 +507,7 @@ async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
     readCrit(dir).catch(() => []),
     readCopy(dir).catch(() => []),
   ]);
+  const triage = await readTriage(dir);
   return {
     dir,
     figma,
@@ -498,6 +518,7 @@ async function load(dir: string, figma: FigmaFile | null): Promise<Data> {
     approvals,
     design: designDoc,
     run: reviewDoc.runs?.at(-1),
+    triage,
     flow: figma ? flows.filter((r) => r.fileKey === figma.key).at(-1) : undefined,
     crit: critRuns.at(-1),
     copy: copyRuns.at(-1),
