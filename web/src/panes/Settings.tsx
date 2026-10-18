@@ -151,7 +151,7 @@ export function Settings() {
 
       <section className="set-card" id="set-models">
         <h2>Models</h2>
-        <p className="muted">Opus 5.5 writes the plan. Sonnet 5.5 sketches, designs, fixes and reviews.</p>
+        <p className="muted">Design runs: Opus 5.5 writes the plan, Sonnet 5.5 sketches, designs, fixes and reviews. Chat: pick the model next to the mode in the message box.</p>
         <label className="field">
           <span>Daily budget (USD), 0 = off</span>
           <div className="inline">
