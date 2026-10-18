@@ -40,15 +40,22 @@ export function cleanDecisions(input: unknown): DecisionDoc {
   return out;
 }
 
-// Applies parsed entries on top of the saved doc. Only non-empty fields overwrite.
+// Fields a parsed entry would fill: only ones that are still empty, so the designer's text is never replaced.
+export const fills = (doc: DecisionDoc, e: Parsed & { id: string }) => {
+  const slot = slots(doc, e.id)[e.n - 1];
+  return { decision: !!e.decision && !slot.decision.trim(), why: !!e.why && !slot.why.trim() };
+};
+
+// Fills empty fields from parsed entries. Text already written stays.
 export function mergeDecisions(base: DecisionDoc, entries: Array<Parsed & { id: string }>, names: Record<string, string> = {}): DecisionDoc {
   const out: DecisionDoc = { ...base };
   for (const e of entries) {
     const [a, b] = slots(out, e.id);
     const pair: [Decision, Decision] = [{ ...a }, { ...b }];
     const slot = pair[e.n - 1];
-    if (e.decision) slot.decision = e.decision;
-    if (e.why) slot.why = e.why;
+    const f = fills(out, e);
+    if (f.decision) slot.decision = e.decision;
+    if (f.why) slot.why = e.why;
     out[e.id] = { name: names[e.id] ?? out[e.id]?.name ?? e.screen, items: pair };
   }
   return cleanDecisions(out);
