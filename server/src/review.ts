@@ -215,7 +215,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   // The plugin read is a short Claude run too, so its cost counts.
   run.costUsd = readCost + run.results.reduce((n, r) => n + r.costUsd, 0);
   await saveRun(dir, run);
-  await awaitFindings(dir, fileKey, run.results.flatMap((r) => r.findings)).catch((err) => console.error('awaiting list:', err));
+  await awaitFindings(dir, fileKey, [...run.check, ...run.results.flatMap((r) => r.findings)]).catch((err) => console.error('awaiting list:', err));
   return run;
 }
 
