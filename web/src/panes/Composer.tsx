@@ -132,6 +132,22 @@ export function splitFrameLinks(text: string, key: string): { links: string[]; r
 /** The message as sent: frame links first, then her note. */
 export const withFrameLinks = (links: string[], text: string) => (links.length ? `${links.join(' ')} ${text}`.trim() : text);
 
+/**
+ * Text another pane puts in the message box. Never twice: what is already there stays as it is. A slash command goes
+ * first and replaces a command line already at the top, so a second click on Review does not make "/review /review".
+ */
+export function insertInto(text: string, add: string): string {
+  const a = add.trim();
+  if (!a || text.includes(a)) return text;
+  if (a.startsWith('/')) {
+    const [first, ...rest] = text.split('\n');
+    if (first.trimStart().startsWith('/')) return `${[a, ...rest].join('\n').trimEnd()} `;
+    return text.trim() ? `${a} ${text.trimStart()}` : `${a} `;
+  }
+  const tail = `${add.trimEnd()} `;
+  return text && !/\s$/.test(text) ? `${text} ${tail}` : `${text}${tail}`;
+}
+
 export function accept(text: string, start: number, caret: number, insert: string) {
   const next = `${text.slice(0, start)}${insert} ${text.slice(caret)}`;
   return { text: next, caret: start + insert.length + 1 };
@@ -284,10 +300,11 @@ export function Composer() {
   const setMode = (mode: FlowMode) => send({ type: 'set_flow', patch: { mode } });
 
   useEffect(() => {
-    // Filling or focusing the message box from elsewhere shows it: the Chat tab on a phone, the box scrolled into view, the caret at the end.
+    // Filling or focusing the message box from elsewhere shows it: the Chat tab on a phone, the hidden chat column on
+    // a desktop, the box scrolled into view, the caret at the end.
     const reveal = () => {
       const phone = window.matchMedia('(max-width: 900px)').matches;
-      if (phone) window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'tab:chat' } }));
+      window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: phone ? 'tab:chat' : 'chat:show' } }));
       // Waits a moment so the new text and, on a phone, the Chat tab have rendered.
       setTimeout(() => {
         const el = ta.current;
@@ -295,12 +312,12 @@ export function Composer() {
         el.focus({ preventScroll: true });
         el.setSelectionRange(el.value.length, el.value.length);
         el.closest('.cp')?.scrollIntoView({ block: 'nearest' });
-      }, phone ? 60 : 0);
+      }, 60);
     };
     const onInsert = (e: Event) => {
       const add = (e as CustomEvent<string>).detail;
       setText((t) => {
-        const next = t && !t.endsWith(' ') ? `${t} ${add} ` : `${t}${add} `;
+        const next = insertInto(t, add);
         wantCaret.current = next.length;
         return next;
       });

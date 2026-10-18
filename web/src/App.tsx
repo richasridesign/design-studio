@@ -250,6 +250,8 @@ export function App() {
       else if (kind === 'focus') { if (!narrow()) toggleFocus(); }
       else if (kind === 'phone') setPhone((v) => !v);
       else if (kind === 'tab') setTab(arg as Tab);
+      // Filling the message box while the chat is hidden shows the chat again.
+      else if (kind === 'chat' && arg === 'show') setChatOpen(true);
     };
     const onSection = (e: Event) => {
       const next = (e as CustomEvent<{ view?: unknown }>).detail?.view;
