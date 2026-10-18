@@ -159,6 +159,8 @@ describe('flowCheckScript', () => {
     expect(tops(await runScript(flowCheckScript({ maxNodes: 3, first: ['Flow 1'] }), phrase))).toEqual(['Flow 1 · V1']);
     const held = page([small('1:', 'Flow 1 · V1', 0), small('2:', 'Flow 10 · Reports', 3000), small('4:', 'LATEST flows', 6000, [section('4:9', 'Flow 1 · First run (V1.14 · LATEST)', 6000, 1300, 1000, 500, [])])]);
     expect(tops(await runScript(flowCheckScript({ maxNodes: 3, first: ['Flow 1'] }), held))).toEqual(['LATEST flows']);
+    const parked = page([small('5:', 'Parked · old work', 0, [section('5:9', 'Flow 7 · Checkout (PARKED)', 0, 1300, 1000, 500, [])]), small('6:', 'Flow 1 · V1', 3000), small('7:', 'Flow 7 · Checkout', 6000)]);
+    expect(tops(await runScript(flowCheckScript({ maxNodes: 6, first: ['Flow 7'] }), parked))).toEqual(['Parked · old work', 'Flow 7 · Checkout']);
   });
 
   it('looks up link destinations the walk did not reach, with the sections around them', async () => {

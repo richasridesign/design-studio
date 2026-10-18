@@ -171,15 +171,16 @@ for (const page of figma.root.children) {
 }
 // The node cap cuts the walk short on big files, so sections named LATEST or Parked, or after a flow in Scope, go
 // first on every page, then the rest. The tree keeps the canvas order. A Scope flow matches whole words ("Flow 1" is
-// not "Flow 10"), an exact name wins over a longer one, and a flow that a LATEST or Parked section already holds
-// pulls nothing else forward, so its old versions stay behind.
+// not "Flow 10"), an exact name wins over a longer one, and a flow that a LATEST section already holds pulls nothing
+// else forward, so its old versions stay behind. A Parked section never holds a Scope flow: it holds an old copy.
 const live = (t) => FIRST.test(String(t.name || ''));
+const LATEST_TOP = /\\blatest\\b/i;
 const allTops = [];
 for (const p of plan) if (p.flows) for (const t of p.tops) allTops.push(t);
 const kidNames = (t) => { try { return (t.type === 'SECTION' && t.children ? t.children : []).map((c) => c.name); } catch (e) { return []; } };
 const firstIds = new Set();
 for (const f of FIRST_NAMES) {
-  if (allTops.some((t) => live(t) && (named(t.name, f) || kidNames(t).some((n) => named(n, f))))) continue;
+  if (allTops.some((t) => LATEST_TOP.test(String(t.name || '')) && (named(t.name, f) || kidNames(t).some((n) => named(n, f))))) continue;
   const exact = allTops.filter((t) => words(t.name) === words(f));
   for (const t of exact.length ? exact : allTops.filter((t) => named(t.name, f))) firstIds.add(t.id);
 }
