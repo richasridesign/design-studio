@@ -13,6 +13,9 @@ import './shortcuts.css';
 import './versions.css';
 import './rules.css';
 import { touch } from './touch';
+import { initTheme } from './theme';
+
+initTheme();
 
 if (touch()) window.addEventListener('focusout', () => window.scrollTo(0, 0));
 

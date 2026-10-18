@@ -142,7 +142,7 @@
 .f-rule { font-weight: 500; }
 .f-fix { color: var(--fg-muted); font-size: var(--text-sm); }
 .seg { display: inline-flex; padding: 3px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 10px; gap: 2px; width: fit-content; }
-.seg button { background: transparent; border-radius: 8px; padding: 4px 14px; min-height: 32px; color: var(--fg-muted); }
+.seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: transparent; border-radius: 8px; padding: 4px 14px; min-height: 32px; color: var(--fg-muted); }
 .seg button.on { background: var(--bg-elevated); color: var(--fg); font-weight: 600; }
 .toggle-row input { width: 18px; height: 18px; accent-color: var(--accent); }
 
