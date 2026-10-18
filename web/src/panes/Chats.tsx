@@ -101,7 +101,7 @@ export function Chats() {
               <span className="twistie"><Icon name="file-media" small /></span>
               <span className="name">{g.name}</span>
               <span className="acts">
-                <button className="icon-btn" title={`New chat on ${g.name}`} onClick={() => send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' })}><Icon name="add" small /></button>
+                <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={() => send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' })}><Icon name="add" small /></button>
               </span>
             </div>
             {g.open.map((c) => <LiveRow key={c.id} c={c} selected={c.id === viewing} onClose={() => close(c)} />)}
@@ -138,7 +138,7 @@ function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onC
         {text && <span className="l2"><span className="sub">{text}</span></span>}
       </span>
       <span className="acts">
-        <button className="icon-btn" title="Close chat, keep the transcript" onClick={(e) => { e.stopPropagation(); onClose(); }}><Icon name="close" small /></button>
+        <button className="icon-btn" title="Close chat, keep the transcript" aria-label="Close chat" onClick={(e) => { e.stopPropagation(); onClose(); }}><Icon name="close" small /></button>
       </span>
     </div>
   );
