@@ -23,7 +23,7 @@ import { readRules, rulesBlock } from './rules.js';
 import { readChatSteps } from './stages.js';
 import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
-import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, refreshMapSoon, type FileMap } from './fileMap.js';
+import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
@@ -993,23 +993,32 @@ export class AgentSession {
     this.figmaUses.clear();
     const key = this.figma?.key;
     if (!edited || !key || key === SAMPLE_KEY) return;
-    // The file map (and the outline, from the same read) is read again after any run that edited the file.
-    refreshMapSoon(this.cwd, key);
+    // The file map (and the outline, from the same read) is read again after any run that edited the file. The auto
+    // check waits for this same read instead of starting a second one.
+    const mapRead = buildMap(this.cwd, key).catch((err) => {
+      console.error('file map:', (err as Error).message);
+      return null;
+    });
     if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
-    void this.checkEdited(key, touched);
+    void this.checkEdited(key, touched, mapRead);
   }
 
-  private async checkEdited(key: string, touched: string[]) {
-    // The map read started in autoCheck writes the outline too.
+  /**
+   * The free check on the screens Claude touched. With no touched screen it checks nothing: never the whole file,
+   * and never a whole section, only the screens inside it that were edited.
+   */
+  private async checkEdited(key: string, touched: string[], mapRead: Promise<FileMap | null>) {
+    if (!touched.length) return;
     if (!(await settings().catch(() => null))?.autoCheck) return;
     try {
       this.setStatus('Checking edited frames');
-      const { fileOutline, framesContaining } = await import('./figmaCache.js');
-      const all = (await fileOutline(this.cwd, key, { fresh: true })).pages.flatMap((p) => p.frames.map((f) => f.id));
-      const hit = await framesContaining(this.cwd, key, all, touched).catch(() => all.filter((id) => touched.includes(id)));
-      const frames = hit.length ? hit : all;
+      const { framesContaining, mapScreens } = await import('./figmaCache.js');
+      const map = await mapRead;
+      const screens = map ? mapScreens(map.raw.pages) : [];
+      const frames = await framesContaining(this.cwd, key, touched, screens).catch(() => touched.filter((id) => screens.includes(id)));
       if (!frames.length) return;
-      const run = await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit' });
+      // Decisions from an auto check stay on its run in the Review tab; only reviews she starts fill Awaiting.
+      const run = await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit', awaiting: false });
       this.reviewDone(run);
     } catch (err) {
       console.error('auto check failed', err);

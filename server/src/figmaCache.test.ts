@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cachedOutline, containingScript, fileOutline, framesContaining, OUTLINE_SCRIPT, thumbs } from './figmaCache.js';
+import { cachedOutline, containingScript, fileOutline, framesContaining, mapScreens, OUTLINE_SCRIPT, thumbs } from './figmaCache.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const runScript = (script: string, figma: any) => new AsyncFunction('figma', script)(figma);
@@ -23,10 +23,22 @@ function fakeFile() {
   leaf.parent = card;
   const home: any = { id: '1:1', name: 'Home', type: 'FRAME', width: 1440.4, height: 900, children: [card] };
   card.parent = home;
-  const section: any = { id: '1:9', name: 'Flow', type: 'SECTION', width: 3000, height: 1000, children: [] };
-  const p1 = page('0:1', 'Design', [home, section, { id: '1:5', name: 'Note', type: 'TEXT', width: 1, height: 1 }]);
+  // A screen inside a section, with a nested button; a sticky note loose in the section; a board frame that holds a section.
+  const btnLabel: any = { id: '4:3', name: 'Label', type: 'TEXT' };
+  const btn: any = { id: '4:2', name: 'Button', type: 'INSTANCE', width: 120, height: 36, children: [btnLabel] };
+  btnLabel.parent = btn;
+  const inner: any = { id: '4:1', name: 'Activate', type: 'FRAME', width: 1440, height: 900, children: [btn] };
+  btn.parent = inner;
+  const sticky: any = { id: '1:8', name: 'Decision', type: 'INSTANCE', width: 240, height: 120, children: [] };
+  const section: any = { id: '1:9', name: 'Flow', type: 'SECTION', width: 3000, height: 1000, children: [inner, sticky] };
+  inner.parent = section;
+  sticky.parent = section;
+  const sub: any = { id: '1:6', name: 'Old', type: 'SECTION', width: 100, height: 100, children: [] };
+  const board: any = { id: '1:7', name: 'Board', type: 'FRAME', width: 5000, height: 3000, children: [sub] };
+  sub.parent = board;
+  const p1 = page('0:1', 'Design', [home, section, board, { id: '1:5', name: 'Note', type: 'TEXT', width: 1, height: 1 }]);
   const p2 = page('0:2', 'Parts', [{ id: '5:1', name: 'Button', type: 'COMPONENT_SET', width: 300, height: 80 }]);
-  const all = new Map<string, any>([[home.id, home], [card.id, card], [leaf.id, leaf], [section.id, section]]);
+  const all = new Map<string, any>([home, card, leaf, section, inner, btn, btnLabel, sticky, sub, board].map((n) => [n.id, n]));
   const root = { children: [p1, p2] };
   return { figma: { root, getNodeByIdAsync: async (id: string) => all.get(id) ?? null }, loaded };
 }
@@ -70,7 +82,7 @@ describe('fileOutline', () => {
     const o = await fileOutline(dir, 'KEY', { mcp: MCP, run });
     expect(o.name).toBe('Checkout');
     expect(o.pages).toEqual([
-      { id: '0:1', name: 'Design', frames: [{ id: '1:1', name: 'Home', page: 'Design', type: 'FRAME', w: 1440, h: 900 }, { id: '1:9', name: 'Flow', page: 'Design', type: 'SECTION', w: 3000, h: 1000 }] },
+      { id: '0:1', name: 'Design', frames: [{ id: '1:1', name: 'Home', page: 'Design', type: 'FRAME', w: 1440, h: 900 }, { id: '1:9', name: 'Flow', page: 'Design', type: 'SECTION', w: 3000, h: 1000 }, { id: '1:7', name: 'Board', page: 'Design', type: 'FRAME', w: 5000, h: 3000 }] },
       { id: '0:2', name: 'Parts', frames: [{ id: '5:1', name: 'Button', page: 'Parts', type: 'COMPONENT_SET', w: 300, h: 80 }] },
     ]);
     expect(loaded).toEqual(['0:1', '0:2']);
@@ -93,17 +105,36 @@ describe('fileOutline', () => {
 });
 
 describe('framesContaining', () => {
-  it('finds the top-level frame of nested ids', async () => {
+  it('finds the screen of nested ids', async () => {
     const { figma } = fakeFile();
     expect(await runScript(containingScript(['3:3', '1:1', '9:9']), figma)).toEqual({ '3:3': '1:1', '1:1': '1:1' });
     const { run } = fakeRun(figma);
-    expect(await framesContaining(await chatDir(), 'KEY', ['1:1', '1:9'], ['3:3'], { mcp: MCP, run })).toEqual(['1:1']);
+    expect(await framesContaining(await chatDir(), 'KEY', ['3:3'], ['1:1'], { mcp: MCP, run })).toEqual(['1:1']);
   });
 
-  it('skips the read when every id is a frame', async () => {
+  it('stops at a section: the screen inside it counts, the section never does', async () => {
+    const { figma } = fakeFile();
+    expect(await runScript(containingScript(['4:3', '4:1', '1:9', '1:8', '1:7', '1:6']), figma)).toEqual({ '4:3': '4:1', '4:1': '4:1' });
+    const { run } = fakeRun(figma);
+    expect(await framesContaining(await chatDir(), 'KEY', ['4:3', '1:9'], [], { mcp: MCP, run })).toEqual(['4:1']);
+  });
+
+  it('skips the read when every id is a known screen', async () => {
     const run = vi.fn();
-    expect(await framesContaining(os.tmpdir(), 'KEY', ['1:1', '1:9'], ['1:9'], { mcp: MCP, run: run as any })).toEqual(['1:9']);
+    expect(await framesContaining(os.tmpdir(), 'KEY', ['4:1', '1:1'], ['1:1', '4:1'], { mcp: MCP, run: run as any })).toEqual(['4:1', '1:1']);
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('mapScreens', () => {
+  it('lists screens on pages, in sections and in frames that hold sections, never the sections', () => {
+    const screen = (id: string): any => ['F', id, id, 0, 0, 1440, 900];
+    const pages: any = [['0:1', 'Design', [
+      screen('1:1'),
+      ['S', '1:9', 'LATEST', 0, 0, 3000, 1000, [screen('4:1'), ['S', '4:5', 'Parked', 0, 0, 1, 1, [screen('4:6')], 0]], 2],
+      ['F', '1:7', 'Board', 0, 0, 5000, 3000, [['S', '7:1', 'Flow', 0, 0, 1, 1, [screen('7:2')], 0], screen('7:3')], 0],
+    ], []]];
+    expect(mapScreens(pages)).toEqual(['1:1', '4:1', '4:6', '7:2', '7:3']);
   });
 });
 
