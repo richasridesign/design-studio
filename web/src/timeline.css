@@ -6,7 +6,8 @@
 }
 .seg.chat-view button:not(.on):hover { background: transparent; color: var(--fg); }
 
-.tr.timeline > .tr-user-wrap:not(:first-child), .tr.timeline > .tr-phase:not(:first-child) { margin-top: 32px; }
+/* A new prompt starts a new turn in both views: 32px above it. */
+.tr > .tr-user-wrap:not(:first-child), .tr > .tr-phase:not(:first-child) { margin-top: 32px; }
 .tl-earlier { font-size: var(--text-sm); }
 .tl-earlier .link { line-height: 20px; }
 
@@ -81,3 +82,6 @@
 .tr .run-head { line-height: 20px; }
 .tr .run-rows { gap: 4px; }
 .tr .run-rows li { min-height: 20px; line-height: 20px; }
+
+/* Frame thumbnails under a done line: 8px apart, on the text edge. */
+.tr .tl-thumbs { gap: 8px; padding: 4px 0; }
