@@ -6,9 +6,10 @@
 .sessions .sessions-bar input:focus { outline: 0; border-color: var(--focus); }
 .sessions .hint { padding: 0 12px 6px 8px; font-size: var(--text-xs); color: var(--fg-muted); }
 .sessions .hint.error { color: var(--err); display: flex; gap: 4px; align-items: center; cursor: pointer; }
-.sessions .tree .row { flex-wrap: nowrap; padding-left: 8px; }
+.sessions .tree .row { flex-wrap: nowrap; padding-left: 8px; height: 28px; }
 .sessions .tree .row.project { font-weight: 600; color: var(--fg); }
 .sessions .tree .row.session, .sessions .tree .row.more { padding-left: 24px; }
+.sessions .tree .row.session.sample { padding-left: 8px; }
 .sessions .tree .row.selected { background: var(--accent-soft); color: var(--fg); }
 .sessions .tree .row .name { flex: 1; min-width: 0; }
 .sessions .tree .row .count, .sessions .tree .row .when {
