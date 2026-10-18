@@ -261,7 +261,7 @@ export async function loadDocumentViaPlugin(fileKey: string, opts: { dir: string
   if (!payload && saved) payload = findPayload(await readFile(saved, 'utf8').catch(() => ''));
   if (!payload) {
     const why = (cap?.text || r.data?.note || r.error || 'no result').replace(/\s+/g, ' ').slice(0, 240);
-    throw new FigmaError(`Could not read the file through the Figma plugin: ${why}`, 502);
+    throw new FigmaError(`Could not read the file through the Figma plugin: ${why}. Log in to the Figma plugin, or add a Figma token in Settings.`, 502);
   }
   return { document: expandNode(payload.document), maps: { components: payload.components ?? {}, componentSets: payload.componentSets ?? {} }, truncated: !!payload.truncated, nodes: payload.nodes };
 }
