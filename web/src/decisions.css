@@ -7,7 +7,8 @@
 .dec-line { margin: -12px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; line-height: 20px; color: var(--fg-muted); }
 .dec-empty { margin: 0; font-size: 14px; line-height: 20px; color: var(--fg-muted); }
 .dec-page button.link { min-height: 0; font-size: 14px; line-height: 20px; }
-.dec-page button.link:disabled { color: var(--fg-muted); text-decoration: none; cursor: default; }
+.dec-page button.link:disabled { opacity: 0.5; cursor: default; }
+.dec-help { margin-top: -4px; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
 
 .dec-group { display: flex; flex-direction: column; gap: 8px; }
 .dec-group h3 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -21,8 +22,9 @@
 .dec-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .dec-name { max-width: 100%; font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.dec-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.dec-slot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* The two slots share rows, so Decision 1 and Decision 2 labels, fields and counts line up even when one field wraps. */
+.dec-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(5, auto); column-gap: 24px; row-gap: 4px; }
+.dec-slot { display: grid; grid-row: span 5; grid-template-rows: subgrid; align-items: start; min-width: 0; }
 .dec-slot label { font-size: 12px; line-height: 16px; color: var(--fg-muted); }
 .dec-slot label + textarea { margin-bottom: 4px; }
 .dec-slot textarea { font: inherit; font-size: 14px; line-height: 20px; color: var(--fg); background: var(--input); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px 12px; resize: vertical; min-height: 40px; field-sizing: content; }
@@ -40,7 +42,8 @@
   .dec-name { flex: 0 1 auto; min-width: 0; }
 }
 @container (max-width: 480px) {
-  .dec-slots { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .dec-slots { display: flex; flex-direction: column; gap: 16px; }
+  .dec-slot { display: flex; flex-direction: column; gap: 4px; }
 }
 @media (max-width: 900px) {
   .workbench[data-tab='decisions'] .pane.code { display: flex; }

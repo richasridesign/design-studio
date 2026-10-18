@@ -5,7 +5,8 @@ import { Voice, useDictation } from './Voice';
 import { FileIcon } from './Explorer';
 import { match } from './FileSwitcher';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
-import { FLOW_MODES, PRESET_INFO, TONES, figmaNodeUrl, type FlowMode } from '../../../shared/design';
+import { FLOW_MODES, PRESET_INFO, TONES, figmaNodeUrl, type FlowMode, type Settings } from '../../../shared/design';
+import { shownPreset } from './reviewRuns';
 import { recipeText, useCustomRecipes } from '../recipes';
 import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
 import { imageProblem, imagesIn } from './attach';
@@ -534,15 +535,7 @@ export function Composer() {
                   </button>
                 ))}
                 {flow.mode === 'design' && (
-                  <div className="cp-modeopts">
-                    <label><input type="checkbox" checked={flow.stopAfterSketch} onChange={(e) => send({ type: 'set_flow', patch: { stopAfterSketch: e.target.checked } })} />Stop after sketch</label>
-                    <div className="cp-depth" role="radiogroup" aria-label="Review depth">
-                      <span>Review depth</span>
-                      {(['quick', 'full'] as const).map((p) => (
-                        <button key={p} role="radio" aria-checked={flow.preset === p} className={flow.preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => send({ type: 'set_flow', patch: { preset: p } })}>{PRESET_INFO[p].label}</button>
-                      ))}
-                    </div>
-                  </div>
+                  <RunOptions stopAfterSketch={flow.stopAfterSketch} preset={flow.preset} />
                 )}
               </div>
             )}
@@ -617,6 +610,34 @@ export function Composer() {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * This chat's Design options, in the same switch and segmented control as Settings.
+ * Each shows the default new chats start with, which lives in Settings.
+ */
+function RunOptions({ stopAfterSketch, preset }: { stopAfterSketch: boolean; preset: string }) {
+  const [def, setDef] = useState<Pick<Settings, 'stopAfterSketch' | 'preset'> | null>(null);
+  useEffect(() => {
+    fetch(api('/api/settings')).then((r) => r.json()).then(setDef, () => {});
+  }, []);
+  const set = (patch: { stopAfterSketch?: boolean; preset?: 'quick' | 'full' }) => send({ type: 'set_flow', patch });
+  return (
+    <div className="cp-modeopts">
+      <div className="cp-opt" onClick={(e) => !(e.target as Element).closest('.switch') && set({ stopAfterSketch: !stopAfterSketch })}>
+        <span className="cp-opt-text"><span id="cp-stop-l">Stop after sketch</span>{def && <span className="cp-opt-def">Default: {def.stopAfterSketch ? 'On' : 'Off'}</span>}</span>
+        <button type="button" className="switch" role="switch" aria-checked={stopAfterSketch} aria-labelledby="cp-stop-l" onClick={() => set({ stopAfterSketch: !stopAfterSketch })}><span className="switch-thumb" /></button>
+      </div>
+      <div className="cp-opt">
+        <span className="cp-opt-text"><span id="cp-depth-l">Review depth</span>{def && <span className="cp-opt-def">Default: {PRESET_INFO[shownPreset(def.preset)].label}</span>}</span>
+        <div className="seg" role="radiogroup" aria-labelledby="cp-depth-l">
+          {(['quick', 'full'] as const).map((p) => (
+            <button key={p} role="radio" aria-checked={preset === p} className={preset === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => set({ preset: p })}>{PRESET_INFO[p].label}</button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

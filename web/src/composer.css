@@ -53,12 +53,10 @@
 .cp-modetext { display: flex; flex-direction: column; min-width: 0; white-space: normal; }
 .cp-modetext > span { color: var(--fg-muted); font-size: var(--text-sm); }
 .cp-modeopts { margin-top: 4px; padding: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); color: var(--fg); }
-.cp-modeopts label { display: flex; align-items: center; gap: 8px; }
-.cp-modeopts input[type='checkbox'] { width: auto; flex: none; margin: 0; }
-.cp-depth { display: flex; align-items: center; gap: 4px; }
-.cp-depth > span { flex: 1; color: var(--fg-muted); }
-.cp-depth button { height: 24px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); background: transparent; color: var(--fg-muted); font-size: var(--text-sm); }
-.cp-depth button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); }
+.cp-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+.cp-opt:first-child { cursor: pointer; }
+.cp-opt-text { display: flex; flex-direction: column; min-width: 0; }
+.cp-opt-def { font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
 .cp-spacer { flex: 1; }
 
 .cp-send, .cp-stop {
@@ -111,8 +109,8 @@
   .cp-foot { gap: 4px; padding: 4px 8px 8px; }
   .cp-pop li { height: 44px; }
   .cp-modepop > button { min-height: 44px; }
-  .cp-modeopts label, .cp-depth button { min-height: 44px; }
-  .cp-depth button { padding: 0 14px; }
+  .cp-opt { min-height: 44px; }
+  .cp-opt .seg button { min-height: 40px; }
   .cp-pop { max-height: min(300px, 45vh); }
   .cp-under { min-height: 20px; font-size: var(--text-sm); line-height: 20px; }
 }

@@ -64,10 +64,18 @@ export function FilePill() {
         <Icon name="file-media" small /> <span className="file-label">{figma?.name ?? ATTACH}</span> <Icon name="chevron-down" small />
       </button>
       {open && (
-        <div className="switcher attach-pop" role="dialog" aria-label={ATTACH}>
+        <div className="switcher attach-pop" role="dialog" aria-label={figma ? `Attached: ${figma.name}` : ATTACH}>
+          {figma && (
+            <div className="attach-current">
+              <span className="attach-current-name"><b>Attached:</b> {figma.name}</span>
+              <a className="link" href={figma.url} target="_blank" rel="noreferrer">Open in Figma</a>
+            </div>
+          )}
+          {/* A chat keeps one file: another link opens that file in its own chat, so this one stays as it is. */}
+          {figma && <div className="attach-label" id="attach-other">Open another file in its own chat</div>}
           <form className="attach-form" onSubmit={(e) => { e.preventDefault(); if (valid) attach(url.trim()); }}>
-            <input ref={input} placeholder="Paste a Figma file link" value={url} onChange={(e) => setUrl(e.target.value)} />
-            <button type="submit" className="primary" disabled={!valid}>Attach</button>
+            <input ref={input} placeholder="Paste a Figma file link" aria-label="Figma file link" aria-describedby={figma ? 'attach-other' : undefined} value={url} onChange={(e) => setUrl(e.target.value)} />
+            <button type="submit" className="primary" disabled={!valid}>{figma ? 'Open' : 'Attach'}</button>
           </form>
           {url && !valid && <div className="attach-note error-text">That does not look like a Figma file link.</div>}
           {chromeTabs.length > 0 && (

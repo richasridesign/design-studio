@@ -189,7 +189,8 @@ export function Decisions() {
                   <div className="dec-frame">
                     <div className="dec-thumb">{url ? <img src={url} alt="" /> : <span aria-hidden="true" />}</div>
                     <span className="dec-name" title={f.name}>{f.name}</span>
-                    <button className="link" disabled={!pair.some(filled)} title={pair.some(filled) ? 'Put a request in the message box to place both Decision stickies under this frame' : 'Write a decision first'} onClick={() => insertPrompt(stickyPrompt(key, { id: f.id, name: f.name }, pair))}>Add to Figma</button>
+                    <button className="link" disabled={!pair.some(filled)} aria-describedby={pair.some(filled) ? undefined : `dec-${f.id}-help`} title={pair.some(filled) ? 'Put a request in the message box to place both Decision stickies under this frame' : undefined} onClick={() => insertPrompt(stickyPrompt(key, { id: f.id, name: f.name }, pair))}>Add to Figma</button>
+                    {!pair.some(filled) && <span className="dec-help" id={`dec-${f.id}-help`}>Write a decision first</span>}
                   </div>
                   <div className="dec-slots">
                     {pair.map((d, i) => <Slot key={i} id={`${f.id}-${i}`} n={i + 1} screen={f.name} value={d} onChange={(field, value) => edit(f, i as 0 | 1, field, value)} />)}
