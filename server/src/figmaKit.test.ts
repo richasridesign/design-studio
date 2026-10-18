@@ -75,6 +75,18 @@ describe('the helpers', () => {
     expect(() => DS.moveTo('1:2', 0, 0)).toThrow('DS.moveTo needs a node, not an id: use await DS.node("1:2").');
   });
 
+  it('puts a clone next to its original, not on the current page', async () => {
+    const DS = await kit({});
+    const parent: any = { type: 'SECTION', children: [] as any[], insertChild(i: number, n: any) { this.children.splice(i, 0, n); n.parent = this; } };
+    const screen: any = { parent, name: 'A', x: 0, y: 0, width: 100, height: 50, absoluteBoundingBox: { x: 0, y: 0, width: 100, height: 50 } };
+    screen.clone = () => ({ name: 'A', parent: { type: 'PAGE' }, x: 0, y: 0 });
+    parent.children.push(screen, { name: 'B' });
+    parent.absoluteTransform = [[1, 0, 0], [0, 1, 0]];
+    const c = DS.clone(screen, { name: 'A copy' });
+    expect(parent.children.map((n: any) => n.name)).toEqual(['A', 'A copy', 'B']);
+    expect([c.x, c.y]).toEqual([260, 0]);
+  });
+
   it('keeps a large return value under the result limit', async () => {
     const DS = await kit({});
     const out = DS.done({ list: 'x'.repeat(30000) });

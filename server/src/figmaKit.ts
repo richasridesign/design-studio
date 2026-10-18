@@ -106,7 +106,9 @@ export const FIGMA_KIT = `const DS = (() => {
   function clone(screen, opts = {}) {
     sure(screen, 'DS.clone');
     const c = screen.clone();
+    // A clone lands on the current page, which is the first page in every call: put it next to the original.
     if (opts.parent) opts.parent.appendChild(c);
+    else screen.parent.insertChild(screen.parent.children.indexOf(screen) + 1, c);
     if (opts.name) c.name = opts.name;
     if (opts.below) placeBelow(c, screen, opts.gap == null ? 160 : opts.gap); else placeRight(c, screen, opts.gap == null ? 160 : opts.gap);
     return c;

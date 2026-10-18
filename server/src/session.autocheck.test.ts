@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentSession } from './session.js';
 import { runReview } from './review.js';
 import { settings } from './settings.js';
-import { framesContaining, refreshOutlineSoon } from './figmaCache.js';
+import { framesContaining } from './figmaCache.js';
+import { refreshMapSoon } from './fileMap.js';
 
 const run = { id: 'r1', kind: 'audit', at: 1234, round: 0, preset: 'check', frames: ['1:2'], check: [], results: [], tokens: 0, costUsd: 0 };
 
 vi.mock('./review.js', async (orig) => ({ ...(await orig<typeof import('./review.js')>()), runReview: vi.fn(async () => run) }));
 vi.mock('./settings.js', async (orig) => ({ ...(await orig<typeof import('./settings.js')>()), settings: vi.fn(async () => ({ autoCheck: true })) }));
 vi.mock('./figmaCache.js', async (orig) => ({ ...(await orig<typeof import('./figmaCache.js')>()), fileOutline: vi.fn(async () => ({ pages: [{ frames: [{ id: '1:2' }, { id: '3:4' }] }] })), framesContaining: vi.fn(async (_d: string, _k: string, all: string[], ids: string[]) => all.filter((f) => ids.includes(f))), refreshOutlineSoon: vi.fn() }));
+
+vi.mock('./fileMap.js', async (orig) => ({ ...(await orig<typeof import('./fileMap.js')>()), refreshMapSoon: vi.fn(), ensureMapSoon: vi.fn(async () => {}) }));
 
 const flush = () => new Promise((r) => setTimeout(r, 10));
 
@@ -50,7 +53,8 @@ describe('auto check after chat edits', () => {
     chatTurn('mcp__figma__use_figma');
     await flush();
     expect(runReview).not.toHaveBeenCalled();
-    expect(refreshOutlineSoon).toHaveBeenCalledWith('/tmp/project', 'AbC123');
+    // One map read refreshes the outline too.
+    expect(refreshMapSoon).toHaveBeenCalledWith('/tmp/project', 'AbC123');
   });
 
   it('does not run when no use_figma ran', async () => {

@@ -10,7 +10,7 @@ export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_statu
 export function figmaSpeed(mapFile: string | null) {
   return [
     'Working fast in Figma: most of the time goes into round trips, so make each call count.',
-    mapFile ? `- File map: ${mapFile} lists every page, section and screen (ids, sizes, positions), component sets with their setProperties keys and Hover variants, variables and styles. Grep it for names before reading Figma, and only read Figma for what it does not have (layers inside a screen). If an id from it is gone, call mcp__designstudio__refresh_file_map.` : '',
+    mapFile ? `- File map: ${mapFile} (read in the background when the chat opens; if it is not there yet, call mcp__designstudio__refresh_file_map) lists every page, section and screen (ids, sizes, positions), component sets with their setProperties keys and Hover variants, variables and styles. Grep it for names before reading Figma, and only read Figma for what it does not have (layers inside a screen). If an id from it is gone, call mcp__designstudio__refresh_file_map.` : '',
     '- One call per change: find, edit and check in the same use_figma script. End it with DS.check([changed screen ids]) and DS.shot(screen) so the result carries the checks and a screenshot. Do not read, edit, read again and then call get_screenshot.',
     '- Put independent reads (or edits on different pages) in one message as parallel calls.',
     '- Do not call figma.saveVersionHistoryAsync: use_figma does not support it and the whole call fails. Figma keeps its own version history.',
