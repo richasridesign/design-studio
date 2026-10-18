@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentSession } from './session.js';
+import { AgentSession, AUTO_CHECK_MAX } from './session.js';
 import { runReview } from './review.js';
 import { settings } from './settings.js';
 import { fileOutline, framesContaining } from './figmaCache.js';
@@ -66,6 +66,14 @@ describe('auto check after chat edits', () => {
     chatTurn('mcp__figma__use_figma', 'AbC123', 'figma.getNodeByIdAsync("5:1"); figma.getNodeByIdAsync("9:9")');
     await flush();
     expect(runReview).toHaveBeenCalledWith(expect.objectContaining({ frames: ['5:2'] }));
+  });
+
+  it('checks at most AUTO_CHECK_MAX screens when a read listed a whole section', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => `6:${i + 1}`);
+    vi.mocked(framesContaining).mockResolvedValueOnce(many);
+    chatTurn('mcp__figma__use_figma', 'AbC123', many.join(' '));
+    await flush();
+    expect(runReview).toHaveBeenCalledWith(expect.objectContaining({ frames: many.slice(0, AUTO_CHECK_MAX) }));
   });
 
   it('checks nothing when the edit touched only a section', async () => {
