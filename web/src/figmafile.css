@@ -5,7 +5,6 @@
 .ff-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
 .ff-name { margin: 0; font-size: var(--text-xl); line-height: 28px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
 .ff-open { font-size: var(--text-sm); line-height: 20px; }
-.ff-open:not(:hover) { text-decoration: none; }
 .ff-meta { font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 .ff-line { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 
