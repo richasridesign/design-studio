@@ -3,7 +3,7 @@ import { getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Empty, SketchArt } from './Empty';
 import { insertPrompt } from './Files';
-import type { SketchDoc } from '../../../shared/design';
+import { REASON_MAX, type SketchDoc, type SketchScreen } from '../../../shared/design';
 
 const SketchCanvas = lazy(() => import('./SketchCanvas'));
 
@@ -31,9 +31,15 @@ export function Sketch() {
       .catch((e) => setError(e.message));
   }, [chat, rev]);
 
-  const pick = (screen: string, direction: string) => {
-    send({ type: 'flow_pick', screen, direction });
-    setDoc((d) => d && { screens: d.screens.map((s) => (s.id === screen ? { ...s, chosen: direction, chosenBy: 'designer' } : s)) });
+  // A reason only comes with a confirm or an edit of the Why field; picking another direction clears it.
+  const pick = (screen: string, direction: string, reason?: string) => {
+    send({ type: 'flow_pick', screen, direction, reason });
+    setDoc((d) => d && { screens: d.screens.map((s) => {
+      if (s.id !== screen) return s;
+      const same = s.chosen === direction;
+      const next = reason ?? (same ? s.reason : undefined);
+      return { ...s, chosen: direction, chosenBy: 'designer', reason: next || undefined, rejected: s.directions.filter((x) => x.id !== direction).map((x) => x.name), at: same && s.chosenBy === 'designer' && s.at ? s.at : Date.now() };
+    }) });
   };
   const allPicked = doc?.screens.every((s) => s.chosen);
 
@@ -57,7 +63,14 @@ export function Sketch() {
                 {String.fromCharCode(65 + i)} · {d.name}
               </button>
             ))}
-            {s.chosen && <span className="muted small">{s.chosenBy === 'designer' ? 'Picked by you' : 'Picked by Claude'}</span>}
+            {s.chosen && s.chosenBy === 'designer' && <span className="muted small">Picked by you</span>}
+            {s.chosen && s.chosenBy !== 'designer' && (
+              <span className="muted small sketch-sub">
+                Picked by Claude
+                <button className="link" title="Keep Claude's pick and its reason" onClick={() => pick(s.id, s.chosen!, s.directions.find((d) => d.id === s.chosen)?.rationale.slice(0, REASON_MAX) ?? '')}>Confirm</button>
+              </span>
+            )}
+            {s.chosen && s.chosenBy === 'designer' && <Why screen={s} onSave={(reason) => pick(s.id, s.chosen!, reason)} />}
           </div>
         ))}
       </div>
@@ -70,5 +83,23 @@ export function Sketch() {
         )}
       </div>}
     </div>
+  );
+}
+
+/** One optional line on why this direction won. Saves on Enter or when the field loses focus. */
+function Why({ screen, onSave }: { screen: SketchScreen; onSave: (reason: string) => void }) {
+  const saved = screen.reason ?? '';
+  const [value, setValue] = useState(saved);
+  useEffect(() => setValue(saved), [saved, screen.chosen]);
+  const save = () => {
+    const next = value.replace(/\s+/g, ' ').trim();
+    if (next !== saved) onSave(next);
+  };
+  const id = `why-${screen.id}`;
+  return (
+    <span className="sketch-sub sketch-why">
+      <label htmlFor={id}>Why</label>
+      <input id={id} type="text" value={value} maxLength={REASON_MAX} placeholder="Optional, one line" aria-label={`Why this direction for ${screen.name}`} onChange={(e) => setValue(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') setValue(saved); }} />
+    </span>
   );
 }

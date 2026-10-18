@@ -34,5 +34,6 @@ export function useCanvasContent(): CanvasContent {
     return () => { live = false; };
   }, [chat, phase, reviewRev]);
 
-  return { figma, sketch, review, decisions: figma };
+  // The decision log on the Decisions tab starts with sketch picks, before a Figma file is attached.
+  return { figma, sketch, review, decisions: figma || sketch };
 }
