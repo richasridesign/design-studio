@@ -216,6 +216,7 @@
 .check-dot { width: 10px; height: 10px; margin-top: 8px; border-radius: 50%; background: var(--fg-faint); opacity: 0.5; flex: none; }
 .check-dot.ok { background: var(--ok); opacity: 1; }
 .check-dot.bad { background: var(--err); opacity: 1; }
+.check-dot.warn { background: var(--warn); border-radius: 2px; opacity: 1; }
 .check-dot.checking { background: var(--accent); opacity: 1; animation: dot-pulse 1.4s ease-in-out infinite; }
 .check-body { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .check-title { font-weight: 600; }

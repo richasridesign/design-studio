@@ -126,7 +126,7 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
       <div className="review-summary">
         <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
         <div className="muted">{run.tokens ? `${k(run.tokens)} tokens · $${run.costUsd.toFixed(2)}` : 'No tokens used'}</div>
-        {pending.length > 0 && <button disabled={posting} onClick={post}><Icon name="comment" small /> Post {pending.length} as Figma comments</button>}
+        {pending.length > 0 && <button disabled={posting} title={`Post ${pending.length} findings as Figma comments`} onClick={post}><Icon name="comment" small /> Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {note && <span className="muted">{note}</span>}
       </div>

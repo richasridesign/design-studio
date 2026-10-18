@@ -1,8 +1,8 @@
 import { getJson, postJson } from './store';
 import type { McpServer } from '../../shared/protocol';
 
-export type Tone = 'idle' | 'checking' | 'ok' | 'bad';
-export type CheckResult = { tone: 'ok' | 'bad'; detail: string; fix?: string; fixLabel?: string; fixId?: string };
+export type Tone = 'idle' | 'checking' | 'ok' | 'warn' | 'bad';
+export type CheckResult = { tone: 'ok' | 'warn' | 'bad'; detail: string; fix?: string; fixLabel?: string; fixId?: string };
 export type CheckId = 'figma' | 'mcp' | 'chrome' | 'claude';
 
 export const CHECK_IDS: CheckId[] = ['figma', 'mcp', 'chrome', 'claude'];
@@ -35,7 +35,7 @@ async function mcp(): Promise<CheckResult> {
     const row = rows.find((r) => /figma/i.test(r.name));
     if (!row) return { tone: 'bad', detail: 'Figma did not answer the check', fix: 'Run the check again.' };
     if (row.status === 'connected') return { tone: 'ok', detail: `Figma tools connected${row.tools ? `, ${row.tools.length} tools` : ''}` };
-    if (row.status === 'needs-auth') return { tone: 'bad', detail: 'Figma needs you to sign in', fix: 'Sign in to Figma in Claude: run claude in a terminal, type /mcp, pick plugin:figma:figma and authenticate.' };
+    if (row.status === 'needs-auth') return { tone: 'warn', detail: 'The Figma plugin needs you to log in', fix: 'Run claude in a terminal, type /mcp and pick plugin:figma:figma.' };
     return { tone: 'bad', detail: row.error ?? `Figma tools: ${row.status}`, fix: 'Check the Figma entry on the MCP page, or add Figma to Claude again.', fixLabel: 'Add Figma plugin', fixId: 'add-mcp' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };
