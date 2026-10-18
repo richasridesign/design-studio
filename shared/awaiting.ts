@@ -133,7 +133,11 @@ export function approvePrompt(item: Pick<AwaitItem, 'rule' | 'fix' | 'impact' | 
  */
 export const sentKey = (item: Pick<AwaitItem, 'area' | 'rule'>) => (item.area === 'long_run' ? answerPrompt(item.rule).replace(/:\s*$/, '') : approveLine(item.rule));
 const squash = (t: string) => t.replace(/\s+/g, ' ').trim().toLowerCase();
-export const sentFor = (item: Pick<AwaitItem, 'area' | 'rule'>, message: string) => squash(message).startsWith(squash(sentKey(item)));
+// The message box turns a frame link of the open file into a chip and sends it first, so leading links are skipped.
+const LEAD_LINKS = /^(\s*https?:\/\/\S+)+/;
+/** The message starts with this prompt (sentKey), however its spaces and case changed. */
+export const startsWithPrompt = (key: string, message: string) => squash(message.replace(LEAD_LINKS, '')).startsWith(squash(key));
+export const sentFor = (item: Pick<AwaitItem, 'area' | 'rule'>, message: string) => startsWithPrompt(sentKey(item), message);
 
 /** The finding's state on the Awaiting list, or null when it is not on it (an auto check, or past the per-run cap). */
 export function awaitState(f: Pick<Finding, 'rule' | 'node'>, fileKey: string | undefined, list: AwaitItem[] | null): AwaitState | null {

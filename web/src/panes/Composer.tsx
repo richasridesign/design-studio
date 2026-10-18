@@ -17,7 +17,8 @@ import { ModelPicker } from './ModelPicker';
 import { usePopAbove } from './abovePop';
 import { focusChecked, menuKeys } from '../press';
 import { useTip } from '../Tip';
-import { typedAnswer, waitingPlaceholder } from './typedAnswer';
+import { waitingPlaceholder } from './typedAnswer';
+import { markSent, publishDraft, readInserted, routeMessage, sentItems } from './awaitingSent';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -282,6 +283,7 @@ export function Composer() {
   const popKey = trigger && trigger.kind !== 'shell' ? `${trigger.kind}:${trigger.start}:${trigger.query}` : '';
   const [frameUrls, setFrameUrls] = useState<string[]>([]);
   const full = withFrameLinks(frameUrls, text);
+  useEffect(() => publishDraft(full), [full]);
   const nodeLinks = useMemo(() => (figmaKey ? nodeLinksIn(frameUrls.join(' '), figmaKey) : []), [frameUrls, figmaKey]);
   const outline = useOutline(trigger?.kind === 'frame' || nodeLinks.length ? figmaKey : undefined);
   const frames = useMemo(() => outline?.pages.flatMap((p) => p.frames) ?? [], [outline]);
@@ -463,11 +465,14 @@ export function Composer() {
       if (cmd) runInTerminal(cmd).catch(() => notice('Terminal unavailable'));
     } else {
       const images = imgs.length ? imgs.map((i) => i.ref) : undefined;
-      // Typing while a plan or question waits answers it (go approves), instead of aborting it.
-      const answer = images ? null : typedAnswer(t, waitingOn);
-      if (answer) send(answer);
+      // Typing while a plan or question waits answers it (go approves), instead of aborting it. An Approve or Answer
+      // prompt from "Awaiting your decision" stays in the box until the card is answered.
+      const { decided, hold, answer } = routeMessage(t, figmaKey, readInserted(), waitingOn);
+      if (hold) return notice("Answer Claude's card first, then send this.");
+      if (answer && !images) send(answer);
       else if (running) steer(t, images);
       else send({ type: 'prompt', text: t, images });
+      void markSent(decided);
       clearImgs();
       const next = remember(t, stored);
       setStored(next);
@@ -482,6 +487,7 @@ export function Composer() {
     const t = full.trim();
     if (!t || running) return;
     send({ type: 'long_run_start', text: t, until, cap, weeklyCap, rounds, images: imgs.length ? imgs.map((i) => i.ref) : undefined });
+    void markSent(sentItems(t, figmaKey, readInserted()));
     clearImgs();
     const next = remember(t, stored);
     setStored(next);

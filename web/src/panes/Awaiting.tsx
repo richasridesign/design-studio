@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { getJson, postJson, useRev, useStore } from '../store';
 import { AREA_NAMES, figmaNodeUrl } from '../../../shared/design';
-import { AWAIT_LABEL, answerPrompt, approvePrompt, sentFor, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
+import { AWAIT_LABEL, answerPrompt, approvePrompt, sentKey, startsWithPrompt, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
 import { insertPrompt, showNode } from './composerEvents';
 import { useNodeLabel } from './Triage';
 import { useTip } from '../Tip';
+import { AWAITING_SENT, forgetInserted, noteInserted, useDraft, type SentDetail } from './awaitingSent';
 
 const SEV: Record<AwaitItem['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
 const DONE_MARK: Record<Exclude<AwaitState, 'open'>, string> = { approved: 'pass', rejected: 'wontfix', parked: 'parked' };
@@ -16,38 +17,23 @@ export function useAwaitingList() {
   const fromRun = useStore((s) => s.session.longRun?.awaiting ?? 0);
   const [items, setItems] = useState<AwaitItem[] | null>(null);
   useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setItems).catch(() => {}); }, [reviewRev, fromRun]);
+  // A sent Approve or Answer prompt is marked in the message box (awaitingSent.ts), so the list takes the saved one.
+  useEffect(() => {
+    const onSent = (e: Event) => { const list = (e as CustomEvent<SentDetail>).detail.list; if (list) setItems(list); };
+    window.addEventListener(AWAITING_SENT, onSent);
+    return () => window.removeEventListener(AWAITING_SENT, onSent);
+  }, []);
   return [items, setItems] as const;
 }
 
-// Approve and Answer put a prompt in the message box. The item stays open until a message that starts with that prompt
-// is sent, so a prompt she clears or never sends decides nothing. Kept outside the component: she may leave the Review tab
-// to send it. Times are when the prompt went in; only messages from then on count (a minute of slack for clock drift).
-const inserted = new Map<string, number>();
-const SLACK_MS = 60_000;
-
-/** Marks an item approved once its prompt was sent. Runs while the Awaiting list is on screen, and on return to it. */
-function useSentApprovals(items: AwaitItem[], onSent: (item: AwaitItem) => void) {
-  const events = useStore((s) => s.events);
-  const sent = useRef(onSent);
-  sent.current = onSent;
-  useEffect(() => {
-    if (!inserted.size) return;
-    for (const item of items) {
-      const since = inserted.get(item.id);
-      if (since === undefined || item.state !== 'open') continue;
-      if (events.some((e) => e.kind === 'user' && e.at >= since - SLACK_MS && sentFor(item, e.text))) {
-        inserted.delete(item.id);
-        sent.current(item);
-      }
-    }
-  }, [events, items]);
-}
-
-function ApproveButton({ question, onClick }: { question: boolean; onClick: () => void }) {
-  const t = useTip(question ? 'Puts the question in the message box. It counts as answered when you send your answer.' : 'Puts the fix in the message box. It counts as approved when you send it.');
+function ApproveButton({ question, blocked, onClick }: { question: boolean; blocked: boolean; onClick: () => void }) {
+  // While Claude waits on a plan or question card, a sent message would answer that card instead, so it waits.
+  // aria-disabled, not disabled: a disabled button gets no hover or focus, and the tip says why it waits.
+  const t = useTip(blocked ? "Answer Claude's card first"
+    : question ? 'Puts the question in the message box. It counts as answered when you send your answer.' : 'Puts the fix in the message box. It counts as approved when you send it.');
   return (
     <>
-      <button {...t.props} className="aw-approve" aria-describedby={t.open ? t.id : undefined} onClick={onClick}>{question ? 'Answer' : 'Approve'}</button>
+      <button {...t.props} className="aw-approve" aria-disabled={blocked || undefined} aria-describedby={t.open ? t.id : undefined} onClick={() => { if (!blocked) onClick(); }}>{question ? 'Answer' : 'Approve'}</button>
       {t.tip}
     </>
   );
@@ -63,7 +49,26 @@ export function Awaiting({ items, onItems }: { items: AwaitItem[]; onItems: (lis
   const [all, setAll] = useState(false);
   const [decided, setDecided] = useState(false);
   const [said, setSaid] = useState('');
+  // The prompt the "is in the message box" line is about. The line goes once that prompt leaves the box.
+  const [inBox, setInBox] = useState<string | null>(null);
+  const draft = useDraft();
+  const held = inBox !== null && startsWithPrompt(inBox, draft);
+  const wasHeld = useRef(false);
+  useEffect(() => {
+    if (inBox !== null && wasHeld.current && !held) { setSaid(''); setInBox(null); }
+    wasHeld.current = held;
+  }, [held, inBox]);
+  const blocked = useStore((s) => s.pending.length > 0);
   const label = useNodeLabel();
+  useEffect(() => {
+    const onSent = (e: Event) => {
+      const { items: sent, failed } = (e as CustomEvent<SentDetail>).detail;
+      setInBox(null);
+      setSaid(failed ? 'Sent, but could not mark it approved. Try again.' : sent.map((x) => `${x.question ? 'Answered' : 'Approved'}: ${x.rule}`).join(' '));
+    };
+    window.addEventListener(AWAITING_SENT, onSent);
+    return () => window.removeEventListener(AWAITING_SENT, onSent);
+  }, []);
 
   const save = async (item: AwaitItem, state: AwaitState) => {
     const next = await postJson<AwaitItem[]>('/api/awaiting', { id: item.id, state }).catch(() => null);
@@ -71,12 +76,15 @@ export function Awaiting({ items, onItems }: { items: AwaitItem[]; onItems: (lis
     return !!next;
   };
   const set = async (item: AwaitItem, state: AwaitState) => {
-    inserted.delete(item.id);
+    forgetInserted([item.id]);
+    setInBox(null);
     if (!(await save(item, state))) return setSaid('Could not save. Try again.');
     setSaid(state === 'open' ? `Reopened: ${item.rule}` : `${AWAIT_LABEL[state]}: ${item.rule}`);
   };
   const approve = (item: AwaitItem) => {
-    inserted.set(item.id, Date.now());
+    noteInserted(item);
+    wasHeld.current = false;
+    setInBox(sentKey(item));
     if (item.area === 'long_run') {
       insertPrompt(answerPrompt(item.rule));
       setSaid('The question is in the message box. Write your answer and send it: then it counts as answered.');
@@ -85,9 +93,6 @@ export function Awaiting({ items, onItems }: { items: AwaitItem[]; onItems: (lis
       setSaid('The fix is in the message box. Read it and send it: then it counts as approved.');
     }
   };
-  useSentApprovals(items, (item) => {
-    void save(item, 'approved').then((ok) => setSaid(ok ? `${item.area === 'long_run' ? 'Answered' : 'Approved'}: ${item.rule}` : 'Sent, but could not mark it approved. Try again.'));
-  });
 
   const open = items.filter((i) => i.state === 'open').reverse();
   const here = open.filter((i) => i.fileKey === fileKey);
@@ -123,7 +128,7 @@ export function Awaiting({ items, onItems }: { items: AwaitItem[]; onItems: (lis
                   )}
                   <div className="aw-foot">
                     {local
-                      ? <ApproveButton question={question} onClick={() => approve(item)} />
+                      ? <ApproveButton question={question} blocked={blocked} onClick={() => approve(item)} />
                       : <span className="aw-hint">{question ? 'Answer' : 'Approve'} from a chat on {item.fileName || 'that file'}.</span>}
                     <button className="triage-link" onClick={() => set(item, 'parked')}>Park</button>
                     <button className="triage-link" onClick={() => set(item, 'rejected')}>Reject</button>
