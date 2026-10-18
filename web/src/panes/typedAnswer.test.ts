@@ -23,6 +23,14 @@ describe('goWithNote', () => {
     for (const t of ['A', 'go with B', 'go, keep it', 'go but drop the toast', 'ok, go and park flow 3']) expect(goWithNote(t)).toBe(true);
     for (const t of ['go', 'approved', 'go through every dialog', 'make it calmer']) expect(goWithNote(t)).toBe(false);
   });
+  it('takes ok, okay, yes and sure before go with words', () => {
+    for (const lead of ['ok', 'okay', 'yes', 'sure']) {
+      for (const tail of ['but keep the mic', 'and park flow 3', 'with option B', ', keep the toast']) expect(goWithNote(`${lead}, go ${tail}`.replace(' ,', ','))).toBe(true);
+      expect(goWithNote(`${lead} go through every dialog`)).toBe(false);
+      expect(plainGo(`${lead}, go`)).toBe(true);
+      expect(goWithNote(`${lead}, go`)).toBe(false);
+    }
+  });
 });
 
 describe('typedAnswer', () => {

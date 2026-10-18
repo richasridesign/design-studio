@@ -21,7 +21,7 @@ export function plainGo(text: string) {
 export function goWithNote(text: string) {
   const t = text.trim();
   if (plainGo(t)) return false;
-  return Boolean(approvalReply(t)) || /^((ok|yes),? )?(go( ahead)?|approved?|looks good)(,|\.|:|!| but| and| with)\s+\S/i.test(t);
+  return Boolean(approvalReply(t)) || /^((ok|okay|yes|sure),? )?(go( ahead)?|approved?|looks good)(,|\.|:|!| but| and| with)\s+\S/i.test(t);
 }
 
 export type TypedAnswer =
