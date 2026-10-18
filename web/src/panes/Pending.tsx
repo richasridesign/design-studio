@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import type { PendingPermission, PendingQuestion } from '../../../shared/protocol';
 import '../pending.css';
+import '../planChange.css';
 
 export function Pending() {
   const pending = useStore((s) => s.pending);
@@ -79,8 +80,58 @@ export function PlanCard({ p, mode, first }: CardProps) {
       </div>
       {plan && <div className="pd-plan"><Markdown text={plan} /></div>}
       {p.detail && <div className="pd-desc">{p.detail}</div>}
-      <Decision p={p} mode={mode} first={first} cardRef={ref} yes="Approve" no="Keep planning" />
+      <PlanDecision p={p} mode={mode} first={first} cardRef={ref} />
     </div>
+  );
+}
+
+/** Approve the plan, or say what to change. An empty note just keeps Claude planning. */
+function PlanDecision({ p, mode, first, cardRef }: CardProps & { cardRef: RefObject<HTMLDivElement | null> }) {
+  const [note, setNote] = useState<string | null>(null);
+  const editing = note !== null;
+  const actions = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (editing) actions.current?.scrollIntoView({ block: 'nearest' });
+  }, [editing]);
+  const reply = (allow: boolean, text?: string) => send({ type: 'permission', id: p.id, allow, note: text?.trim() || undefined });
+  useKeys(cardRef, first, (k) => {
+    if (note !== null) return false;
+    if (k === 'y') reply(true);
+    else if (k === 'n') setNote('');
+    else return false;
+    return true;
+  });
+  if (note !== null) {
+    return (
+      <div className="pd-change">
+        <label className="pd-change-label" htmlFor={`pd-note-${p.id}`}>What should change?</label>
+        <textarea
+          id={`pd-note-${p.id}`}
+          autoFocus
+          rows={3}
+          value={note}
+          placeholder="For example: use option B for the error message, keep the old header"
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); reply(false, note); }
+            if (e.key === 'Escape') setNote(null);
+          }}
+        />
+        <div className="pd-actions" ref={actions}>
+          <button className="pd-btn primary" onClick={() => reply(false, note)}>{note.trim() ? 'Send changes' : 'Keep planning'}<kbd>⌘↵</kbd></button>
+          <button className="pd-btn ghost" onClick={() => setNote(null)}>Cancel</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="pd-actions">
+        <button className="pd-btn primary" onClick={() => reply(true)}>Approve<kbd>Y</kbd></button>
+        <button className="pd-btn" onClick={() => setNote('')}>Ask for changes<kbd>N</kbd></button>
+      </div>
+      {MODE_HINTS[mode] && <div className="pd-hint">{MODE_HINTS[mode]}</div>}
+    </>
   );
 }
 

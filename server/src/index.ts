@@ -425,7 +425,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         chat.answerQuestion(msg.id, msg.answers);
         break;
       case 'permission':
-        chat.answerPermission(msg.id, msg.allow, msg.always);
+        chat.answerPermission(msg.id, msg.allow, msg.always, typeof msg.note === 'string' ? msg.note : undefined);
         break;
       case 'set_permission_mode':
         void chat.setPermissionMode(msg.mode);
