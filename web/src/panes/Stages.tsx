@@ -132,21 +132,19 @@ const kindLabel = (k: ChatKind | 'none') => (k === 'none' ? 'No steps' : KIND_IN
 export function StepsPanel({ view, error, change, reload }: ReturnType<typeof useStages> & { view: StagesView }) {
   const spec = view.steps.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
-  const firstNext = view.steps.find((s) => s.next)?.id ?? null;
-  const [shown, setShown] = useState<StageId | null>(firstNext);
-  useEffect(() => setShown(firstNext), [view.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [shown, setShown] = useState<StageId | null>(null);
+  useEffect(() => setShown(null), [view.kind]);
   const hasSpec = view.steps.some((s) => s.id === 'spec');
   const current = view.kind ?? 'none';
   return (
     <section className="steps-panel" id="steps-panel" aria-label="Steps" onKeyDown={closeOnEscape}>
-      <div className="steps-kinds" role="radiogroup" aria-label="Kind of work">
-        {KIND_CHOICES.map((k) => (
-          <button key={k} role="radio" aria-checked={current === k} className={current === k ? 'on' : ''} onClick={() => current !== k && change({ action: 'kind', kind: k })}>
-            {kindLabel(k)}
-          </button>
-        ))}
+      <div className="steps-kind-row">
+        <label htmlFor="steps-kind">Kind of work</label>
+        <select id="steps-kind" value={current} aria-describedby={view.guessed && view.kind ? 'steps-guess' : undefined} onChange={(e) => change({ action: 'kind', kind: e.target.value as ChatKind | 'none' })}>
+          {KIND_CHOICES.map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
+        </select>
+        {view.guessed && view.kind && <span className="steps-hint" id="steps-guess">Guessed from your first message</span>}
       </div>
-      {view.guessed && view.kind && <p className="steps-hint">Guessed from your first message. Pick another kind any time.</p>}
       {view.kind ? (
         <ol className="steps-list">
           {view.steps.map((s) => (
@@ -161,7 +159,7 @@ export function StepsPanel({ view, error, change, reload }: ReturnType<typeof us
       )}
       {/* Scope matters to every kind of work, so it stays in reach when the list has no Plan step. */}
       {!hasSpec && <div className="steps-scope"><ScopeBox onChange={reload} /></div>}
-      {view.kind && <p className="steps-hint">A guide, not a gate: take the steps in any order. Checks never block.</p>}
+      {view.kind && <p className="steps-hint">A guide, not a gate: take the steps in any order.</p>}
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
   );
@@ -180,14 +178,15 @@ function Step({ s, open, onOpen, brief, change, children }: { s: Stage; open: bo
   const bodyId = `step-${s.id}`;
   return (
     <li className={`step-row ${s.state}${s.next ? ' next' : ''}${open ? ' shown' : ''}`}>
-      <div className="step-line">
-        <button className="step-toggle" aria-expanded={open} aria-controls={bodyId} onClick={onOpen}>
-          <Mark s={s} />
-          <span className="step-name">{s.name}<span className="sr-only">, {STATE_WORD[s.state]}{s.next ? ', next' : ''}</span></span>
-          {(round || meta) && <span className="step-meta">{[round, meta].filter(Boolean).join(' · ')}{s.stale && <span className="step-stale"> · May be out of date</span>}</span>}
-          <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
-        </button>
-        <span className="step-acts">
+      <button className="step-toggle" aria-expanded={open} aria-controls={bodyId} onClick={onOpen}>
+        <Mark s={s} />
+        <span className="step-name">{s.name}<span className="sr-only">, {STATE_WORD[s.state]}{s.next ? ', next' : ''}</span></span>
+        {(round || meta) && <span className="step-meta">{[round, meta].filter(Boolean).join(' · ')}{s.stale && <span className="step-stale"> · May be out of date</span>}</span>}
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
+      </button>
+      {/* Actions sit under the step they change: on the next step, and on any step she opens. */}
+      {(open || s.next) && (
+        <div className="step-acts">
           {s.state === 'todo' && (
             <>
               <button className="step-btn" onClick={done}>Mark done</button>
@@ -196,8 +195,8 @@ function Step({ s, open, onOpen, brief, change, children }: { s: Stage; open: bo
           )}
           {s.state === 'done' && REPEATS.includes(s.id) && <button className="step-btn" onClick={() => change({ action: 'again', id: s.id })}>Start round {s.round + 1}</button>}
           {s.state !== 'todo' && <button className="link" onClick={() => change({ action: 'undo', id: s.id })}>Undo</button>}
-        </span>
-      </div>
+        </div>
+      )}
       {open && (
         <div className="step-body" id={bodyId}>
           <p className="step-goal">{s.goal}</p>
