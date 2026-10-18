@@ -106,10 +106,13 @@ const PLUGIN = 'plugin:figma:figma';
 /** Opens the one Log in to Figma dialog. The status bar, the welcome notice and Settings all call it, so a phone has a way in too. */
 export const openFigmaLogin = () => window.dispatchEvent(new Event(OPEN));
 
-/** An error from a Figma read. When the fix is to log in, it ends with a link that opens the login dialog. */
+const LOGIN = 'Log in to Figma';
+
+/** An error from a Figma read. When the fix is to log in, those words are the link that opens the login dialog, said once. */
 export function FigmaErrorText({ text }: { text: string }) {
-  if (!/Log in to Figma/.test(text)) return <>{text}</>;
-  return <>{text}{' '}<button className="link" onClick={openFigmaLogin}>Log in to Figma</button></>;
+  const at = text.indexOf(LOGIN);
+  if (at < 0) return <>{text}</>;
+  return <>{text.slice(0, at)}<button className="link" onClick={openFigmaLogin}>{LOGIN}</button>{text.slice(at + LOGIN.length)}</>;
 }
 
 // Once per page load, so closing the dialog keeps it closed.

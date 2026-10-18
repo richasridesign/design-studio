@@ -254,7 +254,8 @@ function AreaCard({ title, sub, error, tone, tokens, dev = false, frames, findin
         </button>
       </header>
       {/* Outside the header button: the error can end in a Log in to Figma link, and a link cannot sit inside a button. */}
-      {error && <p className="area-error" role="alert"><FigmaErrorText text={error} /></p>}
+      {/* No alert role: the error belongs to a finished run, so it is read with the card, not announced. */}
+      {error && <p className="area-error"><FigmaErrorText text={error} /></p>}
       {open && findings.length > 0 && (
         <ul className="findings" id={bodyId}>
           {shown.slice(0, 60).map((f) => (
