@@ -136,6 +136,17 @@ describe('buildReport', () => {
     expect(design).toContain('<small>State: Default</small>');
   });
 
+  it('does not call a partly read prototype check a pass', async () => {
+    await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2' }] }));
+    await writeFile(path.join(dir, 'flowcheck.json'), JSON.stringify({ runs: [{ id: 'f', at: 1, fileKey: figma.key, unchecked: [], truncated: true, flows: [
+      { id: '9:1', name: 'Checkout', path: [], page: 'P', screens: 3, state: 'pass', counts: {}, unchecked: [], findings: [], more: 0 },
+    ] }] }));
+    const html = await buildReport(dir, figma);
+    expect(html).toContain('<span class="st none">Prototype check:</span> No issues found, some flows not checked');
+    expect(html).toContain('some flows were not checked.</p>');
+    expect(html).not.toContain('The flow passed');
+  });
+
   it('shows one plain line and no headings for an empty chat', async () => {
     const html = await buildReport(dir, null);
     expect(html).not.toContain('<h2');
