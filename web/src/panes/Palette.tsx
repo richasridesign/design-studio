@@ -29,7 +29,7 @@ export function buildCommands(_models: { value: string; displayName: string }[] 
     { id: 'design', label: 'Design: Toggle Design Run for the Next Message' },
     { id: 'review', label: 'Design: Review the Design' },
     { id: 'audit', label: 'Design: Audit the File' },
-    { id: 'report', label: 'Export: Design report' },
+    { id: 'report', label: 'Export: Handoff report' },
     { id: 'system', label: 'Design: Rebuild the Design System Profile' },
     ...[...RECIPES, ...custom].map((r) => ({ id: `recipe:${r.id}`, label: `Recipe: ${r.title}` })),
     ...custom.map((r) => ({ id: `recipe-edit:${r.id}`, label: `Recipe: Edit ${r.title}` })),
