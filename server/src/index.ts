@@ -436,6 +436,9 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'set_permission_mode':
         void chat.setPermissionMode(msg.mode);
         break;
+      case 'set_model':
+        void chat.setModel(String(msg.model));
+        break;
       case 'set_flow':
         chat.updateFlow(msg.patch ?? {});
         break;
