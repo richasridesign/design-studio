@@ -137,6 +137,7 @@ describe('long run loop', () => {
       { text: 'Rename the tab? Kept it.', fileKey: 'AbC123', node: '' },
     ]);
     await vi.waitFor(() => expect(s.state.session.longRun?.awaiting).toBe(2));
+    expect(s.state.events.some((e) => e.kind === 'system' && e.text === 'Long run: 2 questions wait for your decision on the Review tab')).toBe(true);
   });
 
   it('keeps the Mac awake while the run works, with the weekly cap and rounds from the start message', async () => {

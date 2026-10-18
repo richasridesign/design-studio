@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFindings, addQuestions, answerPrompt, approvePrompt, awaitKey, cleanAwaiting, decide, stillAwaiting } from './awaiting';
+import { addFindings, addQuestions, answerPrompt, approvePrompt, awaitKey, cleanAwaiting, decide, openCount, stillAwaiting } from './awaiting';
 import type { Finding } from './design';
 
 const f = (rule: string, decide?: string): Finding => ({ id: rule, area: 'system', node: '1:2', nodeName: 'Home', severity: 'major', rule, fix: 'Darken text/muted to #5B5B5B', ...(decide ? { decide } : {}) });
@@ -57,5 +57,15 @@ describe('long run questions', () => {
   });
   it('answers in plain text without the link markup', () => {
     expect(answerPrompt('Keep [Toast](https://x) on top?')).toBe('About "Keep Toast on top?": ');
+  });
+});
+
+describe('openCount', () => {
+  it('counts only the open items among the ids', () => {
+    const list = addFindings([], [{ area: 'system', severity: 'major', node: '1:2', rule: 'A', fix: 'f', decide: 'token' }, { area: 'system', severity: 'major', node: '1:3', rule: 'B', fix: 'f', decide: 'token' }] as never, { key: 'K', name: 'F' }, 1);
+    const ids = list.map((x) => x.id);
+    expect(openCount(list, ids)).toBe(2);
+    expect(openCount(decide(list, ids[0], 'approved', 2), ids)).toBe(1);
+    expect(openCount(list, [ids[1], 'other'])).toBe(1);
   });
 });

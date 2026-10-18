@@ -114,3 +114,12 @@ export function stillAwaiting(findings: Finding[], fileKey: string | undefined, 
   const open = new Set(list.filter((x) => x.state === 'open').map((x) => x.id));
   return asked.filter((f) => open.has(awaitKey(fileKey, f))).length;
 }
+
+/** How many of these items (by id) are still open on the list. */
+export const openCount = (list: AwaitItem[], ids: Iterable<string>) => {
+  const want = new Set(ids);
+  return list.filter((x) => x.state === 'open' && want.has(x.id)).length;
+};
+
+/** "1 waits for your decision", "3 wait for your decision". */
+export const waitText = (n: number) => `${n} ${n === 1 ? 'waits' : 'wait'} for your decision`;
