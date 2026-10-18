@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accept, dropLink, figmaLinkIn, nodeLinksIn, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
+import { accept, dropLink, figmaLinkIn, nodeLinksIn, splitFrameLinks, withFrameLinks, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
 import { RECIPES, toRecipe } from '../../../shared/recipes';
 import type { ChatEvent } from '../../../shared/protocol';
 
@@ -247,5 +247,21 @@ describe('slash menu helpers', () => {
     expect(shortLine('Reviews code \u2014 fast. Then more text.')).toBe('Reviews code, fast.');
     expect(shortLine('x'.repeat(100))).toHaveLength(72);
     expect(shortLine('(figma) **Use** this. More.')).toBe('Use this.');
+  });
+});
+
+describe('splitFrameLinks', () => {
+  const key = 'AbC123defGH';
+  const url = `https://www.figma.com/design/${key}/Harisson?node-id=210-58&t=abc`;
+  it('takes frame links of the open file out of the text and puts them back first when sent', () => {
+    const { links, rest } = splitFrameLinks(`${url} this card is shorter`, key);
+    expect(links).toEqual([url]);
+    expect(rest).toBe('this card is shorter');
+    expect(withFrameLinks(links, rest)).toBe(`${url} this card is shorter`);
+  });
+  it('leaves other files and plain text alone', () => {
+    const other = 'https://www.figma.com/design/ZZZ999yyyXX/Other?node-id=1-2';
+    expect(splitFrameLinks(`${other} look`, key)).toEqual({ links: [], rest: `${other} look` });
+    expect(withFrameLinks([], 'hi')).toBe('hi');
   });
 });

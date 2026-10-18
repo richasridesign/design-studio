@@ -123,6 +123,15 @@ export function nodeLinksIn(text: string, key: string): { url: string; id: strin
 
 export const dropLink = (text: string, url: string) => text.split(url).join('').replace(/\(\s*\)/g, '').replace(/[ \t]{2,}/g, ' ').trim();
 
+/** Frame links of the open file leave the typed text: the chip shows the frame, the link goes with the message. */
+export function splitFrameLinks(text: string, key: string): { links: string[]; rest: string } {
+  const links = nodeLinksIn(text, key).map((l) => l.url);
+  return { links, rest: links.reduce(dropLink, text) };
+}
+
+/** The message as sent: frame links first, then her note. */
+export const withFrameLinks = (links: string[], text: string) => (links.length ? `${links.join(' ')} ${text}`.trim() : text);
+
 export function accept(text: string, start: number, caret: number, insert: string) {
   const next = `${text.slice(0, start)}${insert} ${text.slice(caret)}`;
   return { text: next, caret: start + insert.length + 1 };
@@ -239,8 +248,19 @@ export function Composer() {
   const at = Math.min(caret, text.length);
   const trigger = useMemo(() => triggerAt(text, at), [text, at]);
   const shell = trigger?.kind === 'shell';
+  useEffect(() => {
+    // A pasted frame link of the open file becomes a chip; the raw URL leaves the box.
+    if (!figmaKey || shell) return;
+    const { links, rest } = splitFrameLinks(text, figmaKey);
+    if (!links.length) return;
+    setFrameUrls((l) => [...l, ...links.filter((u) => !l.includes(u))]);
+    wantCaret.current = rest.length;
+    setText(rest);
+  }, [text, figmaKey, shell]);
   const popKey = trigger && trigger.kind !== 'shell' ? `${trigger.kind}:${trigger.start}:${trigger.query}` : '';
-  const nodeLinks = useMemo(() => (figmaKey ? nodeLinksIn(text, figmaKey) : []), [text, figmaKey]);
+  const [frameUrls, setFrameUrls] = useState<string[]>([]);
+  const full = withFrameLinks(frameUrls, text);
+  const nodeLinks = useMemo(() => (figmaKey ? nodeLinksIn(frameUrls.join(' '), figmaKey) : []), [frameUrls, figmaKey]);
   const outline = useOutline(trigger?.kind === 'frame' || nodeLinks.length ? figmaKey : undefined);
   const frames = useMemo(() => outline?.pages.flatMap((p) => p.frames) ?? [], [outline]);
   const frameMode = trigger?.kind === 'frame';
@@ -346,14 +366,14 @@ export function Composer() {
     setImgs([]);
   };
   useEffect(clearImgs, [chatId]);
-  const textRef = useRef(text);
-  textRef.current = text;
+  const textRef = useRef(full);
+  textRef.current = full;
   useEffect(() => {
     const moved = carry.current && carry.current.from !== chatId && Date.now() - carry.current.at < 10_000 ? carry.current : null;
     if (moved) drafts.delete(moved.from);
     if (carry.current?.from !== chatId) carry.current = null;
     const saved = moved?.text ?? drafts.get(chatId) ?? '';
-    if (saved !== textRef.current) apply(saved);
+    if (saved !== textRef.current) { setFrameUrls([]); apply(saved); }
     setHist(null);
     return () => { drafts.set(chatId, textRef.current); };
   }, [chatId]);
@@ -404,7 +424,8 @@ export function Composer() {
   };
 
   const stepHistory = (dir: 1 | -1) => {
-    const h = hist ?? { list: history, index: -1, draft: text };
+    const h = hist ?? { list: history, index: -1, draft: full };
+    setFrameUrls([]);
     const index = Math.min(h.list.length - 1, h.index + dir);
     if (index < 0) { setHist(null); apply(h.draft); return; }
     setHist({ ...h, index });
@@ -412,7 +433,7 @@ export function Composer() {
   };
 
   const submit = () => {
-    const t = text.trim();
+    const t = full.trim();
     if (!t) return;
     if (shell) {
       const cmd = t.slice(1).trim();
@@ -430,11 +451,12 @@ export function Composer() {
       try { localStorage.setItem(STORED_KEY, JSON.stringify(next)); } catch {}
     }
     setHist(null);
+    setFrameUrls([]);
     apply('');
   };
 
   const startLongRun = (until: number, cap: number) => {
-    const t = text.trim();
+    const t = full.trim();
     if (!t || running) return;
     send({ type: 'long_run_start', text: t, until, cap, images: imgs.length ? imgs.map((i) => i.ref) : undefined });
     clearImgs();
@@ -442,13 +464,14 @@ export function Composer() {
     setStored(next);
     try { localStorage.setItem(STORED_KEY, JSON.stringify(next)); } catch {}
     setHist(null);
+    setFrameUrls([]);
     apply('');
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
     const el = e.currentTarget;
-    const onEntry = hist !== null && text === hist.list[hist.index];
+    const onEntry = hist !== null && full === hist.list[hist.index];
     if (open) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((i) => (i + 1) % items.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((i) => (i - 1 + items.length) % items.length); return; }
@@ -457,14 +480,14 @@ export function Composer() {
       if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'Enter' && !e.shiftKey && !exact)) { e.preventDefault(); choose(sel); return; }
     }
     if (ghost && (e.key === 'Tab' || e.key === 'ArrowRight') && el.selectionStart === text.length) { e.preventDefault(); apply(text + ghost); return; }
-    if (e.key === 'ArrowUp' && (text === '' || onEntry) && !text.slice(0, el.selectionStart).includes('\n')) { e.preventDefault(); stepHistory(1); return; }
+    if (e.key === 'ArrowUp' && (full === '' || onEntry) && !text.slice(0, el.selectionStart).includes('\n')) { e.preventDefault(); stepHistory(1); return; }
     if (e.key === 'ArrowDown' && onEntry && !text.slice(el.selectionEnd).includes('\n')) { e.preventDefault(); stepHistory(-1); return; }
     // Option+M cycles the mode. Shift+Tab stays free to move focus back out of the message box.
     if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyM') { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
-  const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !text && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /design, /review, /audit' : '';
+  const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !full && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /design, /review, /audit' : '';
   const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : MODE_INFO[flow.mode].placeholder;
   const level = pct === null ? '' : context! >= COMPACT_AT ? 'over' : context! >= COMPACT_AT * 0.75 ? 'near' : '';
 
@@ -481,7 +504,7 @@ export function Composer() {
           <div className="cp-attach">
             <Icon name="file-media" small />
             <span>{hasFile ? `Open ${link.name} in its own chat?` : `Attach ${link.name}?`}</span>
-            <button className="primary" onClick={() => { if (hasFile) carry.current = { text, from: chatId, at: Date.now() }; send({ type: 'set_figma', url: link.url }); }}>{hasFile ? 'Open' : 'Attach'}</button>
+            <button className="primary" onClick={() => { if (hasFile) carry.current = { text: full, from: chatId, at: Date.now() }; send({ type: 'set_figma', url: link.url }); }}>{hasFile ? 'Open' : 'Attach'}</button>
             <button className="icon-btn" title="Dismiss" aria-label="Dismiss" onClick={() => setSkipLink(link.url)}><Icon name="close" small /></button>
           </div>
         )}
@@ -494,7 +517,7 @@ export function Composer() {
                 <span key={l.id} className="cp-node" title={l.url}>
                   {src ? <img src={src} alt="" /> : <span className="cp-node-ph"><Icon name="file-media" small /></span>}
                   <span className="cp-node-name">{name}</span>
-                  <button className="icon-btn" title="Remove this frame link" aria-label={`Remove ${name}`} onClick={() => setText((t) => dropLink(t, l.url))}><Icon name="close" small /></button>
+                  <button className="icon-btn" title="Remove this frame link" aria-label={`Remove ${name}`} onClick={() => setFrameUrls((u) => u.filter((x) => x !== l.url))}><Icon name="close" small /></button>
                 </span>
               );
             })}
@@ -546,7 +569,7 @@ export function Composer() {
             )}
           </div>
           {!shell && flow.mode === 'chat' && <ModelPicker />}
-          {!shell && <LongRunButton text={text} onStart={startLongRun} />}
+          {!shell && <LongRunButton text={full} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
           <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="file-media" small /></button>
@@ -560,7 +583,7 @@ export function Composer() {
             className={`cp-send${running ? ' steer' : ''}`}
             title={shell ? 'Run in the terminal (Enter)' : running ? 'Stop the current step and send (Enter)' : 'Send (Enter)'}
             aria-label={shell ? 'Run' : running ? 'Stop and send' : 'Send'}
-            disabled={!text.trim()}
+            disabled={!full.trim()}
             onClick={submit}
           >
             <Icon name={shell ? 'terminal' : 'arrow-up'} small />
