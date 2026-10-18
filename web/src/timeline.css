@@ -39,7 +39,7 @@
 .tl-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
 .tl-start .tl-attach {
   display: inline-flex; align-items: center; gap: 8px; height: 36px; min-height: 36px; padding: 0 16px;
-  border: 1px solid var(--border-strong); background: var(--bg); font-size: var(--text-sm); font-weight: 500;
+  border: 1px solid var(--border-strong); background: var(--bg-elevated); font-size: var(--text-sm); font-weight: 500;
 }
 .tl-start .tl-attach:hover { background: var(--bg-hover); }
 .tl-start .link { min-height: 36px; font-size: var(--text-sm); }
@@ -47,7 +47,7 @@
 .tl-suggest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .tl-suggest button {
   width: 100%; min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 8px 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated);
   font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
 }
 .tl-suggest button > span { flex: 1; min-width: 0; }

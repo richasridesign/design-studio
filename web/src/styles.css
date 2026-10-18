@@ -443,6 +443,8 @@ button.link:hover { background: transparent; text-decoration: underline; }
 }
 /* First run: a soft peach glow behind the welcome, as on the portfolio hero. */
 .brief:has(.tl-welcome) { background: var(--glow-peach), var(--brief-bg); }
+/* Phones drop the panel box, so the glow sits on the welcome itself. */
+@media (max-width: 900px) { .tl-welcome { background: var(--glow-peach); } }
 .brief .composer { padding: 0; max-width: none; }
 .brief .composer textarea { min-height: 64px; font-size: var(--text-md); }
 .brief-input { flex: none; display: flex; flex-direction: column; gap: 6px; }
