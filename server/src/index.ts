@@ -394,8 +394,9 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'POST') return json(await readProfile(chat.cwd));
       const body = await readJsonBody();
       const r = await changeDesignSystem(chat.cwd, chat.state.session.figma, body);
-      // A starter sets this chat's review areas (Lo-fi reviews flow and copy only).
-      if ((body as { action?: unknown } | null)?.action === 'starter') chat.useProfileAreas(r.ds);
+      // A starter sets this chat's review areas (Lo-fi reviews flow and copy only); removing the profile gives the default back.
+      const action = (body as { action?: unknown } | null)?.action;
+      if (action === 'starter' || action === 'clear') chat.useProfileAreas(r.ds);
       return json(r);
     }
     if (url.pathname === '/api/design-system/view') return json(await designSystemView(chat.cwd));
