@@ -8,7 +8,7 @@
   display: flex; align-items: center; gap: 6px; flex: none; margin: 8px; height: 28px; padding: 0 8px;
   background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm, 4px);
 }
-.palette-input:focus-within { border-color: var(--accent); }
+.palette-input:focus-within { border-color: var(--focus); }
 .palette-prefix { color: var(--fg-muted); font-family: var(--mono, Menlo, monospace); font-size: var(--text-md); }
 .palette-input input { flex: 1; min-width: 0; width: auto; background: none; border: 0; padding: 0; color: var(--fg); font-size: var(--text-md); }
 .palette-input input:focus { outline: none; }

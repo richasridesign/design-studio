@@ -67,8 +67,8 @@
 .scale i { display: inline-block; height: 10px; background: var(--accent); border-radius: 2px; opacity: 0.6; }
 
 /* New chat dialog */
-.nc-overlay { position: fixed; inset: 0; background: rgba(31, 30, 27, 0.3); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
-.nc-dialog { width: min(520px, 100%); background: var(--bg); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; gap: 10px; }
+.nc-overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.nc-dialog { width: min(520px, 100%); background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; gap: 10px; }
 .nc-dialog h2 { font-weight: 600; margin: 0; font-size: var(--text-xl); }
 .nc-dialog p { margin: 0; }
 .nc-dialog input { font-size: var(--text-md); padding: 10px 12px; }
@@ -107,7 +107,7 @@
 .dir { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px; display: inline-flex; align-items: center; gap: 6px; }
 .dir.chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .sketch-canvas { flex: 1; min-height: 0; position: relative; }
-.sketch-canvas .excalidraw { --color-primary: #c96442; }
+.sketch-canvas .excalidraw { --color-primary: var(--link); }
 
 /* Review */
 .review-page { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 16px; }
@@ -143,7 +143,7 @@
 .f-fix { color: var(--fg-muted); font-size: var(--text-sm); }
 .seg { display: inline-flex; padding: 3px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 10px; gap: 2px; width: fit-content; }
 .seg button { background: transparent; border-radius: 8px; padding: 4px 14px; min-height: 32px; color: var(--fg-muted); }
-.seg button.on { background: var(--bg); color: var(--fg); font-weight: 600; }
+.seg button.on { background: var(--bg-elevated); color: var(--fg); font-weight: 600; }
 .toggle-row input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* Settings */
@@ -200,7 +200,7 @@
 .check-fix { color: var(--warn); font-size: var(--text-sm); }
 .check-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: 22px; }
 
-.overlay.settings-overlay { align-items: center; padding: 16px; background: rgba(31, 30, 27, 0.4); }
+.overlay.settings-overlay { align-items: center; padding: 16px; background: var(--overlay); }
 .settings-dialog { width: min(760px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden; }
 .settings-dialog-head { font-family: var(--serif); font-size: var(--text-lg); display: flex; align-items: center; justify-content: space-between; height: 36px; flex: none; padding: 0 6px 0 14px; font-weight: 600; color: var(--text-strong); border-bottom: 1px solid var(--border); }
 .settings-dialog-body { flex: 1; min-height: 0; overflow-y: auto; }
