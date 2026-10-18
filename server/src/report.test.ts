@@ -192,6 +192,7 @@ describe('buildReport', () => {
     expect(html).not.toContain('<h2');
     expect(html).not.toContain('<nav');
     expect(html).toContain('Nothing to hand off yet.');
+    expect(await buildReport(dir, null, 'Empty cart screen')).toContain('<h1>Empty cart screen</h1>');
   });
 
   it('keeps a lone section without a table of contents or empty issue block', async () => {
