@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import './shortcuts.css';
 
 const GROUPS: { title: string; rows: [string[], string][] }[] = [
@@ -48,23 +49,44 @@ const command = (id: string) => window.dispatchEvent(new CustomEvent('designstud
 
 export function Shortcuts() {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLElement | null>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const show = () => { trigger.current = document.activeElement as HTMLElement | null; setOpen(true); };
+  const close = () => {
+    setOpen(false);
+    const el = trigger.current;
+    trigger.current = null;
+    if (el?.isConnected && el !== document.body) requestAnimationFrame(() => el.focus());
+  };
+
+  useEffect(() => {
+    if (open) dialog.current?.querySelector<HTMLElement>('.sc-close')?.focus();
+  }, [open]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setOpen(false); return; }
+      if (e.key === 'Escape') { if (open) close(); return; }
+      if (open && e.key === 'Tab') {
+        // Keep focus inside the sheet while it is open.
+        const items = [...(dialog.current?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? [])];
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        e.preventDefault();
+        items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
         command(`page:${PAGES[Number(e.key) - 1]}`);
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || typing(document.activeElement)) return;
-      if (e.key === '?') { e.preventDefault(); setOpen((v) => !v); }
+      if (e.key === '?') { e.preventDefault(); if (open) close(); else show(); }
       else if (e.key === '/' && !open) {
         const ta = document.querySelector<HTMLTextAreaElement>('.cp-card textarea');
         if (ta) { e.preventDefault(); ta.focus(); }
       }
     };
-    const onCommand = (e: Event) => { if ((e as CustomEvent<{ id: string }>).detail.id === 'shortcuts') setOpen(true); };
+    const onCommand = (e: Event) => { if ((e as CustomEvent<{ id: string }>).detail.id === 'shortcuts' && !open) show(); };
     window.addEventListener('keydown', onKey);
     window.addEventListener('designstudio:command', onCommand);
     return () => {
@@ -75,10 +97,13 @@ export function Shortcuts() {
 
   if (!open) return null;
   return (
-    <div className="nc-overlay" onClick={() => setOpen(false)}>
-      <div className="nc-dialog sc-dialog" role="dialog" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()}>
-        <h2>Keyboard shortcuts</h2>
-        <div className="sc-grid">
+    <div className="overlay settings-overlay sc-overlay" onClick={close}>
+      <div ref={dialog} className="settings-dialog sc-dialog" role="dialog" aria-modal="true" aria-labelledby="sc-title" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-dialog-head">
+          <h2 id="sc-title">Keyboard shortcuts</h2>
+          <button className="icon-btn sc-close" title="Close" aria-label="Close" onClick={close}><Icon name="close" /></button>
+        </div>
+        <div className="settings-dialog-body sc-grid">
           {GROUPS.map((g) => (
             <section key={g.title}>
               <h3>{g.title}</h3>
