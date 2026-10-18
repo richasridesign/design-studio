@@ -77,21 +77,52 @@ export function refreshOutlineSoon(dir: string, key: string, deps: ReadDeps = {}
   fileOutline(dir, key, { ...deps, fresh: true }).catch((err) => console.error('outline refresh:', (err as Error).message));
 }
 
-/** For each id, the top-level frame (a direct child of its page) it sits in. Only reads. */
+/**
+ * For each id, the screen it sits in: the frame whose parent is the page, a section, or a frame that holds sections.
+ * A section, or a frame that holds sections, is never a screen, so touching one checks nothing. Only reads.
+ */
 export const containingScript = (ids: string[]) => `const out = {};
+const holder = (p) => p.type === 'PAGE' || p.type === 'DOCUMENT' || p.type === 'SECTION' || (p.type === 'FRAME' && (p.children || []).some((c) => c.type === 'SECTION'));
+const screen = (n) => n.type === 'FRAME' || n.type === 'COMPONENT' || n.type === 'COMPONENT_SET' || n.type === 'GROUP' || (n.type === 'INSTANCE' && n.width >= 900);
 for (const id of ${JSON.stringify(ids)}) {
   let n = await figma.getNodeByIdAsync(id);
-  while (n && n.parent && n.parent.type !== 'PAGE' && n.parent.type !== 'DOCUMENT') n = n.parent;
-  if (n && n.parent && n.parent.type === 'PAGE') out[id] = n.id;
+  while (n && n.parent && !holder(n.parent)) n = n.parent;
+  if (n && n.parent && !holder(n) && screen(n)) out[id] = n.id;
 }
 return out;`;
 
-/** The top-level frames, out of frameIds, that hold any of the ids. */
-export async function framesContaining(dir: string, key: string, frameIds: string[], ids: string[], deps: ReadDeps = {}): Promise<string[]> {
-  if (ids.every((id) => frameIds.includes(id))) return frameIds.filter((f) => ids.includes(f));
-  const r = await pluginScript<Record<string, string>>(key, containingScript(ids.slice(0, 50)), 'Find the frames that hold the edited layers (read only)', { ...deps, dir });
-  const tops = new Set(Object.values(r.value ?? {}));
-  return frameIds.filter((f) => tops.has(f) || ids.includes(f));
+/** Map rows: [letter, id, name, x, y, w, h, children?]. Letters as in fileMap's MAP_SCRIPT. */
+type MapRow = [string, string, string, number, number, number, number, MapRow[]?, number?];
+
+/** Screen ids in a file map: frames on a page, in a section or in a frame that holds sections. Sections are left out. */
+export function mapScreens(pages: Array<[string, string, MapRow[], ...unknown[]]>): string[] {
+  const out: string[] = [];
+  const walk = (n: MapRow) => {
+    const kids = n[7] ?? [];
+    const box = n[0] === 'S' || kids.some((k) => k[0] === 'S');
+    if (!box) out.push(n[1]);
+    for (const k of kids) walk(k);
+  };
+  for (const [, , top] of pages) for (const n of top) walk(n);
+  return out;
+}
+
+/**
+ * The screens that hold any of the ids, in the order first touched. `screens` are known screen ids (from the file
+ * map): a touched id that is one counts as itself and needs no read. Sections never count, only screens inside them.
+ */
+export async function framesContaining(dir: string, key: string, ids: string[], screens: string[] = [], deps: ReadDeps = {}): Promise<string[]> {
+  const known = new Set(screens);
+  const rest = ids.filter((id) => !known.has(id));
+  const found = rest.length
+    ? (await pluginScript<Record<string, string>>(key, containingScript(rest.slice(0, 50)), 'Find the frames that hold the edited layers (read only)', { ...deps, dir })).value ?? {}
+    : {};
+  const out = new Set<string>();
+  for (const id of ids) {
+    const top = known.has(id) ? id : found[id];
+    if (typeof top === 'string' && top) out.add(top);
+  }
+  return [...out];
 }
 
 const fileFor = (id: string) => `${id.replace(/[^0-9A-Za-z]+/g, '-')}.png`;
