@@ -13,7 +13,7 @@ import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
 import { rulesLine, type RuleResult } from '../../../shared/rules';
 import { frameName, useOutline } from '../outline';
-import { splitFindings, splitRun, triageKey, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
+import { openRun, splitFindings, splitRun, triageKey, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
 import { ClosedGroup, CloseForm, useTriage } from './Triage';
 import '../review.css';
 
@@ -84,7 +84,7 @@ export function Review({ dev = false }: { dev?: boolean }) {
                   <Icon name={on ? 'chevron-down' : 'chevron-right'} small />
                   <span className={`run-kind ${row.kind}`}>{KIND_LABEL[row.kind]}</span>
                   <span className="muted" title={when(row.at)}>{ago(row.at)}</span>
-                  <span className="run-sum">{summarize(row)}</span>
+                  <span className="run-sum">{summarize(row.kind === 'crit' || row.kind === 'copy' ? row : { ...row, run: openRun(row.run, triage) })}</span>
                 </button>
                 {on && <div className="run-detail"><RunDetail row={row} doc={doc} onDoc={setDoc} focus={focus?.runId === row.id ? focus : undefined} triage={triage} change={change} /></div>}
               </li>
@@ -135,11 +135,12 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
       requestAnimationFrame(() => closedHead.current?.focus());
     },
   };
-  const reopen = async (key: string) => {
+  const reopen = async (key: string, rule: string) => {
     try {
       await change({ action: 'reopen', key });
-      setSaid('Reopened');
-      requestAnimationFrame(() => closedHead.current?.focus());
+      setSaid(`Reopened: ${rule}`);
+      // The group closes when the last one is reopened, so focus moves to that finding's Close link.
+      requestAnimationFrame(() => (closedHead.current ?? document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(`Close finding: ${rule}`)}"]`))?.focus());
     } catch (e) {
       setSaid((e as Error).message);
     }
@@ -193,7 +194,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
           </AreaCard>
         )}
         {run.results.map((r) => (
-          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass || (!r.error && !openOf(r.findings).some((f) => f.severity !== 'minor')), !!r.error, openOf(r.findings))} tokens={r.tokens} findings={openOf(r.findings)} focusAt={focusAt(r.area)} triage={triageOps} />
+          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, openOf(r.findings))} tokens={r.tokens} findings={openOf(r.findings)} focusAt={focusAt(r.area)} triage={triageOps} />
         ))}
       </div>
       <ClosedGroup closed={split.closed.map((f) => ({ ...f, key: triageKey(run, f) }))} grouped={(f) => run.check.some((c) => c.id === f.id)} onReopen={reopen} headRef={closedHead} />

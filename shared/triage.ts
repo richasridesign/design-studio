@@ -74,6 +74,13 @@ export function splitFindings(run: ReviewRun, findings: Finding[], triage: Triag
 
 export const splitRun = (run: ReviewRun, triage: Triage | null | undefined) => splitFindings(run, allFindings(run), triage);
 
+/** The run with closed findings left out, for counts that must agree with the open list. */
+export const openRun = (run: ReviewRun, triage: Triage | null | undefined): ReviewRun => ({
+  ...run,
+  check: splitFindings(run, run.check, triage).open,
+  results: run.results.map((r) => ({ ...r, findings: splitFindings(run, r.findings, triage).open })),
+});
+
 /** Blocking and major findings still open: what the Validate gate and the report summary count. */
 export const openIssues = (run: ReviewRun, triage: Triage | null | undefined) => splitRun(run, triage).open.filter((f) => f.severity !== 'minor');
 
