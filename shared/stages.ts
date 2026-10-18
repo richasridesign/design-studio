@@ -282,7 +282,8 @@ export type StepAction = 'done' | 'skip' | 'undo' | 'again';
 export function markStep(c: ChatSteps, id: StageId, action: StepAction, at: number, note?: string, seenRound = 1): ChatSteps {
   const marks = { ...c.marks };
   const old = marks[id];
-  const round = Math.max(old?.round ?? 1, seenRound);
+  // The review round on disk only counts for Review. Other steps count their own rounds.
+  const round = Math.max(old?.round ?? 1, id === 'validate' ? seenRound : 1);
   const keep = round > 1 ? { round } : {};
   const text = note?.trim().slice(0, NOTE_MAX);
   if (action === 'done') marks[id] = { state: 'done', at, ...(text ? { note: text } : {}), ...keep };
