@@ -57,7 +57,7 @@ export function Sketch() {
                 {String.fromCharCode(65 + i)} · {d.name}
               </button>
             ))}
-            {s.chosen && <span className="muted small">{s.chosenBy === 'designer' ? 'you picked' : 'Claude picked'}</span>}
+            {s.chosen && <span className="muted small">{s.chosenBy === 'designer' ? 'Picked by you' : 'Picked by Claude'}</span>}
           </div>
         ))}
       </div>
