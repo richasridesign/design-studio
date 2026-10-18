@@ -81,6 +81,18 @@ describe('ReadState', () => {
     expect(st.calls).toBe(2);
   });
 
+  it('reads each part of a list on its own and returns one value per part', async () => {
+    const st = new ReadState(opts(['return "a";', `return ${JSON.stringify(noisy(30000))};`, 'return 3;']));
+    for (let i = 0; i < 10; i++) {
+      const pre = st.pre(USE, {}, `t${i}`);
+      if (pre.hookSpecificOutput!.permissionDecision !== 'allow') break;
+      st.post(USE, {}, JSON.stringify(await runScript((pre.hookSpecificOutput as any).updatedInput.code)), `t${i}`);
+    }
+    expect(st.done).toBe(true);
+    expect(st.calls).toBeGreaterThan(3);
+    expect(st.value()).toEqual(['a', noisy(30000), 3]);
+  });
+
   it('hands out different pages to calls made at the same time', () => {
     const st = new ReadState(opts('return 1;'));
     st.pre(USE, {}, 't1');
