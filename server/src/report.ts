@@ -517,5 +517,5 @@ export async function buildReport(dir: string, figma: FigmaFile | null): Promise
   const content = sections.length || figma
     ? summary(d, frames) + sections.map(section).join('\n')
     : '<p class="empty">Nothing to hand off yet. Write a brief or design some frames in Design Studio, then open the report again.</p>';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} design report</title><style>${STYLE}</style></head><body><div class="page"><header><p class="eyebrow">Design handoff</p><h1>${esc(title)}</h1><p class="meta">Date: ${esc(date)}</p></header>${toc}<main>${content}</main><footer><p class="meta">Made with Design Studio</p></footer></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} handoff report</title><style>${STYLE}</style></head><body><div class="page"><header><p class="eyebrow">Handoff report</p><h1>${esc(title)}</h1><p class="meta">Date: ${esc(date)}</p></header>${toc}<main>${content}</main><footer><p class="meta">Made with Design Studio</p></footer></div></body></html>`;
 }
