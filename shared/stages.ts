@@ -370,11 +370,27 @@ export function stageNote(c: ChatSteps): string {
  * Claude's plan was approved on its card: a plan tool call (ExitPlanMode) whose result is not an error.
  * A plan card approved by a click or a typed go sends no chat message, so the chat replies alone miss it.
  * Asking for changes and the flow's own saved plan both come back as errors, so they do not count.
- * `since` is when the latest brief was written: a plan approved before it was for older work, so it does not count.
+ * Only the latest plan card counts, read from this chat's own events in order (plan.md is shared by every chat in the
+ * folder, so its save time could come from another chat). After a newer message the approval is for older work when
+ * Claude writes plan.md again or the flow moves on to its sketch after saving a plan. Saving the approved plan to
+ * plan.md in the same turn keeps it.
  */
-export function planApprovedOnCard(events: ReadonlyArray<{ kind: string; id: string; name?: string; toolUseId?: string; isError?: boolean; at?: number }>, since = 0): boolean {
-  const plans = new Set(events.filter((e) => e.kind === 'tool_use' && e.name === 'ExitPlanMode').map((e) => e.id));
-  return events.some((e) => e.kind === 'tool_result' && plans.has(e.toolUseId ?? '') && !e.isError && (since <= 0 || (e.at ?? 0) >= since));
+export function planApprovedOnCard(events: ReadonlyArray<{ kind: string; id: string; name?: string; toolUseId?: string; isError?: boolean; input?: unknown; phase?: string }>): boolean {
+  let card = -1;
+  events.forEach((e, i) => { if (e.kind === 'tool_use' && e.name === 'ExitPlanMode') card = i; });
+  if (card < 0) return false;
+  const answer = events.findIndex((e, i) => i > card && e.kind === 'tool_result' && e.toolUseId === events[card].id);
+  if (answer < 0 || events[answer].isError) return false;
+  let asked = false;
+  for (const e of events.slice(answer + 1)) {
+    if (e.kind === 'user') {
+      if (e.phase === 'sketch') return false;
+      asked = true;
+    }
+    const file = e.kind === 'tool_use' && ['Write', 'Edit', 'MultiEdit'].includes(e.name ?? '') ? (e.input as { file_path?: unknown } | undefined)?.file_path : null;
+    if (asked && typeof file === 'string' && /(^|[\\/])plan\.md$/.test(file)) return false;
+  }
+  return true;
 }
 
 /**
