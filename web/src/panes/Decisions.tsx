@@ -218,7 +218,7 @@ function Slot({ id, n, screen, value, onChange }: { id: string; n: number; scree
       <textarea id={dId} className="dec-decision" rows={1} value={value.decision} aria-label={`Decision ${n}, ${screen}`} aria-describedby={cId} onChange={(e) => onChange('decision', e.target.value)} />
       <label htmlFor={wId}>Why</label>
       <textarea id={wId} className="dec-why" rows={1} value={value.why} aria-label={`Why, decision ${n}, ${screen}`} aria-describedby={cId} onChange={(e) => onChange('why', e.target.value)} />
-      <span id={cId} className={`dec-words ${long ? 'long' : ''}`}>{words} {words === 1 ? 'word' : 'words'}{long && ', aim for about 25'}</span>
+      <span id={cId} className={`dec-words ${long ? 'long' : ''}`}>{words === 0 ? 'About 25 words for both lines' : `${words} ${words === 1 ? 'word' : 'words'}${long ? ', aim for about 25' : ''}`}</span>
     </div>
   );
 }

@@ -10,8 +10,9 @@
 .dec-page button.link:disabled { color: var(--fg-muted); text-decoration: none; cursor: default; }
 
 .dec-group { display: flex; flex-direction: column; gap: 8px; }
-.dec-group h3 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
-.dec-count { font-weight: 400; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
+.dec-group h3 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+/* Count pill, same as the token chips in Review. */
+.dec-count { display: inline-block; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-sunken); font-weight: 400; font-size: 12px; line-height: 20px; color: var(--fg-muted); }
 .dec-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
 .dec-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--border); }
 .dec-skel { min-height: 120px; background: linear-gradient(90deg, transparent, var(--bg-hover), transparent); }
