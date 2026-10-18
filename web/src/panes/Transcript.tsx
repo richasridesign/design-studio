@@ -19,7 +19,7 @@ import '../timeline.css';
 
 export type ChatView = 'timeline' | 'transcript';
 
-const Settle = createContext<() => void>(() => {});
+const Settle = createContext({ settle: () => {}, recheck: () => {} });
 
 export function Transcript({ view = 'transcript', children }: { view?: ChatView; children?: ReactNode }) {
   const events = useStore((s) => s.events);
@@ -71,14 +71,15 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
 
   useEffect(() => { stick.current = true; settle(); }, [view, settle]);
 
-  const onScroll = () => {
+  const recheck = useCallback(() => {
     const el = box.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  };
+  }, []);
+  const scroll = useMemo(() => ({ settle, recheck }), [settle, recheck]);
 
   return (
-    <Settle.Provider value={settle}>
-      <div ref={box} className={`tr ${view}`} onScroll={onScroll}>
+    <Settle.Provider value={scroll}>
+      <div ref={box} className={`tr ${view}`} onScroll={recheck}>
         {items.length === 0 && (
           <div className="tl-welcome">
             <SetupBanner />
@@ -181,7 +182,7 @@ function Reply({ text, streaming }: { text: string; streaming: boolean }) {
   const [long, setLong] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const clamp = !streaming && !open;
-  const settle = useContext(Settle);
+  const { settle, recheck } = useContext(Settle);
   useLayoutEffect(() => {
     const el = body.current;
     if (!el || !clamp) return;
@@ -191,7 +192,7 @@ function Reply({ text, streaming }: { text: string; streaming: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [clamp, text]);
-  useEffect(() => { if (!open) settle(); }, [long, open, settle]);
+  useEffect(() => { if (open) recheck(); else settle(); }, [long, open, settle, recheck]);
   return (
     <div className={`tr-assistant ${streaming ? 'streaming' : ''}`}>
       <div ref={body} className={`tr-reply ${clamp ? 'clamp' : ''} ${clamp && long ? 'clipped' : ''}`}><Markdown text={text} /></div>
