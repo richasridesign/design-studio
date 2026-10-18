@@ -38,8 +38,8 @@ describe('typedAnswer', () => {
     expect(typedAnswer('make it calmer', plan)).toEqual({ type: 'permission', id: 'p1', allow: false, note: 'make it calmer' });
     expect(typedAnswer('go through every dialog and list the ones with no close icon', plan)).toMatchObject({ allow: false });
   });
-  it('sends her words once, as one free answer to every question on the card', () => {
-    expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message? / Which voice?': 'error message B, voice 2' } });
+  it('sends her words once, under the first question, never copied into every question', () => {
+    expect(typedAnswer('error message B, voice 2', question)).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'error message B, voice 2' } });
     expect(typedAnswer('option A', { ...question, questions: question.questions.slice(0, 1) })).toEqual({ type: 'answer', id: 'q1', answers: { 'Which error message?': 'option A' } });
   });
   for (const t of ['y', 'Y', 'yes', 'Yes.', 'ok', 'OK', 'okay', 'yes please', 'Yes, please', 'lgtm', 'LGTM!', 'sure', 'sure go', 'Sure, go ahead', 'okay, go']) {
