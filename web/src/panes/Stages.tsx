@@ -21,7 +21,7 @@ export function nextStep(stage: Stage, brief: string): { label: string; run: () 
   const about = brief ? ` ${brief}` : '';
   switch (stage.id) {
     case 'spec':
-      if (missing('Figma file attached')) return { label: 'Attach a Figma file', run: () => go('attach') };
+      if (missing('Figma file attached')) return null;
       return missing('Brief written') ? { label: 'Describe the work in the message box', run: () => document.querySelector<HTMLTextAreaElement>('.cp textarea')?.focus() } : { label: 'Ask Claude for a plan', run: () => insertPrompt(PLAN_ASK) };
     case 'explore': return { label: 'Sketch directions', run: () => insertPrompt(`/sketch${about}`) };
     // Decide and the decisions check already link to where the work happens.
@@ -54,7 +54,7 @@ export function useStages() {
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, phase, figma]);
   const change = async (action: 'approve' | 'reopen', id: StageId, note?: string) => {
-    try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); } catch (e) { setError((e as Error).message); }
+    try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); window.dispatchEvent(new Event('designstudio:stages')); } catch (e) { setError((e as Error).message); }
   };
   return { list, error, change };
 }

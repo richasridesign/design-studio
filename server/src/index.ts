@@ -30,7 +30,8 @@ import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
 import { markPosted, readDesign, readReview } from './review.js';
 import { readProfile } from './profile.js';
 import { buildReport, reportSlug } from './report.js';
-import { changeStage, readStages } from './stages.js';
+import { changeStage, readApprovals, readStages } from './stages.js';
+import { stageLabel } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -303,7 +304,7 @@ const server = http.createServer(async (req, res) => {
       return json(teamId ? await teamProjects(teamId) : []);
     }
     if (url.pathname === '/api/figma/files') return json(await projectFiles(url.searchParams.get('project') ?? ''));
-    if (url.pathname === '/api/figma/folders') return json((await chatFolders()).filter((f) => f.figma).map((f) => ({ cwd: f.dir, ...f.figma })));
+    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: stageLabel(await readApprovals(f.dir)) }))));
     if (url.pathname === '/api/figma/outline') return json(await fileOutline(needFigma().key));
     if (url.pathname === '/api/figma/thumbs') return json(await images(needFigma().key, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean), 0.3, 'png', undefined, url.searchParams.has('r')));
     if (url.pathname === '/api/figma/versions') return json(await versions(needFigma().key));
