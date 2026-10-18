@@ -106,7 +106,20 @@ export function Decisions() {
 
   const pages = useMemo(() => (outline?.pages ?? []).filter((p) => p.frames.length), [outline]);
   const screens = useMemo<Screen[]>(() => pages.flatMap((p) => p.frames.map((f) => ({ id: f.id, name: f.name }))), [pages]);
-  const want = useMemo(() => screens.map((s): [string, number] => [s.id, 0]), [screens]);
+  // Thumbnails load as rows come near the view, so a file with many frames does not render them all at once.
+  const page = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    const root = page.current;
+    if (!root || !screens.length) return;
+    const io = new IntersectionObserver((entries) => {
+      const ids = entries.filter((e) => e.isIntersecting).map((e) => (e.target as HTMLElement).dataset.frame ?? '');
+      if (ids.length) setSeen((had) => (ids.every((id) => had.has(id)) ? had : new Set([...had, ...ids])));
+    }, { root, rootMargin: '400px 0px' });
+    root.querySelectorAll('[data-frame]').forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [screens, key]);
+  const want = useMemo(() => screens.filter((s) => seen.has(s.id)).map((s): [string, number] => [s.id, 0]), [screens, seen]);
   const thumb = useThumbs(key, want);
   const draft = useDraft(screens);
 
@@ -133,7 +146,7 @@ export function Decisions() {
   const showDraft = draft && draft.id !== applied && fresh > 0;
 
   return (
-    <div className="dec-page" onBlur={flush}>
+    <div className="dec-page" ref={page} onBlur={flush}>
       <div className="dec-head">
         <div className="dec-title">
           <h2>Decisions</h2>
@@ -168,7 +181,7 @@ export function Decisions() {
               const pair = slots(doc, f.id);
               const url = thumb(f.id);
               return (
-                <li key={f.id} className="dec-row">
+                <li key={f.id} className="dec-row" data-frame={f.id}>
                   <div className="dec-frame">
                     <div className="dec-thumb">{url ? <img src={url} alt="" /> : <span aria-hidden="true" />}</div>
                     <span className="dec-name" title={f.name}>{f.name}</span>
