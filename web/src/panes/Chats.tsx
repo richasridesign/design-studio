@@ -8,8 +8,8 @@ import '../chats.css';
 import { press } from '../press';
 import { runningText } from '../StatusBar';
 
-type Folder = { cwd: string; key: string; name: string; url: string };
-type Group = { cwd: string; name: string; open: LiveChat[]; recent: SavedSession[] };
+type Folder = { cwd: string; key: string; name: string; url: string; stage?: string | null };
+type Group = { cwd: string; name: string; stage?: string | null; open: LiveChat[]; recent: SavedSession[] };
 
 const RECENT = 5;
 const urgency = (c: LiveChat) => (c.pending ? 0 : c.running ? 1 : 2);
@@ -21,7 +21,7 @@ export function groupChats(live: LiveChat[], saved: SavedSession[], folders: Fol
   const name = (cwd: string) => folders.find((f) => f.cwd === cwd)?.name ?? cwd.split('/').pop() ?? cwd;
   const get = (cwd: string) => {
     const key = noFile(cwd) ? '' : cwd;
-    return groups.get(key) ?? groups.set(key, { cwd: key, name: key ? name(cwd) : 'No file yet', open: [], recent: [] }).get(key)!;
+    return groups.get(key) ?? groups.set(key, { cwd: key, name: key ? name(cwd) : 'No file yet', stage: folders.find((f) => f.cwd === key)?.stage ?? null, open: [], recent: [] }).get(key)!;
   };
   for (const c of live) get(c.cwd).open.push(c);
   const openIds = new Set(live.map((c) => c.sessionId));
@@ -62,6 +62,13 @@ export function Chats() {
     setOpening(null);
   }, [current, live.length]);
 
+  useEffect(() => {
+    // The folder rows show each folder's stage: reload them when one is approved or reopened.
+    const reload = () => void getJson<Folder[]>('/api/figma/folders').then(setFolders).catch(() => {});
+    window.addEventListener('designstudio:stages', reload);
+    return () => window.removeEventListener('designstudio:stages', reload);
+  }, []);
+
   const all = useMemo(() => groupChats(live, saved, folders), [live, saved, folders]);
   const groups = useMemo(() => filterGroups(all, query), [all, query]);
   const close = (c: LiveChat) =>
@@ -101,6 +108,7 @@ export function Chats() {
             <div className="row project" title={g.cwd || undefined}>
               <span className="twistie"><Icon name="file-media" small /></span>
               <span className="name">{g.name}</span>
+              {g.stage && <span className="stage-tag" title={`Stage: ${g.stage}`}>{g.stage}</span>}
               <span className="acts">
                 <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={() => send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' })}><Icon name="add" small /></button>
               </span>

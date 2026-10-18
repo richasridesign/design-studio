@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approve, cleanApprovals, currentStage, reopen, stageNote, stages, type StageEvidence } from './stages.js';
+import { approve, cleanApprovals, currentStage, reopen, stageLabel, stageNote, stages, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
 const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
@@ -97,5 +97,13 @@ describe('stageNote', () => {
   });
   it('says the work is handed off when every stage is approved', () => {
     expect(stageNote(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toMatch(/^Stages: the designer approved every stage/);
+  });
+});
+
+describe('stageLabel', () => {
+  it('is empty until a stage is approved, then names the current one', () => {
+    expect(stageLabel({})).toBeNull();
+    expect(stageLabel({ spec: { at: 1 } })).toBe('Explore');
+    expect(stageLabel(Object.fromEntries(['spec', 'explore', 'decide', 'build', 'validate', 'ship'].map((id) => [id, { at: 1 }])))).toBe('Shipped');
   });
 });

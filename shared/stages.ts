@@ -148,3 +148,10 @@ export function stageNote(a: StageApprovals): string {
     ...(notes.length ? [`Approval notes: ${notes.join('; ')}`] : []),
   ].join('\n');
 }
+
+/** Short label for a chat folder: the current stage once any stage is approved. */
+export function stageLabel(a: StageApprovals): string | null {
+  if (!STAGE_IDS.some((id) => a[id])) return null;
+  const next = STAGE_IDS.find((id) => !a[id]);
+  return next ? STAGE_INFO[next].name : 'Shipped';
+}

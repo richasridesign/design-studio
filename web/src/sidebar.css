@@ -97,3 +97,11 @@
 .sessions.workspace .tree .row.repo-row .badges .count { width: 20px; }
 .sessions.workspace .tree .row.session, .sessions.workspace .tree .row.more { padding-left: 54px; }
 @media (max-width: 900px) { .sessions.workspace .tree .row.repo-row.two { min-height: 36px; align-items: center; } }
+
+/* Folder stage: dot + label, hidden while the row's actions show. */
+.sessions .tree .row .stage-tag {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0 10px 0 8px;
+  font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted);
+}
+.sessions .tree .row .stage-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--warn); }
+.sessions .tree .row:has(.acts):is(:hover, :focus-within) .stage-tag { display: none; }
