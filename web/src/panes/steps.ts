@@ -51,7 +51,7 @@ export function stepLabel(name: string, input: Record<string, unknown>, cwd = ''
     case 'Grep': return { verb: 'Searched', object: `"${s('pattern')}" in ${inDir || 'the project'}` };
     case 'Glob': return { verb: 'Listed', object: inDir ? `${inDir}/${s('pattern')}` : s('pattern') };
     case 'LS': return { verb: 'Listed', object: `${inDir || '.'}/` };
-    case 'Bash': return { verb: 'Ran', object: firstLine(s('command')), mono: true };
+    case 'Bash': return s('description') ? { verb: 'Ran', object: s('description') } : { verb: 'Ran', object: firstLine(s('command')), mono: true };
     case 'WebFetch': return { verb: 'Fetched', object: s('url').replace(/^https?:\/\//, '').replace(/\/$/, '') };
     case 'WebSearch': return { verb: 'Searched the web for', object: `"${s('query')}"` };
     case 'Agent': case 'Task': return { verb: 'Delegated', object: s('description') };
@@ -65,9 +65,33 @@ export function stepLabel(name: string, input: Record<string, unknown>, cwd = ''
   }
   if (name.startsWith('mcp__')) {
     const [, server, ...tool] = name.split('__');
+    const figma = /figma/i.test(server) ? figmaLabel(tool.join('__'), s) : null;
+    if (figma) return figma;
     return { verb: 'Called', object: `${tool.join('__')} (${server})` };
   }
   return { verb: 'Used', object: name };
+}
+
+const nodeOf = (s: (k: string) => string) => (s('nodeId') ? ` ${s('nodeId').replace('-', ':')}` : '');
+
+/** Plain words for Figma tool calls, so a designer reads what happened in the file. */
+function figmaLabel(tool: string, s: (k: string) => string): Label | null {
+  switch (tool) {
+    case 'use_figma': return { verb: 'Worked in', object: s('description') ? `Figma: ${s('description')}` : 'Figma' };
+    case 'get_screenshot': return { verb: 'Took', object: `a screenshot of frame${nodeOf(s)}` };
+    case 'get_metadata': return { verb: 'Read', object: `the layers of${nodeOf(s) || ' the page'}` };
+    case 'get_design_context': return { verb: 'Read', object: `the design of${nodeOf(s) || ' the selection'}` };
+    case 'get_variable_defs': return { verb: 'Read', object: 'the variables' };
+    case 'search_design_system': return { verb: 'Searched', object: `the design system for "${s('query')}"` };
+    case 'get_libraries': return { verb: 'Listed', object: 'the libraries' };
+    case 'upload_assets': return { verb: 'Uploaded', object: 'images to Figma' };
+    case 'generate_figma_design': return { verb: 'Generated', object: 'a design in Figma' };
+    case 'create_new_file': return { verb: 'Created', object: s('fileName') ? `the Figma file "${s('fileName')}"` : 'a Figma file' };
+    case 'get_figjam': return { verb: 'Read', object: 'the FigJam board' };
+    case 'generate_diagram': return { verb: 'Drew', object: 'a diagram in FigJam' };
+    case 'whoami': return { verb: 'Checked', object: 'the Figma account' };
+  }
+  return null;
 }
 
 export function buildTranscript(events: ChatEvent[]): Item[] {
