@@ -56,6 +56,9 @@
 .aw-done li { padding: 8px 0; }
 .aw-said { margin: 0; font-size: var(--text-sm); color: var(--fg-muted); }
 .awaiting .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A failed area's error, under its title (16px mark + 12px gap in from the head's 16px padding). Red text: it is an error. */
+.area-error { margin: 0; padding: 0 16px 12px 44px; color: var(--err); font-size: var(--text-sm); line-height: 20px; }
+.area-error .link { min-height: 24px; }
 .f-decide { font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
 .f-decide b { color: var(--warn); font-weight: 600; }
 @media (max-width: 600px) {
