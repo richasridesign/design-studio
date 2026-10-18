@@ -124,7 +124,7 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
         <span className="muted">{stage.goal}</span>
       </div>
       {current && stage.state === 'open' && next && <p className="gate-next"><span className="muted">Next: </span><button className="link" onClick={next.run}>{next.label}</button></p>}
-      <div className="gate-label">Passes when</div>
+      <div className="gate-label">Passes when{open > 0 && <span className="gate-open"> · {open} not met yet</span>}</div>
       <ul className="gate-checks">{stage.checks.map((c, i) => <Check key={c.label} c={c} link={c.open !== stage.checks[i - 1]?.open} />)}</ul>
       {stage.approval?.note && <p className="gate-note"><span className="muted">Note: </span>{stage.approval.note}</p>}
       {current && noting && (
@@ -142,7 +142,6 @@ function Gate({ stage, current, brief, onChange }: { stage: Stage; current: bool
           </span>
         ) : current ? (
           <span className="gate-act">
-            {open > 0 && <span className="muted">{open === 1 ? '1 check is not met yet' : `${open} checks are not met yet`}</span>}
             {!noting && <button className="link" onClick={() => setNoting(true)}>Add a note</button>}
             <button onClick={() => onChange('approve', stage.id, note)}>Approve {stage.name}</button>
           </span>
