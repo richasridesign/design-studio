@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { afterFix, afterReview, designPrompt, parseCommand } from './flow.js';
+import { afterFix, afterReview, designPrompt, designerPicksKey, parseCommand, picksNote } from './flow.js';
 
 const f = { id: 'x', area: 'color' as const, node: '1:1', severity: 'major' as const, rule: 'r', fix: 'f' };
 
@@ -57,5 +57,24 @@ describe('designPrompt', () => {
     const p = designPrompt(sketch, true, 'x');
     expect(p).toContain('- Home: List. dense. The designer picked it over Cards.');
     expect(p).not.toContain('Why:');
+  });
+});
+
+describe('picks after the design phase', () => {
+  const dirs = [
+    { id: 'a', name: 'List', rationale: 'dense', w: 390, h: 844, items: [] },
+    { id: 'b', name: 'Cards', rationale: 'scannable', w: 390, h: 844, items: [] },
+  ];
+  const doc = (chosen: string, by: 'designer' | 'claude', reason?: string) => ({ screens: [{ id: 'home', name: 'Home', chosen, chosenBy: by, reason, directions: dirs }] });
+
+  it("changes only with the designer's own picks and reasons", () => {
+    expect(designerPicksKey(doc('a', 'claude'))).toBe(designerPicksKey(doc('b', 'claude')));
+    expect(designerPicksKey(doc('a', 'designer'))).not.toBe(designerPicksKey(doc('a', 'designer', 'Long lists scan faster')));
+    expect(designerPicksKey(null)).toBe('[]');
+  });
+
+  it('tells Claude the current picks with the reason', () => {
+    expect(picksNote(doc('b', 'designer', 'Photos sell'))).toBe('The designer changed the sketch picks. Follow these from now on:\n- Home: Cards. scannable. The designer picked it over List. Why: Photos sell.');
+    expect(picksNote(null)).toBe('');
   });
 });

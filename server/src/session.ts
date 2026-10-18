@@ -8,7 +8,7 @@ import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
 import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
-import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, fixPrompt, parseCommand, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
+import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
 import { buildProfile, readProfile } from './profile.js';
@@ -155,6 +155,7 @@ export class AgentSession {
   async init() {
     const s = await settings();
     this.rules = rulesBlock(await readRules(this.cwd));
+    this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     this.state.session.flow = flowOff(s);
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
     // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
@@ -167,6 +168,8 @@ export class AgentSession {
   private rulesNote = '';
   private stageKey = '{}';
   private stageNote = '';
+  private pickKey = '[]';
+  private pickNote = '';
   private figmaNote = '';
 
   private sampleBlocked() {
@@ -319,6 +322,11 @@ export class AgentSession {
       text = `${this.stageNote}\n\n${text}`;
       this.stageNote = '';
     }
+    if (this.pickNote) {
+      // The design phase prompt already lists the picks.
+      if (!text.includes('Chosen sketch directions')) text = `${this.pickNote}\n\n${text}`;
+      this.pickNote = '';
+    }
     if (this.figmaNote) {
       text = `${this.figmaNote}\n\n${text}`;
       this.figmaNote = '';
@@ -368,6 +376,12 @@ export class AgentSession {
     if (key !== this.stageKey) {
       this.stageNote = stageNote(approvals) || 'Stages: the designer reopened every stage. Start again from Spec.';
       this.stageKey = key;
+    }
+    const sketch = await readSketch(this.cwd).catch(() => null);
+    const picks = designerPicksKey(sketch);
+    if (picks !== this.pickKey) {
+      if (this.q) this.pickNote = picksNote(sketch);
+      this.pickKey = picks;
     }
   }
 
