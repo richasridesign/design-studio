@@ -119,7 +119,7 @@ describe('checkFlows', () => {
     const plugin = button('Back', { reactions: [{ trigger: { type: 'ON_CLICK' }, action: { type: 'NODE', destinationId: 'old1', navigation: 'OVERLAY' } }, { trigger: { type: 'ON_HOVER' }, actions: [{ type: 'BACK' }] }] });
     const r = checkFlows(doc([section('1:1', 'V4 · Flow 1', [screen('s1', 'Home', [rest, plugin])]), section('2:1', 'V3 · Flow 1', [screen('old1', 'Home', [], 0, 3000)], 0, 3000)]), maps);
     expect(rules(r)).toEqual(['stale-link', 'stale-link']);
-    expect(r.flows[0].findings[0].message).toBe('"Button" opens "Home" in "V3 · Flow 1", outside this flow.');
+    expect(r.flows[0].findings[0].message).toBe('Button "Next" opens "Home" in "V3 · Flow 1", outside this flow.');
   });
 
   it('does not treat hover CHANGE_TO variants or unknown destinations as old links', () => {
@@ -202,7 +202,7 @@ describe('flowFixPrompt', () => {
     const text = flowFixPrompt({ id: 'r', at: 0, fileKey: 'abc', flows: r.flows, unchecked: r.unchecked });
     expect(text).toContain('wait for my approval before you edit anything');
     expect(text).toContain('Flow 1 (section 1:1 https://www.figma.com/design/abc?node-id=1-1):');
-    expect(text).toContain('- [no-click] Home: "Button" looks clickable but has no click. Fix:');
+    expect(text).toContain('- [no-click] Home: Button "Save" looks clickable but has no click. Fix:');
     expect(text).toContain('(node 5:6)');
     expect(text).not.toContain('Flow 2');
     expect(text).not.toMatch(/\u2014/);

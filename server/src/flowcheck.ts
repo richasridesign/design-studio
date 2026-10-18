@@ -101,6 +101,12 @@ export function isScreen(n: any) {
 }
 
 const quote = (s: string) => `"${s}"`;
+// Names a node by its layer name and its label, like: Button "Manage".
+function describe(n: any) {
+  const name = String(n.name ?? n.id);
+  const t = firstText(n);
+  return t && t !== name ? `${name} ${quote(t)}` : quote(name);
+}
 
 type Control = { node: any; key: string; wired: boolean; hover: boolean; iconOnly: boolean; buttonish: boolean };
 
@@ -136,13 +142,13 @@ function controlFindings(screen: any, maps: Maps, add: (node: any, rule: FlowRul
   for (const c of all) groups.set(c.key, [...(groups.get(c.key) ?? []), c]);
   const more = (n: number) => (n > 1 ? ` (and ${n - 1} more like it)` : '');
   for (const list of groups.values()) {
-    const name = quote(list[0].node.name ?? list[0].node.id);
+    const name = describe(list[0].node);
     if (!list.some((c) => c.wired)) add(list[0].node, 'no-click', `${name} looks clickable but has no click${more(list.length)}.`, 'Add an On click action to the screen or state it opens, or make it look static.');
     const noHover = list.filter((c) => c.buttonish && !c.hover);
     const icon = noHover.filter((c) => c.iconOnly);
     const plain = noHover.filter((c) => !c.iconOnly);
-    if (icon.length) add(icon[0].node, 'no-tooltip', `Icon button ${quote(icon[0].node.name ?? icon[0].node.id)} has no hover, so no tooltip shows${more(icon.length)}.`, 'Add While hovering: open the tooltip overlay that names the action, and keep the click.');
-    if (plain.length) add(plain[0].node, 'no-hover', `${quote(plain[0].node.name ?? plain[0].node.id)} has no hover state${more(plain.length)}.`, 'Add While hovering: change to the Hover variant with the same type and size.');
+    if (icon.length) add(icon[0].node, 'no-tooltip', `${describe(icon[0].node)} is an icon-only button with no hover, so no tooltip shows${more(icon.length)}.`, 'Add While hovering: open the tooltip overlay that names the action, and keep the click.');
+    if (plain.length) add(plain[0].node, 'no-hover', `${describe(plain[0].node)} has no hover state${more(plain.length)}.`, 'Add While hovering: change to the Hover variant with the same type and size.');
   }
 }
 
@@ -150,7 +156,7 @@ function dialogFindings(node: any, maps: Maps, add: (node: any, rule: FlowRule, 
   const isDialog = (n: any) => CANVAS.has(n.type) && DIALOG.test(label(n, maps)) && !DIALOG_PART.test(n.name ?? '');
   const visit = (n: any) => {
     if (isDialog(n) && !some(n, isDialog)) {
-      if (!some(n, (c) => CLOSE.test(String(c.name ?? '')) || CLOSE.test(label(c, maps)))) add(n, 'no-close', `${quote(n.name ?? n.id)} has no close icon.`, 'Add an icon-only Close button, top right, with a Close tooltip and a click back to the screen that opened it.');
+      if (!some(n, (c) => CLOSE.test(String(c.name ?? '')) || CLOSE.test(label(c, maps)))) add(n, 'no-close', `${describe(n)} has no close icon.`, 'Add an icon-only Close button, top right, with a Close tooltip and a click back to the screen that opened it.');
       return;
     }
     for (const c of kids(n)) if (c.type !== 'COMPONENT_SET') visit(c);
@@ -165,7 +171,7 @@ function linkFindings(node: any, flow: FlowRef, screens: Map<string, ScreenInfo>
         if (a.type !== 'NODE' || !a.destinationId || !LINKS.has(a.navigation ?? '')) continue;
         const dest = screens.get(a.destinationId);
         if (!dest || dest.flow.id === flow.id) continue;
-        add(n, 'stale-link', `${quote(n.name ?? n.id)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, outside this flow.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
+        add(n, 'stale-link', `${describe(n)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, outside this flow.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
       }
     }
     for (const c of kids(n)) visit(c);
