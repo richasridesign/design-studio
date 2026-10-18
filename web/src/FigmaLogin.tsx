@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { useDialogFocus } from './useDialog';
 import { getJson, postJson, send, useStore } from './store';
 import { CHECKS } from './setupChecks';
-import { figmaState } from './StatusBar';
+import { figmaState, useFigmaRows } from './StatusBar';
 import './research.css';
 import './figmalogin.css';
 
@@ -29,8 +29,8 @@ export function Command({ id, text }: { id: string; text: string }) {
 type LoginRun = { state: 'idle' | 'waiting' | 'done' | 'failed'; url?: string; error?: string };
 
 /** Runs the plugin's sign-in from the server: Figma opens in the browser and the dialog waits for her to approve. */
-function useLoginRun(onDone: () => void) {
-  const [run, setRun] = useState<LoginRun>({ state: 'idle' });
+function useLoginRun(onDone: () => void, initial: LoginRun) {
+  const [run, setRun] = useState<LoginRun>(initial);
   const done = useRef(onDone);
   done.current = onDone;
   useEffect(() => {
@@ -49,10 +49,10 @@ function useLoginRun(onDone: () => void) {
 }
 
 /** Logs in to the official Figma plugin. Design Studio runs the same sign-in as /mcp in the Claude CLI; the terminal steps stay as a fallback. */
-export function FigmaLogin({ name, tone, label, onClose, onRetry }: { name: string; tone: string; label: string; onClose: () => void; onRetry: () => void }) {
+export function FigmaLogin({ name, tone, label, onClose, onRetry, initial = { state: 'idle' } }: { name: string; tone: string; label: string; onClose: () => void; onRetry: () => void; initial?: LoginRun }) {
   const box = useRef<HTMLDivElement>(null);
   const connected = tone === 'ok';
-  const { run, start, cancel } = useLoginRun(onRetry);
+  const { run, start, cancel } = useLoginRun(onRetry, initial);
   const waiting = run.state === 'waiting';
   useDialogFocus(true, box, () => { if (waiting) cancel(); onClose(); });
   const settings = () => {
@@ -115,6 +115,9 @@ const PLUGIN = 'plugin:figma:figma';
 /** Opens the one Log in to Figma dialog. The status bar, the welcome notice and Settings all call it, so a phone has a way in too. */
 export const openFigmaLogin = () => window.dispatchEvent(new Event(OPEN));
 
+// Once per page load, so closing the dialog keeps it closed.
+let autoTried = false;
+
 const PROBED: Record<string, [tone: string, label: string]> = { ok: ['ok', 'Connected'], warn: ['warn', 'Needs login'], bad: ['bad', 'Not connected'] };
 
 /**
@@ -125,6 +128,24 @@ export function FigmaLoginHost() {
   const live = useStore((s) => s.session.mcp.find((m) => /figma/i.test(m.name)));
   const [open, setOpen] = useState(false);
   const [probed, setProbed] = useState<[tone: string, label: string]>(PROBED.warn);
+  const [auto, setAuto] = useState<LoginRun>();
+  const rows = useFigmaRows();
+  const needsLogin = rows?.find((m) => /figma/i.test(m.name))?.status === 'needs-auth';
+  // Not logged in: start the login on its own, so Figma opens in the browser without a click. Check again first,
+  // since the login can read as expired for a moment while it refreshes.
+  useEffect(() => {
+    if (!needsLogin || autoTried) return;
+    autoTried = true;
+    void CHECKS.mcp().then((r) => {
+      if (r.fixId !== 'figma-login') return;
+      return postJson<LoginRun>('/api/figma/login', { auto: true }).then((run) => {
+        if (run.state !== 'waiting') return;
+        setProbed(PROBED.warn);
+        setAuto(run);
+        setOpen(true);
+      });
+    }).catch(() => {});
+  }, [needsLogin]);
   useEffect(() => {
     // Check on open, so a login made elsewhere (Terminal, another app) shows as Connected.
     const show = () => {
@@ -144,6 +165,7 @@ export function FigmaLoginHost() {
   };
   const close = () => {
     setOpen(false);
+    setAuto(undefined);
     // The Log in to Figma link is gone once Figma connects, so focus goes to the Figma status:
     // the status bar on a desktop, the MCP status in the top bar on a phone.
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -152,5 +174,5 @@ export function FigmaLoginHost() {
       status?.focus();
     }));
   };
-  return <FigmaLogin name={live?.name ?? PLUGIN} tone={tone} label={label} onClose={close} onRetry={retry} />;
+  return <FigmaLogin name={live?.name ?? PLUGIN} tone={tone} label={label} onClose={close} onRetry={retry} initial={auto} />;
 }

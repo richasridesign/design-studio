@@ -10,6 +10,9 @@ const CODES = /\x1b\][^\x07]*\x07|\x1b\[[0-9;?]*[a-zA-Z]|\r/g;
 
 let now: FigmaLoginState = { state: 'idle' };
 let child: ChildProcess | null = null;
+let startedAt = 0;
+// Opening Design Studio starts the login on its own, but not again on every reload while she ignores it.
+const AUTO_GAP_MS = 10 * 60_000;
 
 export const figmaLoginState = (): FigmaLoginState => now;
 
@@ -30,10 +33,12 @@ export function readLoginOutput(text: string): { url?: string; ok: boolean; erro
 
 /**
  * Starts the same sign-in as /mcp in the Claude CLI: it opens Figma in the browser and waits for her to approve.
- * The CLI keeps the login, so Claude in every chat can use it afterwards.
+ * The CLI keeps the login, so Claude in every chat can use it afterwards. `auto` is a start nobody pressed for, which waits 10 minutes after the last one.
  */
-export function startFigmaLogin(): FigmaLoginState {
+export function startFigmaLogin(auto = false, at = Date.now()): FigmaLoginState {
   if (child) return now;
+  if (auto && at - startedAt < AUTO_GAP_MS) return now;
+  startedAt = at;
   const [cmd, args] = loginCommand();
   let out = '';
   now = { state: 'waiting' };

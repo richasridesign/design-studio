@@ -228,7 +228,12 @@ export function App() {
         else if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
-      else if (kind === 'page') { if (arg === 'settings') setSettings(true); else if (arg === 'mcp') setMcpOpen(true); else open(arg as Center); }
+      else if (kind === 'page') {
+        if (arg === 'settings') setSettings(true);
+        else if (arg === 'mcp') setMcpOpen(true);
+        // A link inside Settings or the MCP dialog that opens a page closes the dialog, so the page shows.
+        else { setSettings(false); setMcpOpen(false); open(arg as Center); }
+      }
       else if (kind === 'focus') { if (!narrow()) toggleFocus(); }
       else if (kind === 'phone') setPhone((v) => !v);
       else if (kind === 'tab') setTab(arg as Tab);

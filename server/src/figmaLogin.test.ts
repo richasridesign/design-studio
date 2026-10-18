@@ -18,3 +18,11 @@ describe('figma login', () => {
     expect(readLoginOutput(`Couldn't complete authentication for "plugin:figma:figma": stdin isn't a terminal\nmore`).error).toBe(`Couldn't complete authentication for "plugin:figma:figma": stdin isn't a terminal`);
   });
 });
+
+describe('startFigmaLogin auto', () => {
+  it('does not start on its own again within 10 minutes of the last start', async () => {
+    const { startFigmaLogin, cancelFigmaLogin } = await import('./figmaLogin.js');
+    cancelFigmaLogin();
+    expect(startFigmaLogin(true, 0).state).toBe('idle');
+  });
+});
