@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { phaseLine } from '../../shared/stages';
 import { connect, getJson, useStore } from './store';
 import { Brief } from './panes/Brief';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -59,8 +60,7 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
 ];
 
 const PHASE_TAB: Record<string, Center> = { sketch: 'sketch', pick: 'sketch', file: 'figma', design: 'figma', fix: 'figma', review: 'review' };
-// Stage names first, the phase as the sub-line, the same words as phaseLine in shared/stages.ts.
-const PHASE_LABEL: Record<string, string> = { plan: 'Spec: writing the plan', sketch: 'Explore: sketching directions', pick: 'Decide: pick a direction', file: 'Build: attach the Figma file', system: 'Build: reading the design system', design: 'Build: designing in Figma', review: 'Validate: reviewing the frames', fix: 'Validate: fixing issues', done: 'Design run done', stopped: 'Design run stopped' };
+// The status bar reads "Build: designing in Figma", the same step names as the steps panel.
 const narrow = () => window.innerWidth <= 900;
 // Visually hidden, still read by screen readers (the page's one h1).
 const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };
@@ -369,7 +369,7 @@ export function App() {
           {focusMode && (
             <div className="focus-pill desktop-only">
               <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} />
-              <span>{PHASE_LABEL[phase ?? ''] ?? 'No design run'}</span>
+              <span>{phaseLine(phase ?? null)}</span>
               <span className="sep">·</span>
               <span>{session.running ? 'Running' : 'Idle'}</span>
               <IconButton label="Exit focus mode" tip="Exit focus mode (⌘.)" aria-keyshortcuts="Meta+Period" place="top" onClick={toggleFocus}><Icon name="screen-normal" small /></IconButton>

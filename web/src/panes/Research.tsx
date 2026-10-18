@@ -8,7 +8,7 @@ import '../research.css';
 // Pictures Claude saved next to research.md load from the chat folder.
 const withImages = (md: string) => md.replace(/!\[([^\]]*)\]\((?![a-z]+:|\/)([^)\s]+)\)/gi, (_, alt, src) => `![${alt}](${api(`/api/chat-file/${src.split('/').map(encodeURIComponent).join('/')}`)})`);
 
-/** Reads research.md from the Research first recipe. Opens from the Spec gate. */
+/** Reads research.md from the Research first recipe. Opens from the Research step. */
 export function Research() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string | null>(null);
