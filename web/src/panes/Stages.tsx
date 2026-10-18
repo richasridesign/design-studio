@@ -78,7 +78,7 @@ export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boo
   const now = currentStage(list);
   const i = now ? list.indexOf(now) + 1 : list.length;
   return (
-    <button className={`stage-btn ${now?.state ?? 'approved'}`} aria-expanded={open} aria-controls="stage-panel" title={open ? 'Hide stages' : 'Show stages and what passes each gate'} onClick={onToggle}>
+    <button className={`stage-btn ${now?.state ?? 'approved'} st-${now?.id ?? 'ship'}`} aria-expanded={open} aria-controls="stage-panel" title={open ? 'Hide stages' : 'Show stages and what passes each gate'} onClick={onToggle}>
       <span className="stage-mark" aria-hidden="true" />
       <span>{now ? <><span className="stage-long">Stage {i} of {list.length}: </span><span className="stage-short" aria-hidden="true">{i}/{list.length} </span><b>{now.name}</b></> : <b>All stages approved</b>}</span>
       <Icon name={open ? 'chevron-up' : 'chevron-down'} small />
@@ -103,10 +103,10 @@ export function StagePanel({ list, error, change, reload }: ReturnType<typeof us
   const spec = list.find((s) => s.id === 'spec')?.checks[0];
   const brief = spec?.state === 'met' ? spec.detail : '';
   return (
-    <section className="stage-panel" id="stage-panel" aria-label="Stages" onKeyDown={closeOnEscape}>
+    <section className={`stage-panel st-${shown.id}`} id="stage-panel" aria-label="Stages" onKeyDown={closeOnEscape}>
       <ol className="stage-rail">
         {list.map((s, i) => (
-          <li key={s.id} className={`${s.state} ${s.id === shown.id ? 'shown' : ''}`}>
+          <li key={s.id} className={`${s.state} st-${s.id} ${s.id === shown.id ? 'shown' : ''}`}>
             <button title={s.name} aria-current={s === now ? 'step' : undefined} aria-pressed={s.id === shown.id} onClick={() => setPicked(s.id)}>
               <span className="stage-mark" aria-hidden="true">{s.state === 'approved' && <Icon name="check" small />}</span>
               <span className="stage-name">{s.name}</span>
