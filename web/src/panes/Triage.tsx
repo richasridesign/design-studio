@@ -74,7 +74,7 @@ export function CloseForm({ rule, onSave, onCancel }: { rule: string; onSave: (s
       )}
       {error && <div className="error-text" role="alert">{error}</div>}
       <div className="triage-foot">
-        <button className="primary" disabled={!ready} onClick={save}>Save</button>
+        <button disabled={!ready} onClick={save}>Close finding</button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>
