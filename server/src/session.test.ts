@@ -192,37 +192,26 @@ describe('AgentSession turns', () => {
   });
 });
 
-describe('Figma checkpoint', () => {
+describe('Figma helpers', () => {
   const pre = (s: AgentSession, input: Record<string, unknown>) =>
     (s as unknown as { beforeFigma: (i: unknown) => any }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__use_figma', tool_input: input });
 
-  it('saves a version inside the first Figma call of a turn, without a round trip', () => {
+  it('leaves plain calls alone and never adds a version save, which use_figma does not support', () => {
     const { s } = fakeSession();
     s.sendPrompt('make it blue');
-    const out = pre(s, { code: 'node.fills = []', description: 'Make it blue' });
-    expect(out.hookSpecificOutput.permissionDecision).toBeUndefined();
-    expect(out.hookSpecificOutput.updatedInput.code).toMatch(/^await figma\.saveVersionHistoryAsync\("Design Studio: Make it blue"\);\nnode\.fills = \[\]$/);
     expect(pre(s, { code: 'node.fills = []' })).toEqual({});
-    expect(s.state.events.some((e) => e.kind === 'system' && e.text.startsWith('Checkpoint saved'))).toBe(true);
-  });
-
-  it('saves again in the next turn, and not twice when Claude saves itself', () => {
-    const { s, result } = fakeSession();
-    s.sendPrompt('one');
-    expect(pre(s, { code: 'figma.saveVersionHistoryAsync("x")' })).toEqual({});
-    result('r1');
-    s.sendPrompt('two');
-    expect(pre(s, { code: 'node.x = 1' }).hookSpecificOutput.updatedInput.code).toContain('saveVersionHistoryAsync');
+    expect(s.state.events.some((e) => e.kind === 'system' && e.text.startsWith('Checkpoint'))).toBe(false);
   });
 
   it('adds the helpers to calls that use DS, and leaves code that does not parse alone', () => {
     const { s } = fakeSession();
     s.sendPrompt('x');
-    expect(pre(s, { code: 'node.x = (' })).toEqual({});
-    const code = pre(s, { code: 'const n = await DS.node("1:2"); return DS.check([n.id]);' }).hookSpecificOutput.updatedInput.code;
-    expect(code).toContain('saveVersionHistoryAsync');
-    expect(code).toContain('const DS = (() => {');
-    expect(pre(s, { code: 'return DS.tree(await DS.node("1:2"))' }).hookSpecificOutput.updatedInput.code).not.toContain('saveVersionHistoryAsync');
+    expect(pre(s, { code: 'DS.node(' })).toEqual({});
+    const out = pre(s, { fileKey: 'k', code: 'const n = await DS.node("1:2"); return DS.check([n.id]);' });
+    expect(out.hookSpecificOutput.permissionDecision).toBeUndefined();
+    expect(out.hookSpecificOutput.updatedInput.fileKey).toBe('k');
+    expect(out.hookSpecificOutput.updatedInput.code).toMatch(/^const DS = \(\(\) => \{/);
+    expect(out.hookSpecificOutput.updatedInput.code).not.toContain('saveVersionHistoryAsync');
   });
 
   it('ignores other tools', () => {

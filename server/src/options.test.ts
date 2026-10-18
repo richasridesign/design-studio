@@ -8,7 +8,7 @@ describe('instructions', () => {
     const text = instructions(figma as never, '', '/chat/.figma-cache/abc/map.md');
     expect(text).toContain('File map: /chat/.figma-cache/abc/map.md');
     expect(text).toContain('DS.check');
-    expect(text).toContain('Design Studio saves a version in Figma history before your first change in a turn');
+    expect(text).toContain('Do not call figma.saveVersionHistoryAsync');
     expect(text).not.toMatch(/save a version with use_figma/i);
   });
 

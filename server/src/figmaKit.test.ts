@@ -10,39 +10,29 @@ async function kit(figma: unknown) {
 
 describe('wrapFigmaCode', () => {
   it('parses as the body of an async function, with the code in its own scope', () => {
-    const code = wrapFigmaCode('const DS2 = 1; const box = 2; return await DS.node("1:2");', { save: 'Design Studio: x' })!;
+    const code = wrapFigmaCode('const DS2 = 1; const box = 2; return await DS.node("1:2");')!;
     expect(parses(code)).toBe(true);
-    expect(code.startsWith('await figma.saveVersionHistoryAsync("Design Studio: x");\nconst DS = (() => {')).toBe(true);
+    expect(code.startsWith('const DS = (() => {')).toBe(true);
     expect(code).toContain('return await (async () => {\nconst DS2 = 1;');
+    expect(code).not.toContain('saveVersionHistoryAsync');
   });
 
-  it('adds nothing to code that does not use DS and needs no save', () => {
-    expect(wrapFigmaCode('return figma.root.name', { save: null })).toBeNull();
+  it('adds nothing to code that does not use DS', () => {
+    expect(wrapFigmaCode('return figma.root.name')).toBeNull();
     expect(usesKit('const x = "DS"; return x')).toBe(false);
     expect(usesKit('return DS . tree(n)')).toBe(true);
   });
 
-  it('keeps the code under the use_figma limit, dropping the helpers first', () => {
-    const big = `// ${'x'.repeat(45000)}\nreturn DS.box(n)`;
-    expect(wrapFigmaCode(big, { save: null })).toBeNull();
-    expect(wrapFigmaCode(big, { save: 'v' })).toBe(`await figma.saveVersionHistoryAsync("v");\n${big}`);
+  it('leaves code alone when the helpers would push it over the use_figma limit', () => {
+    expect(wrapFigmaCode(`// ${'x'.repeat(45000)}\nreturn DS.box(n)`)).toBeNull();
   });
 });
 
 describe('prepareFigmaCall', () => {
-  it('saves once, labelled with the call description', () => {
-    const r = prepareFigmaCall({ fileKey: 'k', code: 'node.x = 1', description: 'Move  the\ntoast' }, true);
-    expect(r.saved).toBe(true);
-    expect(r.input).toEqual({ fileKey: 'k', description: 'Move  the\ntoast', code: 'await figma.saveVersionHistoryAsync("Design Studio: Move the toast");\nnode.x = 1' });
-    expect(prepareFigmaCall({ code: 'node.x = 1' }, false)).toEqual({ input: null, saved: false });
-  });
-
-  it('counts a save Claude wrote itself and does not add a second', () => {
-    expect(prepareFigmaCall({ code: 'await figma.saveVersionHistoryAsync("mine")' }, true)).toEqual({ input: null, saved: true });
-  });
-
-  it('leaves code that does not parse alone and saves with the next call', () => {
-    expect(prepareFigmaCall({ code: 'node.x = (' }, true)).toEqual({ input: null, saved: false });
+  it('keeps the other arguments and leaves code that does not parse alone', () => {
+    expect(prepareFigmaCall({ fileKey: 'k', description: 'd', code: 'return DS.tree(await DS.node("1:2"))' })).toMatchObject({ fileKey: 'k', description: 'd' });
+    expect(prepareFigmaCall({ code: 'node.x = 1' })).toBeNull();
+    expect(prepareFigmaCall({ code: 'DS.node(' })).toBeNull();
   });
 });
 
@@ -77,6 +67,12 @@ describe('the helpers', () => {
     section.resizeWithoutConstraints = (w: number, h: number) => Object.assign(section, { w, h });
     DS.fit(section);
     expect([section.w, section.h]).toEqual([600 + 320, 600 + 320]);
+  });
+
+  it('says what to do when a node is not awaited or is an id', async () => {
+    const DS = await kit({});
+    expect(() => DS.tree(Promise.resolve({}))).toThrow('DS.tree got a Promise: write await DS.node(id) first.');
+    expect(() => DS.moveTo('1:2', 0, 0)).toThrow('DS.moveTo needs a node, not an id: use await DS.node("1:2").');
   });
 
   it('keeps a large return value under the result limit', async () => {

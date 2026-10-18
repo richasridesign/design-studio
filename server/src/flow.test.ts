@@ -35,14 +35,13 @@ describe('parseCommand', () => {
 });
 
 describe('designPrompt', () => {
-  it('says the version is saved for Claude and names the chosen sketch', () => {
+  it('warns that use_figma cannot save a version and names the chosen sketch', () => {
     const sketch = { screens: [{ id: 'home', name: 'Home', chosen: 'b', directions: [
       { id: 'a', name: 'List', rationale: 'dense', w: 390, h: 844, items: [] },
       { id: 'b', name: 'Cards', rationale: 'scannable', w: 390, h: 844, items: [] },
     ] }] };
     const p = designPrompt(sketch, true, "Bob's checkout");
-    expect(p).toContain('saves a version in Figma history');
-    expect(p).not.toContain('saveVersionHistoryAsync');
+    expect(p).toContain('Do not call saveVersionHistoryAsync');
     expect(p).toContain('sketches/home--b.svg');
     expect(p).toContain('Home: Cards. scannable');
     expect(p).toContain('Picked over List.');

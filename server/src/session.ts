@@ -53,7 +53,6 @@ export class AgentSession {
   private sinceStatus = 0;
   private autoCompact = true;
   private lastResult = '';
-  private checkpointed = false;
   private task = '';
   private retried = false;
   private fixesDone = 0;
@@ -271,16 +270,12 @@ export class AgentSession {
   }
 
   /**
-   * Every use_figma call: the first one in a turn also saves a version in Figma history, in the same call, and any
-   * call that uses the DS helpers gets them added. Nothing is denied, so no round trip is lost.
+   * Every use_figma call that uses the DS helpers gets them added. No version is saved: use_figma does not support
+   * figma.saveVersionHistoryAsync, it fails the whole call.
    */
   private beforeFigma(input: HookInput): HookJSONOutput {
     if (input.hook_event_name !== 'PreToolUse' || !/use_figma$/.test(input.tool_name)) return {};
-    const { input: next, saved } = prepareFigmaCall((input.tool_input ?? {}) as FigmaCall, !this.checkpointed);
-    if (saved) {
-      this.checkpointed = true;
-      this.system(`Checkpoint saved in Figma version history${this.figma ? `: ${this.figma.url}` : ''}`);
-    }
+    const next = prepareFigmaCall((input.tool_input ?? {}) as FigmaCall);
     return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
   }
 
@@ -363,7 +358,6 @@ export class AgentSession {
   private enqueue(text: string, blocks: Parameters<typeof userMessage>[1] = []) {
     this.start();
     this.turns++;
-    this.checkpointed = false;
     this.setSession({ running: true });
     if (/^\/compact\b/.test(text.trim())) this.startCompacting();
     if (this.rulesNote) {
