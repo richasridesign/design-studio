@@ -73,15 +73,20 @@ function retry() {
 }
 
 const SETUP_PAGE = 'chrome://inspect/#remote-debugging';
+// Chrome ignores chrome:// addresses that `open` hands it and stays on the current tab, so a new tab is made through AppleScript.
+export const SETUP_SCRIPT = ['tell application "Google Chrome"', 'activate', 'if (count of windows) = 0 then make new window', `tell front window to make new tab with properties {URL:"${SETUP_PAGE}"}`, 'end tell'].flatMap((line) => ['-e', line]);
 
-function setup() {
+export function setup() {
   fastUntil = Date.now() + 3 * 60_000;
   retryDelay = 1500;
   const run = (...args: string[]) => execFile('open', args, (err) => err && console.error('chrome setup:', err.message));
   if (process.platform === 'darwin' && reason === 'nofda') {
     run('x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');
     run('-R', fileURLToPath(new URL('../../dist/DesignStudio.app', import.meta.url)));
-  } else if (process.platform === 'darwin') run('-a', 'Google Chrome', SETUP_PAGE);
+  } else if (process.platform === 'darwin') {
+    // If macOS has not let Design Studio control Chrome, at least bring Chrome forward.
+    execFile('osascript', SETUP_SCRIPT, (err) => { if (err) { console.error('chrome setup:', err.message); run('-a', 'Google Chrome', SETUP_PAGE); } });
+  }
   if (state === 'off') setTimeout(() => void connect(), 1500);
 }
 

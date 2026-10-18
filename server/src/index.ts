@@ -14,7 +14,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
-import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, showFigma } from './chrome.js';
+import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession } from './session.js';
 import { notifyAway } from './notify.js';
@@ -302,10 +302,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));
     if (url.pathname === '/api/settings') return json(publicSettings(await settings()));
     if (url.pathname === '/api/figma/mcp' && req.method === 'POST') return json({ out: await addFigmaToClaude() });
-    if (url.pathname === '/api/figma/login' && req.method === 'POST') return json(startFigmaLogin());
+    if (url.pathname === '/api/figma/login' && req.method === 'POST') return json(startFigmaLogin((await readJsonBody())?.auto === true));
     if (url.pathname === '/api/figma/login' && req.method === 'DELETE') return json(cancelFigmaLogin());
     if (url.pathname === '/api/figma/login') return json(figmaLoginState());
     if (url.pathname === '/api/figma/mcp') return json({ configured: (await figmaMcp()).configured, status: chat.state.session.mcp.find((m) => /figma/i.test(m.name)) ?? null });
+    if (url.pathname === '/api/chrome/setup' && req.method === 'POST') { setupChrome(); return json(chromeStatus()); }
     if (url.pathname === '/api/chrome/status') return json(chromeStatus());
     if (url.pathname === '/api/chrome/figma-tabs') return json(figmaTabs());
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());

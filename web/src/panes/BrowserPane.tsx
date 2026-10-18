@@ -3,7 +3,7 @@ import { Icon } from '../Icon';
 import { useStore, postJson } from '../store';
 import { Empty, BrowserArt } from './Empty';
 import { FigmaFile } from './FigmaFile';
-import { ALLOW_CHROME, CHROME_CHECKBOX, CHROME_REASONS } from '../setupChecks';
+import { ALLOW_CHROME, CHROME_CHECKBOX, CHROME_REASONS, chromeAsk } from '../setupChecks';
 
 type Tab = { id: string; title: string; url: string };
 type State = { state: 'off' | 'connecting' | 'on'; reason: string; retry?: boolean };
@@ -209,7 +209,7 @@ function Connect({ state, onSetup }: { state: State; onSetup: () => void }) {
 
 /** A quiet way to show the real Chrome tab here instead of the file summary. */
 function ChromeLine({ state, onSetup }: { state: State; onSetup: () => void }) {
-  const [asked, setAsked] = useState(false);
+  const [asked, setAsked] = useState(() => Date.now() - chromeAsk.at < 5 * 60_000);
   if (state.state === 'on' || state.reason === 'server') return null;
   const fda = state.reason === 'nofda';
   const connecting = state.state === 'connecting';

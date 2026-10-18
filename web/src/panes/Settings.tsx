@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, postJson } from '../store';
 import { Icon } from '../Icon';
-import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, type CheckId, type CheckResult } from '../setupChecks';
+import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, type CheckId, type CheckResult } from '../setupChecks';
 import { PRESET_INFO, type Settings as S } from '../../../shared/design';
 import { shownPreset } from './reviewRuns';
 import { figmaState } from '../StatusBar';
@@ -22,7 +22,12 @@ function CheckSetup() {
   const all = () => CHECK_IDS.forEach((id) => void run(id));
   const fix = async (id: CheckId, fixId: string) => {
     setFixErr('');
-    if (fixId === 'open-figma') return window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } }));
+    // The Figma tab keeps asking Chrome while she ticks the box, so Settings closes and the steps show there.
+    if (fixId === 'allow-chrome') {
+      chromeAsk.at = Date.now();
+      window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } }));
+      return void postJson('/api/chrome/setup', {}).catch((e) => setFixErr((e as Error).message));
+    }
     if (fixId === 'figma-login') return openFigmaLogin();
     try {
       await addFigmaToClaude();

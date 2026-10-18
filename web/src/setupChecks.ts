@@ -27,6 +27,9 @@ export const CHROME_REASONS: Record<string, string> = {
   server: 'The Design Studio server is not reachable',
 };
 
+/** When Allow in Chrome was pressed in Settings, so the Figma tab shows the steps without a second press. */
+export const chromeAsk = { at: 0 };
+
 /** The label of the button on the Figma tab that asks Chrome. Server errors point at it too. */
 export const ALLOW_CHROME = 'Allow in Chrome';
 /** The exact checkbox Chrome shows: she has to find it by this text. */
@@ -65,15 +68,15 @@ async function mcp(): Promise<CheckResult> {
 
 const CHROME_FIX: Record<string, string> = {
   nofda: 'In System Settings, give Design Studio Full Disk Access: drag Design Studio from the Finder window into the list and turn it on.',
-  disabled: `On the Figma tab, press ${ALLOW_CHROME}. In Chrome, tick "${CHROME_CHECKBOX}", then click Allow.`,
-  nochrome: `Open Chrome, then press ${ALLOW_CHROME} on the Figma tab.`,
+  disabled: `Press ${ALLOW_CHROME}. In the Chrome tab that opens, tick "${CHROME_CHECKBOX}", then click Allow.`,
+  nochrome: `Press ${ALLOW_CHROME}. Chrome opens; tick "${CHROME_CHECKBOX}", then click Allow.`,
 };
 
 async function chrome(): Promise<CheckResult> {
   try {
     const c = await getJson<{ state: string; reason: string }>('/api/chrome/status');
     if (c.state === 'on') return { tone: 'ok', detail: 'Design Studio can see your Figma tab in Chrome' };
-    return { tone: 'bad', detail: CHROME_REASONS[c.reason] ?? 'Design Studio cannot see Chrome yet', fix: CHROME_FIX[c.reason] ?? `Open the Figma tab and press ${ALLOW_CHROME}.`, fixLabel: 'Open Figma tab', fixId: 'open-figma' };
+    return { tone: 'bad', detail: CHROME_REASONS[c.reason] ?? 'Design Studio cannot see Chrome yet', fix: CHROME_FIX[c.reason] ?? `Press ${ALLOW_CHROME}, then follow the steps on the Figma tab.`, fixLabel: c.reason === 'nofda' ? 'Open Full Disk Access settings' : ALLOW_CHROME, fixId: 'allow-chrome' };
   } catch (e) {
     return { tone: 'bad', detail: msg(e), fix: 'Make sure the Design Studio server is running.' };
   }

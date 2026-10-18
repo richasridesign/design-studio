@@ -24,7 +24,7 @@ export function figmaState(mcp: { name: string; status: string }[]): [tone: stri
  * Claude reports the live Figma status only once it runs in a chat. Before that, show the server's last check
  * of the plugin login, so a new chat does not read as Not set up. A login in the dialog checks again.
  */
-function useFigmaRows(): McpServer[] | null {
+export function useFigmaRows(): McpServer[] | null {
   const live = useStore((s) => s.session.mcp);
   const [probed, setProbed] = useState<McpServer[] | null>(null);
   const none = live.length === 0;
