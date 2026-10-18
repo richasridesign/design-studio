@@ -17,7 +17,8 @@
 .sidebar { width: 320px; }
 .tabs { height: 46px; padding: 0 6px; gap: 2px; background: var(--bg); }
 .tabs .tab { font-size: var(--text-md); padding: 0 16px; gap: 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fg-muted); }
-.tabs .tab.active { color: var(--fg); border-bottom-color: var(--accent); background: transparent; }
+.tabs .tab { height: 100%; margin-bottom: 0; }
+.tabs .tab.active, .tabs .tab.active:hover { color: var(--fg); border-bottom: 2px solid var(--fg); background: transparent; margin-bottom: 0; }
 .tabs .tab .badge { margin-left: 4px; }
 .editor { background: var(--bg-raised); }
 .error-text { color: var(--err); font-size: var(--text-sm); margin: 6px 0; }
