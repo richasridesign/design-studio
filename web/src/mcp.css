@@ -97,6 +97,7 @@
 .mcp-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--fg-faint); display: inline-block; }
 .mcp-dot.ok { background: var(--ok); }
 .mcp-dot.bad { background: var(--err); }
+.mcp-dot.warn { background: var(--warn); border-radius: 2px; }
 
 @media (max-width: 900px) {
   .mcp-main { padding: 0 16px 28px; }

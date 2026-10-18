@@ -31,10 +31,10 @@ export const openMcp = () => window.dispatchEvent(new CustomEvent('designstudio:
 export function McpItem() {
   const mcp = useStore((s) => s.session.mcp);
   const ok = mcp.filter((m) => m.status === 'connected').length;
-  const bad = mcp.some((m) => MCP_BAD.includes(m.status));
+  const tone = mcp.some((m) => m.status === 'failed') ? 'bad' : mcp.some((m) => MCP_BAD.includes(m.status)) ? 'warn' : ok ? 'ok' : 'off';
   return (
     <span className="item clickable" title="MCP servers" onClick={openMcp}>
-      <span className={`mcp-dot ${bad ? 'bad' : ok ? 'ok' : 'off'}`} /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
+      <span className={`mcp-dot ${tone}`} /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
     </span>
   );
 }
