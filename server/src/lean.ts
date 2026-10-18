@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { query, type McpServerConfig, type Options, type SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
+import { query, type McpServerConfig, type Options, type SDKMessage, type SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
 import { readJson } from './mcp.js';
 
 export const FIGMA_MCP_URL = 'https://mcp.figma.com/mcp';
@@ -60,7 +60,7 @@ export const FIGMA_WRITE = /__(use_figma|html_to_figma|upload_assets|generate_fi
 
 export type LeanResult<T> = { data: T | null; tokens: number; costUsd: number; error?: string; text: string };
 
-export async function lean<T>(prompt: string, opts: { cwd: string; model: string; system: string; schema: Record<string, unknown>; tools?: string[]; mcp?: Record<string, McpServerConfig>; plugins?: SdkPluginConfig[]; allowed?: string[]; maxTurns?: number; signal?: AbortSignal }): Promise<LeanResult<T>> {
+export async function lean<T>(prompt: string, opts: { cwd: string; model: string; system: string; schema: Record<string, unknown>; tools?: string[]; mcp?: Record<string, McpServerConfig>; plugins?: SdkPluginConfig[]; allowed?: string[]; maxTurns?: number; signal?: AbortSignal; onMessage?: (msg: SDKMessage) => void; env?: Record<string, string> }): Promise<LeanResult<T>> {
   const abort = new AbortController();
   opts.signal?.addEventListener('abort', () => abort.abort());
   const options: Options = {
@@ -80,11 +80,14 @@ export async function lean<T>(prompt: string, opts: { cwd: string; model: string
     outputFormat: { type: 'json_schema', schema: opts.schema },
     abortController: abort,
     stderr: (d) => process.stderr.write(d),
+    // The SDK does not merge env with process.env, so extra variables are added on top of it.
+    ...(opts.env ? { env: { ...process.env, ...opts.env } } : {}),
   };
   let tokens = 0;
   let costUsd = 0;
   try {
     for await (const msg of query({ prompt, options })) {
+      opts.onMessage?.(msg);
       if (msg.type !== 'result') continue;
       costUsd = msg.total_cost_usd;
       tokens = Object.values(msg.modelUsage ?? {}).reduce((n, u) => n + u.inputTokens + u.outputTokens + u.cacheReadInputTokens + u.cacheCreationInputTokens, 0);
