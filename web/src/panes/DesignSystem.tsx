@@ -51,26 +51,34 @@ export function DesignSystem() {
   const rev = useRev('design-system.json');
   const [ds, setDs] = useState<DS | null>(null);
   const [q, setQ] = useState('');
+  const [reading, setReading] = useState(false);
+  const [readSaid, setReadSaid] = useState('');
 
   useEffect(() => {
     getJson<DS | null>('/api/design-system').then(setDs).catch(() => setDs(null));
   }, [chat, rev]);
+  useEffect(() => { setReadSaid(''); }, [chat]);
 
   const match = (s: string) => !q || s.toLowerCase().includes(q.toLowerCase());
   const [editing, setEditing] = useState<false | true | 'code'>(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // Reads the file quietly through the Figma plugin, the same read as Read again in the editor. Nothing goes in the chat.
-  const [reading, setReading] = useState(false);
-  const [readSaid, setReadSaid] = useState('');
   const readFigma = async () => {
     setReading(true);
     setReadSaid('');
     try {
+      const before = ds ? ds.colors.length + ds.text.length + ds.components.length : 0;
       const r = await changeDs({ action: 'figma' });
       setDs(r.ds);
       const src = r.ds?.sources?.find((x) => x.kind === 'figma');
-      setReadSaid(src && 'error' in src && src.error ? `Could not read the Figma file: ${src.error}` : `Read the Figma file.${r.costUsd ? ` Cost: $${r.costUsd.toFixed(3)}.` : ''}`);
+      const n = r.ds ? r.ds.colors.filter((c) => c.from === 'figma').length + r.ds.text.filter((t) => t.from === 'figma').length + r.ds.components.filter((c) => c.from === 'figma').length : 0;
+      const added = r.ds ? r.ds.colors.length + r.ds.text.length + r.ds.components.length - before : 0;
+      const cost = r.costUsd ? ` Cost: $${r.costUsd.toFixed(3)}.` : '';
+      setReadSaid(src && 'error' in src && src.error
+        ? `Could not read the Figma file: ${src.error}`
+        : !n ? `Read the Figma file: no local variables, styles or components.${cost}`
+        : `Read the Figma file: ${n} ${n === 1 ? 'item' : 'items'}${added > 0 ? `, ${added} new` : ', nothing new'}.${cost}`);
     } catch (e) {
       setReadSaid((e as Error).message);
     } finally {
