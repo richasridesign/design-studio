@@ -23,9 +23,9 @@ export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query
 export type Ranked<T> = { item: T; hits: number[]; score: number };
 
 export const MODE_INFO: Record<FlowMode, { label: string; detail: string; placeholder: string; icon: string }> = {
-  chat: { label: 'Chat', detail: 'Talk to Claude at any stage. Edits Figma when you ask.', placeholder: 'Ask Claude anything, or paste a Figma link', icon: 'comment' },
-  design: { label: 'Design', detail: 'Claude runs the stages for you, from Spec to Validate.', placeholder: 'Describe the screens you need. Claude takes them from Spec to Validate.', icon: 'sparkle' },
-  review: { label: 'Review', detail: 'The Validate stage: reviewers check the frames. No edits.', placeholder: 'What should the reviewers look at?', icon: 'checklist' },
+  chat: { label: 'Chat', detail: 'Talk to Claude at any step. Edits Figma when you ask.', placeholder: 'Ask Claude anything, or paste a Figma link', icon: 'comment' },
+  design: { label: 'Design', detail: 'Claude plans, sketches, builds and reviews in Figma for you.', placeholder: 'Describe the screens you need. Claude plans, builds and reviews them.', icon: 'sparkle' },
+  review: { label: 'Review', detail: 'Reviewers check the frames. No edits.', placeholder: 'What should the reviewers look at?', icon: 'checklist' },
 };
 
 export const nextMode = (m: FlowMode): FlowMode => FLOW_MODES[(FLOW_MODES.indexOf(m) + 1) % FLOW_MODES.length];

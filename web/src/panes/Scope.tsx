@@ -17,7 +17,7 @@ export function ScopeBox({ onChange }: { onChange: () => void }) {
     getJson<Scope>('/api/scope').then((s) => alive && setScope(s)).catch(() => {});
     return () => { alive = false; };
   }, [chat]);
-  // The Spec gate's "Edit scope" link opens this box.
+  // The "Edit scope" link in the steps panel opens this box.
   useEffect(() => {
     const show = () => setOpen(true);
     window.addEventListener('designstudio:scope', show);
