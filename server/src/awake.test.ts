@@ -18,7 +18,7 @@ describe('keepAwake', () => {
   it('runs caffeinate tied to the server until the end time, and the stop function kills it once', () => {
     const s = fakeSpawn();
     const stop = keepAwake(10_000 + 2 * 3600_000, { now: 10_000, platform: 'darwin', spawnFn: s.fn });
-    expect(s.calls[0][0]).toBe('caffeinate');
+    expect(s.calls[0][0]).toBe('/usr/bin/caffeinate');
     expect(s.calls[0][1]).toEqual(['-i', '-w', String(process.pid), '-t', '7200']);
     stop!();
     stop!();

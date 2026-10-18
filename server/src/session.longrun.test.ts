@@ -129,11 +129,11 @@ describe('long run loop', () => {
   it('puts the report questions in Awaiting your decision, each with its node link', async () => {
     vi.mocked(awaitQuestions).mockClear();
     const { s, end } = session();
-    say(s, '## Fixed\n- None\n## Needs your decision\n- Move the toast? Left it. https://www.figma.com/design/Zz9/Other?node-id=12-34\n- Rename the tab? Kept it.\n## Not checked\n- None');
+    say(s, '## Fixed\n- None\n## Needs your decision\n- Move the toast on [Cart](https://www.figma.com/design/Zz9/Other?node-id=12-34)? Left it.\n- Rename the tab? Kept it.\n## Not checked\n- None');
     end('Report above.');
     await vi.waitFor(() => expect(awaitQuestions).toHaveBeenCalled());
     expect(vi.mocked(awaitQuestions).mock.calls[0][2]).toEqual([
-      { text: expect.stringContaining('Move the toast'), fileKey: 'Zz9', node: '12:34' },
+      { text: 'Move the toast on Cart? Left it.', fileKey: 'Zz9', node: '12:34' },
       { text: 'Rename the tab? Kept it.', fileKey: 'AbC123', node: '' },
     ]);
     await vi.waitFor(() => expect(s.state.session.longRun?.awaiting).toBe(2));

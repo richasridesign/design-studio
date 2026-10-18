@@ -3,7 +3,7 @@ import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { insertPrompt } from './Files';
-import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, hhmm, isActive, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
+import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
 import type { PlanLimit } from '../../../shared/protocol';
 import { answerPrompt } from '../../../shared/awaiting';
 import '../longrun.css';
@@ -186,13 +186,16 @@ function Section({ title, items, open: start, answer }: { title: string; items: 
 
 /** The report Claude writes at the end of a long run. */
 export function LongRunReport({ report }: { report: Report }) {
+  const fileKey = useStore((s) => s.session.figma?.key);
+  // The same rule the server uses, so the line only says what was saved.
+  const saved = reportQuestions(report.decide, fileKey).length;
   return (
     <div className="tr-assistant">
       {report.intro && <div className="lr-intro"><Markdown text={report.intro} /></div>}
       <div className="lr-report">
         <div className="lr-report-head"><b>Long run report</b></div>
         <Section title="Needs your decision" items={report.decide} open answer />
-        {report.decide.length > 0 && <p className="lr-saved">These also wait in Awaiting your decision on the Review tab.</p>}
+        {saved > 0 && <p className="lr-saved">{saved === report.decide.length ? 'These also wait' : `${saved} of these also wait`} in Awaiting your decision on the Review tab.</p>}
         <Section title="Not checked" items={report.unchecked} open />
         <Section title="Fixed" items={report.fixed} open={false} />
       </div>

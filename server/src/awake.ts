@@ -10,7 +10,7 @@ export function keepAwake(until: number, opts: { now?: number; platform?: NodeJS
   const secs = Math.max(60, Math.ceil((until - (opts.now ?? Date.now())) / 1000));
   let child: ChildProcess;
   try {
-    child = (opts.spawnFn ?? spawn)('caffeinate', ['-i', '-w', String(process.pid), '-t', String(secs)], { stdio: 'ignore' });
+    child = (opts.spawnFn ?? spawn)('/usr/bin/caffeinate', ['-i', '-w', String(process.pid), '-t', String(secs)], { stdio: 'ignore' });
   } catch {
     return null;
   }

@@ -21,6 +21,8 @@ export function useCanvasContent(): CanvasContent {
   const sketchRev = useRev('sketch.json');
   const boardRev = useRev('sketch-board.json');
   const reviewRev = useRev('review.json');
+  // A long run that saved questions to Awaiting your decision.
+  const fromRun = useStore((s) => s.session.longRun?.awaiting ?? 0);
   const [sketch, setSketch] = useState(false);
   const [review, setReview] = useState(false);
 
@@ -37,7 +39,7 @@ export function useCanvasContent(): CanvasContent {
     const waiting = getJson<unknown>('/api/awaiting').then(hasOpenAwaiting, () => false);
     Promise.all([runs, waiting]).then(([a, b]) => live && setReview(a || b));
     return () => { live = false; };
-  }, [chat, phase, reviewRev]);
+  }, [chat, phase, reviewRev, fromRun]);
 
   // The decision log on the Decisions tab starts with sketch picks, before a Figma file is attached.
   return { figma, sketch, review, decisions: figma || sketch };
