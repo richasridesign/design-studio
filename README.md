@@ -48,7 +48,7 @@ The pill at the left of the composer sets the mode. Shift+Tab cycles Chat, Desig
 | Review | Reviewers check the frames you name or the attached file. Nothing is edited |
 
 Design mode adds options to the pill menu: "Stop after sketch" waits for you to pick a direction, and "Review depth"
-is Quick or Full. The composer gets a dark outline in Design mode (light in the dark theme) and a grey one in Review mode.
+is Quick or Full. The composer gets a dark outline in Design mode and a grey one in Review mode.
 
 ## Attach a Figma file
 

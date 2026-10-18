@@ -23,7 +23,6 @@ import { McpItem, McpPage } from './panes/McpStatus';
 import { StatusBar } from './StatusBar';
 import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
-import { ThemeButton } from './ThemeToggle';
 import { openSection } from './Section';
 import { useCanvasContent } from './canvasContent';
 import { canNotify, toggleNotify, useNotify } from './notify';
@@ -261,7 +260,6 @@ export function App() {
         <span className="mobile-only top-meta"><SpendPill /><McpItem /></span>
         {canNotify && <button className="icon-btn" title={notifying ? 'Notifications on' : 'Notify me when Claude finishes or needs me'} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></button>}
         <button className="icon-btn phone-btn" title="Open on phone" onClick={() => setPhone((v) => !v)}><Icon name="device-mobile" /></button>
-        <ThemeButton />
         <button className={`icon-btn ${settings ? 'active' : ''}`} title="Settings" onClick={() => setSettings(true)}><Icon name="settings-gear" /></button>
         {!connected && <span className="error-text">Disconnected</span>}
       </header>

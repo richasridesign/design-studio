@@ -1,20 +1,10 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#141414" />
-    <style>html { background: #ffffff; color-scheme: light; } html[data-theme='dark'] { background: #141414; color-scheme: dark; }</style>
-    <script>
-      // Apply the saved theme before first paint. Same key and logic as src/theme.ts.
-      (function () {
-        var pref = 'dark';
-        try { pref = localStorage.getItem('designstudio.theme') || 'dark'; } catch (e) {}
-        var theme = pref === 'light' ? 'light' : pref === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'light' ? '#ffffff' : '#141414');
-      })();
-    </script>
+    <meta name="theme-color" content="#ffffff" />
+    <style>html { background: #ffffff; color-scheme: light; }</style>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

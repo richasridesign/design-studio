@@ -3,7 +3,6 @@ import { Excalidraw, convertToExcalidrawElements } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css';
 import type { SketchDoc } from '../../../shared/design';
 import { layoutSketch } from './sketchLayout';
-import { useTheme } from '../theme';
 
 type Api = { updateScene: (s: { elements: readonly any[] }) => void; scrollToContent: (target?: unknown, opts?: { fitToContent?: boolean }) => void; getSceneElements: () => readonly any[] };
 
@@ -12,7 +11,6 @@ export default function SketchCanvas({ doc, board, onBoard }: { doc: SketchDoc |
   const [ready, setReady] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastSaved = useRef('');
-  const theme = useTheme();
 
   const scene = () => {
     const generated = doc ? convertToExcalidrawElements(layoutSketch(doc) as any, { regenerateIds: true }) : [];
@@ -42,7 +40,7 @@ export default function SketchCanvas({ doc, board, onBoard }: { doc: SketchDoc |
         api.current = a as unknown as Api;
         setReady(true);
       }}
-      theme={theme}
+      theme="light"
       initialData={{ elements: scene(), appState: { viewBackgroundColor: '#ffffff', currentItemFontFamily: 1 }, scrollToContent: true }}
       onChange={(els) => {
         const mine = els.filter((e: any) => !e.customData?.generated && !e.isDeleted);
