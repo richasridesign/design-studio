@@ -36,7 +36,7 @@ export function DecisionLog() {
     <section className="dec-group" aria-labelledby="dlog-title">
       <h3 id="dlog-title">Decision log {rows.length > 0 && <span className="dec-count">{rows.length} {rows.length === 1 ? 'decision' : 'decisions'}</span>}</h3>
       {rows.length === 0 ? (
-        <p className="dec-empty">No decisions yet. Directions you pick on the Sketch tab and stage approvals with a note show up here.</p>
+        <p className="dec-empty">No decisions yet. Your sketch picks and stage approvals with a note show up here.</p>
       ) : (
         <ul className="dec-list">
           {rows.map((r) => (

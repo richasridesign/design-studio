@@ -45,7 +45,8 @@ function pickLine({ screen: s, direction: d }: ReturnType<typeof chosenSummary>[
     const over = s.rejected ?? s.directions.filter((x) => x.id !== d.id).map((x) => x.name);
     const designer = s.chosenBy === 'designer';
     if (over.length) parts.push(`${designer ? 'The designer picked it' : 'Picked'} over ${over.join(', ')}.`);
-    if (designer && s.reason) parts.push(`Why: ${sentence(s.reason)}`);
+    // A confirmed Claude pick carries the rationale as its reason; say it once.
+    if (designer && s.reason && s.reason !== d.rationale.slice(0, s.reason.length)) parts.push(`Why: ${sentence(s.reason)}`);
   }
   return parts.filter(Boolean).join(' ');
 }
