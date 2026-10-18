@@ -10,9 +10,16 @@ export type MappedScreen = { screen: string; states: MappedState[] };
 export type StateMap = { screens: MappedScreen[]; total: number; missing: number; named: boolean };
 
 const BULLET = /^(\s*)(?:[-*+]|\d+[.)])\s+(.*)$/;
+// "## States", "## 4. States per screen", or a line that is only bold text, "**States per screen**".
 const HEADING = /^(#{1,6})\s+(.*)$/;
+const BOLD_LINE = /^\*\*([^*]+?):?\*\*:?$/;
 // "Cart: default" or "Cart - default", with an en or em dash too.
 const SPLIT = /^(.+?)\s*(?::|\s[-\u2013\u2014]\s)\s*(.*)$/;
+// Screen ids from the brief's Screens list: "S1", "SC-02". Only short upper case ids, so "404 page" stays a name.
+const ID = /^[A-Z]{1,3}-?\d{1,3}[a-z]?$/;
+const TABLE_ROW = /^\s*\|(.*)\|\s*$/;
+const TABLE_RULE = /^\s*:?-+:?\s*$/;
+const MARK = /^(?:[\u2713\u2714\u2705xX]|yes|y)$/i;
 
 const clean = (t: string) =>
   t.replace(/\*\*|__|`/g, '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim().replace(/[.:;,]+$/, '').trim();
@@ -20,41 +27,98 @@ const clean = (t: string) =>
 const splitStates = (t: string) =>
   t.split(/[,;]/).map((s) => clean(s).replace(/^(?:and|or)\s+/i, '').trim()).filter((s) => s && !/^etc$/i.test(s));
 
+function heading(line: string): { level: number; text: string } | null {
+  const h = HEADING.exec(line.trim());
+  if (h) return { level: h[1].length, text: h[2].replace(/^\d+(?:\.\d+)*[.)]?\s+/, '') };
+  const b = BOLD_LINE.exec(line.trim());
+  return b ? { level: 7, text: b[1] } : null;
+}
+
+/** "S1 Cart", "S1: Cart", "S1 (Cart)" and "Cart (S1)" all name the screen Cart. */
+function screenName(raw: string): string {
+  const t = raw.replace(/\*\*|__|`/g, '').trim();
+  const inner = /^(\S+)\s*\(([^)]+)\)$/.exec(t);
+  if (inner && ID.test(inner[1])) return clean(inner[2]);
+  const name = clean(t);
+  const lead = /^(\S+?)[.:)\u00b7\u2013\u2014-]?\s+(?:[\u00b7\u2013\u2014-]\s+)?(\S.*)$/.exec(name);
+  return lead && ID.test(lead[1]) ? lead[2] : name;
+}
+
+/**
+ * One state per line, under a screen heading or bullet. "Loading: skeleton rows, no prices" is one state with its note,
+ * so the commas in the note do not make new states. "States: default, error" is a list.
+ */
+function lineStates(text: string): string[] {
+  const pair = SPLIT.exec(text);
+  if (pair && /^states?$/i.test(clean(pair[1]))) return splitStates(pair[2]);
+  if (pair && pair[2].trim()) {
+    const s = clean(text);
+    return s ? [s] : [];
+  }
+  return splitStates(text);
+}
+
+/** Rows of a Markdown table: Screen | States, Screen | State | Notes, or Screen | Default | Error with check marks. */
+function tableRows(lines: string[], add: (screen: string, states: string[]) => void) {
+  const cells = (l: string) => TABLE_ROW.exec(l)![1].split('|').map((c) => c.trim());
+  let head: string[] | null = null;
+  lines.forEach((l, i) => {
+    if (!TABLE_ROW.test(l)) { head = null; return; }
+    const row = cells(l);
+    if (row.every((c) => TABLE_RULE.test(c))) return;
+    const next = lines[i + 1];
+    if (next && TABLE_ROW.test(next) && cells(next).every((c) => TABLE_RULE.test(c))) { head = row.map(clean); return; }
+    if (row.length < 2) return;
+    const col = head ? head.findIndex((h, k) => k > 0 && /^states?$/i.test(h)) : -1;
+    if (col > 0) return add(row[0], splitStates(row[col]));
+    // A matrix: one column per state, marked where the screen needs it.
+    const marked = head ? row.slice(1).map((c, k) => (MARK.test(c) ? head![k + 1] : '')).filter(Boolean) : [];
+    if (marked.length) return add(row[0], marked);
+    add(row[0], splitStates(row[1]));
+  });
+}
+
 /** Screens and their states from the brief's States section. Empty when there is none. */
 export function parseStates(md: string): BriefScreen[] {
   const lines = md.split(/\r?\n/);
-  const start = lines.findIndex((l) => { const h = HEADING.exec(l.trim()); return !!h && h[1].length <= 3 && /^(?:\*\*)?states?\b/i.test(h[2]); });
+  const start = lines.findIndex((l) => { const h = heading(l); return !!h && (h.level <= 3 || h.level === 7) && /^(?:\*\*)?states?\b/i.test(h.text); });
   if (start < 0) return [];
-  const level = HEADING.exec(lines[start].trim())![1].length;
+  const level = heading(lines[start])!.level;
   const out = new Map<string, BriefScreen>();
   const add = (screen: string, states: string[]) => {
-    const name = clean(screen);
+    const name = screenName(screen);
     if (!name || !states.length) return;
     const key = norm(name);
     const entry = out.get(key) ?? { screen: name, states: [] };
     for (const s of states) if (!entry.states.some((x) => norm(x) === norm(s))) entry.states.push(s);
     out.set(key, entry);
   };
-  let heading: string | null = null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) { const h = heading(lines[i]); if (h && h.level <= level) { end = i; break; } }
+  const section = lines.slice(start + 1, end);
+  tableRows(section, add);
+  let screen: string | null = null;
   let parent: string | null = null;
-  for (const raw of lines.slice(start + 1)) {
-    const h = HEADING.exec(raw.trim());
+  for (const raw of section) {
+    if (TABLE_ROW.test(raw)) continue;
+    const h = heading(raw);
     if (h) {
-      if (h[1].length <= level) break;
-      heading = clean(h[2]);
+      screen = screenName(h.text);
       parent = null;
       continue;
     }
     if (!raw.trim()) continue;
     const b = BULLET.exec(raw);
     const indent = b ? b[1].replace(/\t/g, '  ').length : 0;
-    const text = clean(b ? b[2] : raw);
-    if (!text) continue;
-    if (b && indent >= 2 && parent) { add(parent, splitStates(text)); continue; }
+    const text = (b ? b[2] : raw).trim();
+    if (!clean(text)) continue;
+    if (b && indent >= 2 && parent) { add(parent, lineStates(text)); continue; }
     // Under "### Cart" every line is a state of Cart, even "Error: payment failed".
-    if (heading) { add(heading, splitStates(text)); continue; }
-    const pair = SPLIT.exec(text);
-    if (pair && pair[2].trim()) { add(pair[1], splitStates(pair[2])); parent = clean(pair[1]); }
+    if (screen) { add(screen, lineStates(text)); continue; }
+    let pair = SPLIT.exec(text.replace(/\*\*|__|`/g, ''));
+    // "S1: Cart: default" and "S1 - Cart: default" put the id first.
+    if (pair && ID.test(pair[1].trim())) pair = SPLIT.exec(pair[2]) ?? pair;
+    if (pair && pair[2].trim()) { add(pair[1], splitStates(pair[2])); parent = pair[1]; }
     else if (b) parent = text;
   }
   return [...out.values()];
@@ -134,5 +198,7 @@ export function missingPrompt(screen: MappedScreen): string {
   const gaps = screen.states.filter((s) => !s.frame).map((s) => s.state);
   if (!gaps.length) return '';
   const one = gaps.length === 1;
-  return `Design the missing ${one ? 'state' : 'states'} for ${screen.screen}: ${gaps.join(', ')}. Name each frame "${screen.screen} / <State>" and add it to design.json. Plan ${one ? 'it' : 'them'} first and wait for my approval.`;
+  // A state with a note ("Empty: no items, browse button") has commas of its own, so the list uses semicolons.
+  const list = gaps.join(gaps.some((g) => g.includes(',')) ? '; ' : ', ');
+  return `Design the missing ${one ? 'state' : 'states'} for ${screen.screen}: ${list}. Name each frame "${screen.screen} / <State>" and add it to design.json. Plan ${one ? 'it' : 'them'} first and wait for my approval.`;
 }

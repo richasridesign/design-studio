@@ -8,6 +8,13 @@ import { missingPrompt, stateMap, type MappedScreen } from '../../../shared/stat
 import '../statemap.css';
 
 const missingIn = (s: MappedScreen) => s.states.filter((x) => !x.frame).length;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** "Submitting: fields locked" reads as the state, then its note in grey. Briefs mix "default" and "Default", so both start upper case. */
+function StateLabel({ text }: { text: string }) {
+  const m = /^([^:]{1,40}):\s+(.+)$/.exec(text);
+  return <span className="smap-state">{m ? <>{cap(m[1])}: <span className="muted">{m[2]}</span></> : cap(text)}</span>;
+}
 
 /** The states the brief lists per screen, marked Designed or Missing. The Build gate's "Show states" link opens it. */
 export function StateBox() {
@@ -30,7 +37,14 @@ export function StateBox() {
     return () => { alive = false; clearTimeout(t); };
   }, [chat, count, tick]);
   useEffect(() => {
-    const show = () => { setOpen(true); requestAnimationFrame(() => box.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); };
+    // The gate's Show states opens the box and moves focus to it, so the keyboard lands where the eyes go.
+    const show = () => {
+      setOpen(true);
+      requestAnimationFrame(() => {
+        box.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        box.current?.querySelector<HTMLElement>('.smap-head .link')?.focus({ preventScroll: true });
+      });
+    };
     const bump = () => setTick((n) => n + 1);
     window.addEventListener('designstudio:states', show);
     window.addEventListener('designstudio:evidence', bump);
@@ -73,7 +87,7 @@ function Row({ s, checked }: { s: MappedScreen; checked: boolean }) {
       <ul className="smap-states" aria-label={`${s.screen} states`}>
         {s.states.map((x) => (
           <li key={x.state} className={!checked ? 'unchecked' : x.frame ? 'designed' : 'missing'}>
-            <span className="smap-state">{x.state}</span>
+            <StateLabel text={x.state} />
             {checked && (
               <span className="smap-status" title={x.frame ? `Frame: ${x.frame.name}` : undefined}>
                 <Icon name={x.frame ? 'check' : 'warning'} small />
