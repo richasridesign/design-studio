@@ -117,7 +117,7 @@ export function DesignSystem() {
           {ds.colors.filter((c) => match(c.name)).map((c) => (
             <li key={c.name} title={`${c.name}\n${c.value}${c.variable ? `\n${c.variable}` : ''}`}>
               <span className="swatch" style={{ background: c.value }} />
-              <span className="sw-name">{c.name}</span>
+              <span className="sw-name">{c.name.replace(/\//g, '/\u200b')}</span>
               <span className="sw-value">{c.value}</span>
             </li>
           ))}

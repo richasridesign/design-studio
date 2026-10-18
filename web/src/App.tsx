@@ -65,6 +65,11 @@ const narrow = () => window.innerWidth <= 900;
 // Visually hidden, still read by screen readers (the page's one h1).
 const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };
 
+// The left sidebar is half size by default and can be dragged wider for long names.
+const SIDE_MIN = 160;
+const SIDE_MAX = 360;
+const clampSide = (n: number) => Math.round(Math.min(Math.max(n, SIDE_MIN), SIDE_MAX));
+
 function stored(key: string, fallback: number) {
   try {
     return Number(localStorage.getItem(key)) || fallback;
@@ -134,6 +139,7 @@ export function App() {
   const content = useCanvasContent();
   const [dev, setDev] = useState(false);
   const [chatW, setChatW] = useState(() => stored('designstudio.chatW', 460));
+  const [sideW, setSideW] = useState(() => clampSide(stored('designstudio.sideW', SIDE_MIN)));
   // The chat column folds away so the Figma tab gets the width. ⌥⌘B, like the secondary sidebar in VS Code.
   const [chatOpen, setChatOpen] = useState(() => {
     try {
@@ -172,7 +178,18 @@ export function App() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
-  const startResize = (e: React.PointerEvent) => drag(e, (ev) => setChatW(Math.round(Math.min(Math.max(window.innerWidth - ev.clientX, 380), window.innerWidth - 480))), 'resizing');
+  // The chat leaves the panel area at least 480px beside the sidebar.
+  const startResize = (e: React.PointerEvent) => drag(e, (ev) => setChatW(Math.round(Math.min(Math.max(window.innerWidth - ev.clientX, 380), window.innerWidth - 480 - (sidebar ? sideW : 0)))), 'resizing');
+  const startSideResize = (e: React.PointerEvent) => {
+    const left = (e.currentTarget.previousElementSibling as HTMLElement | null)?.getBoundingClientRect().left ?? 48;
+    drag(e, (ev) => setSideW(clampSide(ev.clientX - left)), 'resizing');
+  };
+  const sideKeys = (e: React.KeyboardEvent) => {
+    const step = e.key === 'ArrowRight' ? 16 : e.key === 'ArrowLeft' ? -16 : 0;
+    if (step) { e.preventDefault(); setSideW((w) => clampSide(w + step)); }
+    else if (e.key === 'Home') { e.preventDefault(); setSideW(SIDE_MIN); }
+    else if (e.key === 'End') { e.preventDefault(); setSideW(SIDE_MAX); }
+  };
   const startTermResize = (e: React.PointerEvent) => drag(e, (ev) => setTermH(Math.round(Math.min(Math.max(window.innerHeight - 30 - ev.clientY, 100), window.innerHeight - 200))), 'resizing-v');
 
   const showView = (v: View) => {
@@ -216,8 +233,9 @@ export function App() {
     try {
       localStorage.setItem('designstudio.chatW', String(chatW));
       localStorage.setItem('designstudio.termH', String(termH));
+      localStorage.setItem('designstudio.sideW', String(sideW));
     } catch {}
-  }, [chatW, termH]);
+  }, [chatW, termH, sideW]);
 
   useEffect(() => {
     connect();
@@ -288,7 +306,7 @@ export function App() {
   };
 
   return (
-    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} style={{ '--chat-w': `${chatW}px` } as React.CSSProperties}>
+    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} style={{ '--chat-w': `${chatW}px`, '--side-w': `${sideW}px` } as React.CSSProperties}>
       <Offline />
       <header className="topbar">
         <h1 style={HIDDEN}>Design Studio</h1>
@@ -336,6 +354,9 @@ export function App() {
             {view === 'chats' ? <Chats /> : view === 'system' ? <DesignSystem /> : <Explorer />}
           </ErrorBoundary>
         </section>
+        {/* Drag to widen the sidebar, double-click for the default width. Arrow keys move it by 16px. */}
+        <div className="side-sash desktop-only" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={sideW}
+          tabIndex={0} title="Drag to resize, double-click to reset" onPointerDown={startSideResize} onDoubleClick={() => setSideW(SIDE_MIN)} onKeyDown={sideKeys} />
 
         {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}
         <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() ? 'Panel area' : isMobileCenter(tab) ? 'Panels' : undefined}>

@@ -199,10 +199,14 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .badge.running::before { content: ''; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: currentColor; }
 
 .sidebar {
-  width: 160px; flex: none; background: var(--side); display: flex; flex-direction: column; min-height: 0;
+  width: var(--side-w, 160px); flex: none; background: var(--side); display: flex; flex-direction: column; min-height: 0;
 }
 .sidebar { border-right: 1px solid var(--border); }
 .workbench[data-sidebar='false'] .sidebar { display: none; }
+/* The sidebar's right edge: drag to resize, like the chat's edge. It sits over the border, 8px wide to grab. */
+.side-sash { width: 8px; margin: 0 -4px; flex: none; cursor: ew-resize; position: relative; z-index: 2; }
+.side-sash:hover, .side-sash:focus-visible { background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 6px, transparent 6px); outline: none; }
+.workbench[data-sidebar='false'] .side-sash { display: none; }
 .sidebar-title {
   height: 35px; flex: none; display: flex; align-items: center; padding: 0 20px;
   font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted);
@@ -344,7 +348,8 @@ button.send:disabled { opacity: 0.35; cursor: default; }
 .dialog-input:focus { outline: 0; border-color: var(--focus); }
 .dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .dialog-actions button { min-width: 76px; border-radius: var(--radius-sm); }
-button.destructive { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
+/* Text darker than --err so it keeps 4.5:1 on the red tint, also on hover. */
+button.destructive { background: color-mix(in srgb, var(--err) 18%, transparent); color: color-mix(in srgb, var(--err) 75%, #000); }
 button.destructive:hover { background: color-mix(in srgb, var(--err) 28%, transparent); }
 .overlay.anchored .switcher { position: fixed; width: min(340px, calc(100vw - 16px)); }
 .overlay.anchored .switcher ul { padding: 4px; }
@@ -559,6 +564,7 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 @media (min-width: 901px) {
   .workbench[data-focus='true'] .activitybar,
   .workbench[data-focus='true'] .sidebar,
+  .workbench[data-focus='true'] .side-sash,
   .workbench[data-focus='true'] .sash,
   .workbench[data-focus='true'] .pane.center { display: none; }
 }
