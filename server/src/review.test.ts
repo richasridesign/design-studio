@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { failedAreas, outline, reviewersFor, rulesPrompt, rulesReviewer, runReview, toFix } from './review.js';
+import { failedAreas, forAwaiting, MAX_AWAIT_PER_RUN, outline, reviewersFor, rulesPrompt, rulesReviewer, runReview, toFix } from './review.js';
 
 vi.mock('./frameRead.js', async (orig) => ({ ...(await orig<typeof import('./frameRead.js')>()), readFrames: vi.fn(async () => ({ docs: [], shots: [], missing: [], truncated: false, costUsd: 0, ms: 0 })) }));
 vi.mock('./rules.js', async (orig) => ({ ...(await orig<typeof import('./rules.js')>()), readRules: vi.fn(async () => ({ global: '', file: '' })) }));
@@ -121,7 +121,17 @@ describe('house rules in a review', () => {
     expect(found.map((f) => f.decide)).toEqual(['text/muted token, 70 layers', undefined]);
     expect(found[0]).not.toHaveProperty('global');
     expect(toFix(run).map((f) => f.rule)).toEqual(['Card is short']);
-    expect(vi.mocked(awaitFindings)).toHaveBeenCalledWith(dir, 'k', found);
+    expect(vi.mocked(awaitFindings)).toHaveBeenCalledWith(dir, 'k', [found[0]]);
+  });
+
+  it('sends nothing to Awaiting your decision from the auto check', async () => {
+    const { readFrames } = await import('./frameRead.js');
+    const { awaitFindings } = await import('./awaiting.js');
+    vi.mocked(awaitFindings).mockClear();
+    vi.mocked(readFrames).mockResolvedValueOnce(frame);
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'review-'));
+    await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'check', areas: [], round: 0, kind: 'audit', awaiting: false });
+    expect(vi.mocked(awaitFindings)).not.toHaveBeenCalled();
   });
 
   it('leaves rules off a check-only run', async () => {
@@ -133,5 +143,17 @@ describe('house rules in a review', () => {
     const run = await runReview({ dir, fileKey: 'k', frames: ['1:1'], preset: 'check', areas: [], round: 0, kind: 'audit' });
     expect(run.rules).toBeUndefined();
     vi.mocked(readRules).mockResolvedValue({ global: '', file: '' });
+  });
+});
+
+describe('forAwaiting', () => {
+  const f = (id: string, severity: 'blocking' | 'major' | 'minor', decide?: string) => ({ id, area: 'system' as const, node: '1:1', severity, rule: id, fix: 'x', ...(decide ? { decide } : {}) });
+  it('keeps only decisions, reviewer ones first, then by severity, at most 20', () => {
+    const check = Array.from({ length: 30 }, (_, i) => f(`c${i}`, i === 29 ? 'blocking' : 'major', 'copies'));
+    const results = [{ area: 'visual' as const, pass: false, summary: '', tokens: 0, costUsd: 0, findings: [f('r1', 'minor', 'token'), f('r2', 'major'), f('r3', 'blocking', 'feature')] }];
+    const out = forAwaiting({ check, results });
+    expect(out).toHaveLength(MAX_AWAIT_PER_RUN);
+    expect(out.slice(0, 4).map((x) => x.id)).toEqual(['r3', 'r1', 'c29', 'c0']);
+    expect(out.every((x) => x.decide)).toBe(true);
   });
 });
