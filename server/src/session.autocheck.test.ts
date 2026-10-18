@@ -76,6 +76,31 @@ describe('auto check after chat edits', () => {
     expect(runReview).toHaveBeenCalledWith(expect.objectContaining({ frames: many.slice(0, AUTO_CHECK_MAX) }));
   });
 
+  it('checks the screens edited last when a read listed more than AUTO_CHECK_MAX', async () => {
+    // A read returns 25 screens, then an edit names two of the last ones in its script: those two lead the check.
+    const read = Array.from({ length: 25 }, (_, i) => `6:${i + 1}`);
+    vi.mocked(framesContaining).mockImplementationOnce(async (_d, _k, ids) => ids);
+    const s = new AgentSession('/tmp/project', { key: 'AbC123', name: 'Checkout', url: 'https://www.figma.com/design/AbC123' });
+    const handle = (m: unknown) => (s as unknown as { handle: (m: unknown) => void }).handle(m);
+    (s as unknown as { turns: number }).turns = 1;
+    const call = (id: string, code: string, result: string) => {
+      handle({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name: 'mcp__figma__use_figma', input: { code } }] } });
+      handle({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: id, content: result, is_error: false }] } });
+    };
+    call('t1', 'return figma.currentPage.children.map((n) => n.id)', read.join(', '));
+    call('t2', 'for (const id of ["6:24", "6:25"]) (await figma.getNodeByIdAsync(id)).cornerRadius = 8', 'ok');
+    handle({ type: 'result', subtype: 'success', uuid: 'u1', result: 'done', total_cost_usd: 0, is_error: false });
+    await flush();
+    const ids = vi.mocked(framesContaining).mock.calls[0][2];
+    expect(ids.slice(0, 2).sort()).toEqual(['6:24', '6:25']);
+    // The result ids follow, newest first, so the read's first screens are the ones cut off.
+    expect(ids.slice(2, 4)).toEqual(['6:23', '6:22']);
+    const frames = vi.mocked(runReview).mock.calls[0][0].frames;
+    expect(frames).toHaveLength(AUTO_CHECK_MAX);
+    expect(frames).toEqual(expect.arrayContaining(['6:24', '6:25']));
+    expect(frames).not.toContain('6:1');
+  });
+
   it('checks nothing when the edit touched only a section', async () => {
     vi.mocked(framesContaining).mockResolvedValueOnce([]);
     chatTurn('mcp__figma__use_figma', 'AbC123', 'figma.getNodeByIdAsync("5:1")');

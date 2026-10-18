@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { touchedIds } from './touched.js';
+import { TouchedIds, touchedIds } from './touched.js';
 
 describe('touchedIds', () => {
   it('finds node ids in code strings and results', () => {
@@ -12,5 +12,24 @@ describe('touchedIds', () => {
 
   it('reads ids from a JSON nodes list', () => {
     expect(touchedIds(JSON.stringify({ nodes: ['1:2', '3:4'] }))).toEqual(['1:2', '3:4']);
+  });
+});
+
+describe('TouchedIds', () => {
+  it('ranks ids named in a script before ids from results, newest first', () => {
+    const t = new TouchedIds();
+    t.add(['1:1', '1:2', '1:3'], false);
+    t.add(['2:1'], true);
+    t.add(['1:2', '2:2'], true);
+    expect(t.ranked()).toEqual(['2:2', '1:2', '2:1', '1:3', '1:1']);
+  });
+
+  it('moves an id touched again to the front', () => {
+    const t = new TouchedIds();
+    t.add(['1:1', '1:2'], true);
+    t.add(['1:1'], true);
+    expect(t.ranked()).toEqual(['1:1', '1:2']);
+    t.clear();
+    expect(t.ranked()).toEqual([]);
   });
 });
