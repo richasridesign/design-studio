@@ -143,7 +143,7 @@ export function FlowCheck() {
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
           {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers. It reads LATEST and Parked first, and skips sections it could not finish.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
-          {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Ask Claude to fix'}</button>}
+          {issues > 0 && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Fix the issues'}</button>}
         </div>
       )}
       {run && !busy && !!run.missing?.length && (
