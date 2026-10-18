@@ -13,12 +13,12 @@
 
 .cp-text { position: relative; }
 .cp-card textarea, .cp-mirror {
-  font: inherit; font-size: var(--text-md); line-height: 20px; padding: 10px 12px 2px;
+  font: inherit; font-size: var(--text-md); line-height: 20px; padding: 12px 16px 4px;
   white-space: pre-wrap; overflow-wrap: break-word;
 }
 .cp-card.shell textarea, .cp-card.shell .cp-mirror { font-family: var(--mono, Menlo, monospace); font-size: var(--text-md); }
 .cp-card textarea {
-  display: block; width: 100%; min-height: 54px; background: transparent; border: 0; border-radius: 0;
+  display: block; width: 100%; min-height: 56px; background: transparent; border: 0; border-radius: 0;
   color: var(--fg); resize: none; overflow-y: auto;
 }
 .cp-card textarea:focus { outline: none; }
@@ -28,9 +28,9 @@
 
 .cp-foot { display: flex; align-items: center; gap: 4px; padding: 4px 8px 8px; }
 .cp-pill {
-  height: 24px; padding: 0 5px 0 7px; display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  height: 32px; min-height: 0; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; min-width: 0;
   border: 0; border-radius: var(--radius-sm, 4px); background: transparent;
-  color: var(--fg-muted); font-size: var(--text-sm); line-height: 24px; white-space: nowrap;
+  color: var(--fg-muted); font-size: var(--text-sm); line-height: 32px; white-space: nowrap;
 }
 .cp-pill:hover { background: var(--bg-hover); color: var(--fg); }
 .cp-pill > span { overflow: hidden; text-overflow: ellipsis; }
@@ -62,7 +62,7 @@
 .cp-spacer { flex: 1; }
 
 .cp-send, .cp-stop {
-  width: 28px; height: 28px; padding: 0; flex: none; border: 1px solid transparent; border-radius: 50%;
+  width: 32px; height: 32px; min-height: 0; padding: 0; flex: none; border: 1px solid transparent; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent); color: var(--on-accent);
 }
@@ -70,9 +70,10 @@
 .cp-send:disabled, .cp-stop:disabled { background: var(--bg-hover); color: var(--fg-faint); cursor: default; }
 .cp-send.steer:not(:disabled) { background: transparent; border-color: var(--border-strong); color: var(--fg); }
 .cp-send.steer:hover:not(:disabled) { background: var(--bg-hover); }
-.cp-foot .icon-btn.voice { width: 28px; height: 28px; border-radius: 50%; }
+.cp-foot .icon-btn { width: 32px; height: 32px; }
+.cp-foot .icon-btn.voice { border-radius: 50%; }
 
-.cp-under { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 0 4px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-faint); }
+.cp-under { display: flex; flex-wrap: wrap; gap: 4px 12px; min-height: 16px; padding: 0 16px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-faint); }
 .cp-hint { flex: none; white-space: nowrap; }
 .cp-stats {
   flex: 1 1 auto; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -105,15 +106,15 @@
 @media (max-width: 900px) {
   .cp-card textarea, .cp-mirror { font-size: var(--text-lg); line-height: 22px; }
   .cp-card.shell textarea, .cp-card.shell .cp-mirror { font-size: var(--text-lg); }
-  .cp-pill { height: 44px; line-height: 44px; font-size: var(--text-md); padding: 0 8px 0 10px; }
-  .cp-send, .cp-stop, .cp-foot .icon-btn.voice { width: 44px; height: 44px; }
-  .cp-foot { gap: 2px; padding: 2px 6px 6px; }
+  .cp-pill { height: 44px; line-height: 44px; font-size: var(--text-md); padding: 0 8px; }
+  .cp-send, .cp-stop, .cp-foot .icon-btn { width: 44px; height: 44px; }
+  .cp-foot { gap: 4px; padding: 4px 8px 8px; }
   .cp-pop li { height: 44px; }
   .cp-modepop > button { min-height: 44px; }
   .cp-modeopts label, .cp-depth button { min-height: 44px; }
   .cp-depth button { padding: 0 14px; }
   .cp-pop { max-height: min(300px, 45vh); }
-  .cp-under { font-size: var(--text-sm); line-height: 18px; }
+  .cp-under { min-height: 20px; font-size: var(--text-sm); line-height: 20px; }
 }
 
 @media (max-width: 900px) and (max-height: 500px) {
