@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getJson, postJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
 import { Icon } from '../Icon';
@@ -8,22 +8,27 @@ import { insertPrompt, showNode } from './Files';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
-import { buildTranscript, duration, firstLine, groupTurns, relPath, stepLabel, type Block, type Item, type ToolResult, type ToolUse } from './steps';
+import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
 import { MakeRule } from './MakeRule';
 import { focusReview } from './reviewFocus';
 import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
 import { reviewChecklist, type ReviewDoc } from '../../../shared/design';
 import type { ChatEvent } from '../../../shared/protocol';
 import '../transcript.css';
+import '../timeline.css';
 
-export function Transcript({ children }: { children?: ReactNode }) {
+export type ChatView = 'timeline' | 'transcript';
+
+const Settle = createContext<() => void>(() => {});
+
+export function Transcript({ view = 'transcript', children }: { view?: ChatView; children?: ReactNode }) {
   const events = useStore((s) => s.events);
   const cwd = useStore((s) => s.session.cwd);
   const running = useStore((s) => s.session.running);
   const stopping = useStore((s) => s.session.stopping);
   const status = useStore((s) => s.status);
   const figmaKey = useStore((s) => s.session.figma?.key);
-  return <TranscriptView events={events} cwd={cwd} running={running} stopping={stopping} status={status} figmaKey={figmaKey}>{children}</TranscriptView>;
+  return <TranscriptView events={events} cwd={cwd} running={running} stopping={stopping} status={status} figmaKey={figmaKey} view={view}>{children}</TranscriptView>;
 }
 
 export function welcomeChips(fileName: string | null): Array<{ label: string; attach?: boolean }> {
@@ -45,21 +50,26 @@ function SetupBanner() {
   );
 }
 
-export function TranscriptView({ events, cwd, running, stopping, status, figmaKey, children }: { events: ChatEvent[]; cwd: string; running: boolean; stopping: boolean; status: string; figmaKey?: string; children?: ReactNode }) {
+export function TranscriptView({ events, cwd, running, stopping, status, figmaKey, view = 'transcript', children }: { events: ChatEvent[]; cwd: string; running: boolean; stopping: boolean; status: string; figmaKey?: string; view?: ChatView; children?: ReactNode }) {
   const items = useMemo(() => buildTranscript(events), [events]);
-  const turns = useMemo(() => groupTurns(items), [items]);
+  const all = useMemo(() => (view === 'timeline' ? timelineTurns(items) : groupTurns(items)), [items, view]);
+  const [early, setEarly] = useState(false);
+  const { from, hidden } = view === 'timeline' && !early ? recentTurns(all) : { from: 0, hidden: 0 };
+  const turns = all.slice(from);
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
-  const last = events[events.length - 1];
   const wanted = new Map<string, number>();
   for (const it of items.filter((x) => x.kind === 'done' && x.nodes.length).slice(-10)) for (const [id, rev] of (it as DoneItem).nodes) wanted.set(id, Math.max(wanted.get(id) ?? 0, rev));
   const fileName = useStore((s) => s.session.figma?.name ?? null);
   const thumb = useThumbs(figmaKey, [...wanted]);
 
-  useEffect(() => {
+  const settle = useCallback(() => {
     const el = box.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [items.length, last, running, children]);
+  }, []);
+  useEffect(settle);
+
+  useEffect(() => { stick.current = true; settle(); }, [view, settle]);
 
   const onScroll = () => {
     const el = box.current;
@@ -67,26 +77,29 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
   };
 
   return (
-    <div ref={box} className="tr" onScroll={onScroll}>
-      {items.length === 0 && (
-        <div className="tl-welcome">
-          <SetupBanner />
-          <h2>What are we working on?</h2>
-          <p>Chat with Claude about your design. Switch to Design mode (Shift+Tab) for a full plan, sketch, design and review run.</p>
-          <div className="tl-chips">
-            {welcomeChips(fileName).map((c) => <button key={c.label} onClick={() => (c.attach ? window.dispatchEvent(new Event('designstudio:attach')) : insertPrompt(c.label))}>{c.label}</button>)}
+    <Settle.Provider value={settle}>
+      <div ref={box} className={`tr ${view}`} onScroll={onScroll}>
+        {items.length === 0 && (
+          <div className="tl-welcome">
+            <SetupBanner />
+            <h2>What are we working on?</h2>
+            <p>Chat with Claude about your design. Switch to Design mode (Shift+Tab) for a full plan, sketch, design and review run.</p>
+            <div className="tl-chips">
+              {welcomeChips(fileName).map((c) => <button key={c.label} onClick={() => (c.attach ? window.dispatchEvent(new Event('designstudio:attach')) : insertPrompt(c.label))}>{c.label}</button>)}
+            </div>
           </div>
-        </div>
-      )}
-      {turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
-      {running && children === undefined && (
-        <div className="tr-working">
-          <span className="tr-mark"><Icon name="loading" small spin /></span>
-          <span className="tr-text">{stopping ? 'Stopping…' : status === 'Idle' ? 'Working' : status}</span>
-        </div>
-      )}
-      {children}
-    </div>
+        )}
+        {hidden > 0 && <div className="tl-earlier"><button className="link" onClick={() => setEarly(true)}>Show {hidden} earlier {hidden === 1 ? 'prompt' : 'prompts'}</button></div>}
+        {turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
+        {running && children === undefined && (
+          <div className="tr-working">
+            <span className="tr-mark"><Icon name="loading" small spin /></span>
+            <span className="tr-text">{stopping ? 'Stopping…' : status === 'Idle' ? 'Working' : status}</span>
+          </div>
+        )}
+        {children}
+      </div>
+    </Settle.Provider>
   );
 }
 
@@ -133,7 +146,7 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
     case 'phase':
       return <div className="tr-phase"><Icon name="sync" small />{it.text}</div>;
     case 'assistant':
-      return <div className={`tr-assistant ${it.streaming ? 'streaming' : ''}`}><Markdown text={it.text} /></div>;
+      return <Reply text={it.text} streaming={it.streaming} />;
     case 'system':
       return <div className="tr-system">{it.text}</div>;
     case 'step':
@@ -161,6 +174,30 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
     case 'note':
       return <div className="tr-note tr-act"><span className="tr-mark"><i className="tr-dot" /></span><span className="tr-text" title={it.text}>{it.text}</span></div>;
   }
+}
+
+function Reply({ text, streaming }: { text: string; streaming: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  const clamp = !streaming && !open;
+  const settle = useContext(Settle);
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el || !clamp) return;
+    const measure = () => setLong(el.scrollHeight > el.clientHeight + 2);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clamp, text]);
+  useEffect(() => { if (!open) settle(); }, [long, open, settle]);
+  return (
+    <div className={`tr-assistant ${streaming ? 'streaming' : ''}`}>
+      <div ref={body} className={`tr-reply ${clamp ? 'clamp' : ''} ${clamp && long ? 'clipped' : ''}`}><Markdown text={text} /></div>
+      {!streaming && (long || open) && <button className="link tr-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? 'Show less' : 'Show more'}</button>}
+    </div>
+  );
 }
 
 function UserRule({ text }: { text: string }) {
