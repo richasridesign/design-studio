@@ -25,9 +25,9 @@
 .dec-slot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dec-slot label { font-size: 12px; line-height: 16px; color: var(--fg-muted); }
 .dec-slot label + textarea { margin-bottom: 4px; }
-.dec-slot textarea { font: inherit; font-size: 14px; line-height: 20px; color: var(--fg); background: var(--input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; resize: vertical; min-height: 40px; field-sizing: content; }
-.dec-slot textarea:hover { border-color: var(--border-strong); }
-.dec-slot textarea:focus { border-color: var(--border-strong); }
+.dec-slot textarea { font: inherit; font-size: 14px; line-height: 20px; color: var(--fg); background: var(--input); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px 12px; resize: vertical; min-height: 40px; field-sizing: content; }
+.dec-slot textarea:hover { border-color: var(--input-border-hover); }
+.dec-slot textarea:focus { border-color: var(--focus); }
 .dec-slot .dec-decision { font-weight: 600; }
 .dec-slot .dec-why { color: var(--fg-muted); }
 .dec-words { font-size: 12px; line-height: 16px; color: var(--fg-muted); }

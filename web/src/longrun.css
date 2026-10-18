@@ -11,7 +11,7 @@
 .lr-pop-head .icon-btn { margin-right: -4px; }
 .lr-pop-sub { margin: 0 0 4px; color: var(--fg-muted); line-height: 20px; }
 .lr-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
-.lr-field input { height: 36px; padding: 0 12px; background: var(--bg); border-color: var(--border-strong); font-variant-numeric: tabular-nums; }
+.lr-field input { height: 36px; padding: 0 12px; background: var(--bg); border-color: var(--input-border); font-variant-numeric: tabular-nums; }
 .lr-field input[type='time'] { width: 140px; }
 .lr-pct { display: inline-flex; align-items: center; gap: 8px; color: var(--fg-muted); }
 .lr-pct input { width: 72px; }

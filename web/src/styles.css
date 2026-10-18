@@ -81,7 +81,9 @@
   --side: var(--bg-raised);
   --statusbar: var(--bg-sunken);
   --input: var(--bg);
-  --input-border: var(--border-strong);
+  /* Input, textarea, select and composer edges: 3.2:1 on --bg-sunken, 3.6:1 on --bg. Focus adds the focus blue. */
+  --input-border: #8a8276;
+  --input-border-hover: var(--fg-muted);
   --hover: var(--bg-hover);
   --active: var(--accent-soft);
   --text: var(--fg);
@@ -130,7 +132,7 @@ button.active { color: var(--fg); }
 input, textarea {
   background: var(--bg-sunken);
   color: var(--fg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font: inherit;
@@ -139,7 +141,10 @@ input, textarea {
 /* Single-line inputs share the 36px control height; components can still override. */
 input:where(:not([type=checkbox], [type=radio], [type=range])) { height: 36px; padding-block: 0; padding-inline: 16px; }
 input::placeholder, textarea::placeholder { color: var(--fg-faint); }
-input:focus, textarea:focus { outline: none; border-color: var(--focus); }
+input:hover, textarea:hover, select:hover { border-color: var(--input-border-hover); }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--focus); }
+/* Calm at rest, clear on focus: the 1px focus border gets a second pixel. Borderless fields (composer, palette) skip it. */
+:is(input:not([type=checkbox], [type=radio], [type=range]), textarea, select):focus:not(.cp-card textarea, .palette-input input) { box-shadow: 0 0 0 1px var(--focus); }
 textarea { resize: none; }
 pre { margin: 0; font-family: var(--mono); font-size: var(--text-sm); }
 pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: var(--text-md); }
@@ -333,7 +338,7 @@ button.send:disabled { opacity: 0.35; cursor: default; }
 .dialog-icon.neutral .codicon { color: var(--accent); }
 .dialog-input {
   width: 100%; height: 26px; margin-top: 10px; padding: 0 8px; font: inherit; font-family: var(--mono); font-size: var(--text-sm);
-  color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm);
 }
 .dialog-input:focus { outline: 0; border-color: var(--focus); }
 .dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -365,7 +370,7 @@ body.resizing { cursor: ew-resize; user-select: none; }
 body.resizing-v { cursor: ns-resize; user-select: none; }
 body.resizing .chrome-frame, body.resizing-v .chrome-frame { pointer-events: none; }
 
-select { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-sm); font: inherit; font-size: var(--text-xs); padding: 1px 4px; }
+select { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); font: inherit; font-size: var(--text-xs); padding: 1px 4px; }
 .browser-pane { height: 100%; }
 .frame-host { position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; overflow: hidden; background: var(--bg-sunken); }
 .chrome-frame { max-width: 100%; max-height: 100%; touch-action: none; user-select: none; cursor: default; }
