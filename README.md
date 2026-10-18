@@ -39,7 +39,7 @@ If the token or the Figma tools are missing, a new chat shows a one-line banner.
 
 ## Modes
 
-The pill at the left of the composer sets the mode. Shift+Tab cycles Chat, Design and Review.
+The pill at the left of the composer sets the mode. Option+M cycles Chat, Design and Review.
 
 | Mode | What a message does |
 | --- | --- |
@@ -181,7 +181,7 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 
 | Keys | Action |
 | --- | --- |
-| Shift+Tab | Cycle the composer mode |
+| Option+M | Cycle the composer mode |
 | Cmd+Shift+P or F1 | Command palette |
 | Cmd+O | Attach a Figma file |
 | Cmd+B | Toggle sidebar |

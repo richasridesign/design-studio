@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, notice, send, steer, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Voice, useDictation } from './Voice';
@@ -75,6 +75,15 @@ export function recentFirst(frames: FrameRef[], recent: string[]): FrameRef[] {
 }
 
 export type SlashCommand = { name: string; description: string; recipe?: Recipe };
+
+// Slash menu order: recipes, then installed skills, each keeping its match order.
+export const recipesFirst = <T extends { item: { recipe?: unknown } }>(rows: T[]) => [...rows.filter((r) => r.item.recipe), ...rows.filter((r) => !r.item.recipe)];
+
+// One short line for a skill description: the first sentence, no dashes used as punctuation.
+export function shortLine(text: string, max = 72) {
+  const first = text.trim().replace(/^\(\w+\)\s*/, '').replace(/\*\*|`/g, '').split(/(?<=[.!?])\s/)[0].replace(/\s+[\u2014\u2013-]\s+/g, ', ').replace(/[\u2014\u2013]/g, ', ');
+  return first.length > max ? `${first.slice(0, max - 1).trimEnd()}…` : first;
+}
 
 export const recipeSlug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -232,7 +241,7 @@ export function Composer() {
   const recent = useMemo(() => (frameMode ? recentFrameIds(events) : []), [frameMode, events]);
   const items = useMemo(() => {
     if (!trigger || trigger.kind === 'shell' || popKey === dismissed) return [];
-    if (trigger.kind === 'command') return rankCommands(commands, trigger.query, MAX_COMMANDS);
+    if (trigger.kind === 'command') return recipesFirst(rankCommands(commands, trigger.query, MAX_COMMANDS));
     if (trigger.kind === 'frame') return !figmaKey && !trigger.query ? [{ item: ATTACH_ROW, hits: [], score: 0 }] : rankFrames(trigger.query ? frames : recentFirst(frames, recent), trigger.query);
     return rankFiles(files, trigger.query);
   }, [trigger, popKey, dismissed, commands, files, frames, recent, figmaKey]);
@@ -278,7 +287,7 @@ export function Composer() {
   }, [modeOpen]);
 
   useEffect(() => {
-    pop.current?.children[sel]?.scrollIntoView({ block: 'nearest' });
+    pop.current?.querySelectorAll('[role=option]')[sel]?.scrollIntoView({ block: 'nearest' });
   }, [sel]);
 
   useLayoutEffect(() => {
@@ -423,7 +432,8 @@ export function Composer() {
     if (ghost && (e.key === 'Tab' || e.key === 'ArrowRight') && el.selectionStart === text.length) { e.preventDefault(); apply(text + ghost); return; }
     if (e.key === 'ArrowUp' && (text === '' || onEntry) && !text.slice(0, el.selectionStart).includes('\n')) { e.preventDefault(); stepHistory(1); return; }
     if (e.key === 'ArrowDown' && onEntry && !text.slice(el.selectionEnd).includes('\n')) { e.preventDefault(); stepHistory(-1); return; }
-    if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
+    // Option+M cycles the mode. Shift+Tab stays free to move focus back out of the message box.
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyM') { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
@@ -478,6 +488,7 @@ export function Composer() {
           <div ref={mirror} className="cp-mirror" aria-hidden><span className="cp-typed">{text}</span><span className="cp-ghost">{ghost}</span></div>
           <textarea
             ref={ta}
+            aria-label="Message to Claude"
             value={text}
             rows={1}
             placeholder={placeholder}
@@ -490,7 +501,7 @@ export function Composer() {
         </div>
         <div className="cp-foot">
           <div className="cp-mode">
-            <button className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (Shift+Tab to cycle)" onClick={() => setModeOpen((o) => !o)}>
+            <button className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
               <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
             </button>
             {modeOpen && (
@@ -545,21 +556,27 @@ export function Composer() {
         </span>
       </div>
       {open && (
-        <ul ref={pop} className="cp-pop" role="listbox" aria-label={frameMode ? "Frames" : trigger?.kind === "file" ? "Files" : "Commands"}>
+        <ul ref={pop} id="cp-pop" tabIndex={0} className="cp-pop" role="listbox" aria-label={frameMode ? "Frames" : trigger?.kind === "file" ? "Files" : "Commands"}>
           {items.map((r, i) => {
             if (trigger?.kind === 'command') {
-              const c = r.item as { name: string; description: string };
+              const c = r.item as SlashCommand;
+              const group = c.recipe ? 'Recipes' : 'Skills';
+              const head = i === 0 || Boolean((items[i - 1].item as SlashCommand).recipe) !== Boolean(c.recipe);
+              const detail = c.recipe ? (c.name === c.recipe.id ? c.recipe.title : c.description) : shortLine(c.description);
               return (
-                <li key={c.name} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
-                  <span className="cp-name">/{hl(c.name, r.hits)}</span>
-                  <span className="cp-detail">{c.description}</span>
-                </li>
+                <Fragment key={c.name}>
+                  {head && <li className="cp-group" role="presentation">{group}</li>}
+                  <li id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={c.recipe?.blurb || c.description} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+                    <span className="cp-name">/{hl(c.name, r.hits)}</span>
+                    <span className="cp-detail">{detail}</span>
+                  </li>
+                </Fragment>
               );
             }
             if (trigger?.kind === 'frame') {
               const f = r.item as FrameRef;
               return (
-                <li key={f.id} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+                <li key={f.id} id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
                   {f === ATTACH_ROW ? <Icon name="file-media" small /> : <span className="cp-thumb">{thumb(f.id) && <img src={thumb(f.id)!} alt="" />}</span>}
                   <span className="cp-name">{hl(f.name, r.hits)}</span>
                   <span className="cp-detail">{f.page}</span>
@@ -569,7 +586,7 @@ export function Composer() {
             const f = r.item as string;
             const base = f.lastIndexOf('/') + 1;
             return (
-              <li key={f} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={f} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
+              <li key={f} id={`cp-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? 'active' : ''} title={f} onMouseDown={(e) => { e.preventDefault(); choose(i); }}>
                 <FileIcon name={f} />
                 <span className="cp-name">{hl(f.slice(base), r.hits, base)}</span>
                 <span className="cp-detail">{hl(f.slice(0, Math.max(base - 1, 0)), r.hits)}</span>

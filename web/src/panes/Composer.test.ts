@@ -234,3 +234,18 @@ describe('dropLink', () => {
     expect(dropLink('Fix Cart (https://f.com/a) now', 'https://f.com/a')).toBe('Fix Cart now');
   });
 });
+
+describe('slash menu helpers', () => {
+  it('puts recipes before skills and keeps match order', async () => {
+    const { recipesFirst } = await import('./Composer');
+    const rows = [{ item: { name: 'a' } }, { item: { name: 'b', recipe: {} } }, { item: { name: 'c' } }, { item: { name: 'd', recipe: {} } }];
+    expect(recipesFirst(rows).map((r) => r.item.name)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('keeps a skill description to one short line without dashes', async () => {
+    const { shortLine } = await import('./Composer');
+    expect(shortLine('Reviews code \u2014 fast. Then more text.')).toBe('Reviews code, fast.');
+    expect(shortLine('x'.repeat(100))).toHaveLength(72);
+    expect(shortLine('(figma) **Use** this. More.')).toBe('Use this.');
+  });
+});

@@ -7,9 +7,9 @@
   background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius, 8px);
   transition: border-color 0.12s;
 }
-.cp-card:focus-within { border-color: var(--cp-ring); }
+/* Focus is always the focus blue, whatever the mode; the mode colour shows at rest. */
+.cp .cp-card:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
 .cp:not([data-mode='chat']) .cp-card { border-color: color-mix(in srgb, var(--cp-ring) 45%, var(--border)); }
-.cp:not([data-mode='chat']) .cp-card:focus-within { border-color: var(--cp-ring); box-shadow: 0 0 0 1px var(--cp-ring); }
 
 .cp-text { position: relative; }
 .cp-card textarea, .cp-mirror {
@@ -139,3 +139,9 @@
 .cp-node-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-model .cp-modepop { width: min(280px, calc(100vw - 32px)); }
 @media (max-width: 900px) { .cp-model { display: none; } }
+.cp-pop li.cp-group {
+  height: 24px; padding: 8px 8px 0; cursor: default; font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted);
+}
+.cp-pop li.cp-group:hover { background: none; }
+.cp-pop li.cp-group:first-child { padding-top: 4px; height: 20px; }
+@media (max-width: 900px) { .cp-pop li.cp-group { height: 28px; } }
