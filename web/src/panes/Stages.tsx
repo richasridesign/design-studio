@@ -3,6 +3,7 @@ import { api, getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { currentStage, type Stage, type StageCheck, type StageId, type StageOpen } from '../../../shared/stages';
 import { insertPrompt } from './Files';
+import { ScopeBox } from './Scope';
 import '../stages.css';
 
 const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open report', attach: 'Attach file' };
@@ -52,15 +53,16 @@ export function useStages() {
   const figma = useStore((s) => s.session.figma?.key);
   const [list, setList] = useState<Stage[] | null>(null);
   const [error, setError] = useState('');
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
     const t = setTimeout(() => getJson<Stage[]>('/api/stages').then((l) => { if (alive) { setList(l); setError(''); } }).catch((e) => alive && setError(e.message)), 300);
     return () => { alive = false; clearTimeout(t); };
-  }, [chat, count, phase, figma]);
+  }, [chat, count, phase, figma, tick]);
   const change = async (action: 'approve' | 'reopen', id: StageId, note?: string) => {
     try { setList(await postJson<Stage[]>('/api/stages', { action, id, note })); setError(''); window.dispatchEvent(new Event('designstudio:stages')); } catch (e) { setError((e as Error).message); }
   };
-  return { list, error, change };
+  return { list, error, change, reload: () => setTick((t) => t + 1) };
 }
 
 export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boolean; onToggle: () => void }) {
@@ -75,7 +77,7 @@ export function StageButton({ list, open, onToggle }: { list: Stage[]; open: boo
   );
 }
 
-export function StagePanel({ list, error, change }: ReturnType<typeof useStages> & { list: Stage[] }) {
+export function StagePanel({ list, error, change, reload }: ReturnType<typeof useStages> & { list: Stage[] }) {
   const now = currentStage(list);
   const [picked, setPicked] = useState<StageId | null>(null);
   const shown = list.find((s) => s.id === picked) ?? now ?? list[list.length - 1];
@@ -95,6 +97,7 @@ export function StagePanel({ list, error, change }: ReturnType<typeof useStages>
           </li>
         ))}
       </ol>
+      <ScopeBox onChange={reload} />
       <Gate stage={shown} current={shown === now} brief={brief} onChange={change} />
       {error && <div className="error-text" role="alert">{error}</div>}
     </section>
