@@ -1,0 +1,23 @@
+/* State map: the brief's states per screen, Designed or Missing. Sits under Scope in the stage panel. */
+.smap { display: grid; gap: 8px; margin: 0 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); font-size: var(--text-sm); line-height: 20px; }
+.smap-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.smap-head b { font-weight: 600; }
+.smap-head .link { min-height: 24px; white-space: nowrap; }
+.smap-body { display: grid; gap: 8px; }
+.smap-body > p { margin: 0; }
+.smap-screens { display: grid; margin: 0; padding: 0; list-style: none; }
+.smap-screen { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--border); }
+.smap-screen:first-child { border-top: 0; padding-top: 4px; }
+.smap-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.smap-name b { font-weight: 600; }
+/* Name first, status in its own column, kept close so the two read as one row. */
+.smap-states { display: grid; max-width: 480px; margin: 0; padding: 0; list-style: none; }
+.smap-states li { display: grid; grid-template-columns: minmax(0, 1fr) 104px; align-items: center; gap: 12px; min-height: 28px; }
+.smap-state { overflow-wrap: anywhere; }
+.smap-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.smap-states .designed .codicon { color: var(--ok); }
+.smap-states .missing .smap-status { color: var(--warn); font-weight: 600; }
+.smap-ask { justify-self: start; min-height: 24px; font-size: var(--text-sm); line-height: 20px; }
+@media (max-width: 900px) {
+  .smap-head .link, .smap-ask { min-height: 36px; }
+}
