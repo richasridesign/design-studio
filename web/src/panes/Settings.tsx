@@ -50,10 +50,10 @@ function CheckSetup() {
               <div className="check-body">
                 <span className="check-title">{CHECK_TITLES[id]}</span>
                 <span className="muted">{row?.busy ? 'Checking…' : r ? r.detail : 'Not checked'}</span>
-                {r?.tone === 'bad' && !row?.busy && r.fix && <span className="check-fix">How to fix: {r.fix}</span>}
+                {r && r.tone !== 'ok' && !row?.busy && r.fix && <span className="check-fix">How to fix: {r.fix}</span>}
               </div>
               <div className="check-actions">
-                {r?.tone === 'bad' && !row?.busy && r.fixId && <button onClick={() => void fix(id, r.fixId!)}>{r.fixLabel}</button>}
+                {r && r.tone !== 'ok' && !row?.busy && r.fixId && <button onClick={() => void fix(id, r.fixId!)}>{r.fixLabel}</button>}
                 <button className="ghost" disabled={row?.busy} onClick={() => void run(id)}>Check</button>
               </div>
             </li>
@@ -194,7 +194,7 @@ function SectionNav() {
     const box = scroller(nav.current);
     if (!box) return;
     const onScroll = () => {
-      const line = (nav.current?.getBoundingClientRect().bottom ?? 0) + 24;
+      const line = (nav.current?.getBoundingClientRect().bottom ?? 0) + box.clientHeight * 0.3;
       // The last card is short and never reaches the top, so the bottom of the scroll counts as it.
       if (box.scrollTop + box.clientHeight >= box.scrollHeight - 2) return setAt(SECTIONS[SECTIONS.length - 1][0]);
       let id = SECTIONS[0][0];
