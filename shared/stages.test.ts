@@ -99,6 +99,14 @@ describe('stages', () => {
     ]);
   });
 
+  it('counts only open issues and names the ones closed by hand', () => {
+    const review = { runs: [run({ check: [{ ...finding('major'), id: 'a' }, { ...finding('blocking'), id: 'b' }, { ...finding('major'), id: 'c' }, { ...finding('minor'), id: 'd' }] })] };
+    const triage = { 'r:a': { state: 'wontfix' as const, why: 'brand colour', at: 2 }, 'r:d': { state: 'fixed' as const, why: '', at: 2 }, 'old:b': { state: 'fixed' as const, why: '', at: 1 } };
+    expect(byId({ ...none, review, triage }).validate.checks[1]).toMatchObject({ state: 'open', detail: "2 issues open, 1 won't fix" });
+    const all = { ...triage, 'r:b': { state: 'fixed' as const, why: '', at: 3 }, 'r:c': { state: 'parked' as const, why: 'next release', at: 3 } };
+    expect(byId({ ...none, review, triage: all }).validate.checks[1]).toMatchObject({ state: 'met', detail: "None open, 1 fixed, 1 won't fix, 1 parked" });
+  });
+
   it('marks house rules as not checked when the review had none, which does not block the gate', () => {
     const s = byId({ ...none, review: { runs: [run()] } }, { spec: { at: 1 }, explore: { at: 1 }, decide: { at: 1 }, build: { at: 1 } });
     expect(s.validate.checks[2].state).toBe('unchecked');

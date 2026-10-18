@@ -122,6 +122,25 @@ describe('buildReport', () => {
     expect(html).not.toContain('State: Default');
   });
 
+  it('counts only open findings and lists the ones closed by hand with state, why and date', async () => {
+    const f = (id: string, severity: string, rule = 'r') => ({ id, area: 'color', node: '1:2', severity, rule, fix: 'x' });
+    await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [f('a', 'blocking', 'Low contrast'), f('b', 'minor')], results: [{ area: 'color', pass: false, summary: 's', findings: [f('c', 'major', 'Two primaries'), f('d', 'major')], tokens: 0, costUsd: 0 }], tokens: 0, costUsd: 0 }] }));
+    const at = Date.UTC(2026, 9, 18, 12);
+    await writeFile(path.join(dir, 'triage.json'), JSON.stringify({ 'r:a': { state: 'fixed', why: '', at }, 'r:c': { state: 'wontfix', why: 'Brand <rule>', at }, 'old:d': { state: 'parked', why: 'x', at } }));
+    const html = await buildReport(dir, figma);
+    const top = html.slice(html.indexOf('<section id="summary"'), html.indexOf('<section id="design"'));
+    expect(top).toContain('<span class="num">0</span><span class="st none">Blocking</span>');
+    expect(top).toContain('<span class="num">1</span><span class="st major">Major</span>');
+    expect(top).toContain("Closed by hand:</span> 1 fixed, 1 won&#39;t fix");
+    const review = html.slice(html.indexOf('<section id="review"'));
+    expect(review).toContain('<h3>Design system check <small>1 finding</small></h3>');
+    expect(review).toContain("<h3>Closed by hand <small>1 fixed, 1 won&#39;t fix</small></h3>");
+    expect(review).toContain('<span class="st pass">Fixed</span>');
+    expect(review).toContain('<span class="st wontfix">Won&#39;t fix</span>');
+    expect(review).toContain('Why: Brand &lt;rule&gt;. Closed: 18 Oct 2026');
+    expect(review.match(/Two primaries/g)).toHaveLength(1);
+  });
+
   it('says the review has not run instead of showing zero issues', async () => {
     await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2', name: 'Cart <main>' }] }));
     const html = await buildReport(dir, figma);
