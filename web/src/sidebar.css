@@ -26,7 +26,7 @@
 .sessions .tree .row.worktree { gap: 6px; }
 .sessions .tree .row .acts { display: none; flex: none; gap: 2px; margin: 0 6px 0 auto; }
 .sessions .tree .row .acts .icon-btn { width: 20px; height: 20px; }
-.sessions .tree .row:hover .acts { display: inline-flex; }
+.sessions .tree .row:hover .acts, .sessions .tree .row:focus-within .acts { display: inline-flex; }
 .sessions .tree .row:has(.acts):hover :is(.when, .count) { display: none; }
 @media (hover: none) { .sessions .tree .row .acts { display: inline-flex; margin-left: 0; } }
 .sessions .tree .row.removing { color: var(--fg-muted); pointer-events: none; }
