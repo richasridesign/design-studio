@@ -17,8 +17,12 @@ export function usePopAbove(open: boolean, wrap: RefObject<HTMLElement | null>):
     const measure = () => {
       const b = box.getBoundingClientRect();
       const c = card.getBoundingClientRect();
-      // Room above the card in the window, so a tall menu scrolls instead of running off the top.
-      setStyle({ bottom: Math.round(b.bottom - c.top + POP_GAP), maxHeight: Math.max(160, Math.floor(c.top - POP_GAP - 8)), overflowY: 'auto' });
+      const bottom = Math.round(b.bottom - c.top + POP_GAP);
+      // A menu taller than the room above the card scrolls instead of running off the top. Only then: a scroll box
+      // would clip the focus rings of the items at its edges.
+      const room = Math.max(160, Math.floor(c.top - POP_GAP - 8));
+      const pop = box.querySelector<HTMLElement>('[role="menu"]');
+      setStyle(pop && pop.scrollHeight > room ? { bottom, maxHeight: room, overflowY: 'auto' } : { bottom });
     };
     measure();
     const ro = new ResizeObserver(measure);
