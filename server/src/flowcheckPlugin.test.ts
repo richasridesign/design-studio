@@ -173,7 +173,7 @@ describe('flowCheckScript', () => {
     const out = await runScript(flowCheckScript({ only: ['1:1'] }), figma);
     expect(out.outside).toEqual({ '2:9': { n: 'Old home', t: 'FRAME', w: 1440, h: 900, s: [['1:2', 'Flow 1 · V1']], p: ['0:1', 'Flows'] } });
     const f = runPayload(out).flows.find((x) => x.name === 'LATEST flows')!.findings.filter((x) => x.rule === 'stale-link');
-    expect(f.map((x) => x.message)).toEqual(['Button "Back" opens "Old home" in "Flow 1 · V1", outside this flow.']);
+    expect(f.map((x) => x.message)).toEqual(['Button "Back" opens "Old home" in "Flow 1 · V1", which is an old version.']);
   });
 
   it('stays well under the use_figma code limit', () => {

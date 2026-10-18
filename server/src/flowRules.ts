@@ -370,7 +370,7 @@ function linkFindings(node: any, flow: FlowRef, version: string, screens: (id: s
         }
         const dest = screens(a.destinationId);
         if (!dest || dest.flow.id === flow.id || dest.version === version) continue;
-        add(n, 'stale-link', `${describe(n)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, outside this flow.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
+        add(n, 'stale-link', `${describe(n)} opens ${quote(dest.name)} in ${quote(dest.flow.name)}, which is an old version.`, `Point it to the matching screen in ${quote(flow.name)}.`, a.destinationId);
       }
     }
     for (const c of kids(n)) visit(c);
