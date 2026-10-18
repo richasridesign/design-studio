@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { approvalReply } from '../../../shared/stages';
-import { stillAwaiting, type AwaitItem } from '../../../shared/awaiting';
+import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
 import { FIX_ASK } from './Stages';
 import { getJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
@@ -384,7 +384,7 @@ function ReviewCard({ runAt }: { runAt: number }) {
     <div className="tr-review">
       <div className="tr-review-head">
         <b>{runLabel(run)}</b>
-        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}{deciding > 0 && <> · <button className="link tr-review-await" title="Open Review: findings that change something shared wait for your decision" onClick={openReview}>{deciding} {deciding === 1 ? 'waits' : 'wait'} for your decision</button></>}</span>
+        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}{deciding > 0 && <> · <button className="link tr-review-await" title="Open Review: findings that change something shared wait for your decision" onClick={openReview}>{waitText(deciding)}</button></>}</span>
       </div>
       {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
       <ul className="tr-review-rows">

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentSession } from './session.js';
+import { AgentSession, finishText } from './session.js';
 import { withReviews } from './transcript.js';
 
 const run = { id: 'r1', kind: 'audit', at: 1234, round: 0, preset: 'check', frames: ['1:2'], check: [], results: [], tokens: 0, costUsd: 0 };
@@ -40,6 +40,13 @@ describe('review events', () => {
     s.updateFlow({ areas: ['accessibility'] });
     await review('review', 'quick https://www.figma.com/design/AbC123/F?node-id=1-2', '/review');
     expect(vi.mocked(runReview).mock.calls[1][0].areas).toEqual(['accessibility']);
+  });
+
+  it('the design run line says what is left and what waits for her decision', () => {
+    expect(finishText(0, 0)).toBe(', review passed');
+    expect(finishText(2, 0)).toBe(', 2 issues left for you to look at');
+    expect(finishText(0, 1)).toBe(', 1 waits for your decision');
+    expect(finishText(1, 3)).toBe(', 1 issue left for you to look at, 3 wait for your decision');
   });
 
   it('replays saved runs in time order on history load', () => {

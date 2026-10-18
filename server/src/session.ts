@@ -28,7 +28,8 @@ import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
-import { awaitQuestions } from './awaiting.js';
+import { awaitQuestions, readAwaiting } from './awaiting.js';
+import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
 
 type Step = { phase: FlowPhase; model: string; mode: string; label: string; prompt: string };
 
@@ -564,8 +565,10 @@ export class AgentSession {
     const items = reportQuestions(report.decide, key);
     if (!items.length) return;
     try {
-      await awaitQuestions(this.cwd, key, items);
+      const saved = await awaitQuestions(this.cwd, key, items);
       this.setLongRun({ awaiting: items.length });
+      const n = saved ? openCount(saved, items.map((q) => awaitKey(q.fileKey, { rule: q.text, node: q.node }))) : items.length;
+      if (n) this.system(`Long run: ${n === 1 ? '1 question' : `${n} questions`} ${waitText(n).replace(/^\d+ /, '')} on the Review tab`);
     } catch (err) {
       console.error('could not save long run questions', err);
     }
@@ -703,6 +706,7 @@ export class AgentSession {
     this.retried = false;
     this.fixesDone = 0;
     this.lastRun = null;
+    this.flowDecide.clear();
     this.setFlow({ kind, phase: 'plan', round: 0, tokens: 0 });
     await this.runStep({ phase: 'plan', model: MODELS.plan, mode: 'plan', label: 'Plan · Opus', prompt: planPrompt(task, this.figma, kind) }, false);
   }
@@ -857,6 +861,7 @@ export class AgentSession {
     this.addTokens(done.tokens);
     this.recordBackground('review', done);
     this.reviewDone(done);
+    for (const f of done.results.flatMap((r) => r.findings)) if (f.decide) this.flowDecide.add(awaitKey(this.figma!.key, f));
     const pending = toFix(done);
     if (kind === 'verify') return this.finish(pending.length);
     const next = afterReview(preset, this.fixesDone, pending);
@@ -864,9 +869,13 @@ export class AgentSession {
     return this.finish(pending.length);
   }
 
-  private finish(left: number) {
+  /** Findings from this design run's reviews that went to Awaiting your decision (fix rounds skip them). */
+  private flowDecide = new Set<string>();
+
+  private async finish(left: number) {
     const tokens = this.state.session.flow.tokens;
-    this.endFlow('done', `Design run finished${left ? `, ${left} issues left for you to look at` : ', review passed'} · ${Math.round(tokens / 1000)}k tokens`);
+    const waiting = this.flowDecide.size ? openCount(await readAwaiting().catch(() => []), this.flowDecide) : 0;
+    this.endFlow('done', `Design run finished${finishText(left, waiting)} · ${Math.round(tokens / 1000)}k tokens`);
   }
 
   private recordSpend(phase: string, model: string, tokens: number, costUsd: number) {
@@ -1159,4 +1168,10 @@ export class AgentSession {
         return;
     }
   }
+}
+
+/** The end of the design run line: what is left for her and what waits for her decision. */
+export function finishText(left: number, waiting: number) {
+  const parts = [left ? `${left} ${left === 1 ? 'issue' : 'issues'} left for you to look at` : '', waiting ? waitText(waiting) : ''].filter(Boolean);
+  return parts.length ? `, ${parts.join(', ')}` : ', review passed';
 }
