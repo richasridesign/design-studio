@@ -17,7 +17,7 @@ import { parseTone, runCopy, runCrit } from './crit.js';
 import { parseBuildArg, runBuildCheck } from './buildcheck.js';
 import { failedAreas, readDesign, readReview, runReview, toFix } from './review.js';
 import { settings } from './settings.js';
-import { touchedIds } from './touched.js';
+import { TouchedIds, touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
 import { readChatSteps } from './stages.js';
@@ -71,7 +71,7 @@ export class AgentSession {
   private edits = new Map<string, string>();
   private figmaUses = new Set<string>();
   private figmaEdited = false;
-  private touched = new Set<string>();
+  private touched = new TouchedIds();
   private liveMsgId = '';
 
   private resumedAuto = false;
@@ -990,7 +990,7 @@ export class AgentSession {
 
   private autoCheck(flowing: boolean) {
     const edited = this.figmaEdited;
-    const touched = [...this.touched];
+    const touched = this.touched.ranked();
     this.figmaEdited = false;
     this.touched.clear();
     this.figmaUses.clear();
@@ -1133,9 +1133,9 @@ export class AgentSession {
             if (EDIT_TOOLS.has(block.name) && typeof file === 'string') this.edits.set(block.id, file);
             if (/use_figma$/.test(block.name)) {
               this.figmaUses.add(block.id);
-              for (const id of touchedIds(JSON.stringify(block.input ?? {}))) this.touched.add(id);
+              this.touched.add(touchedIds(JSON.stringify(block.input ?? {})), true);
             } else if (block.name.endsWith('__set_status')) {
-              for (const id of touchedIds(JSON.stringify((block.input as { nodes?: unknown })?.nodes ?? []))) this.touched.add(id);
+              this.touched.add(touchedIds(JSON.stringify((block.input as { nodes?: unknown })?.nodes ?? [])), true);
             }
           }
         }
@@ -1153,7 +1153,7 @@ export class AgentSession {
           if (edited && !block.is_error) this.noteFile(path.relative(this.cwd, edited), 'tool');
           if (this.figmaUses.delete(block.tool_use_id) && !block.is_error) {
             this.figmaEdited = true;
-            for (const id of touchedIds(toolResultText(block))) this.touched.add(id);
+            this.touched.add(touchedIds(toolResultText(block)), false);
           }
           this.pushEvent({ id: randomUUID(), kind: 'tool_result', toolUseId: block.tool_use_id, text: toolResultText(block).slice(0, 4000), isError: Boolean(block.is_error), at: Date.now() });
         }
