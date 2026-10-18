@@ -88,3 +88,16 @@
 
 /* Frame thumbnails under a done line: 8px apart, on the text edge. */
 .tr .tl-thumbs { gap: 8px; padding: 4px 0; }
+
+/* Quick replies under Claude's last reply: answers (Go, Go with A) send at once and carry the stronger border; follow-ups fill the box. */
+.quick-replies { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 0 24px; }
+.quick-replies .qr {
+  min-height: 36px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px;
+}
+.quick-replies .qr:hover { background: var(--bg-hover); color: var(--fg); }
+.quick-replies .qr.answer { border-color: var(--fg); color: var(--fg); font-weight: 600; }
+@media (max-width: 900px) { .quick-replies { padding-left: 0; } .quick-replies .qr { min-height: 44px; font-size: var(--text-md); } }
+/* The running line names the last step in words (Worked in Figma: Swap dialogs); only paths and commands keep the code font. */
+.tl-foot .tl-now .tool { font-family: inherit; }
+.tl-foot .tl-now .tool.mono { font-family: var(--mono); }

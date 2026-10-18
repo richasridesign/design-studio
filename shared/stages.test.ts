@@ -237,7 +237,7 @@ describe('stored steps', () => {
 
 describe('approvalReply', () => {
   it('takes her short approvals and nothing longer', () => {
-    for (const t of ['go', 'Go ahead', 'approved', 'A', 'option B', 'ok go', 'go, keep the voice button']) expect(approvalReply(t)).toBe(t);
+    for (const t of ['go', 'Go ahead', 'approved', 'A', 'option B', 'ok go', 'go, keep the voice button', 'go with A', 'Go with option B']) expect(approvalReply(t)).toBe(t);
     for (const t of ['a lot of blue here', 'good morning', 'go through every dialog and list the ones with no close icon please']) expect(approvalReply(t)).toBeNull();
   });
   it('shows on Plan as information, with or without a written plan', () => {

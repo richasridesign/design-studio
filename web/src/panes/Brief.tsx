@@ -11,6 +11,9 @@ import { LongRunLine } from './LongRun';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
 import { StepsButton, StepsPanel, useStages, useStepsOpen } from './Stages';
+import { stepLabel } from './steps';
+import { insertPrompt } from './Files';
+import { quickReplies, replyToAnswer } from './quickReplies';
 
 export function nextSteps(events: ChatEvent[]) {
   let next: string[] = [];
@@ -44,6 +47,7 @@ export function Brief() {
   const running = useStore((s) => s.session.running);
   const waiting = useStore((s) => s.pending.length > 0);
   const context = useStore((s) => s.session.context);
+  const cwd = useStore((s) => s.session.cwd);
   const compacting = useStore((s) => s.session.compacting);
   const stopping = useStore((s) => s.session.stopping);
   const next = useMemo(() => nextSteps(events), [events]);
@@ -56,10 +60,14 @@ export function Brief() {
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
   const stages = useStages();
   const steps = useStepsOpen();
-  const hasSteps = next.length > 0 || adding || running;
+  // Claude's own to-do list: shown when it has items, hidden when empty (Add a step lives with the items).
+  const hasSteps = next.length > 0 || adding;
+  const answerTo = useMemo(() => replyToAnswer(events), [events]);
   const [, tick] = useState(0);
   const setNext = (list: string[]) => send({ type: 'plan', next: list });
   const state = waiting ? 'waiting' : stopping ? 'stopping' : running ? 'running' : 'idle';
+  const quick = state === 'idle' && answerTo ? quickReplies(answerTo) : [];
+  const toolLine = lastTool?.kind === 'tool_use' ? stepLabel(lastTool.name, lastTool.input, cwd) : null;
 
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 30000);
@@ -85,19 +93,26 @@ export function Brief() {
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
-                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : 'Idle'}
-                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}> · Last reply: {time(lastReply.at)}</span>}
-                {state === 'running' && lastTool?.kind === 'tool_use' && <span className="tool">{lastTool.summary}</span>}
+                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : lastReply ? '' : 'Idle'}
+                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {time(lastReply.at)}</span>}
+                {state === 'running' && toolLine && <span className={`tool ${toolLine.mono ? 'mono' : ''}`} title={toolLine.object}>{toolLine.verb} {toolLine.object}</span>}
               </span>
               <span className="tl-side">
                 {hasSteps && (
-                  <button className="tl-steps-toggle" aria-expanded={stepsOpen} title={stepsOpen ? 'Hide the next steps' : 'Show the next steps'} onClick={toggleSteps}>
-                    {next.length ? `${next.length} next ${next.length === 1 ? 'step' : 'steps'}` : 'Next steps'}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
+                  <button className="tl-steps-toggle" aria-expanded={stepsOpen} title={stepsOpen ? "Hide Claude's to-do list" : "Show Claude's to-do list"} onClick={toggleSteps}>
+                    {next.length ? `Up next · ${next.length}` : 'Up next'}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
                   </button>
                 )}
               </span>
               <ReadAloud />
             </div>
+            {quick.length > 0 && (
+              <div className="quick-replies" role="group" aria-label="Quick replies">
+                {quick.map((q) => (
+                  <button key={q.label} className={q.send ? 'qr answer' : 'qr'} title={q.title} onClick={() => (q.send ? send({ type: 'prompt', text: q.text }) : insertPrompt(q.text))}>{q.label}</button>
+                ))}
+              </div>
+            )}
             {hasSteps && stepsOpen && (
               <ul className="steps">
                 {next.map((t, i) => (

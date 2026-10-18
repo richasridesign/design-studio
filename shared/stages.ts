@@ -361,7 +361,7 @@ export function stageNote(c: ChatSteps): string {
 export function approvalReply(text: string): string | null {
   const t = text.trim().replace(/\s+/g, ' ');
   if (t.length > 40) return null;
-  if (/^(go( ahead)?|ok,? go( ahead)?|yes,? go( ahead)?|approved?|looks good,? go( ahead)?|build it|do it|option [a-c]|[a-c])([.!]|,? (please|thanks))?$/i.test(t)) return t;
+  if (/^(go( ahead)?|ok,? go( ahead)?|yes,? go( ahead)?|approved?|looks good,? go( ahead)?|build it|do it|(go with )?(option )?[a-c])([.!]|,? (please|thanks))?$/i.test(t)) return t;
   // "go, keep the voice button"
   return /^(go|approved?)[,.:] \S/i.test(t) ? t : null;
 }
