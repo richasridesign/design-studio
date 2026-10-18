@@ -48,4 +48,14 @@ describe('designPrompt', () => {
     ] }] };
     expect(designPrompt(sketch, true, 'x')).toContain('- Home: List. dense. The designer picked it over Cards, Map. Why: Long lists scan faster.');
   });
+
+  it('does not repeat the rationale when the designer confirmed Claude\'s pick', () => {
+    const sketch = { screens: [{ id: 'home', name: 'Home', chosen: 'a', chosenBy: 'designer' as const, reason: 'dense', directions: [
+      { id: 'a', name: 'List', rationale: 'dense', w: 390, h: 844, items: [] },
+      { id: 'b', name: 'Cards', rationale: 'scannable', w: 390, h: 844, items: [] },
+    ] }] };
+    const p = designPrompt(sketch, true, 'x');
+    expect(p).toContain('- Home: List. dense. The designer picked it over Cards.');
+    expect(p).not.toContain('Why:');
+  });
 });
