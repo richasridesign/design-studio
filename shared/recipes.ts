@@ -33,6 +33,16 @@ export const RECIPES: Recipe[] = [
     prompt: 'Design this: ',
   },
   {
+    id: 'research',
+    title: 'Research first',
+    blurb: 'Look at how others solve it, with screenshots, then weigh options. No Figma edits.',
+    icon: 'search',
+    group: 'make',
+    needsFrames: false,
+    prompt:
+      'Research this before any design. Do not change the Figma file. Look at 3 to 5 products or patterns that solve it (competitors, well known apps, NN/g or platform guidelines). Open each in Chrome. When you can save a screenshot, save it as a PNG in a research folder in this chat folder and show it with ![name](research/<file>.png). Write research.md in the chat folder with these sections, short bullets in plain words: ## Question, ## Looked at (one bullet per reference: name, what it shows, link), ## Findings (at most 5), ## Options (A, B, C, one line each), ## What we give up, ## Sources. End your reply with the option you recommend and why in one line, then wait for my pick. Research this: ',
+  },
+  {
     id: 'states',
     title: 'Missing states',
     blurb: 'Add empty, loading, error, long content and no permission variants.',

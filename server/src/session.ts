@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMessage, type PermissionMode, type HookInput, type HookJSONOutput, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
-import { COMPACT_AT, type ChatEvent, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
+import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
 import { AREAS, FLOW_ACTIVE, FLOW_MODES, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
-import { advisorEvent, cacheFrom, contextFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
-import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, fixPrompt, parseCommand, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
+import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
+import { CHECKPOINT, afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
 import { boardNotes, readSketch, renderAll } from './sketch.js';
 import { buildProfile, readProfile } from './profile.js';
@@ -19,13 +19,18 @@ import { settings } from './settings.js';
 import { touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
+import { readApprovals } from './stages.js';
+import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { SAMPLE_KEY } from './figma.js';
+import { ASK_DENIED, CONTINUE_TEXT, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, usedPct, type LongRun, type LongRunReason } from '../../shared/longRun.js';
 
 type Step = { phase: FlowPhase; model: string; mode: string; label: string; prompt: string };
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
+
+let lastLimit: PlanLimit | null = null;
 
 export class AgentSession {
   private q: Query | null = null;
@@ -61,10 +66,13 @@ export class AgentSession {
   private liveMsgId = '';
 
   private resumedAuto = false;
+  private lastError = false;
+  private lrErrors = 0;
+  private reportSeen = false;
 
   constructor(public cwd: string, private figma: FigmaFile | null, private resume?: string) {
     this.state = {
-      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend() },
+      session: { id: this.id, sessionId: resume ?? null, model: null, cwd, figma, running: false, permissionMode: 'auto', apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: emptySpend(), limit: lastLimit },
       status: 'Idle',
       events: [],
       pending: [],
@@ -126,6 +134,7 @@ export class AgentSession {
 
   close() {
     this.closed = true;
+    this.endLongRun('stopped', 'ended');
     this.work?.abort();
     this.listeners.clear();
     this.approvals.denyAll();
@@ -146,15 +155,21 @@ export class AgentSession {
   async init() {
     const s = await settings();
     this.rules = rulesBlock(await readRules(this.cwd));
+    this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     this.state.session.flow = flowOff(s);
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
-    const { servers, configured } = await figmaMcp();
+    // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
+    const { servers, via } = await figmaMcp();
     this.figmaServers = servers;
-    this.strictMcp = configured;
+    this.strictMcp = via === 'config';
   }
 
   private rules = '';
   private rulesNote = '';
+  private stageKey = '{}';
+  private stageNote = '';
+  private pickKey = '[]';
+  private pickNote = '';
   private figmaNote = '';
 
   private sampleBlocked() {
@@ -181,7 +196,7 @@ export class AgentSession {
           const last = nodes.at(-1);
           if (last) this.onFocus(last);
         },
-        canUseTool: (toolName, input, opts) => this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
+        canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
         beforeFigma: async (input) => this.beforeFigma(input),
         afterTool: async (input) => this.afterTool(input),
       }),
@@ -218,8 +233,8 @@ export class AgentSession {
     if (list) this.setSession({ mcp: mcpFrom(list) });
   }
 
-  async reconnectMcp(name: string) {
-    await this.q?.reconnectMcpServer(name).catch((err) => this.system(`Reconnecting ${name} failed: ${err instanceof Error ? err.message : String(err)}`));
+  async reconnectMcp(name: string, quiet = false) {
+    await this.q?.reconnectMcpServer(name).catch((err) => quiet || this.system(`Reconnecting ${name} failed: ${err instanceof Error ? err.message : String(err)}`));
     await this.refreshMcp();
   }
 
@@ -271,8 +286,8 @@ export class AgentSession {
     this.approvals.answerQuestion(id, answers);
   }
 
-  answerPermission(id: string, allow: boolean, always?: boolean) {
-    this.approvals.answerPermission(id, allow, always);
+  answerPermission(id: string, allow: boolean, always?: boolean, note?: string) {
+    this.approvals.answerPermission(id, allow, always, note);
   }
 
   private async *inputStream(): AsyncGenerator<SDKUserMessage> {
@@ -303,6 +318,15 @@ export class AgentSession {
       text = `${this.rulesNote}\n\n${text}`;
       this.rulesNote = '';
     }
+    if (this.stageNote) {
+      text = `${this.stageNote}\n\n${text}`;
+      this.stageNote = '';
+    }
+    if (this.pickNote) {
+      // The design phase prompt already lists the picks.
+      if (!text.includes('Chosen sketch directions')) text = `${this.pickNote}\n\n${text}`;
+      this.pickNote = '';
+    }
     if (this.figmaNote) {
       text = `${this.figmaNote}\n\n${text}`;
       this.figmaNote = '';
@@ -312,6 +336,7 @@ export class AgentSession {
   }
 
   async interrupt() {
+    if (isActive(this.state.session.longRun)) this.endLongRun('stopped', 'user');
     if (this.state.session.flow.phase === 'file') return this.endFlow('stopped', 'Design run stopped');
     if (this.work && this.turns === 0) {
       this.work.abort();
@@ -338,16 +363,33 @@ export class AgentSession {
     }
   }
 
-  async prompt(text: string, refs?: unknown) {
-    if (this.sampleBlocked()) return;
+  private async refreshRules() {
     const rules = rulesBlock(await readRules(this.cwd));
     if (rules !== this.rules) {
-      if (this.q) this.rulesNote = rules ? `House rules updated, follow these from now on:\n${rules}` : 'House rules updated: there are no house rules now.';
+      if (this.q) this.rulesNote = rules ? `House rules or scope updated, follow these from now on:\n${rules}` : 'House rules and scope cleared: there are none now.';
       this.rules = rules;
     }
+    this.askBeforeEdit = (await settings()).askBeforeEdit;
+    // Tell Claude where the work stands each time the designer approves or reopens a stage.
+    const approvals = await readApprovals(this.cwd);
+    const key = JSON.stringify(approvals);
+    if (key !== this.stageKey) {
+      this.stageNote = stageNote(approvals) || 'Stages: the designer reopened every stage. Start again from Spec.';
+      this.stageKey = key;
+    }
+    const sketch = await readSketch(this.cwd).catch(() => null);
+    const picks = designerPicksKey(sketch);
+    if (picks !== this.pickKey) {
+      if (this.q) this.pickNote = picksNote(sketch);
+      this.pickKey = picks;
+    }
+  }
+
+  async prompt(text: string, refs?: unknown) {
+    if (this.sampleBlocked()) return;
+    await this.refreshRules();
     const images = await loadImages(this.cwd, refs);
-    const st = await settings();
-    this.askBeforeEdit = st.askBeforeEdit;
+    if (this.state.session.longRun && !isActive(this.state.session.longRun)) this.setSession({ longRun: null });
     const cmd = parseCommand(text);
     if (cmd && !this.state.session.running) return this.command(cmd.cmd, cmd.arg, text);
     const { mode, phase } = this.state.session.flow;
@@ -356,6 +398,77 @@ export class AgentSession {
       return this.command('review', text.trim(), text.trim());
     }
     this.sendPrompt(text, images);
+  }
+
+  async startLongRun(text: string, until: number, cap: number, refs?: unknown) {
+    if (this.sampleBlocked()) return;
+    const task = text.trim();
+    if (!task) return this.system('Write the task for the long run in the message box first');
+    if (this.state.session.running || this.flowActive() || isActive(this.state.session.longRun)) return this.system('Wait for the current turn to finish before starting a long run');
+    const now = Date.now();
+    if (!Number.isFinite(until) || until <= now) return this.system('Pick a time later than now for the long run');
+    if (!Number.isFinite(cap) || cap < 1 || cap > 100) return this.system('Set the plan usage cap between 1 and 100%');
+    const used = usedPct(this.state.session.limit);
+    if (used >= cap) return this.system(`Plan usage is already at ${Math.round(used)}%, above the ${Math.round(cap)}% cap`);
+    await this.refreshRules();
+    const images = await loadImages(this.cwd, refs);
+    const run: LongRun = { until: Math.min(until, now + 24 * 3600_000), cap: Math.round(cap), startedAt: now, turns: 1, state: 'running' };
+    this.lrErrors = 0;
+    this.reportSeen = false;
+    this.setSession({ longRun: run });
+    this.pushEvent({ id: randomUUID(), kind: 'user', text: withRefs(task, images.refs), at: now });
+    this.enqueue(withRefs(longRunPrompt(task, run.until, run.cap), images.refs), images.blocks);
+  }
+
+  async stopLongRun() {
+    if (!isActive(this.state.session.longRun)) return;
+    this.endLongRun('stopped', 'user');
+    if (this.state.session.running) await this.interrupt();
+  }
+
+  clearLongRun() {
+    if (this.state.session.longRun && !isActive(this.state.session.longRun)) this.setSession({ longRun: null });
+  }
+
+  private setLongRun(patch: Partial<LongRun>) {
+    const run = this.state.session.longRun;
+    if (run) this.setSession({ longRun: { ...run, ...patch } });
+  }
+
+  private endLongRun(state: 'done' | 'stopped', reason: LongRunReason) {
+    const run = this.state.session.longRun;
+    if (!isActive(run)) return;
+    this.setLongRun({ state, reason });
+    const turns = `${run!.turns} ${run!.turns === 1 ? 'turn' : 'turns'}`;
+    this.system(state === 'done' ? `Long run finished · ${turns}` : `Long run stopped: ${REASON_TEXT[reason]} · ${turns}`);
+  }
+
+  /** After an idle turn end: the next long run message, or null when the run is over. */
+  private longRunNext(): string | null {
+    const run = this.state.session.longRun;
+    if (!run || !isActive(run)) return null;
+    this.lrErrors = this.lastError ? this.lrErrors + 1 : 0;
+    const reported = this.reportSeen || (!this.lastError && parseReport(this.lastResult) !== null);
+    this.reportSeen = false;
+    const d = decide(run, { now: Date.now(), limit: this.state.session.limit, errorStreak: this.lrErrors, reported });
+    switch (d.action) {
+      case 'continue':
+        this.setLongRun({ turns: run.turns + 1 });
+        this.system(`Long run · turn ${run.turns + 1}`);
+        return CONTINUE_TEXT;
+      case 'ask_report':
+        this.setLongRun({ state: 'reporting', reason: d.reason, turns: run.turns + 1 });
+        this.system(`Long run: ${REASON_TEXT[d.reason]}, asking Claude for the report`);
+        return reportAsk(d.reason);
+      case 'done':
+        this.endLongRun('done', 'reported');
+        return null;
+      case 'stop':
+        this.endLongRun('stopped', d.reason);
+        return null;
+      default:
+        return null;
+    }
   }
 
   private flowActive() {
@@ -497,6 +610,11 @@ export class AgentSession {
   }
 
   private planSaved = false;
+
+  private longRunTool(toolName: string): Promise<PermissionResult> | null {
+    if (toolName !== 'AskUserQuestion' || !isActive(this.state.session.longRun)) return null;
+    return Promise.resolve({ behavior: 'deny', message: ASK_DENIED });
+  }
 
   continueFlow() {
     if (this.state.session.flow.phase !== 'pick' || this.state.session.running) return;
@@ -708,9 +826,11 @@ export class AgentSession {
     const idle = this.turns === 0 && !this.state.session.stopping;
     const flowing = idle && this.flowActive() && this.state.session.flow.phase !== 'pick' && this.state.session.flow.phase !== 'file';
     const next = idle && !flowing ? this.followUp() : null;
-    this.setSession({ running: this.turns > 0 || next !== null || flowing, compacting: false, stopping: false });
+    const nudge = idle && !flowing && next === null ? this.longRunNext() : null;
+    this.setSession({ running: this.turns > 0 || next !== null || nudge !== null || flowing, compacting: false, stopping: false });
     if (flowing) void this.advanceFlow();
     else if (next) this.sendPrompt(next);
+    else if (nudge) this.enqueue(nudge);
     if (idle) this.autoCheck(flowing);
   }
 
@@ -721,7 +841,7 @@ export class AgentSession {
     this.touched.clear();
     this.figmaUses.clear();
     const key = this.figma?.key;
-    if (!edited || flowing || !key || key === SAMPLE_KEY || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
+    if (!edited || flowing || isActive(this.state.session.longRun) || !key || key === SAMPLE_KEY || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
     void this.checkEdited(key, touched);
   }
 
@@ -765,6 +885,7 @@ export class AgentSession {
       this.system(`Session error: ${String(err)}`);
     } finally {
       this.turns = 0;
+      this.endLongRun('stopped', 'ended');
       this.setSession({ running: false, stopping: false });
     }
   }
@@ -798,6 +919,11 @@ export class AgentSession {
         }
         return;
 
+      case 'rate_limit_event':
+        lastLimit = limitFrom(msg.rate_limit_info);
+        this.setSession({ limit: lastLimit });
+        if (lastLimit.status === 'rejected') this.endLongRun('stopped', 'rejected');
+        return;
       case 'stream_event': {
         if (msg.parent_tool_use_id) return;
         const ev = msg.event;
@@ -830,6 +956,7 @@ export class AgentSession {
         if (msg.parent_tool_use_id) return;
         this.setSession({ cache: cacheFrom(msg.message.usage, Date.now(), this.state.session.cache), context: contextFrom(msg.message.usage) ?? this.state.session.context });
         for (const block of msg.message.content) {
+          if (block.type === 'text' && isActive(this.state.session.longRun) && parseReport(block.text)) this.reportSeen = true;
           if (block.type === 'server_tool_use' && block.name === 'advisor') this.pushEvent(advisorEvent(block.id, Date.now()));
           if (block.type === 'tool_use') {
             this.pushEvent(toolUseEvent(block.id, block.name, block.input, Date.now()));
@@ -870,6 +997,7 @@ export class AgentSession {
         const u = msg.usage as any;
         this.addTokens((u?.input_tokens ?? 0) + (u?.output_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0));
         this.lastResult = msg.subtype === 'success' ? msg.result : '';
+        this.lastError = msg.is_error;
         this.pushEvent({
           id: msg.uuid,
           kind: 'result',

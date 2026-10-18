@@ -83,10 +83,10 @@ export function BuildCheck() {
   useEffect(() => {
     setFrame(null);
     if (!figma) return;
-    Promise.all([getOutline(figma.key), getJson<DesignDoc>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
+    Promise.all([getOutline(figma.key), getJson<DesignDoc | null>('/api/design').catch((): DesignDoc => ({ frames: [] }))])
       .then(([o, d]) => {
         const all = o.pages.flatMap((p) => p.frames);
-        const id = focus && all.some((f) => f.id === focus) ? focus : (d.frames[0]?.nodeId ?? all[0]?.id);
+        const id = focus && all.some((f) => f.id === focus) ? focus : (d?.frames[0]?.nodeId ?? all[0]?.id);
         setFrame(all.find((f) => f.id === id) ?? null);
       })
       .catch(() => {});

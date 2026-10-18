@@ -25,11 +25,11 @@ export function buildCommands(_models: { value: string; displayName: string }[] 
   return [
     ...VIEWS.map(([id, title]) => ({ id: `view:${id}`, label: `View: Show ${title}` })),
     ...CENTER.map(([id, title]) => ({ id: `page:${id}`, label: `Open: ${title}` })),
-    { id: 'repo', label: 'Chat: Attach Figma File', key: '⌘O' },
+    { id: 'repo', label: 'Chat: Attach Figma file', key: '⌘O' },
     { id: 'design', label: 'Design: Toggle Design Run for the Next Message' },
     { id: 'review', label: 'Design: Review the Design' },
     { id: 'audit', label: 'Design: Audit the File' },
-    { id: 'report', label: 'Export: Design report' },
+    { id: 'report', label: 'Export: Handoff report' },
     { id: 'system', label: 'Design: Rebuild the Design System Profile' },
     ...[...RECIPES, ...custom].map((r) => ({ id: `recipe:${r.id}`, label: `Recipe: ${r.title}` })),
     ...custom.map((r) => ({ id: `recipe-edit:${r.id}`, label: `Recipe: Edit ${r.title}` })),
@@ -198,7 +198,7 @@ export function Palette() {
             }}
           />
         </div>
-        <ul ref={list} role="listbox">
+        <ul ref={list} role="listbox" aria-label="Commands">
           {rows.map((r, i) => {
             const group = i === 0 && r.recent ? 'recently used' : !r.recent && rows[i - 1]?.recent ? 'other commands' : '';
             return (

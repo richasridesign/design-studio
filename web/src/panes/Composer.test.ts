@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accept, figmaLinkIn, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
+import { accept, dropLink, figmaLinkIn, nodeLinksIn, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
 import { RECIPES, toRecipe } from '../../../shared/recipes';
 import type { ChatEvent } from '../../../shared/protocol';
 
@@ -164,9 +164,9 @@ describe('withRecipes', () => {
   const server = [{ name: 'design', description: 'Plan' }, { name: 'crit', description: 'Server crit' }, { name: 'copy', description: 'Server copy' }, { name: 'audit', description: 'Audit' }];
   const names = (l: { name: string }[]) => l.map((c) => c.name);
 
-  it('lists the six recipes and keeps one entry for names a server command shares', () => {
+  it('lists the seven recipes and keeps one entry for names a server command shares', () => {
     const list = withRecipes(server, RECIPES, []);
-    expect(names(list)).toEqual(['brief', 'states', 'responsive', 'copy', 'copy tone:neutral', 'copy tone:formal', 'crit', 'handoff', 'design', 'audit']);
+    expect(names(list)).toEqual(['brief', 'research', 'states', 'responsive', 'copy', 'copy tone:neutral', 'copy tone:formal', 'crit', 'handoff', 'design', 'audit']);
     expect(list.find((c) => c.name === 'crit')).toMatchObject({ description: RECIPES.find((r) => r.id === 'crit')!.blurb, recipe: { id: 'crit' } });
   });
 
@@ -211,5 +211,41 @@ describe('recent frames', () => {
   it('puts recent frames first and keeps the rest in order', () => {
     const f = (id: string) => ({ id, name: id, page: 'P' });
     expect(recentFirst([f('1:1'), f('2:2'), f('3:3')], ['3:3', '9:9']).map((x) => x.id)).toEqual(['3:3', '1:1', '2:2']);
+  });
+});
+
+describe('nodeLinksIn', () => {
+  const key = 'AbCdEf123456';
+  it('finds node links of this file once each', () => {
+    const t = `Fix https://www.figma.com/design/${key}/Harisson?node-id=12-34&t=x and https://www.figma.com/design/${key}/Harisson?node-id=12-34 then https://figma.com/design/${key}?node-id=5-6.`;
+    expect(nodeLinksIn(t, key)).toEqual([
+      { url: `https://www.figma.com/design/${key}/Harisson?node-id=12-34&t=x`, id: '12:34' },
+      { url: `https://figma.com/design/${key}?node-id=5-6`, id: '5:6' },
+    ]);
+  });
+
+  it('skips other files and links without a node', () => {
+    expect(nodeLinksIn(`https://www.figma.com/design/OtherKey99999/X?node-id=1-2 https://www.figma.com/design/${key}/X`, key)).toEqual([]);
+  });
+});
+
+describe('dropLink', () => {
+  it('removes the link and tidies the gap', () => {
+    expect(dropLink('Fix Cart (https://f.com/a) now', 'https://f.com/a')).toBe('Fix Cart now');
+  });
+});
+
+describe('slash menu helpers', () => {
+  it('puts recipes before skills and keeps match order', async () => {
+    const { recipesFirst } = await import('./Composer');
+    const rows = [{ item: { name: 'a' } }, { item: { name: 'b', recipe: {} } }, { item: { name: 'c' } }, { item: { name: 'd', recipe: {} } }];
+    expect(recipesFirst(rows).map((r) => r.item.name)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('keeps a skill description to one short line without dashes', async () => {
+    const { shortLine } = await import('./Composer');
+    expect(shortLine('Reviews code \u2014 fast. Then more text.')).toBe('Reviews code, fast.');
+    expect(shortLine('x'.repeat(100))).toHaveLength(72);
+    expect(shortLine('(figma) **Use** this. More.')).toBe('Use this.');
   });
 });

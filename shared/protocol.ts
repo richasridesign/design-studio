@@ -1,4 +1,5 @@
 import type { FigmaFile, FlowPhase, FlowState } from './design.js';
+import type { LongRun } from './longRun.js';
 
 export type PendingQuestion = {
   id: string;
@@ -56,6 +57,8 @@ export type SessionInfo = {
   mcp: McpServer[];
   flow: FlowState;
   spend: Spend;
+  limit?: PlanLimit | null;
+  longRun?: LongRun | null;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };
@@ -72,9 +75,11 @@ export type McpServer = {
   tools?: McpTool[];
 };
 
-export type McpConfigEntry = { name: string; scope: 'user' | 'local' | 'project'; type: string; command?: string; env?: string[] };
+export type McpConfigEntry = { name: string; scope: 'user' | 'local' | 'project' | 'plugin'; type: string; command?: string; env?: string[] };
 
 export const MCP_BAD = ['failed', 'needs-auth'];
+
+export type PlanLimit = { kind: string; used: number | null; resetsAt: number | null; status: 'allowed' | 'allowed_warning' | 'rejected' };
 
 export type CacheInfo = { at: number; ttlMs: number; readTokens: number; writeTokens: number };
 
@@ -133,12 +138,16 @@ export type ClientMessage =
   | { type: 'steer'; text: string; id?: string; images?: string[] }
   | { type: 'plan'; next: string[] }
   | { type: 'answer'; id: string; answers: Record<string, string> }
-  | { type: 'permission'; id: string; allow: boolean; always?: boolean }
+  | { type: 'permission'; id: string; allow: boolean; always?: boolean; note?: string }
   | { type: 'set_permission_mode'; mode: string }
+  | { type: 'set_model'; model: string }
   | { type: 'set_flow'; patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas' | 'stopAfterSketch'>> }
   | { type: 'flow_continue' }
-  | { type: 'flow_pick'; screen: string; direction: string }
+  | { type: 'flow_pick'; screen: string; direction: string; reason?: string }
   | { type: 'interrupt' }
+  | { type: 'long_run_start'; text: string; until: number; cap: number; images?: string[] }
+  | { type: 'long_run_stop' }
+  | { type: 'long_run_clear' }
   | { type: 'view'; id: string }
   | { type: 'close'; id: string }
   | { type: 'open_session'; sessionId: string }
@@ -146,5 +155,5 @@ export type ClientMessage =
   | { type: 'new_chat'; url?: string }
   | { type: 'set_figma'; url: string }
   | { type: 'mcp_status' }
-  | { type: 'mcp_reconnect'; name: string }
+  | { type: 'mcp_reconnect'; name: string; quiet?: boolean }
   | { type: 'mcp_toggle'; name: string; enabled: boolean };

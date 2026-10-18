@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { CacheInfo, ChatEvent } from '../../shared/protocol.js';
+import type { CacheInfo, ChatEvent, PlanLimit } from '../../shared/protocol.js';
 
 export const BIG_BRO = 'big-bro';
 
@@ -74,6 +74,12 @@ export function contextFrom(usage: any): number | null {
   if (!usage) return null;
   const total = (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0);
   return total > 0 ? total : null;
+}
+
+export function limitFrom(info: { status: PlanLimit['status']; rateLimitType?: string; utilization?: number; resetsAt?: number }): PlanLimit {
+  const u = typeof info.utilization === 'number' ? (info.utilization > 1 ? info.utilization / 100 : info.utilization) : null;
+  const r = typeof info.resetsAt === 'number' ? (info.resetsAt < 1e12 ? info.resetsAt * 1000 : info.resetsAt) : null;
+  return { kind: info.rateLimitType ?? 'five_hour', used: u, resetsAt: r, status: info.status };
 }
 
 export function cacheFrom(usage: any, at: number, prev: CacheInfo | null): CacheInfo | null {

@@ -9,8 +9,10 @@ const SAMPLE = fileURLToPath(new URL('../sample', import.meta.url));
 
 export const SAMPLE_NAME = 'Sample - Grocery cart';
 
+export const samplePath = (root = CHATS_ROOT) => path.join(root, SAMPLE_NAME);
+
 export async function loadSample(root = CHATS_ROOT) {
-  const dir = path.join(root, SAMPLE_NAME);
+  const dir = samplePath(root);
   await mkdir(dir, { recursive: true });
   await cp(SAMPLE, dir, { recursive: true, force: true });
   await freshen(dir);

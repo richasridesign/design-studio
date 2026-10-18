@@ -59,12 +59,12 @@ describe('PermissionCard', () => {
 });
 
 describe('PlanCard', () => {
-  it('renders the plan as Markdown with Approve and Keep planning', () => {
+  it('renders the plan as Markdown with Approve and Ask for changes', () => {
     const p = permission('ExitPlanMode', { plan: '# Steps\n\n1. one' }, { title: 'Approve the plan to start building' });
     const out = renderToStaticMarkup(createElement(PlanCard, { p, mode: 'plan', first: true }));
     expect(out).toMatch(/<h1[^>]*>Steps<\/h1>/);
     expect(out).toContain('Approve<kbd>Y</kbd>');
-    expect(out).toContain('Keep planning<kbd>N</kbd>');
+    expect(out).toContain('Ask for changes<kbd>N</kbd>');
     expect(out).not.toContain('Always allow');
     expect(out).toContain('Plan mode asks before it starts building');
   });

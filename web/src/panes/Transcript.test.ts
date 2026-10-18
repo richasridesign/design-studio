@@ -29,6 +29,14 @@ describe('stepLabel', () => {
     expect(stepLabel('mcp__playwright__browser_click', {}, cwd)).toEqual({ verb: 'Called', object: 'browser_click (playwright)' });
     expect(stepLabel('Mystery', {}, cwd)).toEqual({ verb: 'Used', object: 'Mystery' });
   });
+
+  it('names Figma calls and described commands in plain words', () => {
+    expect(stepLabel('mcp__plugin_figma_figma__get_screenshot', { nodeId: '12-34' }, cwd)).toEqual({ verb: 'Took', object: 'a screenshot of frame 12:34' });
+    expect(stepLabel('mcp__figma__use_figma', { description: 'Add hover states' }, cwd)).toEqual({ verb: 'Worked in', object: 'Figma: Add hover states' });
+    expect(stepLabel('mcp__figma__search_design_system', { query: 'button' }, cwd).object).toBe('the design system for "button"');
+    expect(stepLabel('mcp__figma__brand_new_tool', {}, cwd)).toEqual({ verb: 'Called', object: 'brand_new_tool (figma)' });
+    expect(stepLabel('Bash', { command: 'npm i', description: 'Install packages' }, cwd)).toEqual({ verb: 'Ran', object: 'Install packages' });
+  });
 });
 
 describe('duration', () => {

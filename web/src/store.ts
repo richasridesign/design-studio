@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { ClientMessage, LiveChat, ServerMessage, ServerState } from '../../shared/protocol';
 import { flowOff } from '../../shared/design';
 import { notify } from './notify';
+import { REASON_TEXT, isActive } from '../../shared/longRun';
 
 type UiState = {
   connected: boolean;
@@ -99,7 +100,7 @@ function handle(m: ServerMessage) {
       notice(m.text);
       break;
     case 'event':
-      if (m.event.kind === 'result' && !state.events.some((e) => e.id === m.event.id)) {
+      if (m.event.kind === 'result' && !state.events.some((e) => e.id === m.event.id) && !isActive(state.session.longRun)) {
         notify('Claude finished', m.event.text.trim().split('\n')[0], focus(state.session.id));
       }
       set((s) => {
@@ -131,6 +132,10 @@ function handle(m: ServerMessage) {
       setUi({ focus: m.nodeId });
       break;
     case 'session':
+      if (isActive(state.session.longRun) && m.session.longRun && !isActive(m.session.longRun)) {
+        const r = m.session.longRun;
+        notify(r.state === 'done' ? 'Long run finished' : 'Long run stopped', r.state === 'done' ? 'The report is in the chat' : REASON_TEXT[r.reason ?? 'user'], focus(state.session.id));
+      }
       set({ session: m.session });
       break;
     case 'live':

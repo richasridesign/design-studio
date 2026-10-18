@@ -16,6 +16,9 @@ export function recentFiles(live: LiveChat[], currentUrl?: string, max = 5) {
   return out.slice(0, max);
 }
 
+/** One name for the action everywhere: the top bar, the Stages gate, empty states and the welcome. */
+export const ATTACH = 'Attach Figma file';
+
 export function FilePill() {
   const figma = useStore((s) => s.session.figma);
   const live = useStore((s) => s.live);
@@ -56,11 +59,12 @@ export function FilePill() {
 
   return (
     <div className="file-wrap" ref={wrap}>
-      <button className="file-pill" aria-haspopup="true" aria-expanded={open} title={figma ? `${figma.url}\nOpen another Figma file (⌘O)` : 'Attach a Figma file (⌘O)'} onClick={() => setOpen((o) => !o)}>
-        <Icon name="file-media" small /> <span>{figma?.name ?? 'Attach Figma file'}</span> <Icon name="chevron-down" small />
+      {/* With no file, a phone shows the icon only, so the button carries the visible name as its accessible name. */}
+      <button className={`file-pill${figma ? '' : ' no-file'}`} aria-haspopup="true" aria-expanded={open} aria-label={figma ? undefined : ATTACH} title={figma ? `${figma.url}\nOpen another Figma file (⌘O)` : `${ATTACH} (⌘O)`} onClick={() => setOpen((o) => !o)}>
+        <Icon name="file-media" small /> <span className="file-label">{figma?.name ?? ATTACH}</span> <Icon name="chevron-down" small />
       </button>
       {open && (
-        <div className="switcher attach-pop" role="dialog" aria-label="Attach a Figma file">
+        <div className="switcher attach-pop" role="dialog" aria-label={ATTACH}>
           <form className="attach-form" onSubmit={(e) => { e.preventDefault(); if (valid) attach(url.trim()); }}>
             <input ref={input} placeholder="Paste a Figma file link" value={url} onChange={(e) => setUrl(e.target.value)} />
             <button type="submit" className="primary" disabled={!valid}>Attach</button>
@@ -71,7 +75,7 @@ export function FilePill() {
               <div className="attach-label">Open in Chrome</div>
               <ul>
                 {chromeTabs.map((t) => (
-                  <li key={t.url} title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></li>
+                  <li key={t.url}><button type="button" title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></button></li>
                 ))}
               </ul>
             </>
@@ -81,7 +85,7 @@ export function FilePill() {
               <div className="attach-label">Recent files</div>
               <ul>
                 {recent.map((f) => (
-                  <li key={f.url} title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></li>
+                  <li key={f.url}><button type="button" title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></button></li>
                 ))}
               </ul>
             </>

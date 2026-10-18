@@ -31,11 +31,11 @@ export const openMcp = () => window.dispatchEvent(new CustomEvent('designstudio:
 export function McpItem() {
   const mcp = useStore((s) => s.session.mcp);
   const ok = mcp.filter((m) => m.status === 'connected').length;
-  const bad = mcp.some((m) => MCP_BAD.includes(m.status));
+  const tone = mcp.some((m) => m.status === 'failed') ? 'bad' : mcp.some((m) => MCP_BAD.includes(m.status)) ? 'warn' : ok ? 'ok' : 'off';
   return (
-    <span className="item clickable" title="MCP servers" onClick={openMcp}>
-      <span className={`mcp-dot ${bad ? 'bad' : ok ? 'ok' : 'off'}`} /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
-    </span>
+    <button className="item clickable mcp-item" title="MCP servers" aria-label={mcp.length ? `MCP servers: ${ok} of ${mcp.length} connected` : 'MCP servers'} onClick={openMcp}>
+      <span className={`mcp-dot ${tone}`} aria-hidden="true" /> <span className="label">MCP {mcp.length ? `${ok}/${mcp.length}` : ''}</span>
+    </button>
   );
 }
 
@@ -102,7 +102,7 @@ export function McpPage() {
           <div className="mcp-stats">
             <Stat n={ok} of={rows.length} label="connected" tone={attention ? 'warn' : 'ok'} />
             <Stat n={tools} label="tools" />
-            {attention > 0 && <Stat n={attention} label="need you" tone="bad" />}
+            {attention > 0 && <Stat n={attention} label="need you" tone={rows.some((r) => r.status === 'failed') ? 'bad' : 'warn'} />}
             <button className={`mcp-refresh ${busy ? 'busy' : ''}`} onClick={() => load(true)} disabled={busy} title="Connect to every server again">
               <Icon name={busy ? 'loading' : 'refresh'} small spin={busy} /> {busy ? 'Checking' : at ? `Checked ${ago(at)}` : 'Check'}
             </button>

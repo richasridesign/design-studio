@@ -1,0 +1,12 @@
+.pd-change { display: flex; flex-direction: column; gap: 8px; }
+.pd-change-label { font-size: var(--text-sm); font-weight: 600; color: var(--fg); }
+.pd-change textarea {
+  width: 100%; resize: vertical; padding: 8px 12px; font: inherit; font-size: var(--text-sm); line-height: 20px;
+  color: var(--fg); background: var(--input, var(--bg)); border: 1px solid var(--input-border, var(--border-strong));
+  border-radius: var(--radius-sm, 8px);
+}
+.pd-change textarea::placeholder { color: var(--fg-faint); }
+.pd-change textarea:focus-visible { outline: 2px solid var(--link, var(--accent)); outline-offset: 1px; }
+button.pd-btn.ghost { background: none; border-color: transparent; }
+button.pd-btn.ghost:hover { background: var(--bg-hover); }
+.pd kbd { min-width: 0; padding: 0; border: 0; background: none; }

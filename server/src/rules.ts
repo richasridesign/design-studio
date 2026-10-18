@@ -1,15 +1,17 @@
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { HOME } from './settings.js';
+import { readScope } from './scope.js';
+import { scopeBlock, type Scope } from '../../shared/scope.js';
 
 const MAX_RULES = 20 * 1024;
 
-export type Rules = { global: string; file: string };
+export type Rules = { global: string; file: string; scope?: Scope };
 
 const GLOBAL = path.join(HOME, 'rules.md');
 const read = (p: string) => readFile(p, 'utf8').catch(() => '');
 
-export const readRules = async (dir: string): Promise<Rules> => ({ global: await read(GLOBAL), file: await read(path.join(dir, 'rules.md')) });
+export const readRules = async (dir: string): Promise<Rules> => ({ global: await read(GLOBAL), file: await read(path.join(dir, 'rules.md')), scope: await readScope(dir) });
 
 export async function writeRules(dir: string, patch: Partial<Rules>) {
   await mkdir(HOME, { recursive: true });
@@ -20,5 +22,5 @@ export async function writeRules(dir: string, patch: Partial<Rules>) {
 
 export function rulesBlock(r: Rules) {
   const text = [r.global, r.file].map((t) => t.trim()).filter(Boolean).join('\n');
-  return text ? `House rules from the designer, follow them:\n${text}` : '';
+  return [text ? `House rules from the designer, follow them:\n${text}` : '', scopeBlock(r.scope)].filter(Boolean).join('\n\n');
 }

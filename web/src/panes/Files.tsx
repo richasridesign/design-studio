@@ -44,7 +44,7 @@ export function Files() {
           <section className="side-section">
             <div className="file-head">
               <div className="file-name">{figma.name}</div>
-              <div className="file-acts">
+              <div className="file-acts inline">
                 <button onClick={() => postJson('/api/figma/show', {}).catch((e) => setError(e.message))}><Icon name="link-external" small /> Show in Chrome</button>
                 <button className="icon-btn" title="Reload frames from Figma" aria-label="Reload frames from Figma" onClick={() => void refreshOutline(figma.key).catch(() => {})}><Icon name="refresh" small /></button>
               </div>
@@ -53,7 +53,7 @@ export function Files() {
             {!outline && !error && <div className="hint">Loading frames…</div>}
             {outline?.pages.map((p) => (
               <div key={p.id} className="page-group">
-                <button className="page-row" onClick={() => setOpen((o) => ({ ...o, [p.id]: !(o[p.id] ?? p.name !== 'Sketch') }))}>
+                <button className="page-row" aria-expanded={open[p.id] ?? p.name !== 'Sketch'} onClick={() => setOpen((o) => ({ ...o, [p.id]: !(o[p.id] ?? p.name !== 'Sketch') }))}>
                   <Icon name={(open[p.id] ?? p.name !== 'Sketch') ? 'chevron-down' : 'chevron-right'} small /> {p.name} <span className="count">{p.frames.length}</span>
                 </button>
                 {(open[p.id] ?? p.name !== 'Sketch') && (
@@ -64,7 +64,7 @@ export function Files() {
                           <span className="thumb">{thumbs[f.id] ? <img src={thumbs[f.id]!} alt="" loading="lazy" /> : <Icon name="symbol-misc" small />}</span>
                           <span className="frame-name">{f.name}</span>
                         </button>
-                        <button className="icon-btn" title="Add to the prompt" onClick={() => insertPrompt(`${f.name} (${figmaNodeUrl(figma.key, f.id)})`)}><Icon name="add" small /></button>
+                        <button className="icon-btn" title="Add to the prompt" aria-label={`Add ${f.name} to the prompt`} onClick={() => insertPrompt(`${f.name} (${figmaNodeUrl(figma.key, f.id)})`)}><Icon name="add" small /></button>
                       </li>
                     ))}
                     {!p.frames.length && <li className="hint">No frames on this page</li>}
@@ -77,7 +77,7 @@ export function Files() {
           <Section view="files" id="versions" title="Versions"><Changes /></Section>
         </>
       ) : (
-        <Empty art={<FilesArt />} title="Attach a Figma file" text="Attach a file to open its frames here." action={{ label: 'Attach a Figma file', onClick: attachFigma }} />
+        <Empty art={<FilesArt />} title="No Figma file yet" text="Attach a Figma file to open its frames here." action={{ label: 'Attach Figma file', onClick: attachFigma }} />
       )}
       <TeamFiles />
     </div>
@@ -102,7 +102,7 @@ function TeamFiles() {
       <div className="side-label">Team files</div>
       {projects.map((p) => (
         <div key={p.id}>
-          <button className="page-row" onClick={() => toggle(p.id)}><Icon name={open === p.id ? 'chevron-down' : 'chevron-right'} small /> {p.name}</button>
+          <button className="page-row" aria-expanded={open === p.id} onClick={() => toggle(p.id)}><Icon name={open === p.id ? 'chevron-down' : 'chevron-right'} small /> {p.name}</button>
           {open === p.id && (
             <ul className="frame-list">
               {(files[p.id] ?? []).map((f) => (
