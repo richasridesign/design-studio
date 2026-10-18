@@ -137,7 +137,8 @@ async function walk(n, depth, parentType, full) {
     if (depth >= MAX_DEPTH) { truncated = true; return o; }
     const c = [];
     for (const k of ch) {
-      if (count >= MAX_NODES) { truncated = true; break; }
+      // k marks a node whose children the cap cut short, so the check skips that flow instead of guessing.
+      if (count >= MAX_NODES) { truncated = true; o.k = 1; break; }
       const w = await walk(k, depth + 1, n.type, true);
       if (w) c.push(w);
     }

@@ -142,6 +142,10 @@ describe('flowCheckScript', () => {
     expect(out.truncated).toBe(true);
     const tops = out.document.c[0].c.map((t: any) => [t.n, Boolean(t.c)]);
     expect(tops).toEqual([['Flow 1 · V1', false], ['LATEST flows', true], ['Onboarding', true]]);
+    // A section the cap cut into is not checked, so its missing stickies are not reported.
+    const cut = await runScript(flowCheckScript({ maxNodes: 12, first: ['onboarding'] }), figma);
+    const flows = runPayload(cut).flows.map((f) => [f.name, f.state, f.skipped ?? '']);
+    expect(flows).toEqual(expect.arrayContaining([['LATEST flows', 'pass', ''], ['Onboarding', 'unchecked', 'cut']]));
   });
 
   it('stays well under the use_figma code limit', () => {
