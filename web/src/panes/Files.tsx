@@ -77,7 +77,7 @@ export function Files() {
           <Section view="files" id="versions" title="Versions"><Changes /></Section>
         </>
       ) : (
-        <Empty art={<FilesArt />} title="Attach a Figma file" text="Attach a file to open its frames here." action={{ label: 'Attach a Figma file', onClick: attachFigma }} />
+        <Empty art={<FilesArt />} title="No Figma file yet" text="Attach a Figma file to open its frames here." action={{ label: 'Attach Figma file', onClick: attachFigma }} />
       )}
       <TeamFiles />
     </div>

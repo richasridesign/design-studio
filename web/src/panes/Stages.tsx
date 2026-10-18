@@ -7,7 +7,7 @@ import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
 import '../stages.css';
 
-const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open handoff report', attach: 'Attach file', research: 'Open research', states: 'Show states' };
+const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open handoff report', attach: 'Attach Figma file', research: 'Open research', states: 'Show states' };
 
 function go(to: StageOpen) {
   if (to === 'report') window.open(api('/api/report'), '_blank');

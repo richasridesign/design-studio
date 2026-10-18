@@ -101,3 +101,10 @@
   .workbench[data-tab='more'] .sidebar-title { display: none; }
   .workbench[data-tab='more'] .side-switch { padding-top: 12px; }
 }
+
+/* "Attach Figma file" does not fit beside the spend, MCP and icon buttons on a phone, so the empty pill is an
+   icon button named by its aria-label and title. Cutting the text would leave "Attach Fi…". */
+@media (max-width: 480px) {
+  .topbar .file-pill.no-file { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .topbar .file-pill.no-file .file-label, .topbar .file-pill.no-file .codicon-chevron-down { display: none; }
+}

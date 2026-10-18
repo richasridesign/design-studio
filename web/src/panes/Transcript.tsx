@@ -41,7 +41,7 @@ export function Transcript({ view = 'transcript', children }: { view?: ChatView;
 
 export function welcomeChips(fileName: string | null): Array<{ label: string; attach?: boolean }> {
   if (fileName) return [`Review the frames in ${fileName} for spacing and contrast`, 'Add missing empty, loading and error states to the selected frame', 'Suggest three layout options for the selected frame', `Write a design brief for the next screen in ${fileName}`].map((label) => ({ label }));
-  return [{ label: 'Attach a Figma file', attach: true }, { label: 'Suggest three layout options for a pricing page' }, { label: 'Write empty, loading and error states for a sign-up screen' }, { label: 'Turn these notes into a design brief' }];
+  return [{ label: 'Attach Figma file', attach: true }, { label: 'Suggest three layout options for a pricing page' }, { label: 'Write empty, loading and error states for a sign-up screen' }, { label: 'Turn these notes into a design brief' }];
 }
 
 function SetupBanner() {
