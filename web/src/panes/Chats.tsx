@@ -12,6 +12,7 @@ type Folder = { cwd: string; key: string; name: string; url: string; stage?: str
 type Group = { cwd: string; name: string; stage?: string | null; open: LiveChat[]; recent: SavedSession[] };
 
 const RECENT = 5;
+const FOLDED_KEY = 'designstudio.foldedFolders';
 const urgency = (c: LiveChat) => (c.pending ? 0 : c.running ? 1 : 2);
 const byUrgency = (a: LiveChat, b: LiveChat) => urgency(a) - urgency(b) || b.lastActive - a.lastActive;
 
@@ -62,6 +63,15 @@ export function Chats() {
   const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleError, setSampleError] = useState('');
   const [query, setQuery] = useState('');
+  const [folded, setFolded] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '[]') as string[]); } catch { return new Set(); }
+  });
+  const fold = (key: string) => setFolded((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(key)) next.add(key);
+    try { localStorage.setItem(FOLDED_KEY, JSON.stringify([...next])); } catch {}
+    return next;
+  });
 
   useEffect(() => {
     getJson<Folder[]>('/api/figma/folders').then(setFolders).catch(() => {});
@@ -104,29 +114,37 @@ export function Chats() {
       </div>
       <div className="tree">
         <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void runSample()} {...press(() => sampleBusy || void runSample())}>
-          <span className="twistie"><Icon name="play" small /></span>
+          <span className="twistie"><Icon name="compass" small /></span>
           <span className="name">Sample tour</span>
         </div>
         {sampleError && <div className="hint error-text">{sampleError}</div>}
-        {groups.map((g) => (
-          <div key={g.cwd || 'no-file'}>
-            <div className="row project" title={g.cwd || undefined}>
-              <span className="twistie"><Icon name="file-media" small /></span>
-              <span className="name">{g.name}</span>
+        {groups.map((g) => {
+          const key = g.cwd || 'no-file';
+          const open = Boolean(query) || !folded.has(key);
+          return (
+          <div key={key}>
+            <div className="row project" title={g.cwd || undefined} onClick={() => query || fold(key)}>
+              <span className="fold" aria-expanded={open} title={open ? 'Collapse' : 'Expand'} {...press(() => query || fold(key))}>
+                <span className="twistie chevron"><Icon name={open ? 'chevron-down' : 'chevron-right'} small /></span>
+                <span className="twistie"><Icon name="file-media" small /></span>
+                <span className="name">{g.name}</span>
+              </span>
+              {!open && <span className="count" title={`${g.open.length + g.recent.length} chats`}>{g.open.length + g.recent.length}</span>}
               {g.stage && <span className="stage-tag" title={`Stage: ${g.stage}`}>{g.stage}</span>}
               <span className="acts">
-                <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={() => send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' })}><Icon name="add" small /></button>
+                <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={(e) => { e.stopPropagation(); send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' }); }}><Icon name="add" small /></button>
               </span>
             </div>
-            {g.open.map((c) => <LiveRow key={c.id} c={c} selected={c.id === viewing} onClose={() => close(c)} />)}
-            {(query ? g.recent : g.recent.slice(0, RECENT)).map((s) => (
+            {open && g.open.map((c) => <LiveRow key={c.id} c={c} selected={c.id === viewing} onClose={() => close(c)} />)}
+            {open && (query ? g.recent : g.recent.slice(0, RECENT)).map((s) => (
               <div key={s.sessionId} className="row session recent" title={s.title} onClick={() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); }} {...press(() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); })}>
                 <span className="name">{opening === s.sessionId ? 'Opening… ' : ''}{s.title}</span>
                 <span className="when">{ago(s.lastModified)}</span>
               </div>
             ))}
           </div>
-        ))}
+          );
+        })}
         {!groups.length && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
       </div>
       {ask && <Confirm {...ask} onClose={() => setAsk(null)} />}

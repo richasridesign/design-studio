@@ -105,3 +105,29 @@
 }
 .sessions .tree .row .stage-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--warn); }
 .sessions .tree .row:has(.acts):is(:hover, :focus-within) .stage-tag { display: none; }
+
+/* Chat list: one left edge (12px) for the title, New chat, search and folder chevrons.
+   Folder: chevron, file icon, name at 48px. Chats under it: status dot under the file icon, name at 48px. */
+.sidebar:has(> .sessions.chats) > .sidebar-title { padding: 0 12px; }
+.sessions.chats .sessions-bar { gap: 8px; padding: 0 12px 8px; }
+@media (min-width: 901px) {
+  .sessions.chats .sessions-bar .new-chat, .sessions.chats .sessions-bar input { height: 36px; }
+  .sessions.chats .sessions-bar input { line-height: 34px; }
+}
+.sessions.chats .sessions-bar input { padding: 0 16px; }
+/* Phone: the section switch wraps instead of running off screen. */
+@media (max-width: 900px) { .sidebar > .side-switch { flex-wrap: wrap; overflow: visible; padding: 12px 12px 8px; } .sidebar > .side-switch > button { flex: 1 0 auto; } }
+.sessions.chats .sessions-bar input:focus { box-shadow: 0 0 0 1px var(--focus); }
+.sessions.chats .tree .row.project { padding-left: 8px; }
+.sessions.chats .tree .row.project .fold { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; height: 100%; border-radius: var(--radius-sm); }
+.sessions.chats .tree .row.project .fold .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sessions.chats .tree .row.project .fold:focus-visible { outline-offset: -2px; }
+.sessions.chats .tree .row.project .twistie.chevron { color: var(--fg-muted); }
+.sessions.chats .tree .row.project:hover .twistie.chevron { color: var(--fg); }
+.sessions.chats .tree .row.session.sample { padding-left: 28px; gap: 4px; }
+.sessions.chats .tree .row.live, .sessions.chats .tree .row.live.two { padding-left: 32px; gap: 8px; }
+.sessions.chats .tree .row.live .dot { margin: 0; }
+.sessions.chats .tree .row.live.two { padding-top: 4px; padding-bottom: 4px; }
+.sessions.chats .tree .row.live.two > .dot { margin-top: 5px; }
+.sessions.chats .tree .row.recent { padding-left: 48px; }
+.sessions.chats .tree .hint { padding: 8px 12px 8px 48px; }
