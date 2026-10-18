@@ -60,6 +60,8 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
 const PHASE_TAB: Record<string, Center> = { sketch: 'sketch', pick: 'sketch', file: 'figma', design: 'figma', fix: 'figma', review: 'review' };
 const PHASE_LABEL: Record<string, string> = { plan: 'Plan', sketch: 'Sketch', pick: 'Pick a direction', file: 'Attach a Figma file', system: 'Design system', design: 'Design', review: 'Review', fix: 'Fix', done: 'Done', stopped: 'Stopped' };
 const narrow = () => window.innerWidth <= 900;
+// Visually hidden, still read by screen readers (the page's one h1).
+const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };
 
 function stored(key: string, fallback: number) {
   try {
@@ -255,7 +257,8 @@ export function App() {
     <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} style={{ '--chat-w': `${chatW}px` } as React.CSSProperties}>
       <Offline />
       <header className="topbar">
-        <span className="brand"><span className="logo" />Design Studio</span>
+        <h1 style={HIDDEN}>Design Studio</h1>
+        <span className="brand" aria-hidden><span className="logo" />Design Studio</span>
         <FilePill />
         <span className="spacer" />
         <span className={`run-state ${session.running ? 'busy' : ''}`}>
@@ -329,11 +332,11 @@ export function App() {
 
         <div className="sash desktop-only" onPointerDown={startResize} />
 
-        <section className="main pane center">
+        <main className="main pane center" aria-label="Chat">
           <ErrorBoundary label="chat">
             <Brief />
           </ErrorBoundary>
-        </section>
+        </main>
       </div>
 
       <StatusBar />
