@@ -1,0 +1,97 @@
+.sessions .sessions-bar { gap: 4px; padding: 0 12px 6px 8px; align-items: center; }
+.sessions .sessions-bar input {
+  height: 24px; padding: 0 8px; font-size: var(--text-md); line-height: 22px;
+  background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.sessions .sessions-bar input:focus { outline: 0; border-color: var(--accent); }
+.sessions .hint { padding: 0 12px 6px 8px; font-size: var(--text-xs); color: var(--fg-muted); }
+.sessions .hint.error { color: var(--err); display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.sessions .tree .row { flex-wrap: nowrap; padding-left: 8px; }
+.sessions .tree .row.project { font-weight: 600; color: var(--fg); }
+.sessions .tree .row.session, .sessions .tree .row.more { padding-left: 24px; }
+.sessions .tree .row.selected { background: var(--accent-soft); color: var(--fg); }
+.sessions .tree .row .name { flex: 1; min-width: 0; }
+.sessions .tree .row .count, .sessions .tree .row .when {
+  flex: none; margin-left: auto; padding: 0 10px 0 8px; font-size: var(--text-xs); font-weight: 400;
+  color: var(--fg-muted); font-variant-numeric: tabular-nums; text-align: right;
+}
+.sessions .tree .row .when { min-width: 44px; }
+.sessions .tree .row.project .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.sessions .tree .row.project.here .name { color: var(--fg); font-weight: 600; }
+.sessions .tree .row .branch {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-left: 4px;
+  font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted);
+}
+.sessions .tree .row.worktree { gap: 6px; }
+.sessions .tree .row .acts { display: none; flex: none; gap: 2px; margin: 0 6px 0 auto; }
+.sessions .tree .row .acts .icon-btn { width: 20px; height: 20px; }
+.sessions .tree .row:hover .acts { display: inline-flex; }
+.sessions .tree .row:has(.acts):hover :is(.when, .count) { display: none; }
+@media (hover: none) { .sessions .tree .row .acts { display: inline-flex; margin-left: 0; } }
+.sessions .tree .row.removing { color: var(--fg-muted); pointer-events: none; }
+.sessions .tree .row.removing .when { display: none; }
+.sessions .tree .row .busy { display: inline-flex; margin: 0 10px 0 auto; }
+.sessions .tree .row .dirty { flex: none; font-size: var(--text-xs); color: var(--warn); margin-left: 6px; }
+.sessions .tree .group {
+  height: 22px; line-height: 22px; padding: 0 12px 0 8px; margin-top: 4px;
+  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted);
+}
+.sessions .tree .row.live { padding-left: 8px; gap: 6px; }
+.sessions .tree .row.live .state { display: inline-flex; width: 16px; justify-content: center; color: var(--fg-muted); flex: none; }
+.sessions .tree .row.live .state.running { color: var(--claude); }
+.sessions .tree .row.live .state.waiting { color: var(--warn); }
+.sessions .tree .row.live .repo { flex: none; font-weight: 600; color: var(--fg); }
+.sessions .tree .row.live .name { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
+.sessions .tree .row.live.selected .name { color: var(--fg); }
+.sessions .tree .row.live .when:empty { display: none; }
+.sessions .tree .row.more { font-size: var(--text-sm); color: var(--fg-muted); }
+.sessions .tree .row.more:hover { color: var(--fg); text-decoration: underline; }
+.sessions .sessions-bar .new-chat {
+  flex: 1; height: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: var(--text-sm); color: var(--fg); border-radius: var(--radius-sm);
+}
+.side-switch { display: flex; gap: 4px; padding: 0 12px 8px 8px; }
+.side-switch button { flex: 1; height: 32px; font-size: var(--text-md); color: var(--fg-muted); background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.side-switch button.active { color: var(--fg); background: var(--accent-soft); border-color: var(--accent); }
+.sessions.chats .sessions-bar + .sessions-bar input { flex: 1; min-width: 0; }
+.sessions.chats .tree .row.live, .sessions.chats .tree .row.recent { padding-left: 24px; gap: 6px; }
+.sessions .tree.needs { flex: none; max-height: 30%; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.sessions .tree.needs .group { margin-top: 0; color: var(--warn); display: flex; align-items: center; gap: 6px; }
+.sessions .tree.needs .row.live { padding-left: 8px; }
+.sessions.chats .tree .row.recent .name { color: var(--fg-muted); }
+.sessions.chats .tree .row .meta { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding-right: 2px; font-weight: 400; }
+.sessions.chats .tree .row .meta .count { margin-left: 0; padding: 0 10px 0 2px; min-width: 22px; }
+.sessions.chats .tree .row.project:hover .meta { display: none; }
+.sessions .dot { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 50%; box-sizing: border-box; }
+.sessions .dot.running { background: var(--accent); animation: dot-pulse 1.4s ease-in-out infinite; }
+.sessions .dot.waiting { background: var(--warn); }
+.sessions .dot.idle { border: 1.5px solid var(--fg-muted); }
+@keyframes dot-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
+.sessions .tree .row.live .repo { font-weight: 400; color: var(--fg); }
+.sessions .tree .hint { padding: 6px 12px 6px 24px; }
+.sessions.chats .tree .row.live .name { color: var(--fg); }
+.sessions .tree .row .badges { flex: none; display: inline-flex; align-items: center; margin-left: auto; padding-right: 10px; font-weight: 400; }
+.sessions .tree .row .badges .dirty { width: 14px; margin: 0; text-align: center; }
+.sessions .tree .row .badges .count { width: 24px; margin: 0; padding: 0; }
+.sessions .tree .row.project:hover .badges { display: none; }
+.sessions .tree .row.group-row { margin-top: 6px; font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.sessions.chats .tree .row.recent { padding-left: 42px; }
+.sessions .side-switch .seg-count { margin-left: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
+.sessions .side-switch button { height: 24px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
+.sessions .tree .row.group-row .count { margin-left: auto; padding-right: 10px; font-weight: 400; text-transform: none; }
+.sessions.workspace .tree .row.repo-row { padding-left: 16px; gap: 4px; font-weight: 400; color: var(--fg); }
+.sessions.workspace .tree .row.repo-row > .icon { flex: none; color: var(--fg-muted); }
+.sessions.workspace .tree .row.repo-row .label { flex: 1; min-width: 0; display: flex; flex-direction: column; padding-left: 2px; }
+.sessions.workspace .tree .row.repo-row .name { flex: none; overflow: hidden; text-overflow: ellipsis; }
+.sessions.workspace .tree .row.repo-row.dim .name { color: var(--fg-muted); }
+.sessions.workspace .tree .row.repo-row.here .name { color: var(--fg); font-weight: 600; }
+.sessions.workspace .tree .row.repo-row.two { height: auto; min-height: 22px; padding-top: 2px; padding-bottom: 3px; align-items: flex-start; }
+.sessions.workspace .tree .row.repo-row.two > :is(.twistie, .icon, .badges, .acts) { margin-top: 3px; }
+.sessions.workspace .tree .row.repo-row .branch-chip {
+  align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 6px; border-radius: var(--radius-sm); font-size: var(--text-xs); line-height: 15px; color: var(--fg-muted); background: var(--border);
+}
+.sessions.workspace .tree .row.repo-row .badges .when { min-width: 28px; padding: 0; margin: 0; }
+.sessions.workspace .tree .row.repo-row .badges .count { width: 20px; }
+.sessions.workspace .tree .row.session, .sessions.workspace .tree .row.more { padding-left: 54px; }
+@media (max-width: 900px) { .sessions.workspace .tree .row.repo-row.two { min-height: 36px; align-items: center; } }

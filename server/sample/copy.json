@@ -1,0 +1,40 @@
+{
+  "runs": [
+    {
+      "id": "p1",
+      "at": 1792271974579,
+      "frames": [
+        "12:3"
+      ],
+      "tone": "friendly",
+      "tokens": 4200,
+      "costUsd": 0.01,
+      "items": [
+        {
+          "nodeId": "12:41",
+          "before": "PROCEED TO CHECKOUT",
+          "after": "Check out",
+          "reason": "Sentence case, shorter verb."
+        },
+        {
+          "nodeId": "12:44",
+          "before": "Your cart is currently empty.",
+          "after": "Your cart is empty",
+          "reason": "Drop filler word, no period in a heading."
+        },
+        {
+          "nodeId": "12:45",
+          "before": "Click here to browse products",
+          "after": "Browse products",
+          "reason": "Avoid click here, lead with the verb."
+        },
+        {
+          "nodeId": "12:50",
+          "before": "Error: invalid promo",
+          "after": "That code did not work. Check it and try again.",
+          "reason": "Say what happened and what to do."
+        }
+      ]
+    }
+  ]
+}

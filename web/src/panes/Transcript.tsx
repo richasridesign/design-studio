@@ -1,0 +1,291 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { getJson, postJson, setUi, useRev, useStore } from '../store';
+import { CHECKS } from '../setupChecks';
+import { Icon } from '../Icon';
+import { Markdown } from './Chat';
+import { FileIcon } from './Explorer';
+import { insertPrompt, showNode } from './Files';
+import { useThumbs } from '../useThumbs';
+import { frameName, splitFrameLinks, useOutline } from '../outline';
+import { FrameNames } from '../FrameNames';
+import { buildTranscript, duration, firstLine, groupTurns, relPath, stepLabel, type Block, type Item, type ToolResult, type ToolUse } from './steps';
+import { focusReview } from './reviewFocus';
+import { areaRows, canGoDeeper, isStale, retryPrompt, runLabel, summarize, unposted } from './reviewRuns';
+import { reviewChecklist, type ReviewDoc } from '../../../shared/design';
+import type { ChatEvent } from '../../../shared/protocol';
+import '../transcript.css';
+
+export function Transcript({ children }: { children?: ReactNode }) {
+  const events = useStore((s) => s.events);
+  const cwd = useStore((s) => s.session.cwd);
+  const running = useStore((s) => s.session.running);
+  const stopping = useStore((s) => s.session.stopping);
+  const status = useStore((s) => s.status);
+  const figmaKey = useStore((s) => s.session.figma?.key);
+  return <TranscriptView events={events} cwd={cwd} running={running} stopping={stopping} status={status} figmaKey={figmaKey}>{children}</TranscriptView>;
+}
+
+export function welcomeChips(fileName: string | null): Array<{ label: string; attach?: boolean }> {
+  if (fileName) return [`Review the frames in ${fileName} for spacing and contrast`, 'Add missing empty, loading and error states to the selected frame', 'Suggest three layout options for the selected frame', `Write a design brief for the next screen in ${fileName}`].map((label) => ({ label }));
+  return [{ label: 'Attach a Figma file', attach: true }, { label: 'Suggest three layout options for a pricing page' }, { label: 'Write empty, loading and error states for a sign-up screen' }, { label: 'Turn these notes into a design brief' }];
+}
+
+function SetupBanner() {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => setMissing(r.some((c) => c.tone !== 'ok')));
+  }, []);
+  if (!missing) return null;
+  return (
+    <div className="tl-setup">
+      <span>Figma is not connected yet.</span>
+      <button className="link" onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } }))}>Open Settings</button>
+    </div>
+  );
+}
+
+export function TranscriptView({ events, cwd, running, stopping, status, figmaKey, children }: { events: ChatEvent[]; cwd: string; running: boolean; stopping: boolean; status: string; figmaKey?: string; children?: ReactNode }) {
+  const items = useMemo(() => buildTranscript(events), [events]);
+  const turns = useMemo(() => groupTurns(items), [items]);
+  const box = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+  const last = events[events.length - 1];
+  const wanted = new Map<string, number>();
+  for (const it of items.filter((x) => x.kind === 'done' && x.nodes.length).slice(-10)) for (const [id, rev] of (it as DoneItem).nodes) wanted.set(id, Math.max(wanted.get(id) ?? 0, rev));
+  const fileName = useStore((s) => s.session.figma?.name ?? null);
+  const thumb = useThumbs(figmaKey, [...wanted]);
+
+  useEffect(() => {
+    const el = box.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  }, [items.length, last, running, children]);
+
+  const onScroll = () => {
+    const el = box.current;
+    if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  return (
+    <div ref={box} className="tr" onScroll={onScroll}>
+      {items.length === 0 && (
+        <div className="tl-welcome">
+          <SetupBanner />
+          <h2>What are we working on?</h2>
+          <p>Chat with Claude about your design. Switch to Design mode (Shift+Tab) for a full plan, sketch, design and review run.</p>
+          <div className="tl-chips">
+            {welcomeChips(fileName).map((c) => <button key={c.label} onClick={() => (c.attach ? window.dispatchEvent(new Event('designstudio:attach')) : insertPrompt(c.label))}>{c.label}</button>)}
+          </div>
+        </div>
+      )}
+      {turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
+      {running && children === undefined && (
+        <div className="tr-working">
+          <span className="tr-mark"><Icon name="loading" small spin /></span>
+          <span className="tr-text">{stopping ? 'Stopping…' : status === 'Idle' ? 'Working' : status}</span>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+type DoneItem = Extract<Item, { kind: 'done' }>;
+
+function BlockRow({ b, cwd, thumb, live }: { b: Block; cwd: string; thumb: (id: string) => string | null; live: boolean }) {
+  if (b.kind === 'steps') return <Steps b={b} cwd={cwd} thumb={thumb} live={live} />;
+  return <Row it={b} cwd={cwd} thumb={thumb} />;
+}
+
+function latest(items: Item[], cwd: string) {
+  const it = [...items].reverse().find((x) => x.kind === 'step' || x.kind === 'file' || x.kind === 'agent');
+  if (!it) return '';
+  if (it.kind === 'file') return `Edited ${relPath(it.path, cwd)}`;
+  if (it.kind === 'agent') return typeof it.use.input.description === 'string' && it.use.input.description ? it.use.input.description : 'Sub-agent';
+  const { verb, object } = stepLabel(it.use.name, it.use.input, cwd);
+  return `${verb} ${object}`;
+}
+
+function Steps({ b, cwd, thumb, live }: { b: Extract<Block, { kind: 'steps' }>; cwd: string; thumb: (id: string) => string | null; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const dur = duration(b.ms);
+  return (
+    <div className={`tr-steps ${open ? 'open' : ''}`}>
+      <div className="tr-steps-head" onClick={() => setOpen((v) => !v)}>
+        <span className="tr-mark">{live ? <Icon name="loading" small spin /> : <Icon name={open ? 'chevron-down' : 'chevron-right'} small />}</span>
+        <span className="tr-text">{live ? latest(b.items, cwd) : `${b.count} ${b.count === 1 ? 'step' : 'steps'}`}</span>
+        <span className="tr-dur">{live ? `${b.count}` : dur}</span>
+      </div>
+      {open && <div className="tr-steps-body">{b.items.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}</div>}
+    </div>
+  );
+}
+
+function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) => string | null }) {
+  switch (it.kind) {
+    case 'user':
+      return <div className={`tr-user ${it.stopping ? 'stopping' : ''}`}><UserText text={it.text} />{it.stopping && <span className="tr-stop"><Icon name="loading" small spin /></span>}</div>;
+    case 'phase':
+      return <div className="tr-phase"><Icon name="sync" small />{it.text}</div>;
+    case 'assistant':
+      return <div className={`tr-assistant ${it.streaming ? 'streaming' : ''}`}><Markdown text={it.text} /></div>;
+    case 'system':
+      return <div className="tr-system">{it.text}</div>;
+    case 'step':
+      return <Step use={it.use} result={it.result} cwd={cwd} />;
+    case 'file':
+      return <FileCard it={it} cwd={cwd} />;
+    case 'agent':
+      return <AgentRow use={it.use} result={it.result} />;
+    case 'done':
+      return (
+        <div className="tr-done tr-act">
+          <span className="tr-mark"><Icon name="check" small /></span>
+          <span className="tr-text" title={it.text}>{it.text}</span>
+          {it.nodes.some(([id]) => thumb(id)) && (
+            <span className="tl-thumbs">
+              {it.nodes.filter(([id]) => thumb(id)).map(([id]) => (
+                <button key={id} title="Show in Figma" onClick={() => showNode(id)}><img src={thumb(id)!} alt="" loading="lazy" /></button>
+              ))}
+            </span>
+          )}
+        </div>
+      );
+    case 'review':
+      return <ReviewCard runAt={it.runAt} />;
+    case 'note':
+      return <div className="tr-note tr-act"><span className="tr-mark"><i className="tr-dot" /></span><span className="tr-text" title={it.text}>{it.text}</span></div>;
+  }
+}
+
+function UserText({ text }: { text: string }) {
+  const outline = useOutline(useStore((s) => s.session.figma?.key));
+  return <>{splitFrameLinks(text).map((p, i) => typeof p === 'string' ? p : <button key={i} className="frame-chip" title={p.url} onClick={() => showNode(p.id)}>{frameName(outline, p.id) ?? p.id}</button>)}</>;
+}
+
+function Step({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd: string }) {
+  const [open, setOpen] = useState(false);
+  const { verb, object, mono } = stepLabel(use.name, use.input, cwd);
+  const state = !result ? 'pending' : result.isError ? 'err' : 'ok';
+  const dur = result ? duration(result.at - use.at) : '';
+  return (
+    <div className={`tr-step tr-act ${state} ${open ? 'open' : ''}`} onClick={() => setOpen((v) => !v)}>
+      <span className="tr-mark">{state === 'pending' ? <Icon name="loading" small spin /> : <i className="tr-hex" />}</span>
+      <span className="tr-text" title={object}>{verb} <span className={`tr-obj ${mono ? 'mono' : ''}`}>{object}</span></span>
+      <span className="tr-dur">{dur}</span>
+      {state === 'err' && !open && <span className="tr-err">{firstLine(result!.text) || 'Failed'}</span>}
+      {open && <Detail use={use} result={result} />}
+    </div>
+  );
+}
+
+function Detail({ use, result }: { use: ToolUse; result?: ToolResult }) {
+  const input = typeof use.input.command === 'string' ? use.input.command : JSON.stringify(use.input, null, 2);
+  return (
+    <div className="tr-detail" onClick={(e) => e.stopPropagation()}>
+      <pre>{input}</pre>
+      {result && <pre className={result.isError ? 'err' : ''}>{result.text || '(no output)'}</pre>}
+    </div>
+  );
+}
+
+function FileCard({ it, cwd }: { it: Extract<Item, { kind: 'file' }>; cwd: string }) {
+  const rel = relPath(it.path, cwd);
+  const cut = rel.lastIndexOf('/');
+  const name = rel.slice(cut + 1);
+  return (
+    <div className={`tr-file tr-act ${it.error ? 'err' : ''}`} title={rel} onClick={() => setUi({ openFile: rel, follow: false })}>
+      <FileIcon name={name} />
+      <span className="tr-path"><span className="tr-dir">{cut >= 0 ? rel.slice(0, cut + 1) : ''}</span>{name}</span>
+      {it.error ? (
+        <span className="tr-err">{it.error}</span>
+      ) : (
+        <span className="tr-count"><span className="add">+{it.count.add}</span> <span className="del">-{it.count.del}</span></span>
+      )}
+    </div>
+  );
+}
+
+function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
+  const [open, setOpen] = useState(false);
+  const desc = typeof use.input.description === 'string' && use.input.description ? use.input.description : 'Sub-agent';
+  const dur = result ? duration(result.at - use.at) : '';
+  return (
+    <div className={`tr-agent tr-act ${!result ? 'running' : result.isError ? 'err' : 'done'} ${open ? 'open' : ''}`} onClick={() => result && setOpen((v) => !v)}>
+      <span className="tr-mark"><i className="tr-ring" /></span>
+      <span className="tr-text" title={desc}>
+        {desc}
+        <span className="tr-state"> · {!result ? 'running' : result.isError ? 'failed' : `done${dur ? ` ${dur}` : ''}`}</span>
+        {!result && <Icon name="loading" small spin />}
+      </span>
+      {open && result && <div className="tr-detail" onClick={(e) => e.stopPropagation()}><div className="tr-report"><Markdown text={result.text || '(no output)'} /></div></div>}
+    </div>
+  );
+}
+
+function ReviewCard({ runAt }: { runAt: number }) {
+  const chat = useStore((s) => s.session.id);
+  const hasFile = useStore((s) => !!s.session.figma);
+  const figmaKey = useStore((s) => s.session.figma?.key);
+  const [copied, setCopied] = useState(false);
+  const rev = useRev('review.json');
+  const [doc, setDoc] = useState<ReviewDoc | null>(null);
+  const [posting, setPosting] = useState(false);
+  const [note, setNote] = useState('');
+  useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, rev]);
+  const latestAt = doc?.runs.length ? Math.max(...doc.runs.map((r) => r.at)) : 0;
+  const outline = useOutline(figmaKey);
+  const lastModified = latestAt === runAt && figmaKey !== 'sample' ? outline?.lastModified : null;
+  const run = doc?.runs.find((r) => r.at === runAt);
+  if (!doc || !run) return <div className="tr-system">Review finished</div>;
+  const pending = unposted(run, doc);
+  const post = async () => {
+    setPosting(true);
+    try {
+      const r = await postJson<{ posted: number }>('/api/review/post', { ids: pending.map((f) => f.id) });
+      setNote(`Posted ${r.posted} comments in Figma`);
+      setDoc(await getJson<ReviewDoc>('/api/review'));
+    } catch (e) {
+      setNote((e as Error).message);
+    } finally {
+      setPosting(false);
+    }
+  };
+  const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
+  const copy = () => {
+    navigator.clipboard.writeText(reviewChecklist(run, figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="tr-review">
+      <div className="tr-review-head">
+        <b>{runLabel(run)}</b>
+        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}</span>
+        {run.tokens > 0 && <span className="tr-dur">{Math.round(run.tokens / 1000)}k tokens</span>}
+      </div>
+      {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
+      <ul className="tr-review-rows">
+        {areaRows(run).map((a) => (
+          <li
+            key={a.key}
+            className={a.pass ? 'pass' : 'fail link'}
+            {...(a.pass ? {} : { role: 'button', tabIndex: 0, title: 'Show findings', onClick: () => focusReview({ runId: run.id, area: a.key }), onKeyDown: (e: React.KeyboardEvent) => e.key === 'Enter' && focusReview({ runId: run.id, area: a.key }) })}
+          >
+            <Icon name={a.pass ? 'check' : 'close'} small />
+            <span>{a.name}</span>
+            {a.failed && <span className="tr-review-failed">failed</span>}
+          </li>
+        ))}
+      </ul>
+      {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review <button onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
+      <div className="tr-review-actions">
+        <button onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }))}>Open Review</button>
+        {hasFindings && <button onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
+        {hasFile && pending.length > 0 && <button disabled={posting} onClick={post}>Post as Figma comments</button>}
+        {retryPrompt(run) && <button title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
+        {canGoDeeper(run) && <button onClick={() => insertPrompt('/review full')}>Review deeper</button>}
+        {note && <span className="tr-review-note">{note}</span>}
+      </div>
+    </div>
+  );
+}

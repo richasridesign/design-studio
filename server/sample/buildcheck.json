@@ -1,0 +1,25 @@
+{
+  "runs": [
+    {
+      "id": "b1",
+      "at": 1760732000000,
+      "url": "http://localhost:3000/cart",
+      "frame": "12:3",
+      "frameName": "Cart",
+      "width": 390,
+      "dir": "buildcheck/sample",
+      "summary": "The page follows the cart layout but the list sits 12px lower and the checkout button uses a green fill instead of the coral accent. The delivery estimate from the design is missing.",
+      "matchScore": 78,
+      "diffs": [
+        { "area": "Checkout button", "kind": "color", "severity": "blocking", "figma": "Fill #c96442, full width", "site": "Fill #1c7c54, 28px narrower", "fix": "Use the accent color and stretch the button to the full content width", "nodeId": "12:41" },
+        { "area": "Delivery estimate", "kind": "missing", "severity": "major", "figma": "Line under the total reading Delivery tomorrow, 8:00 to 10:00", "site": "Not rendered", "fix": "Add the delivery estimate line under the order total", "nodeId": "12:49" },
+        { "area": "Item list", "kind": "spacing", "severity": "major", "figma": "16px between the header and the first row", "site": "28px between the header and the first row", "fix": "Reduce the top margin of the list to 16px", "nodeId": "12:31" },
+        { "area": "Item name", "kind": "type", "severity": "minor", "figma": "16px semibold", "site": "15px regular", "fix": "Set the item name to 16px with weight 600", "nodeId": "12:34" },
+        { "area": "Promo hint", "kind": "content", "severity": "minor", "figma": "Add a promo code", "site": "Have a code?", "fix": "Use the label from the design", "nodeId": "12:52" },
+        { "area": "Row dividers", "kind": "spacing", "severity": "minor", "figma": "16px gap between rows", "site": "12px gap between rows", "fix": "Increase the row gap to 16px", "nodeId": "12:31" }
+      ],
+      "tokens": 21400,
+      "costUsd": 0.09
+    }
+  ]
+}

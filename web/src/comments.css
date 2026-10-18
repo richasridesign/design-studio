@@ -1,0 +1,26 @@
+.cm { display: flex; flex-direction: column; }
+.cm-bar { display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
+.cm-bar strong { flex: 1; font-size: var(--text-sm); }
+.cm-filter { display: flex; gap: 2px; }
+.cm-filter button { background: transparent; color: var(--fg-muted); padding: 2px 10px; }
+.cm-filter button.active { background: var(--bg-hover); color: var(--fg); }
+.cm-note { padding: 8px 0; }
+.cm-list { list-style: none; margin: 0; padding: 0; }
+.cm-item { padding: 10px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.cm-item.resolved { opacity: 0.6; }
+.cm-head, .cm-meta, .cm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cm-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: var(--bg-hover); color: var(--fg-muted); font-size: var(--text-xs); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.cm-handle { font-weight: 600; font-size: var(--text-sm); }
+.cm-time { color: var(--fg-muted); font-size: var(--text-xs); }
+.cm-message { background: transparent; text-align: left; padding: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.cm-message.open { display: block; }
+.cm-chip { background: color-mix(in srgb, var(--figma) 12%, transparent); color: var(--figma); font-size: var(--text-xs); padding: 2px 10px; border-radius: 999px; }
+.cm-reply { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.cm-reply textarea { width: 100%; resize: vertical; font: inherit; font-size: var(--text-sm); }
+.cm-foot { padding: 12px 0 0; border-top: 1px solid var(--border); }
+.cm-foot button { width: 100%; }
+@media (max-width: 900px) {
+  .cm-item { padding: 12px 16px; }
+  .cm-actions button, .cm-chip, .cm-reply button, .cm-foot button, .cm-filter button, .cm-bar .icon-btn { min-height: 44px; min-width: 44px; }
+  .cm-message { min-height: 44px; }
+}

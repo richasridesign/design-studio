@@ -1,0 +1,38 @@
+{
+  "builtAt": 1792271974579,
+  "libraries": ["Grocery UI Kit"],
+  "colors": [
+    { "name": "Brand/Primary", "value": "#1c7c54", "variable": "color/brand/primary" },
+    { "name": "Brand/Primary dark", "value": "#145a3d", "variable": "color/brand/primary-dark" },
+    { "name": "Surface/Default", "value": "#ffffff", "variable": "color/surface/default" },
+    { "name": "Surface/Cream", "value": "#faf6ee", "variable": "color/surface/cream" },
+    { "name": "Text/Primary", "value": "#1e1e1e", "variable": "color/text/primary" },
+    { "name": "Text/Secondary", "value": "#5f6368", "variable": "color/text/secondary" },
+    { "name": "Border/Default", "value": "#d9d9d9", "variable": "color/border/default" },
+    { "name": "Feedback/Error", "value": "#c62828", "variable": "color/feedback/error" },
+    { "name": "Feedback/Success", "value": "#2e7d32", "variable": "color/feedback/success" }
+  ],
+  "text": [
+    { "name": "Heading/L", "family": "Inter", "size": 28, "weight": 700, "lineHeight": 36 },
+    { "name": "Heading/M", "family": "Inter", "size": 20, "weight": 600, "lineHeight": 28 },
+    { "name": "Body/Regular", "family": "Inter", "size": 16, "weight": 400, "lineHeight": 24 },
+    { "name": "Body/Small", "family": "Inter", "size": 14, "weight": 400, "lineHeight": 20 },
+    { "name": "Label/Button", "family": "Inter", "size": 16, "weight": 600, "lineHeight": 20 }
+  ],
+  "spacing": [4, 8, 12, 16, 24, 32, 48],
+  "radius": [4, 8, 12, 999],
+  "components": [
+    { "name": "Button", "key": "a1f3c0", "variants": ["Primary", "Secondary", "Ghost", "Disabled"], "description": "Primary once per screen" },
+    { "name": "Input", "key": "b27d41", "variants": ["Default", "Focused", "Error", "Disabled"] },
+    { "name": "List item", "key": "c93e5a", "variants": ["Default", "With image", "With action"] },
+    { "name": "Stepper", "key": "d41b7e", "variants": ["Default", "Min", "Max"] },
+    { "name": "Banner", "key": "e58a92", "variants": ["Info", "Error", "Success"] }
+  ],
+  "rules": [
+    "Primary button only once per screen",
+    "Use color variables, never raw hex values",
+    "Text on Surface/Cream must reach 4.5:1 contrast",
+    "Touch targets are at least 44px",
+    "Spacing comes from the spacing scale"
+  ]
+}

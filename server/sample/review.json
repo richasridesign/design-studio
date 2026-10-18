@@ -1,0 +1,123 @@
+{
+  "runs": [
+    {
+      "id": "r1",
+      "kind": "review",
+      "at": 1760731000000,
+      "round": 1,
+      "preset": "full",
+      "frames": [
+        "12:3",
+        "12:4"
+      ],
+      "tokens": 48210,
+      "costUsd": 0.31,
+      "check": [
+        {
+          "id": "check:color-unbound:12:41",
+          "area": "color",
+          "node": "12:41",
+          "nodeName": "Checkout button",
+          "severity": "major",
+          "rule": "Fill #1c7c54 is not bound to a color variable or style",
+          "fix": "Bind the fill to the matching color variable from the library"
+        },
+        {
+          "id": "check:contrast:12:52",
+          "area": "accessibility",
+          "node": "12:52",
+          "nodeName": "Promo hint",
+          "severity": "blocking",
+          "rule": "Contrast 2.8:1 on #ffffff, needs 4.5:1",
+          "fix": "Use a text or background color with enough contrast"
+        },
+        {
+          "id": "check:spacing-off-scale:12:31",
+          "area": "spacing",
+          "node": "12:31",
+          "nodeName": "Item row",
+          "severity": "minor",
+          "rule": "Spacing off the scale: itemSpacing 13",
+          "fix": "Use spacing variables or values from the spacing scale"
+        }
+      ],
+      "results": [
+        {
+          "area": "color",
+          "pass": true,
+          "summary": "Semantic colors are used consistently.",
+          "findings": [],
+          "tokens": 7200,
+          "costUsd": 0.05
+        },
+        {
+          "area": "typography",
+          "pass": false,
+          "summary": "Two headings compete on the cart screen.",
+          "findings": [
+            {
+              "id": "typography:0:12:43",
+              "area": "typography",
+              "node": "12:43",
+              "severity": "major",
+              "rule": "Total and title use the same Heading/L style, so the hierarchy is flat",
+              "fix": "Use Heading/M for the total"
+            }
+          ],
+          "tokens": 8100,
+          "costUsd": 0.05
+        },
+        {
+          "area": "spacing",
+          "pass": true,
+          "summary": "Rhythm is consistent.",
+          "findings": [],
+          "tokens": 7600,
+          "costUsd": 0.05
+        },
+        {
+          "area": "components",
+          "pass": false,
+          "summary": "Promo field is rebuilt by hand.",
+          "findings": [
+            {
+              "id": "components:0:12:49",
+              "area": "components",
+              "node": "12:49",
+              "severity": "major",
+              "rule": "Promo code field is a frame, not the library Input",
+              "fix": "Swap it for Input/Default with the leading icon off"
+            }
+          ],
+          "tokens": 8900,
+          "costUsd": 0.06
+        },
+        {
+          "area": "accessibility",
+          "pass": true,
+          "summary": "Targets are large enough.",
+          "findings": [],
+          "tokens": 8000,
+          "costUsd": 0.05
+        },
+        {
+          "area": "brief",
+          "pass": false,
+          "summary": "The error state for a failed payment is missing.",
+          "findings": [
+            {
+              "id": "brief:0:12:3",
+              "area": "brief",
+              "node": "12:3",
+              "severity": "blocking",
+              "rule": "The brief asks for a payment error state; there is no frame for it",
+              "fix": "Add Cart / Payment failed with the inline error banner"
+            }
+          ],
+          "tokens": 8410,
+          "costUsd": 0.05
+        }
+      ]
+    }
+  ]
+}

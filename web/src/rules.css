@@ -1,0 +1,24 @@
+.cp-card.drop { border-color: var(--accent); border-style: dashed; }
+.cp-imgs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; }
+.cp-img { position: relative; width: 48px; height: 48px; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); background: var(--bg-sunken); display: inline-flex; align-items: center; justify-content: center; }
+.cp-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.cp-img button {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--fg); color: var(--bg-sunken); border: 0;
+}
+.cp-img button .codicon.icon.small { font-size: 11px; }
+
+.rules-box { display: flex; flex-direction: column; gap: 16px; }
+.rules-box section { display: flex; flex-direction: column; gap: 6px; }
+.rules-box h3 { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--fg-muted); display: flex; justify-content: space-between; align-items: baseline; }
+.rules-box h3 .saved { font-weight: 400; color: var(--fg-faint); }
+.rules-box textarea {
+  font: inherit; font-size: var(--text-md); line-height: 20px; padding: 8px 10px; min-height: 96px; resize: none; overflow: hidden;
+  background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+}
+.rules-box textarea:focus { outline: none; border-color: var(--border-strong); }
+.rules-box .hint { font-size: var(--text-xs); color: var(--fg-faint); margin: 0; }
+.rules-box button.suggest { align-self: flex-start; }
+.rules-box button.suggest { padding: 5px 10px; font-size: var(--text-sm); background: var(--bg-raised); color: var(--fg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm, 4px); }
+.rules-box button.suggest:hover { background: var(--bg-hover); }

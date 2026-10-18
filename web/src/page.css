@@ -1,0 +1,19 @@
+.page {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; color: var(--fg);
+  background: var(--bg-raised); --link: var(--prompt);
+}
+.page-hero { position: relative; flex: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 24px 24px 16px; }
+.page-kicker { font-family: var(--mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); }
+.page-hero h1 { font-family: var(--serif); margin: 4px 0 6px; font-size: var(--text-2xl); font-weight: 600; letter-spacing: -0.01em; }
+.page-sub { color: var(--fg-muted); font-size: var(--text-md); }
+.page-extra:empty { display: none; }
+.page-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-observe .page-body, .page-deploy .page-body { padding: 0 24px 24px; max-width: 1040px; width: 100%; box-sizing: border-box; }
+.page-observe .observe, .page-deploy .deploy { font-size: var(--text-md); }
+.page-observe .obs-head, .page-observe .obs-picker { padding-left: 0; }
+.activitybar .divider { width: 24px; height: 1px; margin: 4px auto; background: var(--border-strong); flex: none; }
+@media (max-width: 900px) {
+  .page-hero { padding: 18px 16px 14px; }
+  .page-hero h1 { font-size: var(--text-xl); }
+  .page-observe .page-body, .page-deploy .page-body { padding: 0 8px 16px; }
+}

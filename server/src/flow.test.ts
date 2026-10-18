@@ -1,0 +1,41 @@
+import { describe, expect, it } from 'vitest';
+import { afterFix, afterReview, designPrompt, parseCommand } from './flow.js';
+
+const f = { id: 'x', area: 'color' as const, node: '1:1', severity: 'major' as const, rule: 'r', fix: 'f' };
+
+describe('afterReview', () => {
+  it('finishes when nothing needs fixing', () => expect(afterReview('full', 0, []).next).toBe('done'));
+  it('fixes once for quick, then stops', () => {
+    expect(afterReview('quick', 0, [f]).next).toBe('fix');
+    expect(afterReview('quick', 1, [f]).next).toBe('done');
+  });
+  it('allows two fix rounds for full', () => expect(afterReview('full', 1, [f]).next).toBe('fix'));
+});
+
+describe('afterFix', () => {
+  it('verifies with the free check after the last fix round', () => expect(afterFix('quick', 1)).toBe('verify'));
+  it('re-reviews failed areas when full has rounds left', () => expect(afterFix('full', 1)).toBe('review'));
+});
+
+describe('parseCommand', () => {
+  it('reads design commands', () => {
+    expect(parseCommand('/design a checkout flow')).toEqual({ cmd: 'design', arg: 'a checkout flow' });
+    expect(parseCommand('/review full')).toEqual({ cmd: 'review', arg: 'full' });
+    expect(parseCommand('/buildcheck http://localhost:3000 1:2')).toEqual({ cmd: 'buildcheck', arg: 'http://localhost:3000 1:2' });
+    expect(parseCommand('/compact')).toBeNull();
+    expect(parseCommand('make it bigger')).toBeNull();
+  });
+});
+
+describe('designPrompt', () => {
+  it('starts with a version checkpoint and names the chosen sketch', () => {
+    const sketch = { screens: [{ id: 'home', name: 'Home', chosen: 'b', directions: [
+      { id: 'a', name: 'List', rationale: 'dense', w: 390, h: 844, items: [] },
+      { id: 'b', name: 'Cards', rationale: 'scannable', w: 390, h: 844, items: [] },
+    ] }] };
+    const p = designPrompt(sketch, true, "Bob's checkout");
+    expect(p).toContain("saveVersionHistoryAsync('Design Studio: Bob s checkout')");
+    expect(p).toContain('sketches/home--b.svg');
+    expect(p).toContain('Home: Cards. scannable');
+  });
+});

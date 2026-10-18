@@ -1,0 +1,5 @@
+.bc-url { flex: 1; min-width: 240px; font: inherit; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--input); color: var(--fg); }
+.bc-head { display: flex; align-items: center; gap: 16px; }
+.bc-ring { flex: none; width: 76px; height: 76px; }
+.bc-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bc-diffs .f-body { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }

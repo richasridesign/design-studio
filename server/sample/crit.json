@@ -1,0 +1,80 @@
+{
+  "runs": [
+    {
+      "id": "c1",
+      "at": 1792271974579,
+      "frames": [
+        "12:3"
+      ],
+      "summary": "The cart is easy to scan, but the delivery cost shows up too late and the checkout button competes with promos.",
+      "tokens": 18400,
+      "costUsd": 0.06,
+      "personas": [
+        {
+          "id": "new-user",
+          "verdict": "Understands the cart, unsure what the final price will be.",
+          "points": [
+            {
+              "kind": "like",
+              "text": "Item rows show image, name and price in one glance."
+            },
+            {
+              "kind": "concern",
+              "text": "Delivery fee only appears on the next screen.",
+              "nodeId": "12:40"
+            },
+            {
+              "kind": "idea",
+              "text": "Show an estimated total under the item list."
+            }
+          ]
+        },
+        {
+          "id": "power-user",
+          "verdict": "Fast to edit, but no way to save the cart for later.",
+          "points": [
+            {
+              "kind": "like",
+              "text": "Quantity stepper is right next to the price."
+            },
+            {
+              "kind": "idea",
+              "text": "Add Save for later on each row."
+            }
+          ]
+        },
+        {
+          "id": "accessibility",
+          "verdict": "Mostly fine; two contrast issues and a small target.",
+          "points": [
+            {
+              "kind": "concern",
+              "text": "Grey helper text on the cream card is 3.1:1.",
+              "nodeId": "12:52"
+            },
+            {
+              "kind": "concern",
+              "text": "Remove icon target is 28px.",
+              "nodeId": "12:47"
+            }
+          ]
+        },
+        {
+          "id": "product",
+          "verdict": "Promo banner may cut checkout conversion.",
+          "points": [
+            {
+              "kind": "concern",
+              "text": "The promo banner sits between the list and Checkout.",
+              "nodeId": "12:60"
+            },
+            {
+              "kind": "idea",
+              "text": "Move promos into the empty cart state."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

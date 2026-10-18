@@ -1,0 +1,225 @@
+{
+  "screens": [
+    {
+      "id": "cart",
+      "name": "Cart",
+      "directions": [
+        {
+          "id": "a",
+          "name": "Classic list",
+          "rationale": "Familiar list with totals pinned to the bottom, fastest to scan for long carts.",
+          "w": 390,
+          "h": 844,
+          "items": [
+            {
+              "t": "heading",
+              "x": 24,
+              "y": 60,
+              "w": 200,
+              "h": 32,
+              "label": "Your cart"
+            },
+            {
+              "t": "image",
+              "x": 24,
+              "y": 120,
+              "w": 72,
+              "h": 72
+            },
+            {
+              "t": "text",
+              "x": 110,
+              "y": 130,
+              "w": 200,
+              "h": 20,
+              "label": "Oat milk 1L"
+            },
+            {
+              "t": "text",
+              "x": 110,
+              "y": 160,
+              "w": 120,
+              "h": 20,
+              "label": "29,90 kr"
+            },
+            {
+              "t": "line",
+              "x": 24,
+              "y": 210,
+              "w": 342,
+              "h": 1
+            },
+            {
+              "t": "image",
+              "x": 24,
+              "y": 226,
+              "w": 72,
+              "h": 72
+            },
+            {
+              "t": "text",
+              "x": 110,
+              "y": 236,
+              "w": 200,
+              "h": 20,
+              "label": "Rye bread"
+            },
+            {
+              "t": "text",
+              "x": 110,
+              "y": 266,
+              "w": 120,
+              "h": 20,
+              "label": "39,00 kr"
+            },
+            {
+              "t": "box",
+              "x": 24,
+              "y": 640,
+              "w": 342,
+              "h": 60,
+              "label": "Total 68,90 kr"
+            },
+            {
+              "t": "button",
+              "x": 24,
+              "y": 720,
+              "w": 342,
+              "h": 52,
+              "label": "Go to checkout"
+            }
+          ]
+        },
+        {
+          "id": "b",
+          "name": "Delivery first",
+          "rationale": "Leads with the delivery slot so people commit to a time before reviewing items.",
+          "w": 390,
+          "h": 844,
+          "items": [
+            {
+              "t": "heading",
+              "x": 24,
+              "y": 60,
+              "w": 200,
+              "h": 32,
+              "label": "Cart"
+            },
+            {
+              "t": "box",
+              "x": 24,
+              "y": 110,
+              "w": 342,
+              "h": 84,
+              "label": "Delivery: Tue 18-20"
+            },
+            {
+              "t": "input",
+              "x": 24,
+              "y": 210,
+              "w": 342,
+              "h": 48,
+              "label": "Add a promo code"
+            },
+            {
+              "t": "image",
+              "x": 24,
+              "y": 280,
+              "w": 72,
+              "h": 72
+            },
+            {
+              "t": "text",
+              "x": 110,
+              "y": 290,
+              "w": 200,
+              "h": 20,
+              "label": "Oat milk 1L"
+            },
+            {
+              "t": "note",
+              "x": 200,
+              "y": 420,
+              "w": 166,
+              "h": 60,
+              "label": "Swipe to remove"
+            },
+            {
+              "t": "button",
+              "x": 24,
+              "y": 720,
+              "w": 342,
+              "h": 52,
+              "label": "Pay 68,90 kr"
+            }
+          ]
+        }
+      ],
+      "chosen": "a",
+      "chosenBy": "designer"
+    },
+    {
+      "id": "empty",
+      "name": "Empty cart",
+      "directions": [
+        {
+          "id": "a",
+          "name": "Suggestions",
+          "rationale": "Turns the empty state into a start by showing past purchases.",
+          "w": 390,
+          "h": 844,
+          "items": [
+            {
+              "t": "circle",
+              "x": 155,
+              "y": 200,
+              "w": 80,
+              "h": 80
+            },
+            {
+              "t": "heading",
+              "x": 90,
+              "y": 310,
+              "w": 220,
+              "h": 32,
+              "label": "Your cart is empty"
+            },
+            {
+              "t": "button",
+              "x": 24,
+              "y": 400,
+              "w": 342,
+              "h": 52,
+              "label": "Buy again"
+            }
+          ]
+        },
+        {
+          "id": "b",
+          "name": "Plain",
+          "rationale": "One message and one action, nothing else to read.",
+          "w": 390,
+          "h": 844,
+          "items": [
+            {
+              "t": "heading",
+              "x": 90,
+              "y": 360,
+              "w": 220,
+              "h": 32,
+              "label": "Nothing here yet"
+            },
+            {
+              "t": "button",
+              "x": 95,
+              "y": 420,
+              "w": 200,
+              "h": 48,
+              "label": "Start shopping"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
