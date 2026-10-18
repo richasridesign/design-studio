@@ -4,7 +4,7 @@ import { Icon } from '../Icon';
 import { FLOW_RULES, FLOW_RULE_LABEL, flowFixPrompt, flowIssues, flowLabel, type FlowCheckRun, type FlowFinding, type FlowResult } from '../../../shared/flowcheck';
 import { attachFigma, insertPrompt, showNode } from './Files';
 import { Empty, ReviewArt } from './Empty';
-import { ago } from './reviewRuns';
+import { ago } from '../ago';
 import { useOutline } from '../outline';
 import { FigmaErrorText } from '../FigmaLogin';
 import '../flowcheck.css';

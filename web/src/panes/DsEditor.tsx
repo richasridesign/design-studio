@@ -5,7 +5,7 @@ import { IconButton } from '../Tip';
 import { useDialogFocus } from '../useDialog';
 import { AREA_NAMES, type DesignSystem as DS, type DsFrom, type DsSource } from '../../../shared/design';
 import { STARTERS, type DsKind, type StarterId } from '../../../shared/dsProfiles';
-import { ago } from './reviewRuns';
+import { ago } from '../ago';
 import '../dsEditor.css';
 
 type SkillFile = { folder: string; area: keyof typeof AREA_NAMES | null; path: string; lines: number };
