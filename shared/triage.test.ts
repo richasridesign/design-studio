@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { changeTriage, cleanTriage, closedTally, openIssues, openRun, splitRun, triageKey } from './triage.js';
-import type { Finding, ReviewRun } from './design.js';
+import type { AreaResult, Finding, ReviewRun } from './design.js';
 
 const f = (id: string, severity: Finding['severity'] = 'major'): Finding => ({ id, area: 'check', node: '1:1', severity, rule: 'x', fix: 'y' });
 const run = (over: Partial<ReviewRun> = {}): ReviewRun => ({ id: 'r1', kind: 'review', at: 1, round: 1, preset: 'quick', frames: [], check: [f('a'), f('b', 'blocking'), f('c', 'minor')], results: [], tokens: 0, costUsd: 0, ...over });
@@ -40,5 +40,13 @@ describe('triage', () => {
     expect(closedTally(s.closed)).toBe("1 fixed, 1 won't fix");
     expect(closedTally([])).toBe('');
     expect(openRun(run(), t).check.map((x) => x.id)).toEqual(['b']);
+  });
+
+  it('passes an area once its blocking and major findings are closed', () => {
+    const area = (over: Partial<AreaResult> = {}): AreaResult => ({ area: 'all', pass: false, summary: '', findings: [f('x'), f('y', 'minor')], tokens: 0, costUsd: 0, ...over });
+    const t = { 'r1:x': { state: 'fixed' as const, why: '', at: 1 } };
+    expect(openRun(run({ results: [area()] }), t).results[0]).toMatchObject({ pass: true, findings: [{ id: 'y' }] });
+    expect(openRun(run({ results: [area()] }), {}).results[0].pass).toBe(false);
+    expect(openRun(run({ results: [area({ error: 'timeout' })] }), t).results[0].pass).toBe(false);
   });
 });

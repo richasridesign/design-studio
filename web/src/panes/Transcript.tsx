@@ -17,6 +17,8 @@ import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
 import { areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize, unposted } from './reviewRuns';
 import { rulesLine } from '../../../shared/rules';
+import { openRun } from '../../../shared/triage';
+import { useTriage } from './Triage';
 import { reviewChecklist, type ReviewDoc, type ReviewRun } from '../../../shared/design';
 import type { ChatEvent } from '../../../shared/protocol';
 import '../transcript.css';
@@ -336,11 +338,14 @@ function ReviewCard({ runAt }: { runAt: number }) {
   const [posting, setPosting] = useState(false);
   const [note, setNote] = useState('');
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, rev]);
+  const { triage } = useTriage();
   const latestAt = doc?.runs.length ? Math.max(...doc.runs.map((r) => r.at)) : 0;
   const outline = useOutline(figmaKey);
   const lastModified = latestAt === runAt && figmaKey !== 'sample' ? outline?.lastModified : null;
-  const run = doc?.runs.find((r) => r.at === runAt);
-  if (!doc || !run) return <div className="tr-system">Review finished</div>;
+  const full = doc?.runs.find((r) => r.at === runAt);
+  if (!doc || !full) return <div className="tr-system">Review finished</div>;
+  // Findings closed by hand in the Review pane leave the counts, the area rows and the Figma post.
+  const run = openRun(full, triage);
   const pending = unposted(run, doc);
   const post = async () => {
     setPosting(true);

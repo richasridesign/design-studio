@@ -145,9 +145,9 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
       setSaid((e as Error).message);
     }
   };
-  const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
+  const hasFindings = split.open.length > 0;
   const copy = () => {
-    navigator.clipboard.writeText(reviewChecklist(run, figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
+    navigator.clipboard.writeText(reviewChecklist(openRun(run, triage), figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -193,8 +193,8 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewR
             <RuleList rules={run.rules} />
           </AreaCard>
         )}
-        {run.results.map((r) => (
-          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, openOf(r.findings))} tokens={r.tokens} findings={openOf(r.findings)} focusAt={focusAt(r.area)} triage={triageOps} />
+        {openRun(run, triage).results.map((r) => (
+          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} triage={triageOps} />
         ))}
       </div>
       <ClosedGroup closed={split.closed.map((f) => ({ ...f, key: triageKey(run, f) }))} grouped={(f) => run.check.some((c) => c.id === f.id)} onReopen={reopen} headRef={closedHead} />
