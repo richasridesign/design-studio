@@ -39,7 +39,7 @@ export function typedAnswer(text: string, pending: PendingRequest | undefined): 
   if (!t || !pending) return null;
   // Her words go once, as Claude Code's free text reply (response), never copied into every question. Claude reads
   // the response first; the copy under the first question only matters if a Claude Code version drops response.
-  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: pending.questions.length ? { [pending.questions[0].question]: t } : {}, response: t };
+  if (pending.kind === 'question') return { type: 'answer', id: pending.id, answers: pending.questions.length ? { [pending.questions[0].question]: t.slice(0, 4000) } : {}, response: t };
   if (pending.toolName !== 'ExitPlanMode') return null;
   if (plainGo(t)) return { type: 'permission', id: pending.id, allow: true };
   return { type: 'permission', id: pending.id, allow: goWithNote(t), note: t };
