@@ -44,8 +44,19 @@
 /* A column, not a grid: a sticky child of a grid stays inside its own row, so the fade below could not pin. */
 .steps-panel > * { flex-shrink: 0; }
 /* A pinned plan or question card leaves the column short: then the panel and the conversation both shrink and scroll,
-   instead of the column cutting the panel's bottom and hiding the conversation. The conversation gives way first. */
+   instead of the column cutting the panel's bottom and hiding the conversation. */
 .steps-panel ~ .tr { min-height: min(144px, 30%); flex-shrink: 100; }
+/* On a desktop the conversation keeps a readable height (240px at 900 tall, 150px at 720): below that the Steps panel
+   gives way, down to its kind row and hint (100px), so no line is cut in half. A pinned card takes what is left, up to
+   half the column: it scrolls inside with Approve pinned at its bottom. The 40px is the chat head above the panel. */
+@media (min-width: 901px) {
+  .brief { --tr-min: clamp(120px, 50vh - 210px, 240px); --steps-min: 100px; }
+  .steps-panel { min-height: var(--steps-min); }
+  .steps-panel ~ .tr { min-height: var(--tr-min); }
+  .brief:has(> .brief-cards) > .brief-status { flex: 1 1 0; min-height: calc(40px + var(--tr-min)); }
+  .brief:has(> .brief-cards) > .brief-status:has(> .steps-panel) { min-height: calc(40px + var(--steps-min) + 12px + var(--tr-min)); }
+  .brief:has(> .brief-cards) > .brief-cards { flex: 0 1 auto; min-height: 0; }
+}
 /* More steps below the panel's bottom edge: the last 32px fade out, so a half button never looks cut off. The fade is
    pinned to the bottom while it scrolls and goes at the end. The negative margin takes back its height and the gap. */
 .steps-panel.more::after { content: ''; position: sticky; bottom: -12px; height: 32px; margin: -40px 0 -12px; background: linear-gradient(to bottom, transparent, var(--bg-elevated)); pointer-events: none; }
