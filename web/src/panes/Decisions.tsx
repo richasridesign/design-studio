@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getJson, getState, postJson, send, steer, useStore } from '../store';
+import { getJson, postJson, useStore } from '../store';
 import { getOutline, useOutlineVersion, type Outline } from '../outline';
 import { useThumbs } from '../useThumbs';
-import { attachFigma } from './Files';
+import { attachFigma, insertPrompt } from './Files';
 import { DecisionLog } from './DecisionLog';
 import { WARN_WORDS, draftPrompt, filled, fills, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';
 import '../decisions.css';
@@ -24,10 +24,6 @@ const writeLocal = (key: string, doc: DecisionDoc) => {
 };
 const isDoc = (v: unknown): v is DecisionDoc => !!v && typeof v === 'object' && !Array.isArray(v);
 
-function ask(text: string) {
-  if (getState().session.running) steer(text);
-  else send({ type: 'prompt', text });
-}
 
 // The newest finished Claude reply that holds "Decision N · <screen>" entries.
 function useDraft(screens: Screen[]) {
@@ -158,7 +154,7 @@ export function Decisions() {
           <h2>Decisions</h2>
           <p>The two most important product decisions per screen, and why.</p>
         </div>
-        <button className="primary" disabled={!screens.length} onClick={() => { ask(draftPrompt(key, screens, doc)); setAsked(true); }}>Draft with Claude</button>
+        <button className="primary" disabled={!screens.length} onClick={() => { insertPrompt(draftPrompt(key, screens, doc)); setAsked(true); }}>Draft with Claude</button>
       </div>
 
       {showDraft ? (
@@ -167,7 +163,7 @@ export function Decisions() {
           <button className="link" onClick={applyDraft}>Apply draft</button>
         </p>
       ) : asked && draft?.id !== applied ? (
-        <p className="dec-line" role="status">Claude is drafting in the chat. The draft shows up here when the reply is in.</p>
+        <p className="dec-line" role="status">The request is in the message box. Send it, and the draft shows up here when Claude replies.</p>
       ) : null}
       {local && <p className="dec-line">Saved in this browser only. Restart Design Studio to save decisions with the file.</p>}
 
@@ -193,7 +189,7 @@ export function Decisions() {
                   <div className="dec-frame">
                     <div className="dec-thumb">{url ? <img src={url} alt="" /> : <span aria-hidden="true" />}</div>
                     <span className="dec-name" title={f.name}>{f.name}</span>
-                    <button className="link" disabled={!pair.some(filled)} title={pair.some(filled) ? 'Ask Claude to place both Decision stickies under this frame' : 'Write a decision first'} onClick={() => ask(stickyPrompt(key, { id: f.id, name: f.name }, pair))}>Add to Figma</button>
+                    <button className="link" disabled={!pair.some(filled)} title={pair.some(filled) ? 'Put a request in the message box to place both Decision stickies under this frame' : 'Write a decision first'} onClick={() => insertPrompt(stickyPrompt(key, { id: f.id, name: f.name }, pair))}>Add to Figma</button>
                   </div>
                   <div className="dec-slots">
                     {pair.map((d, i) => <Slot key={i} id={`${f.id}-${i}`} n={i + 1} screen={f.name} value={d} onChange={(field, value) => edit(f, i as 0 | 1, field, value)} />)}
