@@ -14,6 +14,7 @@ import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Sketch } from './panes/Sketch';
 import { Review } from './panes/Review';
+import { Decisions } from './panes/Decisions';
 import { Settings } from './panes/Settings';
 import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';
@@ -29,8 +30,10 @@ import { canNotify, toggleNotify, useNotify } from './notify';
 import './page.css';
 import './design.css';
 
-type Center = 'figma' | 'sketch' | 'review' | 'preview' | 'code';
-type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'more';
+type Center = 'figma' | 'sketch' | 'review' | 'decisions' | 'preview' | 'code';
+type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'decisions' | 'more';
+const MOBILE_CENTER: Center[] = ['figma', 'sketch', 'review', 'decisions'];
+const isMobileCenter = (t: string): t is Center & Tab => MOBILE_CENTER.some((c) => c === t);
 
 const VIEW_IDS = ['chats', 'files', 'system', 'explorer'] as const;
 type View = (typeof VIEW_IDS)[number];
@@ -47,6 +50,7 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
   { id: 'figma', icon: 'browser', label: 'Figma' },
   { id: 'sketch', icon: 'edit', label: 'Sketch' },
   { id: 'review', icon: 'checklist', label: 'Review' },
+  { id: 'decisions', icon: 'lightbulb', label: 'Decisions' },
   { id: 'preview', icon: 'play', label: 'Preview', dev: true },
   { id: 'code', icon: 'code', label: 'Files', dev: true },
 ];
@@ -166,7 +170,7 @@ export function App() {
   const open = (c: Center) => {
     setCenter(c);
     setOpened(true);
-    if (narrow()) setTab(c === 'figma' || c === 'sketch' || c === 'review' ? c : 'more');
+    if (narrow()) setTab(isMobileCenter(c) ? c : 'more');
   };
 
   useEffect(() => {
@@ -244,7 +248,7 @@ export function App() {
   const centers = CENTER.filter((c) => (c.dev ? dev : content[c.id as keyof typeof content] || (opened && center === c.id)));
   const collapsed = centers.length === 0;
   const views = VIEWS.filter((v) => !v.dev || dev);
-  const wanted = narrow() && (tab === 'figma' || tab === 'sketch' || tab === 'review') ? tab : center;
+  const wanted = narrow() && isMobileCenter(tab) ? tab : center;
   const shownCenter = centers.some((c) => c.id === wanted) ? wanted : centers[0]?.id;
 
   return (
@@ -278,6 +282,7 @@ export function App() {
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} onClick={() => setView(v.id)}>{v.title}</button>)}
+              {content.decisions && <button onClick={() => open('decisions')}>Decisions</button>}
               <button onClick={() => setSettings(true)}>Settings</button>
             </div>
           )}
@@ -301,6 +306,7 @@ export function App() {
           <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`}>{shownCenter === 'figma' && <BrowserPane />}</div>
           <div className={`editor ${shownCenter === 'sketch' ? 'shown' : ''}`}>{shownCenter === 'sketch' && <Sketch />}</div>
           <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`}>{shownCenter === 'review' && <Review dev={dev} />}</div>
+          <div className={`editor ${shownCenter === 'decisions' ? 'shown' : ''}`}>{shownCenter === 'decisions' && <Decisions />}</div>
           <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`}>{shownCenter === 'preview' && <Preview />}</div>
           {dev && <div className={`editor ${shownCenter === 'code' ? 'shown' : ''}`}><CodePane /></div>}
           </ErrorBoundary>
@@ -334,7 +340,7 @@ export function App() {
 
       <nav className="tabbar mobile-only">
         {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['sketch', 'edit', 'Sketch'], ['review', 'checklist', 'Review'], ['more', 'ellipsis', 'More']] as const).filter(([id]) => id === 'chat' || id === 'more' || content[id] || tab === id).map(([id, icon, label]) => (
-          <button key={id} className={tab === id ? 'active' : ''} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') { setCenter(id); setOpened(true); } }}>
+          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') { setCenter(id); setOpened(true); } }}>
             <Icon name={icon} />
             <span>{label}</span>
             {id === 'chat' && pendingCount > 0 && <span className="badge">{pendingCount}</span>}
