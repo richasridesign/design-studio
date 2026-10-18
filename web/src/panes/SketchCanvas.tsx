@@ -4,7 +4,7 @@ import '@excalidraw/excalidraw/index.css';
 import type { SketchDoc } from '../../../shared/design';
 import { layoutSketch } from './sketchLayout';
 
-type Api = { updateScene: (s: { elements: readonly any[] }) => void; scrollToContent: (target?: unknown, opts?: { fitToContent?: boolean }) => void; getSceneElements: () => readonly any[] };
+type Api = { updateScene: (s: { elements: readonly any[] }) => void; scrollToContent: (target?: unknown, opts?: { fitToContent?: boolean; viewportZoomFactor?: number }) => void; getSceneElements: () => readonly any[] };
 
 export default function SketchCanvas({ doc, board, onBoard }: { doc: SketchDoc | null; board: any[]; onBoard: (els: any[]) => void }) {
   const api = useRef<Api | null>(null);
@@ -27,7 +27,7 @@ export default function SketchCanvas({ doc, board, onBoard }: { doc: SketchDoc |
       const mine = api.current.getSceneElements().filter((e: any) => !e.customData?.generated);
       const generated = doc ? convertToExcalidrawElements(layoutSketch(doc) as any, { regenerateIds: true }) : [];
       api.current.updateScene({ elements: [...generated, ...mine] });
-      requestAnimationFrame(() => api.current?.scrollToContent(undefined, { fitToContent: true }));
+      requestAnimationFrame(() => api.current?.scrollToContent(undefined, { fitToContent: true, viewportZoomFactor: 0.75 }));
     })();
     return () => {
       alive = false;
