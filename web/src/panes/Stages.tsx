@@ -6,11 +6,12 @@ import { insertPrompt } from './Files';
 import { ScopeBox } from './Scope';
 import '../stages.css';
 
-const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open report', attach: 'Attach file' };
+const OPEN_LABEL: Record<StageOpen, string> = { sketch: 'Open Sketch', figma: 'Open Figma', review: 'Open Review', decisions: 'Open Decisions', report: 'Open report', attach: 'Attach file', research: 'Open research' };
 
 function go(to: StageOpen) {
   if (to === 'report') window.open(api('/api/report'), '_blank');
   else if (to === 'attach') window.dispatchEvent(new Event('designstudio:attach'));
+  else if (to === 'research') window.dispatchEvent(new Event('designstudio:research'));
   else window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: `page:${to}` } }));
 }
 
