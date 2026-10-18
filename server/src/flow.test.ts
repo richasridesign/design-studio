@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { afterFix, afterReview, designPrompt, designerPicksKey, parseCommand, picksNote } from './flow.js';
 
-const f = { id: 'x', area: 'color' as const, node: '1:1', severity: 'major' as const, rule: 'r', fix: 'f' };
+const f = { id: 'x', area: 'system' as const, node: '1:1', severity: 'major' as const, rule: 'r', fix: 'f' };
 
 describe('afterReview', () => {
   it('finishes when nothing needs fixing', () => expect(afterReview('full', 0, []).next).toBe('done'));
@@ -9,12 +9,19 @@ describe('afterReview', () => {
     expect(afterReview('quick', 0, [f]).next).toBe('fix');
     expect(afterReview('quick', 1, [f]).next).toBe('done');
   });
-  it('allows two fix rounds for full', () => expect(afterReview('full', 1, [f]).next).toBe('fix'));
+  it('uses the Fix rounds setting for full and focused, three by default', () => {
+    expect(afterReview('full', 2, [f]).next).toBe('fix');
+    expect(afterReview('full', 3, [f]).next).toBe('done');
+    expect(afterReview('focused', 1, [f], 2).next).toBe('fix');
+    expect(afterReview('focused', 2, [f], 2).next).toBe('done');
+  });
+  it('fixes once for quick whatever the setting says', () => expect(afterReview('quick', 1, [f], 4).next).toBe('done'));
 });
 
 describe('afterFix', () => {
   it('verifies with the free check after the last fix round', () => expect(afterFix('quick', 1)).toBe('verify'));
   it('re-reviews failed areas when full has rounds left', () => expect(afterFix('full', 1)).toBe('review'));
+  it('verifies after the last round of the setting', () => expect(afterFix('full', 4, 4)).toBe('verify'));
 });
 
 describe('parseCommand', () => {

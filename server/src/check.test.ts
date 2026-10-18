@@ -22,7 +22,7 @@ describe('checkFrames', () => {
   it('flags an unbound fill', () => {
     const f = checkFrames([frame([], { styles: {} })], null);
     expect(f.map((x) => x.id)).toEqual(['check:color-unbound:1:1']);
-    expect(f[0].area).toBe('color');
+    expect(f[0].area).toBe('system');
   });
 
   it('flags unstyled text, small text and low contrast', () => {
@@ -32,9 +32,28 @@ describe('checkFrames', () => {
   });
 
   it('flags small tap targets and hand-built buttons', () => {
-    const btn = { id: '1:4', name: 'Button', type: 'FRAME', absoluteBoundingBox: box(80, 32), children: [] };
+    const btn = { id: '1:4', name: 'Button', type: 'FRAME', absoluteBoundingBox: box(80, 20), children: [] };
     const ids = checkFrames([frame([btn])], null).map((x) => x.id.split(':')[1]);
     expect(ids).toEqual(['target-size', 'hand-built']);
+  });
+
+  it('lets a 36px control pass: the minimum is 24px', () => {
+    const btn = { id: '1:4', name: 'Button', type: 'INSTANCE', componentId: 'C:2', absoluteBoundingBox: box(80, 36), children: [] };
+    expect(checkFrames([{ ...frame([btn]), components: { 'C:2': { name: 'Button', remote: true } } }], null)).toEqual([]);
+  });
+
+  it('flags em dashes and text off the type scale', () => {
+    const text = { id: '1:3', name: 'Note', type: 'TEXT', characters: 'Saved \u2014 done', style: { fontSize: 13 }, styles: { text: 'T:1' }, fills: solid(0, 0, 0), boundVariables: { fills: [{}] } };
+    const ds = { builtAt: 0, libraries: [], colors: [], text: [12, 14, 16].map((size) => ({ name: `T${size}`, size })), spacing: [], radius: [], components: [], rules: [] };
+    const f = checkFrames([frame([text])], ds);
+    expect(f.map((x) => [x.id.split(':')[1], x.area])).toEqual([['type-off-scale', 'visual'], ['em-dash', 'writing']]);
+    expect(checkFrames([frame([text])], null).map((x) => x.id.split(':')[1])).toEqual(['em-dash']);
+  });
+
+  it('skips token and component checks for a lo-fi profile', () => {
+    const btn = { id: '1:4', name: 'Button', type: 'FRAME', absoluteBoundingBox: box(80, 36), children: [] };
+    const ds = { builtAt: 0, libraries: [], colors: [], text: [], spacing: [], radius: [], components: [], rules: [], tokens: false };
+    expect(checkFrames([frame([btn], { styles: {} })], ds)).toEqual([]);
   });
 
   it('flags local components but not library ones, and skips instance internals', () => {

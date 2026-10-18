@@ -13,12 +13,11 @@ const MAX_FINDINGS = 8;
 const OUTLINE_LINES = 350;
 
 const GUIDE: Record<Area, string> = {
-  color: 'Color: semantic tokens used for their meaning (primary only for the main action, danger only for destructive or error states), consistent emphasis across screens, no decorative color that competes with actions, correct use of modes if the profile has them.',
-  typography: 'Typography: clear hierarchy with one main heading per screen, consistent steps between levels, library text styles, body line length around 45 to 75 characters, no awkward truncation, consistent alignment.',
-  spacing: 'Spacing and layout: consistent rhythm, related things grouped and unrelated things separated, aligned edges, same padding for the same kind of element across screens, sensible resizing (hug or fill), nothing cramped or floating.',
-  components: 'Components: the right library component for each job, correct variants and properties, the same element looks the same on every screen, needed states present (disabled, selected, error), nothing rebuilt by hand.',
-  accessibility: 'Accessibility: contrast for text on images and tinted surfaces, target sizes, visible labels on inputs, errors not shown by color alone, icon-only buttons with a clear meaning, a sensible reading order.',
-  brief: 'Brief: every screen and state the plan asks for exists (empty, loading, error, success where relevant), the copy fits the request, the layout follows the chosen sketch direction, the flow between screens makes sense.',
+  system: 'Design system: the right library component for each job with the right variant, nothing rebuilt by hand or left as a loose frame, the same element with the same variant, size and radius on every screen, colours and text from variables and styles, status shown as a dot plus a label, one primary button per screen, no drift between instances.',
+  interaction: 'Interaction: every screen and state the brief asks for exists (empty, loading, error, filled, done), whole cards and rows clickable when they lead to one place, hover and pressed states, open menus and dialogs with a close icon, tooltips on icon buttons, the flow between screens keeps the same status, counts and content.',
+  visual: 'Visual craft: a 4px grid for padding, gaps, radii and sizes, the type scale, one control height per toolbar, aligned left edges, cards in a row with one height, nothing clipped, overlapping or touching an edge, calm spacing with whitespace and hierarchy over boxes.',
+  writing: 'UX writing: plain words and short sentences, labels as "Label: Value", the same name for the same thing on every screen, buttons that name what they do, counts that match the rows shown, errors that say what is wrong and who acts, no em dashes.',
+  accessibility: 'Accessibility (WCAG 2.2 AA): text contrast 4.5:1 (3:1 for large text), icons and borders 3:1, click targets at least 24px, colour never the only signal, visible labels on inputs, visible focus, icon-only buttons with a clear name, a sensible reading order.',
 };
 
 const SCHEMA = {
@@ -71,7 +70,7 @@ const RULES_SCHEMA = {
 
 /** One reviewer checks the house rules, so the others do not pay for it or disagree. */
 export function rulesReviewer(reviewers: Array<Area | 'all'>): Area | 'all' | null {
-  return reviewers.includes('all') ? 'all' : reviewers.includes('brief') ? 'brief' : reviewers[0] ?? null;
+  return reviewers.includes('all') ? 'all' : reviewers.includes('system') ? 'system' : reviewers[0] ?? null;
 }
 
 export function rulesPrompt(rules: string[], frames: string[]) {
@@ -83,7 +82,7 @@ export function rulesPrompt(rules: string[], frames: string[]) {
   ].join('\n');
 }
 
-const SYSTEM = 'You review UI designs made in Figma against a design system and a brief. You get an outline of the frames, screenshots to look at with the Read tool, and the results of an automatic check. Report only real problems a senior product designer would fix, most important first. Do not repeat what the automatic check already found. Use node ids from the outline.';
+const SYSTEM = 'You review UI designs made in Figma against a design system, the designer\'s rules and a brief. You get an outline of the frames, screenshots to look at with the Read tool, and the results of an automatic check. Report only real problems a senior product designer would fix, most important first. Do not repeat what the automatic check already found. Use node ids from the outline.';
 
 export async function readReview(dir: string): Promise<ReviewDoc> {
   return readFile(path.join(dir, REVIEW_FILE), 'utf8').then(JSON.parse).catch(() => ({ runs: [] }));
@@ -117,19 +116,22 @@ export function outline(doc: any, components: Record<string, any>, max = OUTLINE
 }
 
 function profileFor(ds: DesignSystem | null, area: Area | 'all') {
-  if (!ds) return 'No design system profile yet. Judge consistency within the frames.';
+  if (!ds) return 'No design system profile. Judge consistency within the frames.';
   const parts: string[] = [];
-  const want = (a: Area) => area === 'all' || area === a;
-  if (want('color')) parts.push(`Colors: ${ds.colors.slice(0, 60).map((c) => `${c.name} ${c.value}`).join('; ')}`);
-  if (want('typography') || want('accessibility')) parts.push(`Text styles: ${ds.text.slice(0, 40).map((t) => `${t.name} ${t.size ?? ''}/${t.lineHeight ?? ''} ${t.weight ?? ''}`).join('; ')}`);
-  if (want('spacing')) parts.push(`Spacing scale: ${ds.spacing.join(', ')}. Radius: ${ds.radius.join(', ')}`);
-  if (want('components') || want('brief')) parts.push(`Components: ${ds.components.slice(0, 80).map((c) => c.name).join(', ')}`);
-  if (ds.rules.length) parts.push(`Rules:\n- ${ds.rules.slice(0, 20).join('\n- ')}`);
+  const want = (...a: Area[]) => area === 'all' || a.includes(area);
+  if (ds.name) parts.push(`Profile: ${ds.name}${ds.note ? `. ${ds.note}` : ''}`);
+  if (ds.tokens === false) parts.push('This is a lo-fi profile: designs do not need variables, styles or library components. Do not report missing tokens.');
+  if (want('system', 'accessibility') && ds.colors.length) parts.push(`Colors: ${ds.colors.slice(0, 60).map((c) => `${c.name} ${c.value}`).join('; ')}`);
+  if (want('system', 'visual', 'accessibility') && ds.text.length) parts.push(`Text styles: ${ds.text.slice(0, 40).map((t) => `${t.name} ${t.size ?? ''}/${t.lineHeight ?? ''} ${t.weight ?? ''}`).join('; ')}`);
+  if (want('system', 'visual') && (ds.spacing.length || ds.radius.length)) parts.push(`Spacing scale: ${ds.spacing.join(', ') || 'not set'}. Radius: ${ds.radius.join(', ') || 'not set'}`);
+  if (want('system', 'interaction') && ds.components.length) parts.push(`Components: ${ds.components.slice(0, 80).map((c) => c.name).join(', ')}`);
+  if (ds.rules.length) parts.push(`Principles:\n- ${ds.rules.slice(0, 20).join('\n- ')}`);
   return parts.join('\n');
 }
 
 export function reviewersFor(preset: ReviewPreset, areas: Area[], onlyFailed: Area[] | null): Array<Area | 'all'> {
   if (preset === 'check') return [];
+  // Quick is one reviewer covering the ticked areas (all five when none are ticked).
   if (preset === 'quick') return onlyFailed && onlyFailed.length === 0 ? [] : ['all'];
   const base = preset === 'full' ? [...AREAS] : AREAS.filter((a) => areas.includes(a));
   return onlyFailed ? base.filter((a) => onlyFailed.includes(a)) : base;
@@ -186,7 +188,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
     run.results = await Promise.all(reviewers.map(async (area) => {
       input.onArea?.(area, 'running');
       try {
-        const { verdicts: v, ...r } = await reviewOne(area, { dir, plan, ds, outlines, shots, check: run.check, rules: area === checker ? ruleList : null, rulesText: rulesBlock(rules), frames: docs.map((d) => d.id), signal: input.signal });
+        const { verdicts: v, ...r } = await reviewOne(area, { dir, plan, ds, outlines, covers: input.areas, shots, check: run.check, rules: area === checker ? ruleList : null, rulesText: rulesBlock(rules), frames: docs.map((d) => d.id), signal: input.signal });
         if (area === checker) verdicts = v;
         input.onArea?.(area, r.error ? 'error' : r.pass ? 'pass' : 'fail');
         return r;
@@ -210,12 +212,12 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   return run;
 }
 
-type ReviewOneInput = { dir: string; plan: string; ds: DesignSystem | null; outlines: string; shots: string[]; check: Finding[]; rules: string[] | null; rulesText: string; frames: string[]; signal?: AbortSignal };
+type ReviewOneInput = { dir: string; plan: string; ds: DesignSystem | null; outlines: string; covers: Area[]; shots: string[]; check: Finding[]; rules: string[] | null; rulesText: string; frames: string[]; signal?: AbortSignal };
 
 async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaResult & { verdicts?: unknown }> {
-  const areas = area === 'all' ? [...AREAS] : [area];
+  const areas = area !== 'all' ? [area] : c.covers.length ? c.covers : [...AREAS];
   const prompt = [
-    area === 'all' ? 'Review these frames across all areas below. Tag each finding with its area.' : `You are the ${AREA_NAMES[area]} reviewer. Review only this area.`,
+    area === 'all' ? 'Review these frames across the areas below. Tag each finding with its area.' : `You are the ${AREA_NAMES[area]} reviewer. Review only this area.`,
     ...areas.map((a) => `- ${GUIDE[a]}`),
     '',
     c.plan ? `The brief:\n${c.plan.slice(0, 4000)}` : 'There is no written brief.',
@@ -233,7 +235,7 @@ async function reviewOne(area: Area | 'all', c: ReviewOneInput): Promise<AreaRes
   ].join('\n');
   const r = await lean<{ pass: boolean; summary: string; findings: Array<Omit<Finding, 'id'>>; rules?: unknown }>(prompt, { cwd: c.dir, model: MODELS.work, system: SYSTEM, schema: c.rules ? RULES_SCHEMA : SCHEMA, maxTurns: 10, signal: c.signal });
   if (!r.data) return { area, pass: false, summary: 'The reviewer did not return a result', findings: [], tokens: r.tokens, costUsd: r.costUsd, error: r.error };
-  const findings = r.data.findings.slice(0, MAX_FINDINGS).map((f, i) => ({ ...f, area: (AREAS.includes(f.area as Area) ? f.area : area === 'all' ? 'brief' : area) as Area, id: `${area}:${i}:${f.node}` }));
+  const findings = r.data.findings.slice(0, MAX_FINDINGS).map((f, i) => ({ ...f, area: (areas.includes(f.area as Area) ? f.area : areas[0]) as Area, id: `${area}:${i}:${f.node}` }));
   return { area, pass: r.data.pass && !findings.some((f) => f.severity !== 'minor'), summary: r.data.summary, findings, tokens: r.tokens, costUsd: r.costUsd, ...(c.rules ? { verdicts: r.data.rules } : {}) };
 }
 
@@ -247,8 +249,8 @@ export function frameOf(docs: Array<{ document: any }>, id: string): string | un
 
 export function failedAreas(run: ReviewRun): Area[] {
   const out = new Set<Area>();
-  for (const r of run.results) for (const f of r.findings) if (f.severity !== 'minor' && f.area !== 'check') out.add(f.area);
-  return [...out];
+  for (const r of run.results) for (const f of r.findings) if (f.severity !== 'minor' && f.area !== 'check') out.add(f.area as Area);
+  return AREAS.filter((a) => out.has(a));
 }
 
 export const toFix = (run: ReviewRun) => [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => f.severity !== 'minor');
