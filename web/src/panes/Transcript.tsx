@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { approvalReply } from '../../../shared/stages';
 import { getJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
@@ -189,7 +190,8 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
       return (
         <div className="tr-user-wrap">
           <div className={`tr-user ${it.stopping ? 'stopping' : ''}`}><UserText text={it.text} />{it.stopping && <span className="tr-stop"><Icon name="loading" small spin /></span>}</div>
-          {!it.stopping && <UserRule text={it.text} />}
+          {/* A one-word answer (go, A) is not a rule. */}
+          {!it.stopping && !approvalReply(it.text) && <UserRule text={it.text} />}
         </div>
       );
     case 'phase':
