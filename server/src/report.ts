@@ -12,7 +12,7 @@ import { readTriage } from './triage.js';
 import { TRIAGE_LABEL, closedTally, resolvedRules, splitFindings, splitRun, triagedRules, type ClosedFinding, type ResolvedRule, type Triage, type TriageState } from '../../shared/triage.js';
 import { markCss } from '../../shared/marks.js';
 import { readFlowChecks } from './flowcheck.js';
-import { STAGE_IDS, STAGE_INFO, stageLabel, type StageApprovals } from '../../shared/stages.js';
+import { KIND_INFO, STAGE_INFO, stageLabel, type StageApprovals } from '../../shared/stages.js';
 import { FLOW_RULE_LABEL, flowIssues, type FlowCheckRun, type FlowRule } from '../../shared/flowcheck.js';
 import type { Scope } from '../../shared/scope.js';
 
@@ -341,15 +341,15 @@ function summary(d: Data, frames: string[]) {
     fact('Frames', esc(`${plural(frames.length, 'frame')}${screens ? `, ${plural(screens, 'screen')}` : ''}`));
   }
   const stage = stageLabel(d.approvals);
-  if (stage) fact('Stage', esc(stage === 'Shipped' ? 'Shipped' : stage));
+  if (stage) fact('Next step', esc(stage));
   const scope = d.scope.flows.length ? plural(d.scope.flows.length, 'flow') : '';
   if (scope) fact('Scope', esc(`${scope}${d.scope.parked.length ? `, ${d.scope.parked.length} parked` : ''}`));
 
   const strip = stage
-    ? `<ol class="stages" aria-label="Stages">${STAGE_IDS.map((id) => {
-        const approved = !!d.approvals[id];
-        const current = !approved && STAGE_INFO[id].name === stage;
-        return `<li>${st(approved ? 'pass' : current ? 'current' : 'none', STAGE_INFO[id].name)}<small>${approved ? 'Approved' : current ? 'Current' : 'Later'}</small></li>`;
+    ? `<ol class="stages" aria-label="Steps">${KIND_INFO.new.steps.map((id) => {
+        const done = !!d.approvals[id];
+        const next = !done && STAGE_INFO[id].name === stage;
+        return `<li>${st(done ? 'pass' : next ? 'current' : 'none', STAGE_INFO[id].name)}<small>${done ? 'Done' : next ? 'Next' : 'To do'}</small></li>`;
       }).join('')}</ol>`
     : '';
 

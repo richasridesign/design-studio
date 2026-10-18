@@ -13,7 +13,7 @@ describe('decisionLog', () => {
   it('lists picks and noted approvals, newest first, undated Claude picks last', () => {
     const rows = decisionLog(sketch, { spec: { at: 100 }, explore: { at: 300, note: 'Two directions are enough' } });
     expect(rows.map((r) => r.id)).toEqual(['stage:explore', 'pick:empty', 'pick:cart']);
-    expect(rows[0]).toMatchObject({ title: 'Stage', choice: 'Approved Explore', why: 'Two directions are enough', over: [] });
+    expect(rows[0]).toMatchObject({ title: 'Step', choice: 'Approved Sketch', why: 'Two directions are enough', over: [] });
     expect(rows[1]).toMatchObject({ title: 'Empty cart', choice: 'Chose Plain', over: ['Suggestions'], why: 'Calmer', by: 'designer' });
   });
 

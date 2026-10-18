@@ -19,7 +19,7 @@ import { settings } from './settings.js';
 import { touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
-import { readApprovals } from './stages.js';
+import { readChatSteps } from './stages.js';
 import { stageNote } from '../../shared/stages.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { refreshOutlineSoon } from './figmaCache.js';
@@ -167,7 +167,7 @@ export class AgentSession {
 
   private rules = '';
   private rulesNote = '';
-  private stageKey = '{}';
+  private stageKey = '';
   private stageNote = '';
   private pickKey = '[]';
   private pickNote = '';
@@ -371,12 +371,11 @@ export class AgentSession {
       this.rules = rules;
     }
     this.askBeforeEdit = (await settings()).askBeforeEdit;
-    // Tell Claude where the work stands each time the designer approves or reopens a stage.
-    const approvals = await readApprovals(this.cwd);
-    const key = JSON.stringify(approvals);
-    if (key !== this.stageKey) {
-      this.stageNote = stageNote(approvals) || 'Stages: the designer reopened every stage. Start again from Spec.';
-      this.stageKey = key;
+    // Tell Claude where the work stands when the designer marks a step or picks a kind. Only a status line, never a gate.
+    const note = stageNote(await readChatSteps(this.cwd, this.state.session.sessionId));
+    if (note !== this.stageKey) {
+      this.stageNote = note;
+      this.stageKey = note;
     }
     const sketch = await readSketch(this.cwd).catch(() => null);
     const picks = designerPicksKey(sketch);

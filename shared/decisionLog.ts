@@ -1,5 +1,5 @@
 // Decision log: what was chosen, what it was chosen over, and why.
-// Built from the sketch picks (sketch.json) and the stage approvals with a note (stages.json).
+// Built from the sketch picks (sketch.json) and the steps marked done with a note (stages.json).
 
 import type { SketchDoc } from './design.js';
 import { STAGE_IDS, STAGE_INFO, type StageApprovals, type StageId } from './stages.js';
@@ -7,9 +7,9 @@ import { STAGE_IDS, STAGE_INFO, type StageApprovals, type StageId } from './stag
 export type LogRow = {
   id: string;
   kind: 'pick' | 'stage';
-  /** Screen name for a pick, "Stage" for an approval. */
+  /** Screen name for a pick, "Step" for a step marked done. */
   title: string;
-  /** "Chose Classic list" or "Approved Decide". */
+  /** "Chose Classic list" or "Approved Plan". */
   choice: string;
   over: string[];
   why: string;
@@ -41,7 +41,7 @@ export function decisionLog(sketch: SketchDoc | null, approvals: StageApprovals)
   const stages: LogRow[] = STAGE_IDS.flatMap((id: StageId) => {
     const a = approvals[id];
     if (!a?.note) return [];
-    return [{ id: `stage:${id}`, kind: 'stage', title: 'Stage', choice: `Approved ${STAGE_INFO[id].name}`, over: [], why: a.note, by: 'designer', at: a.at }];
+    return [{ id: `stage:${id}`, kind: 'stage', title: 'Step', choice: `Approved ${STAGE_INFO[id].name}`, over: [], why: a.note, by: 'designer', at: a.at }];
   });
   // Newest first. Rows without a time come last, in screen order.
   return [...picks, ...stages].map((r, i) => ({ r, i })).sort((a, b) => (b.r.at ?? -1) - (a.r.at ?? -1) || a.i - b.i).map(({ r }) => r);
