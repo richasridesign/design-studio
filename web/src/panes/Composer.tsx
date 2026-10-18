@@ -13,6 +13,7 @@ import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton } from './LongRun';
 import { ModelPicker } from './ModelPicker';
+import { focusChecked, menuKeys } from '../press';
 import '../composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
@@ -268,6 +269,7 @@ export function Composer() {
 
   useEffect(() => {
     if (!modeOpen) return;
+    focusChecked(modePop.current);
     const down = (e: MouseEvent) => { if (!(e.target as Element).closest('.cp-mode')) setModeOpen(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); ta.current?.focus(); } };
     document.addEventListener('mousedown', down);
@@ -492,7 +494,7 @@ export function Composer() {
               <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
             </button>
             {modeOpen && (
-              <div ref={modePop} className="cp-modepop" role="menu">
+              <div ref={modePop} className="cp-modepop" role="menu" aria-label="Mode" onKeyDown={menuKeys}>
                 {FLOW_MODES.map((m) => (
                   <button key={m} role="menuitemradio" aria-checked={flow.mode === m} className={flow.mode === m ? 'active' : ''} onClick={() => { setMode(m); if (m !== 'design') setModeOpen(false); }}>
                     <Icon name={MODE_INFO[m].icon} small />

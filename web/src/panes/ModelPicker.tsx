@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { focusChecked, menuKeys } from '../press';
 import { currentOption, modelLabel, pickerOptions } from '../../../shared/models';
 
 /** Composer pill that switches the model for the next chat turn. */
@@ -13,6 +14,7 @@ export function ModelPicker() {
 
   useEffect(() => {
     if (!open) return;
+    focusChecked(box.current?.querySelector('[role="menu"]') ?? null);
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); box.current?.querySelector<HTMLButtonElement>('.cp-pill')?.focus(); } };
     document.addEventListener('mousedown', down);
@@ -41,7 +43,7 @@ export function ModelPicker() {
         <span>{label}</span><Icon name="chevron-down" small />
       </button>
       {open && (
-        <div className="cp-modepop" role="menu" aria-label="Model">
+        <div className="cp-modepop" role="menu" aria-label="Model" onKeyDown={menuKeys}>
           {pickerOptions(model, models).map((m) => (
             <button key={m.value} role="menuitemradio" aria-checked={m.value === current?.value} className={m.value === current?.value ? 'active' : ''} onClick={() => pick(m.value)}>
               <Icon name={m.value === current?.value ? 'check' : 'blank'} small />
