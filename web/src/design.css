@@ -218,5 +218,5 @@
   .workbench[data-collapsed='true'] .editor-group,
   .workbench[data-collapsed='true'] .sash { display: none; }
   .workbench[data-collapsed='true'] .main { flex: 1; width: auto; border-left: 0; }
-  .workbench[data-collapsed='true'] .brief { width: 100%; max-width: 820px; margin: 0 auto; }
+  .workbench[data-collapsed='true'] .brief { width: calc(100% - 24px); max-width: 820px; margin: 12px auto; }
 }
