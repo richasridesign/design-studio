@@ -72,7 +72,7 @@ export type McpServer = {
   tools?: McpTool[];
 };
 
-export type McpConfigEntry = { name: string; scope: 'user' | 'local' | 'project'; type: string; command?: string; env?: string[] };
+export type McpConfigEntry = { name: string; scope: 'user' | 'local' | 'project' | 'plugin'; type: string; command?: string; env?: string[] };
 
 export const MCP_BAD = ['failed', 'needs-auth'];
 

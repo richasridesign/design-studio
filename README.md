@@ -28,8 +28,9 @@ button where one exists.
 
 1. **Figma token.** Add a Figma personal access token with read access to files and write access to comments.
    Design Studio uses it for the file list, frames, thumbnails, the design system check and comments.
-2. **Claude's Figma tools.** "Add Figma to Claude" adds the remote Figma MCP server (`https://mcp.figma.com/mcp`) to
-   your Claude config. Sign in once: run `claude`, type `/mcp`, pick figma and authenticate.
+2. **Claude's Figma tools.** Design Studio uses the official Figma plugin for Claude Code (`figma@claude-plugins-official`),
+   the same connection and sign-in as the Claude CLI. "Add Figma plugin" installs it. Sign in once: run `claude`, type
+   `/mcp`, pick plugin:figma:figma and authenticate.
 3. **Chrome.** The Figma tab shows your own Chrome, where you are logged in to Figma. Click Connect Chrome there and
    allow remote debugging. Give DesignStudio.app Full Disk Access once. The relay reads Chrome's DevToolsActivePort
    file, which macOS protects. The web page and your phone never need this permission.

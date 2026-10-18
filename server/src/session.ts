@@ -148,9 +148,10 @@ export class AgentSession {
     this.rules = rulesBlock(await readRules(this.cwd));
     this.state.session.flow = flowOff(s);
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
-    const { servers, configured } = await figmaMcp();
+    // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
+    const { servers, via } = await figmaMcp();
     this.figmaServers = servers;
-    this.strictMcp = configured;
+    this.strictMcp = via === 'config';
   }
 
   private rules = '';

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import type { McpConfigEntry, McpServer, McpTool } from '../../shared/protocol.js';
 import { probe, stop, type McpServerDef } from './mcpClient.js';
+import { FIGMA_MCP_URL, FIGMA_PLUGIN_SERVER, figmaMcp, figmaPluginStatus } from './lean.js';
 
 type Config = McpServerDef | undefined;
 type Status = {
@@ -51,7 +52,14 @@ export function configEntries(servers: Record<string, Config> | undefined, scope
 
 export async function mcpConfig(cwd: string): Promise<McpConfigEntry[]> {
   const [user, repo] = await Promise.all([readJson(path.join(os.homedir(), '.claude.json')), readJson(path.join(cwd, '.mcp.json'))]);
-  return [...configEntries(user.mcpServers, 'user'), ...configEntries(user.projects?.[cwd]?.mcpServers, 'local'), ...configEntries(repo.mcpServers, 'project')];
+  const plugin: McpConfigEntry[] = (await figmaMcp()).via === 'plugin' ? [{ name: FIGMA_PLUGIN_SERVER, scope: 'plugin', type: 'http', command: FIGMA_MCP_URL }] : [];
+  return [...plugin, ...configEntries(user.mcpServers, 'user'), ...configEntries(user.projects?.[cwd]?.mcpServers, 'local'), ...configEntries(repo.mcpServers, 'project')];
+}
+
+/** The plugin keeps its Figma sign-in inside Claude, so ask the Claude CLI instead of probing the server directly. */
+async function probePlugin(): Promise<McpServer> {
+  const status = await figmaPluginStatus();
+  return { name: FIGMA_PLUGIN_SERVER, scope: 'plugin', type: 'http', command: FIGMA_MCP_URL, status, error: status === 'failed' ? 'The Figma plugin did not connect' : undefined };
 }
 
 type Def = { name: string; scope: McpConfigEntry['scope']; def: McpServerDef };
@@ -84,16 +92,19 @@ const TTL = 60_000;
 const cache = new Map<string, { at: number; done: boolean; row: Promise<McpServer> }>();
 
 export async function mcpProbe(cwd: string, refresh = false): Promise<McpServer[]> {
-  const [user, repo] = await Promise.all([readJson(path.join(os.homedir(), '.claude.json')), readJson(path.join(cwd, '.mcp.json'))]);
-  return Promise.all(
-    configDefs(user, repo, cwd).map(async ({ name, scope, def }) => {
-      const key = `${name}:${JSON.stringify(def)}`;
-      const hit = cache.get(key);
-      if (hit && (!hit.done || (!refresh && Date.now() - hit.at < TTL))) return hit.row;
-      const entry = { at: Date.now(), done: false, row: probeOne(name, scope, def) };
-      void entry.row.then(() => { entry.done = true; entry.at = Date.now(); });
-      cache.set(key, entry);
-      return entry.row;
-    }),
+  const [user, repo, figma] = await Promise.all([readJson(path.join(os.homedir(), '.claude.json')), readJson(path.join(cwd, '.mcp.json')), figmaMcp()]);
+  const plugin = figma.via === 'plugin' ? [cached(`plugin:${FIGMA_PLUGIN_SERVER}`, refresh, probePlugin)] : [];
+  const rest = Promise.all(
+    configDefs(user, repo, cwd).map(({ name, scope, def }) => cached(`${name}:${JSON.stringify(def)}`, refresh, () => probeOne(name, scope, def))),
   );
+  return [...(await Promise.all(plugin)), ...(await rest)];
+}
+
+function cached(key: string, refresh: boolean, run: () => Promise<McpServer>) {
+  const hit = cache.get(key);
+  if (hit && (!hit.done || (!refresh && Date.now() - hit.at < TTL))) return hit.row;
+  const entry = { at: Date.now(), done: false, row: run() };
+  void entry.row.then(() => { entry.done = true; entry.at = Date.now(); });
+  cache.set(key, entry);
+  return entry.row;
 }
