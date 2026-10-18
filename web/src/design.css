@@ -239,7 +239,7 @@
 /* The illustration sits on a pastel disc, like the project cards on richadesign.in. */
 .empty-art { width: 120px; height: 120px; margin-bottom: 8px; padding: 16px; border-radius: 50%; background: var(--grad-blue); }
 .empty-art svg { width: 100%; height: 100%; display: block; }
-.empty-heading { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--fg); }
+.empty-heading { margin: 0; font-family: var(--serif); font-size: var(--text-xl); font-weight: 500; color: var(--fg); }
 .empty-text { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--fg-muted); }
 .empty-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
 @media (max-width: 899px) {
