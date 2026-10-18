@@ -20,7 +20,8 @@ function generate(doc: SketchDoc | null) {
 const mineOf = (els: readonly any[]) => els.filter((e: any) => !e.customData?.generated && !e.isDeleted);
 const keyOf = (els: readonly any[]) => JSON.stringify(els.map((e: any) => [e.id, e.version]));
 
-export default function SketchCanvas({ doc, board, focus, onBoard }: { doc: SketchDoc | null; board: any[]; focus?: CanvasFocus | null; onBoard: (els: any[]) => void }) {
+/** `start`: the direction to open on (a phone shows one at a time); without it the canvas opens on the first screen's row. */
+export default function SketchCanvas({ doc, board, focus, start, onBoard }: { doc: SketchDoc | null; board: any[]; focus?: CanvasFocus | null; start?: string; onBoard: (els: any[]) => void }) {
   const api = useRef<Api | null>(null);
   const [ready, setReady] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -59,7 +60,7 @@ export default function SketchCanvas({ doc, board, focus, onBoard }: { doc: Sket
       const mine = api.current.getSceneElements().filter((e: any) => !e.customData?.generated);
       api.current.updateScene({ elements: [...generate(doc), ...mine] });
       if (lastSaved.current === null) lastSaved.current = keyOf(mineOf(api.current.getSceneElements()));
-      requestAnimationFrame(() => zoomTo(undefined, false));
+      requestAnimationFrame(() => zoomTo(start, false));
     })();
     return () => {
       alive = false;

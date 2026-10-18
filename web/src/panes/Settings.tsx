@@ -143,9 +143,6 @@ export function Settings() {
         <h2 id="set-runs-h" className="sr-only">Design runs</h2>
         <p className="muted small">Defaults for new chats. Change them for one chat in the mode menu of the message box.</p>
         <Toggle label="Default: Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
-        <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
-        <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
-        <Toggle label="Check frames after Claude edits Figma" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
         <div className="field">
           <span>Default: Review depth</span>
           <div className="seg" role="radiogroup" aria-label="Default review depth">
@@ -153,6 +150,9 @@ export function Settings() {
           </div>
           <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}.</span>
         </div>
+        <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
+        <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
+        <Toggle label="Check frames after Claude edits Figma" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
       </section>
 
       <section className="set-card" id="set-models" aria-labelledby="set-models-h">
@@ -179,7 +179,7 @@ export function Settings() {
   );
 }
 
-/** The plugin's state, from the open chat when Claude runs, else from a check run here: on open, on Check now, and when the login dialog checks again. */
+/** The plugin's state, from the open chat when Claude runs, else from a check run here: on Check now, and when the login dialog checks again. */
 function McpState({ status }: { status?: string }) {
   const [checked, setChecked] = useState<CheckResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -188,7 +188,7 @@ function McpState({ status }: { status?: string }) {
     void CHECKS.mcp().then((r) => { setChecked(r); setBusy(false); });
   };
   useEffect(() => {
-    if (!status) check();
+    // Not on open: from here the probe cannot see the login Claude keeps, so it could say Needs login to someone logged in.
     window.addEventListener(RECHECK, check);
     return () => window.removeEventListener(RECHECK, check);
   }, []);
