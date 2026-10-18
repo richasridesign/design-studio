@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
+import { insertPrompt } from './Files';
 import { REASON_TEXT, hhmm, isActive, stallReason, untilFrom, usedPct, type LongRun, type Report } from '../../../shared/longRun';
 import '../longrun.css';
 
@@ -110,7 +111,7 @@ export function LongRunLine() {
   );
 }
 
-function Section({ title, items, open: start }: { title: string; items: string[]; open: boolean }) {
+function Section({ title, items, open: start, answer }: { title: string; items: string[]; open: boolean; answer?: boolean }) {
   const [open, setOpen] = useState(start && items.length > 0);
   const id = useId();
   return (
@@ -122,7 +123,12 @@ function Section({ title, items, open: start }: { title: string; items: string[]
       </button>
       {open && (
         <ul id={id}>
-          {items.map((t, i) => <li key={i}><Markdown text={t} /></li>)}
+          {items.map((t, i) => (
+            <li key={i}>
+              <Markdown text={t} />
+              {answer && <button className="link lr-answer" title="Put this question in the message box with your answer" onClick={() => insertPrompt(`About "${t.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ')}": `)}>Answer</button>}
+            </li>
+          ))}
         </ul>
       )}
     </section>
@@ -136,7 +142,7 @@ export function LongRunReport({ report }: { report: Report }) {
       {report.intro && <div className="lr-intro"><Markdown text={report.intro} /></div>}
       <div className="lr-report">
         <div className="lr-report-head"><b>Long run report</b></div>
-        <Section title="Needs your decision" items={report.decide} open />
+        <Section title="Needs your decision" items={report.decide} open answer />
         <Section title="Not checked" items={report.unchecked} open />
         <Section title="Fixed" items={report.fixed} open={false} />
       </div>
