@@ -477,7 +477,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         chat.changePlan(msg.next.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim().slice(0, 120)).slice(0, 12));
         break;
       case 'answer':
-        chat.answerQuestion(msg.id, msg.answers);
+        chat.answerQuestion(msg.id, msg.answers, typeof msg.response === 'string' ? msg.response : undefined);
         break;
       case 'permission':
         chat.answerPermission(msg.id, msg.allow, msg.always, typeof msg.note === 'string' ? msg.note : undefined);
