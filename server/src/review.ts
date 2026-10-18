@@ -95,12 +95,6 @@ async function saveRun(dir: string, run: ReviewRun) {
   await writeFile(path.join(dir, REVIEW_FILE), JSON.stringify(doc, null, 2));
 }
 
-export async function markPosted(dir: string, ids: string[]) {
-  const doc = await readReview(dir);
-  doc.posted = [...new Set([...(doc.posted ?? []), ...ids])];
-  await writeFile(path.join(dir, REVIEW_FILE), JSON.stringify(doc, null, 2));
-}
-
 const hex = (p: any) => (p?.type === 'SOLID' ? '#' + ['r', 'g', 'b'].map((k) => Math.round(p.color[k] * 255).toString(16).padStart(2, '0')).join('') : p?.type?.toLowerCase());
 
 export function outline(doc: any, components: Record<string, any>, max = OUTLINE_LINES) {
@@ -169,11 +163,13 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
   input.onArea?.('check', 'running');
   let docs: Loaded[] = [];
   let shots: string[] = [];
+  let readCost = 0;
   try {
     // One plugin read gets the frames and, when a reviewer will look at them, their screenshots.
     const read = await readFrames(fileKey, frames, { dir, signal: input.signal, shots: reviewers.length ? { dir: path.join('review', 'shots'), maxDimension: SHOT_MAX } : undefined });
     docs = read.docs;
     shots = read.shots;
+    readCost = read.costUsd;
     run.check = checkFrames(docs, ds);
   } catch (err) {
     run.checkError = (err as Error).message;
@@ -208,7 +204,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
     }
   }
   run.tokens = run.results.reduce((n, r) => n + r.tokens, 0);
-  run.costUsd = run.results.reduce((n, r) => n + r.costUsd, 0);
+  // The plugin read is a short Claude run too, so its cost counts.
+  run.costUsd = readCost + run.results.reduce((n, r) => n + r.costUsd, 0);
   await saveRun(dir, run);
   return run;
 }

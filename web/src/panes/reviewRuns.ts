@@ -1,6 +1,6 @@
 import { rulesSummary } from '../../../shared/rules';
 import type { MarkKind } from '../../../shared/marks';
-import { AREA_NAMES, PRESET_INFO, type CopyRun, type CritRun, type Finding, type ReviewDoc, type ReviewPreset, type ReviewRun } from '../../../shared/design';
+import { AREA_NAMES, PRESET_INFO, type CopyRun, type CritRun, type Finding, type ReviewPreset, type ReviewRun } from '../../../shared/design';
 
 export type RunRow =
   | { kind: 'review' | 'audit'; id: string; at: number; tokens: number; run: ReviewRun }
@@ -43,8 +43,6 @@ export function ago(at: number, now = Date.now()): string {
 }
 
 export const runLabel = (run: ReviewRun) => (run.kind === 'audit' ? 'File audit' : run.kind === 'verify' ? 'Final check' : `Review ${run.round} · ${PRESET_INFO[run.preset].label}`);
-
-export const unposted = (run: ReviewRun, doc: ReviewDoc): Finding[] => [...run.check, ...run.results.flatMap((r) => r.findings)].filter((f) => !doc.posted?.includes(f.id) && f.severity !== 'minor');
 
 // Red is kept for blocking findings and reviewer errors; an area with only major findings is a warning.
 export type AreaTone = 'pass' | 'major' | 'blocking' | 'error';

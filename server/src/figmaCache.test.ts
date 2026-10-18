@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cachedOutline, containingScript, fileOutline, framesContaining, OUTLINE_SCRIPT, renderFrame, thumbs } from './figmaCache.js';
+import { cachedOutline, containingScript, fileOutline, framesContaining, OUTLINE_SCRIPT, thumbs } from './figmaCache.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const runScript = (script: string, figma: any) => new AsyncFunction('figma', script)(figma);
@@ -131,15 +131,5 @@ describe('thumbs', () => {
     expect(a['1:1']).toBeTruthy();
     expect(b['1:9']).toBeTruthy();
     expect(log.shots.filter((x) => x === '1:1')).toHaveLength(1);
-  });
-});
-
-describe('renderFrame', () => {
-  it('saves the current frame at review size', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('png')));
-    const { run, log } = fakeRun({});
-    const dir = await chatDir();
-    expect(await renderFrame(dir, 'KEY', '1:1', { mcp: MCP, run })).toMatch(/^\/api\/chat-file\/\.figma-cache\/KEY\/render\/1-1\.png\?v=/);
-    expect(log.max).toEqual([1600]);
   });
 });

@@ -6,11 +6,10 @@ export type Tone = 'idle' | 'checking' | 'ok' | 'warn' | 'bad';
 export type Step = { text: string; cmd?: string; after?: string };
 /** `optional` marks a missing extra: it shows in Settings but never stops a chat. */
 export type CheckResult = { tone: 'ok' | 'warn' | 'bad'; detail: string; fix?: string; steps?: Step[]; fixLabel?: string; fixId?: string; optional?: boolean };
-export type CheckId = 'figma' | 'mcp' | 'chrome' | 'claude';
+export type CheckId = 'mcp' | 'chrome' | 'claude';
 
-export const CHECK_IDS: CheckId[] = ['figma', 'mcp', 'chrome', 'claude'];
+export const CHECK_IDS: CheckId[] = ['mcp', 'chrome', 'claude'];
 export const CHECK_TITLES: Record<CheckId, string> = {
-  figma: 'Figma token',
   mcp: 'Figma plugin in Claude',
   chrome: 'Figma tab in Chrome',
   claude: 'Claude sign-in',
@@ -36,18 +35,6 @@ export const ALLOW_CHROME = 'Allow in Chrome';
 export const CHROME_CHECKBOX = 'Allow remote debugging for this browser instance';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-// Claude edits Figma through the plugin login. The token only feeds Design Studio's own views, so a missing one is optional.
-async function figma(): Promise<CheckResult> {
-  const saved = await getJson<{ figmaToken?: string }>('/api/settings').then((s) => !!s.figmaToken, () => true);
-  if (!saved) return { tone: 'warn', optional: true, detail: 'Token: Not added (optional). It shows frames, previews, versions and Figma comments here. Claude edits Figma without it.', fix: 'Paste a token in Personal access token above, then save.' };
-  try {
-    const m = await getJson<{ handle: string; email: string }>('/api/figma/me');
-    return { tone: 'ok', detail: `Signed in as ${m.handle} (${m.email})` };
-  } catch (e) {
-    return { tone: 'bad', detail: `Token not accepted: ${msg(e)}`, fix: 'Make a new token in Figma (Settings, Security, Personal access tokens), paste it above, then save.' };
-  }
-}
 
 async function mcp(): Promise<CheckResult> {
   try {
@@ -92,6 +79,6 @@ async function claude(): Promise<CheckResult> {
   }
 }
 
-export const CHECKS: Record<CheckId, () => Promise<CheckResult>> = { figma, mcp, chrome, claude };
+export const CHECKS: Record<CheckId, () => Promise<CheckResult>> = { mcp, chrome, claude };
 
 export const addFigmaToClaude = () => postJson('/api/figma/mcp', {});

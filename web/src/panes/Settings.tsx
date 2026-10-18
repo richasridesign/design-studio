@@ -77,24 +77,19 @@ function CheckSetup() {
 
 export function Settings() {
   const [s, setS] = useState<S | null>(null);
-  const [token, setToken] = useState('');
   const [msg, setMsg] = useState('');
   const [mcp, setMcp] = useState<McpInfo | null>(null);
-  const [who, setWho] = useState('');
 
   useEffect(() => {
-    getJson<S>('/api/settings').then((x) => { setS(x); setToken(x.figmaToken); }).catch((e) => setMsg(e.message));
+    getJson<S>('/api/settings').then(setS).catch((e) => setMsg(e.message));
     getJson<McpInfo>('/api/figma/mcp').then(setMcp).catch(() => {});
-    getJson<{ handle: string; email: string }>('/api/figma/me').then((m) => setWho(`${m.handle} (${m.email})`)).catch(() => {});
   }, []);
 
   const save = async (patch: Partial<S>) => {
     try {
       const next = await postJson<S>('/api/settings', patch);
       setS(next);
-      setToken(next.figmaToken);
       setMsg('Saved');
-      if ('figmaToken' in patch) getJson<{ handle: string; email: string }>('/api/figma/me').then((m) => setWho(`${m.handle} (${m.email})`)).catch((e) => setWho(`Token not accepted: ${e.message}`));
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -116,29 +111,14 @@ export function Settings() {
       <SectionNav />
       {msg && <div className="banner"><Icon name="info" small /> <span>{msg}</span></div>}
       <section className="set-card" id="set-figma" aria-labelledby="set-figma-h">
-        <h2 id="set-figma-h" className="sr-only">Figma access</h2>
-        <p className="muted">Reads files, frames and thumbnails, and posts review comments, with your own token.</p>
-        <label className="field">
-          <span>Personal access token</span>
-          <div className="inline">
-            <input type="password" value={token} placeholder="figd_…" onChange={(e) => setToken(e.target.value)} />
-            <button onClick={() => save({ figmaToken: token })}>Save</button>
-          </div>
-          <span className="muted small">{who || 'In Figma: Settings, Security, Personal access tokens. Read on files, write on comments.'}</span>
-        </label>
-        <label className="field">
-          <span>Team ID, for the team files list (optional)</span>
-          <div className="inline">
-            <input defaultValue={s.teamId} inputMode="numeric" placeholder="For example: 1234567890" aria-describedby="set-team-help" onBlur={(e) => e.target.value !== s.teamId && save({ teamId: e.target.value })} />
-          </div>
-          <span className="muted small" id="set-team-help">In Figma, open your team's page. The team ID is the number after /team/ in the address.</span>
-        </label>
+        <h2 id="set-figma-h" className="sr-only">Figma</h2>
+        <p className="muted">Design Studio reads and edits your file through the Figma plugin in Claude. No token needed.</p>
         <div className="field">
           <span>Figma plugin in Claude</span>
           {mcp?.configured ? <McpState status={mcp.status?.status} /> : (
             <div className="inline"><span className="muted">Figma plugin: Not added yet</span><button onClick={addMcp}>Add Figma to Claude</button></div>
           )}
-          <span className="muted small">Lets Claude edit your Figma file.</span>
+          <span className="muted small">Lets Claude read and edit your Figma file.</span>
         </div>
       </section>
 
@@ -157,7 +137,7 @@ export function Settings() {
         </div>
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking, after saving a version" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
-        <Toggle label="Check frames after Claude edits Figma" detail="Runs the free design system check on the frames Claude touched in a chat turn" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
+        <Toggle label="Check frames after Claude edits Figma" detail="Runs the design system check on the frames Claude touched in a chat turn. Reading them from Figma costs under a cent" on={s.autoCheck} set={(v) => save({ autoCheck: v })} />
       </section>
 
       <section className="set-card" id="set-models" aria-labelledby="set-models-h">
@@ -208,7 +188,7 @@ function McpState({ status }: { status?: string }) {
   );
 }
 
-const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma access'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models'], ['set-usage', 'Usage'], ['set-advanced', 'Advanced']];
+const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models'], ['set-usage', 'Usage'], ['set-advanced', 'Advanced']];
 
 const scroller = (el: HTMLElement | null): HTMLElement | null => {
   for (let p = el?.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
@@ -223,6 +203,8 @@ function SectionNav() {
     if (!box) return;
     const onScroll = () => {
       const line = (nav.current?.getBoundingClientRect().bottom ?? 0) + box.clientHeight * 0.3;
+      // At the top the first card is the one in view, however short it is.
+      if (box.scrollTop <= 0) return setAt(SECTIONS[0][0]);
       // The last card is short and never reaches the top, so the bottom of the scroll counts as it.
       if (box.scrollTop + box.clientHeight >= box.scrollHeight - 2) return setAt(SECTIONS[SECTIONS.length - 1][0]);
       let id = SECTIONS[0][0];

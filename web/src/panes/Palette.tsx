@@ -14,8 +14,6 @@ const MAX_ROWS = 12;
 
 const VIEWS = [
   ['chats', 'Chats'],
-  ['files', 'File'],
-  ['comments', 'File Comments'],
   ['system', 'Design System'],
   ['rules', 'Design System Rules'],
 ];

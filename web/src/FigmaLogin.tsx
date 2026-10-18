@@ -55,11 +55,6 @@ export function FigmaLogin({ name, tone, label, onClose, onRetry, initial = { st
   const { run, start, cancel } = useLoginRun(onRetry, initial);
   const waiting = run.state === 'waiting';
   useDialogFocus(true, box, () => { if (waiting) cancel(); onClose(); });
-  const settings = () => {
-    onClose();
-    // Wait for the dialog to hand focus back to its trigger, then open Settings so focus lands there.
-    setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:settings' } })), 50);
-  };
   const close = () => { if (waiting) cancel(); onClose(); };
   return createPortal(
     <div className="overlay settings-overlay rs-overlay" onClick={close}>
@@ -69,7 +64,7 @@ export function FigmaLogin({ name, tone, label, onClose, onRetry, initial = { st
           <button className="icon-btn rs-close" title="Close" aria-label="Close" onClick={close}><Icon name="close" /></button>
         </div>
         <div className="settings-dialog-body fl-body">
-          <p className="fl-lead">{connected ? 'Claude can edit your Figma files in every chat.' : 'Claude edits your file through the Figma plugin. Log in once and every chat can use it.'}</p>
+          <p className="fl-lead">{connected ? 'Design Studio and Claude can read and edit your Figma files in every chat.' : 'Design Studio and Claude read and edit your file through the Figma plugin. Log in once and every chat can use it.'}</p>
           {waiting && (
             <p className="fl-wait" role="status">
               Figma opened in your browser. Approve access there, then come back here.{' '}
@@ -88,10 +83,6 @@ export function FigmaLogin({ name, tone, label, onClose, onRetry, initial = { st
               </ol>
             </details>
           )}
-          <p className="fl-alt">
-            A Figma token in Settings also lets Design Studio read your file and show previews. Claude still needs this login to edit in Figma.{' '}
-            <button className="link" onClick={settings}>Open Settings</button>
-          </p>
         </div>
         <div className="fl-foot">
           <span className="fl-status" role="status"><span className={`sb-dot ${waiting ? 'wait' : tone}`} aria-hidden="true" /> Figma: {waiting ? 'Waiting for you in the browser' : label}</span>
@@ -114,6 +105,12 @@ const PLUGIN = 'plugin:figma:figma';
 
 /** Opens the one Log in to Figma dialog. The status bar, the welcome notice and Settings all call it, so a phone has a way in too. */
 export const openFigmaLogin = () => window.dispatchEvent(new Event(OPEN));
+
+/** An error from a Figma read. When the fix is to log in, it ends with a link that opens the login dialog. */
+export function FigmaErrorText({ text }: { text: string }) {
+  if (!/Log in to Figma/.test(text)) return <>{text}</>;
+  return <>{text}{' '}<button className="link" onClick={openFigmaLogin}>Log in to Figma</button></>;
+}
 
 // Once per page load, so closing the dialog keeps it closed.
 let autoTried = false;

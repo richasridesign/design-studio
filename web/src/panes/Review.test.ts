@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize, unposted } from './reviewRuns';
+import { ago, areaRows, areaTone, rulesTone, canGoDeeper, isStale, mergeRuns, retryPrompt, runLabel, shownPreset, summarize } from './reviewRuns';
 import type { CopyRun, CritRun, Finding, ReviewRun } from '../../../shared/design';
 
 const finding = (severity: Finding['severity']): Finding => ({ id: severity, area: 'color', severity, rule: 'r', fix: 'f', node: '1:2' }) as Finding;
@@ -68,11 +68,6 @@ describe('review card helpers', () => {
     expect(areaTone(false, false, [finding('major')])).toBe('major');
     expect(areaTone(true, false, [finding('minor')])).toBe('pass');
     expect(areaTone(false, true, [])).toBe('error');
-  });
-
-  it('skips posted and minor findings', () => {
-    const run = review('a', 1, { check: [finding('blocking'), finding('major'), finding('minor')] });
-    expect(unposted(run, { runs: [run], posted: ['major'] }).map((f) => f.id)).toEqual(['blocking']);
   });
 });
 

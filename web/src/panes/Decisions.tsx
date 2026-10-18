@@ -4,6 +4,7 @@ import { getOutline, refreshOutline, useOutlineVersion, type Outline } from '../
 import { useThumbs } from '../useThumbs';
 import { attachFigma, insertPrompt } from './Files';
 import { DecisionLog } from './DecisionLog';
+import { FigmaErrorText } from '../FigmaLogin';
 import { WARN_WORDS, draftPrompt, filled, fills, matchDecisions, mergeDecisions, parseDecisions, slots, stickyPrompt, wordCount, type Decision, type DecisionDoc, type Screen } from '../../../shared/decisions';
 import '../decisions.css';
 
@@ -175,11 +176,11 @@ export function Decisions() {
 
       <DecisionLog />
 
-      {error && <p className="dec-line" role="alert">Could not load the screens: {error}</p>}
+      {error && <p className="dec-line" role="alert">Could not read the screens. <FigmaErrorText text={error} /></p>}
       {outline?.readAt && !reading && (
         <p className="dec-line dec-read">
           <span>Screens read from Figma: {readAgo(outline.readAt)}.</span>
-          <button className="link" onClick={() => { setReading(true); refreshOutline(key).finally(() => setReading(false)); }}>Read again</button>
+          <button className="link" onClick={() => { setReading(true); refreshOutline(key).catch(() => {}).finally(() => setReading(false)); }}>Read again</button>
         </p>
       )}
       {(reading || (!outline && !error)) && <p className="dec-line" role="status"><span className="dec-spin" aria-hidden="true" /><span>Reading the screens from Figma, about 15 seconds.</span></p>}

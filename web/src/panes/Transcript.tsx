@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { getJson, postJson, setUi, useRev, useStore } from '../store';
+import { getJson, setUi, useRev, useStore } from '../store';
 import { CHECKS } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
@@ -10,13 +10,12 @@ import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
-import { Confirm } from '../Confirm';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
-import { TONE_MARK, areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize, unposted } from './reviewRuns';
+import { TONE_MARK, areaRows, canGoDeeper, isStale, retryPrompt, rulesTone, runLabel, summarize } from './reviewRuns';
 import '../marks';
 import { rulesLine } from '../../../shared/rules';
 import { openRun } from '../../../shared/triage';
@@ -50,9 +49,8 @@ function SetupBanner() {
   const [problem, setProblem] = useState<{ tone: 'warn' | 'bad'; text: string; login: boolean } | null>(null);
   useEffect(() => {
     let live = true;
-    const run = () => void Promise.all([CHECKS.figma(), CHECKS.mcp()]).then((r) => {
-      // The Figma tools matter most for a chat, so their state wins over the token's. A missing token is optional, so it never shows here.
-      const c = [r[1], r[0]].find((x) => x.tone !== 'ok' && !x.optional);
+    const run = () => void CHECKS.mcp().then((r) => {
+      const c = r.tone !== 'ok' && !r.optional ? r : undefined;
       if (!live) return;
       // Needing login, the login lives in the Log in to Figma dialog, so the notice keeps one short line and one action.
       const login = c?.fixId === 'figma-login';
@@ -342,16 +340,10 @@ function HouseRulesRow({ run }: { run: ReviewRun }) {
 
 function ReviewCard({ runAt }: { runAt: number }) {
   const chat = useStore((s) => s.session.id);
-  const hasFile = useStore((s) => !!s.session.figma);
   const figmaKey = useStore((s) => s.session.figma?.key);
-  const fileName = useStore((s) => s.session.figma?.name) ?? 'the Figma file';
   const [copied, setCopied] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const postBtn = useRef<HTMLButtonElement>(null);
   const rev = useRev('review.json');
   const [doc, setDoc] = useState<ReviewDoc | null>(null);
-  const [posting, setPosting] = useState(false);
-  const [note, setNote] = useState('');
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, rev]);
   const { triage } = useTriage();
   const latestAt = doc?.runs.length ? Math.max(...doc.runs.map((r) => r.at)) : 0;
@@ -359,21 +351,8 @@ function ReviewCard({ runAt }: { runAt: number }) {
   const lastModified = latestAt === runAt && figmaKey !== 'sample' ? outline?.lastModified : null;
   const full = doc?.runs.find((r) => r.at === runAt);
   if (!doc || !full) return <div className="tr-system">Review finished</div>;
-  // Findings closed by hand in the Review pane leave the counts, the area rows and the Figma post.
+  // Findings closed by hand in the Review pane leave the counts, the area rows and the checklist.
   const run = openRun(full, triage);
-  const pending = unposted(run, doc);
-  const post = async () => {
-    setPosting(true);
-    try {
-      const r = await postJson<{ posted: number }>('/api/review/post', { runId: run.id, ids: pending.map((f) => f.id) });
-      setNote(`Posted ${r.posted} ${r.posted === 1 ? 'comment' : 'comments'} in Figma`);
-      setDoc(await getJson<ReviewDoc>('/api/review'));
-    } catch (e) {
-      setNote((e as Error).message);
-    } finally {
-      setPosting(false);
-    }
-  };
   const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
   const copy = () => {
     navigator.clipboard.writeText(reviewChecklist(run, figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
@@ -406,24 +385,10 @@ function ReviewCard({ runAt }: { runAt: number }) {
       {isStale(run, lastModified, latestAt) && <div className="tr-review-stale">File changed since this review. <button className="link" onClick={() => insertPrompt(`/review check ${run.frames.join(' ')}`)}>Check again</button></div>}
       <div className="tr-review-actions">
         <button onClick={() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:review' } }))}>Open Review</button>
-        {hasFile && pending.length > 0 && <button ref={postBtn} className="link" disabled={posting} title={`Post ${pending.length} ${pending.length === 1 ? 'finding' : 'findings'} as Figma comments`} onClick={() => setAsking(true)}>Post {pending.length} to Figma</button>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {retryPrompt(run) && <button className="link" title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
         {canGoDeeper(run) && <button className="link" onClick={() => insertPrompt('/review full')}>Review deeper</button>}
-        {note && <span className="tr-review-note" role="status">{note}</span>}
       </div>
-      {asking && (
-        <Confirm
-          safe
-          icon="comment"
-          title={`Post ${pending.length} ${pending.length === 1 ? 'comment' : 'comments'} to Figma?`}
-          detail={`Each finding becomes a comment on its frame in ${fileName}.`}
-          warning="Everyone with access to the file sees them."
-          action={`Post ${pending.length}`}
-          run={post}
-          onClose={() => { setAsking(false); requestAnimationFrame(() => postBtn.current?.focus()); }}
-        />
-      )}
     </div>
   );
 }

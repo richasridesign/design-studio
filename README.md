@@ -31,16 +31,15 @@ stops the server too.
 Open Settings (the gear in the top bar). "Check setup" tests each item below without spending tokens and offers a fix
 button where one exists.
 
-1. **Figma token.** Add a Figma personal access token with read access to files and write access to comments.
-   Design Studio uses it for the file list, frames, thumbnails, the design system check and comments.
-2. **Claude's Figma tools.** Design Studio uses the official Figma plugin for Claude Code (`figma@claude-plugins-official`),
-   the same connection and sign-in as the Claude CLI. "Add Figma plugin" installs it. Sign in once: run `claude`, type
-   `/mcp`, pick plugin:figma:figma and authenticate.
-3. **Chrome.** The Figma tab shows your own Chrome, where you are logged in to Figma. Click Connect Chrome there and
+1. **Claude's Figma tools.** Design Studio uses the official Figma plugin for Claude Code (`figma@claude-plugins-official`),
+   the same connection and sign-in as the Claude CLI. "Add Figma plugin" installs it. Log in once with Log in to Figma,
+   or run `claude`, type `/mcp`, pick plugin:figma:figma and authenticate. Design Studio reads frames, thumbnails and
+   screenshots through it too, with short read-only runs on Haiku. No Figma token is needed.
+2. **Chrome.** The Figma tab shows your own Chrome, where you are logged in to Figma. Click Connect Chrome there and
    allow remote debugging. Give DesignStudio.app Full Disk Access once. The relay reads Chrome's DevToolsActivePort
    file, which macOS protects. The web page and your phone never need this permission.
 
-If the token or the Figma tools are missing, a new chat shows a one-line banner.
+If the Figma tools are missing or need a login, a new chat shows a one-line banner.
 
 ## Modes
 
@@ -77,10 +76,10 @@ and Claude's, show as chips with the frame name and open the frame on click.
   the button is Open Sketch.
 - **Review card.** When a review or audit finishes, a card shows blocking and major counts, tokens, the frames by
   name and a pass or fail mark per area. Failed areas link to their findings in the Review pane. Buttons: Open
-  Review, Copy as checklist (Markdown), Post as Figma comments, Retry (when a reviewer failed) and Review deeper
-  (after a Quick review or audit). If the file was saved after the newest review, the card offers Check again.
-- **Free check after edits.** In Chat mode, when a turn edited Figma, Design Studio runs the design system check on the
-  frames Claude touched (a nested layer counts as its top-level frame) and posts a review card. It uses no model tokens. Turn it off in Settings, Design runs.
+  Review, Copy as checklist (Markdown), Retry (when a reviewer failed) and Review deeper (after a Quick review or
+  audit).
+- **Check after edits.** In Chat mode, when a turn edited Figma, Design Studio runs the design system check on the
+  frames Claude touched (a nested layer counts as its top-level frame) and posts a review card. Reading the frames costs under a cent. Turn it off in Settings, Design runs.
 
 Before its first change in each turn, Claude saves a Figma version. A hook blocks changes until it has.
 
@@ -119,12 +118,9 @@ These commands run on the server:
 
 ## Panels and tabs
 
-The left rail has three panels. Cmd+B hides it. Cmd+. (focus mode) hides both side panels.
+The left rail has two panels. Cmd+B hides it. Cmd+. (focus mode) hides both side panels.
 
 - **Chats.** Chats grouped by Figma file, with the pinned "Sample tour" row.
-- **File.** The file's frames (select one to target recipes and commands) with collapsible Comments and Versions
-  sections. Comments list Figma threads, open first, each with Show in Figma, Reply and Ask Claude. Versions list
-  Figma versions with Claude's checkpoints marked, and compare one with now by slider or side by side.
 - **Design system.** The profile of colors, text styles, spacing, radius and components. "Export tokens" gives CSS
   variables, a Tailwind theme or W3C design tokens JSON. The Rules section holds house rules for "This file" and
   "All files". Claude gets them in every chat, and the reviewers and crit check against them.
@@ -139,8 +135,7 @@ closes it). The Preview and Files tabs, a terminal and the build check show when
 One list of every review, audit, crit and copy pass, newest first, one line each (kind, time, counts, tokens). The
 newest is open. Click a row to expand it. The Review button puts `/review` in the composer, next to Quick and Full.
 
-- Review and audit rows show the frames by name, findings per area, tokens per reviewer, Post as Figma comments and
-  Copy as checklist.
+- Review and audit rows show the frames by name, findings per area, tokens per reviewer, and Copy as checklist.
 - Crit rows show four viewpoints (new user, power user, accessibility, product) with a verdict and linked notes, and Copy notes.
 - Copy rows show suggested text changes with a reason each. Edit or untick, then "Apply selected in Figma" fills the
   composer. Copy as table gives a Markdown table of the changes.
@@ -156,8 +151,8 @@ The spend pill in the top bar shows what the chat has cost, split by phase and m
 budget in Settings; the pill turns amber at 80% and red past 100%. The daily total is kept in
 `~/.designstudio/spend.json`, and each chat's spend in its chat folder.
 
-These use no tokens: `/audit`, the free check after edits, the sample tour, token export, version compare, the
-report export and Check setup.
+These use no tokens: the sample tour, token export, the report export and Check setup. `/audit`, the check after
+edits and the Flow check read the file through the Figma plugin, which costs under a cent each.
 
 ## Sample tour
 
