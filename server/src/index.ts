@@ -19,7 +19,7 @@ import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
 import { listDir, listFiles, readFileWithOriginal } from './files.js';
 import { FigmaError, attachFolder, chatFolders, fileOutline, folderFor, freshChatFolder, images, isChatFolder, listComments, me, postComment, projectFiles, readFigma, replyComment, SAMPLE_KEY, scratchFolder, teamProjects, versions } from './figma.js';
-import { loadSample } from './sample.js';
+import { loadSample, samplePath } from './sample.js';
 import { today } from './spend.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
@@ -265,8 +265,11 @@ const server = http.createServer(async (req, res) => {
       return json({ ok: true });
     }
     if (url.pathname === '/api/sample' && req.method === 'POST') {
+      // An open sample chat keeps its files: reloading would rewrite run times its review cards point at.
+      const opened = [...live.values()].map((l) => l.chat).find((c) => c.cwd === samplePath());
+      if (opened) return json({ id: opened.id, cwd: opened.cwd });
       const dir = await loadSample();
-      const open = [...live.values()].map((l) => l.chat).find((c) => c.cwd === dir) ?? (await createChat(dir));
+      const open = await createChat(dir);
       return json({ id: open.id, cwd: dir });
     }
     if (url.pathname === '/api/attach' && req.method === 'POST') return json({ ref: await saveImage(chat.cwd, String(req.headers['content-type'] ?? ''), await readBinary(req)) });
