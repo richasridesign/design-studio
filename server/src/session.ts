@@ -272,8 +272,8 @@ export class AgentSession {
     this.approvals.answerQuestion(id, answers);
   }
 
-  answerPermission(id: string, allow: boolean, always?: boolean) {
-    this.approvals.answerPermission(id, allow, always);
+  answerPermission(id: string, allow: boolean, always?: boolean, note?: string) {
+    this.approvals.answerPermission(id, allow, always, note);
   }
 
   private async *inputStream(): AsyncGenerator<SDKUserMessage> {
