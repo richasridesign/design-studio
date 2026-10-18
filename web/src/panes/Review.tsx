@@ -13,6 +13,9 @@ import { takeReviewFocus, type ReviewFocus } from './reviewFocus';
 import { KIND_LABEL, ago, areaTone, mergeRuns, rulesTone, runLabel, shownPreset, summarize, unposted, type RulesTone, type RunRow } from './reviewRuns';
 import { rulesLine, type RuleResult } from '../../../shared/rules';
 import { frameName, useOutline } from '../outline';
+import { splitFindings, splitRun, triageKey, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
+import { ClosedGroup, CloseForm, useTriage } from './Triage';
+import '../review.css';
 
 const SEV: Record<Finding['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };
 const SEV_ORDER: Record<Finding['severity'], number> = { blocking: 0, major: 1, minor: 2 };
@@ -34,6 +37,7 @@ export function Review({ dev = false }: { dev?: boolean }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [build, setBuild] = useState(false);
   const [focus, setFocus] = useState<(ReviewFocus & { at: number }) | null>(null);
+  const { triage, change } = useTriage();
 
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, reviewRev]);
   useEffect(() => { getJson<{ runs: CritRun[] }>('/api/crit').then((d) => setCrit(d.runs)).catch(() => {}); }, [chat, critRev]);
@@ -82,7 +86,7 @@ export function Review({ dev = false }: { dev?: boolean }) {
                   <span className="muted" title={when(row.at)}>{ago(row.at)}</span>
                   <span className="run-sum">{summarize(row)}</span>
                 </button>
-                {on && <div className="run-detail"><RunDetail row={row} doc={doc} onDoc={setDoc} focus={focus?.runId === row.id ? focus : undefined} /></div>}
+                {on && <div className="run-detail"><RunDetail row={row} doc={doc} onDoc={setDoc} focus={focus?.runId === row.id ? focus : undefined} triage={triage} change={change} /></div>}
               </li>
             );
           })}
@@ -98,13 +102,15 @@ export function Review({ dev = false }: { dev?: boolean }) {
   );
 }
 
-function RunDetail({ row, doc, onDoc, focus }: { row: RunRow; doc: ReviewDoc; onDoc: (d: ReviewDoc) => void; focus?: { area: string; at: number } }) {
+type TriageProps = { triage: Triage; change: (c: TriageChange) => Promise<void> };
+
+function RunDetail({ row, doc, onDoc, focus, triage, change }: { row: RunRow; doc: ReviewDoc; onDoc: (d: ReviewDoc) => void; focus?: { area: string; at: number } } & TriageProps) {
   if (row.kind === 'crit') return <CritDetail run={row.run} />;
   if (row.kind === 'copy') return <CopyDetail run={row.run} />;
-  return <ReviewDetail run={row.run} doc={doc} onDoc={onDoc} focus={focus} />;
+  return <ReviewDetail run={row.run} doc={doc} onDoc={onDoc} focus={focus} triage={triage} change={change} />;
 }
 
-function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewDoc; onDoc: (d: ReviewDoc) => void; focus?: { area: string; at: number } }) {
+function ReviewDetail({ run, doc, onDoc, focus, triage, change }: { run: ReviewRun; doc: ReviewDoc; onDoc: (d: ReviewDoc) => void; focus?: { area: string; at: number } } & TriageProps) {
   const focusAt = (area: string) => (focus?.area === area ? focus.at : 0);
   const [posting, setPosting] = useState(false);
   const [note, setNote] = useState('');
@@ -113,7 +119,31 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
   const postBtn = useRef<HTMLButtonElement>(null);
   const figmaKey = useStore((s) => s.session.figma?.key);
   const fileName = useStore((s) => s.session.figma?.name) ?? 'the Figma file';
-  const pending = unposted(run, doc);
+  // Findings closed by hand (fixed, won't fix, parked) leave the area cards and the Figma post.
+  const split = splitRun(run, triage);
+  const isOpen = new Set(split.open.map((f) => f.id));
+  const openOf = (list: Finding[]) => splitFindings(run, list, triage).open;
+  const check = openOf(run.check);
+  const pending = unposted(run, doc).filter((f) => isOpen.has(f.id));
+  const closedHead = useRef<HTMLButtonElement>(null);
+  const [said, setSaid] = useState('');
+  const triageOps: FindingTriage = {
+    runId: run.id,
+    close: async (f, state, why) => {
+      await change({ action: 'close', key: triageKey(run, f), state, why });
+      setSaid(`Closed: ${f.rule}`);
+      requestAnimationFrame(() => closedHead.current?.focus());
+    },
+  };
+  const reopen = async (key: string) => {
+    try {
+      await change({ action: 'reopen', key });
+      setSaid('Reopened');
+      requestAnimationFrame(() => closedHead.current?.focus());
+    } catch (e) {
+      setSaid((e as Error).message);
+    }
+  };
   const hasFindings = run.check.length + run.results.reduce((n, r) => n + r.findings.length, 0) > 0;
   const copy = () => {
     navigator.clipboard.writeText(reviewChecklist(run, figmaKey && figmaKey !== 'sample' ? figmaKey : null)).catch(() => {});
@@ -156,16 +186,18 @@ function ReviewDetail({ run, doc, onDoc, focus }: { run: ReviewRun; doc: ReviewD
         />
       )}
       <div className="review-grid">
-        <AreaCard title="Design system check" sub={run.checkError ?? (run.check.length ? `${run.check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !run.check.some((f) => f.severity !== 'minor'), !!run.checkError, run.check)} tokens={0} findings={run.check} grouped focusAt={focusAt('check')} />
+        <AreaCard title="Design system check" sub={run.checkError ?? (check.length ? `${check.length} issues` : 'No issues')} tone={areaTone(!run.checkError && !check.some((f) => f.severity !== 'minor'), !!run.checkError, check)} tokens={0} findings={check} grouped focusAt={focusAt('check')} triage={triageOps} />
         {!!run.rules?.length && (
           <AreaCard title="House rules" sub={run.rulesError ? `${rulesLine(run.rules)}. ${run.rulesError}` : rulesLine(run.rules)} tone={rulesTone(run)} tokens={0} findings={[]} focusAt={focusAt('rules')}>
             <RuleList rules={run.rules} />
           </AreaCard>
         )}
         {run.results.map((r) => (
-          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass, !!r.error, r.findings)} tokens={r.tokens} findings={r.findings} focusAt={focusAt(r.area)} />
+          <AreaCard key={r.area} title={r.area === 'all' ? 'Reviewer · all areas' : AREA_NAMES[r.area]} sub={r.error ? `Failed: ${r.error}` : r.summary} tone={areaTone(r.pass || (!r.error && !openOf(r.findings).some((f) => f.severity !== 'minor')), !!r.error, openOf(r.findings))} tokens={r.tokens} findings={openOf(r.findings)} focusAt={focusAt(r.area)} triage={triageOps} />
         ))}
       </div>
+      <ClosedGroup closed={split.closed.map((f) => ({ ...f, key: triageKey(run, f) }))} grouped={(f) => run.check.some((c) => c.id === f.id)} onReopen={reopen} headRef={closedHead} />
+      <span className="sr-only" role="status">{said}</span>
     </>
   );
 }
@@ -191,8 +223,14 @@ function RuleList({ rules }: { rules: RuleResult[] }) {
   );
 }
 
-function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt = 0, children }: { title: string; sub: string; tone: RulesTone; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number; children?: ReactNode }) {
+type FindingTriage = { runId: string; close: (f: Finding, state: TriageState, why: string) => Promise<void> };
+
+function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt = 0, triage, children }: { title: string; sub: string; tone: RulesTone; tokens: number; findings: Finding[]; grouped?: boolean; focusAt?: number; triage?: FindingTriage; children?: ReactNode }) {
   const pass = tone === 'pass';
+  // One finding's close form open at a time; Cancel returns focus to its Close link.
+  const [closing, setClosing] = useState<string | null>(null);
+  const triggers = useRef<Record<string, HTMLButtonElement | null>>({});
+  const cancel = (id: string) => { setClosing(null); requestAnimationFrame(() => triggers.current[id]?.focus()); };
   const [open, setOpen] = useState(!pass);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -224,7 +262,11 @@ function AreaCard({ title, sub, tone, tokens, findings, grouped = false, focusAt
               <div className="f-body">
                 <div className="f-rule">{f.rule}</div>
                 <div className="f-fix">{f.fix}</div>
-                <button className="link" onClick={() => showNode(f.node)}>{grouped ? `${AREA_NAMES[f.area as Area] ?? f.area} · ` : ''}{f.nodeName ?? f.node}</button>
+                <div className="f-foot">
+                  <button className="link" onClick={() => showNode(f.node)}>{grouped ? `${AREA_NAMES[f.area as Area] ?? f.area} · ` : ''}{f.nodeName ?? f.node}</button>
+                  {triage && closing !== f.id && <button ref={(el) => { triggers.current[f.id] = el; }} className="triage-link" aria-label={`Close finding: ${f.rule}`} onClick={() => setClosing(f.id)}>Close</button>}
+                </div>
+                {triage && closing === f.id && <CloseForm rule={f.rule} onSave={async (state, why) => { await triage.close(f, state, why); setClosing(null); }} onCancel={() => cancel(f.id)} />}
               </div>
             </li>
           ))}

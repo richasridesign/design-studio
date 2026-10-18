@@ -1,0 +1,33 @@
+/* Review pane: closing a finding by hand (triage). */
+.findings .f-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+.findings .f-foot .link { margin-top: 0; align-self: center; }
+
+/* A quiet text link: no border, underline on hover. */
+.triage-link { background: transparent; border: 0; padding: 0; min-height: 24px; height: auto; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; text-underline-offset: 2px; }
+.triage-link:hover { background: transparent; text-decoration: underline; }
+
+.triage-form { display: grid; gap: 12px; margin-top: 8px; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.triage-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.triage-form legend { padding: 0; margin-bottom: 4px; font-weight: 600; font-size: var(--text-sm); line-height: 20px; }
+.triage-choices { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.triage-choice { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; font-size: var(--text-sm); cursor: pointer; }
+.triage-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.triage-form .field > span:first-child { font-size: var(--text-sm); line-height: 20px; }
+.triage-form .field input { width: 100%; }
+.triage-req { font-size: var(--text-xs); line-height: 16px; }
+.triage-foot { display: flex; align-items: center; gap: 12px; }
+.triage-foot button { min-height: 36px; }
+
+/* Closed by hand: a full-width card under the area cards. */
+.triage-closed .area-title .t { font-size: var(--text-md); }
+/* Closed state: shape + label. Fixed is a check-like filled circle, Won't fix a dash, Parked a hollow square. */
+.tri { flex: none; width: 104px; display: inline-flex; align-items: center; gap: 8px; height: 24px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
+.tri::before { content: ''; flex: none; width: 8px; height: 8px; box-sizing: border-box; }
+.tri.fixed::before { background: var(--ok); border-radius: 50%; }
+.tri.wontfix::before { height: 2px; background: var(--fg-muted); }
+.tri.parked::before { border: 2px solid var(--fg-muted); border-radius: 1px; }
+@media (max-width: 600px) {
+  .tri { height: 20px; }
+  .triage-link { min-height: 36px; }
+}
+.review-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
