@@ -196,7 +196,7 @@
 
 /* Settings */
 .settings-page { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
-.set-card { background: var(--bg-sunken); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 80px; }
+.set-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 80px; }
 .set-nav { position: sticky; top: 0; z-index: 1; display: flex; gap: 4px; margin: -24px -24px 0; padding: 12px 24px; background: var(--bg-raised); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
 .set-nav a { flex: none; display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--text-sm); text-decoration: none; white-space: nowrap; }
 .set-nav a:hover { background: var(--bg-hover); color: var(--fg); }
