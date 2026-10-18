@@ -24,6 +24,7 @@ import { McpItem, McpPage } from './panes/McpStatus';
 import { StatusBar, runningText } from './StatusBar';
 import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
+import { Research } from './panes/Research';
 import { openSection } from './Section';
 import { useCanvasContent } from './canvasContent';
 import { canNotify, toggleNotify, useNotify } from './notify';
@@ -352,6 +353,7 @@ export function App() {
       <Palette />
       <RecipeEditorHost />
       <Shortcuts />
+      <Research />
       {settings && <Dialog title="Settings" onClose={() => setSettings(false)}><Settings /></Dialog>}
       {mcpOpen && <Dialog title="MCP servers" extra="page-mcp-extra" wide onClose={() => setMcpOpen(false)}><McpPage /></Dialog>}
       {phone && <ConnectPopover onClose={() => setPhone(false)} />}

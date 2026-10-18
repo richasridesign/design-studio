@@ -238,8 +238,8 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .md code { font-family: var(--mono); font-size: var(--text-sm); background: var(--bg-hover); border-radius: var(--radius-sm); padding: 1px 4px; }
 .md pre { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; overflow: auto; }
 .md pre code { background: none; padding: 0; }
-.md a { color: var(--link); text-decoration: none; }
-.md a:hover { text-decoration: underline; }
+.md a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+.md a:hover { text-decoration-thickness: 2px; }
 .md table { border-collapse: collapse; }
 .md th, .md td { border: 1px solid var(--border-strong); padding: 3px 8px; text-align: left; }
 .md blockquote { border-left: 3px solid var(--border-strong); padding-left: 10px; color: var(--fg-muted); }
