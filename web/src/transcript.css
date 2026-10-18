@@ -113,6 +113,8 @@
 .tr-review-head .tr-dur { line-height: 16px; }
 .tr-review-head b, .tr-review-head .tr-dur { white-space: nowrap; }
 .tr-review-sum { order: 1; flex-basis: 100%; color: var(--fg-muted); }
+/* Inline links in the review card keep a 24px target (WCAG 2.5.8). */
+.tr-review .link { display: inline-flex; align-items: center; min-height: 24px; }
 .tr-review-head .tr-dur { margin-left: auto; }
 .tr-review-rows { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .tr-review-rows li { display: flex; align-items: center; gap: 8px; min-height: 24px; line-height: 20px; }
