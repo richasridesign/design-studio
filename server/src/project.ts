@@ -31,7 +31,8 @@ export async function readProject(dir: string): Promise<Project | null> {
 /** Keeps only the fields the model has, so a hand edit or an older file never breaks the tree. */
 export function cleanProject(input: unknown): Project | null {
   const o = input && typeof input === 'object' ? (input as Record<string, any>) : null;
-  if (!o || typeof o.key !== 'string') return null;
+  // A project made with New project has no file yet, so no key: it reads as ''. Anything else without a key is junk.
+  if (!o || (typeof o.key !== 'string' && (o.key !== undefined || typeof o.name !== 'string'))) return null;
   const flows: Flow[] = (Array.isArray(o.flows) ? o.flows : [])
     .filter((f: any) => f && typeof f.name === 'string')
     .map((f: any, i: number) => ({ n: Number(f.n) || i + 1, slug: slugify(typeof f.slug === 'string' ? f.slug : f.name), name: String(f.name).slice(0, 80), entry: Array.isArray(f.entry) ? f.entry.filter((x: unknown) => typeof x === 'string') : [], ...(typeof f.baseline === 'string' ? { baseline: f.baseline } : {}), ...(f.adopted ? { adopted: true } : {}), ...(f.missing ? { missing: true } : {}) }));
@@ -52,7 +53,9 @@ export function cleanProject(input: unknown): Project | null {
       ...(it.missing ? { missing: true } : {}),
     }));
   return {
-    key: o.key,
+    key: typeof o.key === 'string' ? o.key : '',
+    ...(typeof o.name === 'string' && o.name.trim() ? { name: o.name.trim().slice(0, 80) } : {}),
+    ...(Number.isFinite(o.createdAt) ? { createdAt: o.createdAt } : {}),
     ...(Number.isFinite(o.adoptedAt) ? { adoptedAt: o.adoptedAt } : {}),
     ...(o.page && typeof o.page.id === 'string' ? { page: { id: o.page.id, name: String(o.page.name ?? '') } } : {}),
     flows,
@@ -138,8 +141,13 @@ export type ProjectView = ProjectSummary;
 export async function listProjects(): Promise<ProjectView[]> {
   const out: ProjectView[] = [];
   for (const f of await chatFolders()) {
-    if (!f.figma) continue;
+    // A folder with neither figma.json nor project.json (a chat folder, the portfolio) is not a project.
     const saved = await readProject(f.dir);
+    if (!f.figma && !saved) continue;
+    if (!f.figma) {
+      out.push({ cwd: f.dir, key: '', name: saved!.name ?? path.basename(f.dir), url: '', stage: null, project: saved, noFile: true });
+      continue;
+    }
     let project = saved;
     let doubles: ProjectView['doubles'];
     let renames = 0;
@@ -153,7 +161,7 @@ export async function listProjects(): Promise<ProjectView[]> {
         if (JSON.stringify(project) !== JSON.stringify(saved)) void writeProject(f.dir, project).catch(() => {});
       }
     }
-    out.push({ cwd: f.dir, key: f.figma.key, name: f.figma.name, url: f.figma.url, stage: await projectLabel(f.dir, project).catch(() => null), project, ...(doubles ? { doubles } : {}), ...(renames ? { renames } : {}) });
+    out.push({ cwd: f.dir, key: f.figma.key, name: saved?.name ?? f.figma.name, url: f.figma.url, stage: await projectLabel(f.dir, project).catch(() => null), project, ...(doubles ? { doubles } : {}), ...(renames ? { renames } : {}) });
   }
   return out;
 }
@@ -251,7 +259,7 @@ export function mergeAdoption(existing: Project | null, key: string, input: Adop
 
   const page = input.page?.id ? { id: String(input.page.id), name: String(input.page.name ?? '') } : existing?.page;
   const parked = input.parked?.node ? { node: String(input.parked.node) } : existing?.parked;
-  return { key, adoptedAt: now, ...(page ? { page } : {}), flows, iterations, ...(parked ? { parked } : {}) };
+  return { key, ...(existing?.name ? { name: existing.name } : {}), ...(existing?.createdAt ? { createdAt: existing.createdAt } : {}), adoptedAt: now, ...(page ? { page } : {}), flows, iterations, ...(parked ? { parked } : {}) };
 }
 
 /** Merges the confirmed list into project.json, makes the flow folders, then tags the sections in Figma. */

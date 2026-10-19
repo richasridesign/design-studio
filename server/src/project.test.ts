@@ -86,6 +86,26 @@ describe('cleanProject', () => {
   });
 });
 
+describe('a project with no Figma file yet', () => {
+  it('loads, lists and keeps its name through an adoption, and an older project.json with a key still loads', async () => {
+    const dir = path.join(ROOTS.projects, 'no-file-yet');
+    await mkdir(path.join(dir, 'flows', '01-a', 'iterations', '0.1'), { recursive: true });
+    await writeFile(path.join(dir, 'project.json'), JSON.stringify({ name: 'Onboarding', createdAt: 5, flows: [], iterations: [] }));
+    expect(await readProject(dir)).toEqual({ key: '', name: 'Onboarding', createdAt: 5, flows: [], iterations: [] });
+    // A chat inside the project resolves to it, though there is no figma.json to stop at.
+    expect(projectRoot(path.join(dir, 'flows', '01-a', 'iterations', '0.1'))).toBe(dir);
+    expect((await listProjects()).find((p) => p.cwd === dir)).toMatchObject({ key: '', url: '', name: 'Onboarding', noFile: true });
+    // Once a file is linked, adoption keeps the name.
+    await writeFile(path.join(dir, 'figma.json'), JSON.stringify({ key: 'NEWKEY', name: 'Onboarding', url: 'https://www.figma.com/design/NEWKEY' }));
+    await updateProject(dir, (p) => ({ ...p!, key: 'NEWKEY' }));
+    const { project: adopted } = await confirmAdopt(dir, 'NEWKEY', { flows: [{ name: 'A' }] }, { run: (async () => ({ data: { ok: true }, tokens: 0, costUsd: 0, text: '' })) as any, mcp: MCP });
+    expect(adopted).toMatchObject({ key: 'NEWKEY', name: 'Onboarding', createdAt: 5 });
+    // Older files: a key and no name load as before; no key and no name is junk.
+    expect(cleanProject({ key: 'K', flows: [], iterations: [] })).toEqual({ key: 'K', flows: [], iterations: [] });
+    expect(cleanProject({ flows: [] })).toBeNull();
+  });
+});
+
 describe('adoption', () => {
   it('writes project.json, the flow folders, and tags every known section once', async () => {
     const dir = await project();

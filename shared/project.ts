@@ -46,7 +46,11 @@ export type Iteration = {
 };
 
 export type Project = {
+  /** The Figma file key. Empty for a project made with New project that has no Figma file yet (project.json has none). */
   key: string;
+  /** The name given in New project. Older projects have none and show their Figma file's name. */
+  name?: string;
+  createdAt?: number;
   adoptedAt?: number;
   page?: { id: string; name: string };
   flows: Flow[];
@@ -312,6 +316,8 @@ export type ProjectSummary = {
   doubles?: Array<{ tag: Tag; ids: string[] }>;
   /** Working iteration sections whose Figma name drifted from the convention (shared/projectNames.ts). */
   renames?: number;
+  /** Made with New project and no Figma file added yet: key and url are empty. */
+  noFile?: boolean;
 };
 
 // ---------- Node ids against the latest map ----------
@@ -377,6 +383,7 @@ export type ChatContext = {
 
 /** The prompt block that scopes a chat to its flow and iteration. Replaces the "Design Studio page" rule. */
 export function projectInstructions(ctx: ChatContext): string {
+  if (!ctx.project.key) return 'This project has no Figma file yet. The designer adds one from the sidebar (Add Figma file in the project menu). Until then, do not create Figma files yourself.';
   const frozen = frozenIds(ctx.project);
   const working = sortedIterations(ctx.project).filter((it) => it.state === 'working');
   const never = `Never edit a frozen iteration${frozen.length ? ` (${frozen.join(', ')})` : ''}, the Parked section or the LATEST baseline: they are history. Components get new variants only; old variants stay as they are.`;
