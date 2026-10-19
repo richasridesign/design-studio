@@ -65,6 +65,31 @@ A chat does not need a Figma file to start. Attach one when you need it:
 Claude gets the file on its next turn. Chats without a file are grouped under "No file yet" in Chats. "Search chats"
 filters by file name and chat title, and unsent text stays with its chat when you switch.
 
+## Projects, flows and iterations
+
+A Figma file is a project. Adopt it once and Design Studio reads its sections as flows and iterations, so each chat
+works on one flow in one iteration.
+
+- Adopt: in Chats, open a project's menu and pick "Adopt this file". The subsections of LATEST become flows, the
+  dated `V1.18 · Topic · Mon 19 Oct 2026` sections become frozen iterations. Nothing in Figma moves or is renamed:
+  each section only gets a Design Studio tag, so it is still found after a cut and paste.
+- Tree: Project > Flow (`2 · Connectors`) > Iteration (`1.19 · Readiness`, Working or Frozen) > chats. Chats from
+  before adoption stay under "Before flows". A file that is not adopted yet lists its chats there too.
+- New iteration: from the project menu. Its section goes 800px above the newest one, with a subsection per flow
+  (800px apart) that starts from copies of the flow's entry screens, named "(Entry, unchanged)". Frozen iterations
+  are history: Claude never edits them.
+- A chat on a flow edits only its own flow subsection and puts 3 to 5 Decision stickies right below each new screen.
+  Design Studio restacks the subsections after edits, under one write lock per file.
+- Run across flows: one prompt, one chat per flow. "Parallel chats" in Settings sets how many run at once (3 by
+  default); the rest wait their turn. Sonnet is the default model, Opus is a choice. Runs pause when weekly usage
+  reaches 70% and resume from the task card, which shows each flow's state, model, tokens and chat. "Fix the shared
+  component first" runs one components chat before the flows.
+- Remove project moves the folder to `.trash` in its root. Nothing is deleted and Figma is not touched.
+- A warning triangle on a project means a tagged section was duplicated in Figma; the newest copy is used. "Rename N
+  sections to the convention" appears when the working iteration's section names drifted.
+- On disk: `<project>/project.json`, chats in `flows/<nn-slug>/iterations/<id>/`, run-across-flows task files in
+  `iterations/<id>/tasks/`, project-wide chats in `tasks/`.
+
 ## The conversation
 
 Each turn shows your message, Claude's progress lines (with frame thumbnails), notes and the reply. All tool calls of
