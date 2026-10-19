@@ -11,6 +11,7 @@ import { readReview } from './review.js';
 import { readTriage } from './triage.js';
 import { projectRoot } from './roots.js';
 import { readProject } from './project.js';
+import { readProfile } from './profile.js';
 import { SAMPLE_KEY } from './figma.js';
 import type { Project } from '../../shared/project.js';
 
@@ -122,6 +123,13 @@ export type WorkflowView =
 /** What the UI may post. ask: make a step current and send its prompt once with this chat's next message. */
 const ACTIONS = ['step', 'done', 'skip', 'again', 'switch', 'pick', 'ask'] as const;
 
+/** The file's design system profile (design-system.json at the project root), counted by its components. */
+async function systemOf(root: string): Promise<{ components: number } | null> {
+  const ds = await readProfile(root).catch(() => null);
+  const n = ds?.components?.length ?? 0;
+  return n > 0 ? { components: n } : null;
+}
+
 /** What the strip and the step card show. preset and areas are the Review tab's depth in this chat. */
 export async function workflowView(cwd: string, opts: { preset: ReviewPreset; areas: Area[]; reviewing: boolean }): Promise<WorkflowView> {
   const f = await flowOf(cwd);
@@ -144,8 +152,8 @@ export async function workflowView(cwd: string, opts: { preset: ReviewPreset; ar
     depth: PRESET_INFO[opts.preset === 'check' ? 'full' : opts.preset].label,
     review,
     reviewing: opts.reviewing,
-    // The design system step's evidence belongs to From scratch, filled in with that workflow.
-    system: null,
+    // From scratch, Design system: a profile with components means the file has a system, which the step extends.
+    system: state.step === 'system' ? await systemOf(f.ctx.root) : null,
   });
   return {
     scope: 'flow',
