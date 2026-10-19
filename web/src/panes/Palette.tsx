@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, getState, send, setUi, useStore } from '../store';
+import { api, send, setUi, useStore } from '../store';
 import { toggleNotify } from '../notify';
 import { getCustomRecipes, runRecipeById, useCustomRecipes } from '../recipes';
 import { RECIPES } from '../../../shared/recipes';
@@ -24,7 +24,6 @@ export function buildCommands(_models: { value: string; displayName: string }[] 
     ...VIEWS.map(([id, title]) => ({ id: `view:${id}`, label: `View: Show ${title}` })),
     ...CENTER.map(([id, title]) => ({ id: `page:${id}`, label: `Open: ${title}` })),
     { id: 'repo', label: 'Add project', key: '⌘O' },
-    { id: 'design', label: 'Design: Toggle Design Run for the Next Message' },
     { id: 'review', label: 'Design: Review the Design' },
     { id: 'audit', label: 'Design: Audit the File' },
     { id: 'report', label: 'Export: Handoff report' },
@@ -115,7 +114,6 @@ function perform(id: string) {
     window.dispatchEvent(new CustomEvent('designstudio:recipe-new', { detail: text }));
   }
   if (id === 'compact') send({ type: 'prompt', text: '/compact' });
-  else if (id === 'design') send({ type: 'set_flow', patch: { mode: getState().session.flow.mode === 'design' ? 'chat' : 'design' } });
   else if (id === 'review') send({ type: 'prompt', text: '/review' });
   else if (id === 'audit') send({ type: 'prompt', text: '/audit' });
   else if (id === 'system') send({ type: 'prompt', text: '/system' });

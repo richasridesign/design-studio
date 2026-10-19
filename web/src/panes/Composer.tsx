@@ -5,8 +5,7 @@ import { Voice, useDictation } from './Voice';
 import { FileIcon } from './Explorer';
 import { match } from './FileSwitcher';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
-import { FLOW_MODES, TONES, figmaNodeUrl, type FlowMode, type Settings } from '../../../shared/design';
-import { DepthLink } from './ReviewSetup';
+import { TONES, figmaNodeUrl } from '../../../shared/design';
 import { recipeText, useCustomRecipes } from '../recipes';
 import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
 import { imageProblem, imagesIn } from './attach';
@@ -14,8 +13,6 @@ import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton, LongRunHint, type LongRunStart } from './LongRun';
 import { ModelPicker } from './ModelPicker';
-import { usePopAbove } from './abovePop';
-import { focusChecked, menuKeys } from '../press';
 import { useTip } from '../Tip';
 import { waitingPlaceholder } from './typedAnswer';
 import { markSent, publishDraft, readInserted, routeMessage, sentItems } from './awaitingSent';
@@ -25,13 +22,8 @@ export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query
 
 export type Ranked<T> = { item: T; hits: number[]; score: number };
 
-export const MODE_INFO: Record<FlowMode, { label: string; detail: string; placeholder: string; icon: string }> = {
-  chat: { label: 'Chat', detail: 'Talk to Claude at any step. Edits Figma when you ask.', placeholder: 'Ask Claude anything, or paste a Figma link', icon: 'comment' },
-  design: { label: 'Design', detail: 'Claude plans, sketches, builds and reviews in Figma for you.', placeholder: 'Describe the screens you need. Claude plans, builds and reviews them.', icon: 'sparkle' },
-  review: { label: 'Review', detail: 'Reviewers check the frames. No edits.', placeholder: 'What should the reviewers look at?', icon: 'checklist' },
-};
-
-export const nextMode = (m: FlowMode): FlowMode => FLOW_MODES[(FLOW_MODES.indexOf(m) + 1) % FLOW_MODES.length];
+/** A chat on a flow in an iteration runs in <root>/flows/<nn-slug>/iterations/<id>. */
+const FLOW_CHAT = /[\\/]flows[\\/][^\\/]+[\\/]iterations[\\/][^\\/]+[\\/]?$/;
 
 export const MAX_ROWS = 8;
 const MAX_COMMANDS = 30;
@@ -230,7 +222,6 @@ export function Composer() {
   const waiting = Boolean(waitingOn);
   const serverCommands = useStore((s) => s.session.commands);
   const customRecipes = useCustomRecipes();
-  const flow = useStore((s) => s.session.flow);
   const context = useStore((s) => s.session.context);
   const events = useStore((s) => s.events);
   const figma = useStore((s) => s.session.figma);
@@ -238,11 +229,6 @@ export function Composer() {
   const figmaKey = figma?.key;
 
   const commands = useMemo(() => withRecipes(serverCommands, RECIPES, customRecipes.map(toRecipe)), [serverCommands, customRecipes]);
-  const [modeOpen, setModeOpen] = useState(false);
-  const modePop = useRef<HTMLDivElement>(null);
-  const modeBtn = useRef<HTMLButtonElement>(null);
-  const modeWrap = useRef<HTMLDivElement>(null);
-  const modePopStyle = usePopAbove(modeOpen, modeWrap);
   const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
   const [text, setText] = useState('');
   const [voiceError, setVoiceError] = useState('');
@@ -306,7 +292,6 @@ export function Composer() {
   const carry = useRef<{ text: string; from: string; at: number } | null>(null);
   const edited = useMemo(() => filesEdited(events), [events]);
   const pct = contextPercent(context);
-  const setMode = (mode: FlowMode) => send({ type: 'set_flow', patch: { mode } });
 
   useEffect(() => {
     // Filling or focusing the message box from elsewhere shows it: the Chat tab on a phone, the hidden chat column on
@@ -345,16 +330,6 @@ export function Composer() {
   }, [trigger?.kind, cwd]);
 
   useEffect(() => setSel(0), [popKey]);
-
-  useEffect(() => {
-    if (!modeOpen) return;
-    focusChecked(modePop.current);
-    const down = (e: MouseEvent) => { if (!(e.target as Element).closest('.cp-mode')) setModeOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModeOpen(false); modeBtn.current?.focus(); } };
-    document.addEventListener('mousedown', down);
-    document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
-  }, [modeOpen]);
 
   useEffect(() => {
     pop.current?.querySelectorAll('[role=option]')[sel]?.scrollIntoView({ block: 'nearest' });
@@ -512,17 +487,15 @@ export function Composer() {
     if (ghost && (e.key === 'Tab' || e.key === 'ArrowRight') && el.selectionStart === text.length) { e.preventDefault(); apply(text + ghost); return; }
     if (e.key === 'ArrowUp' && (full === '' || onEntry) && !text.slice(0, el.selectionStart).includes('\n')) { e.preventDefault(); stepHistory(1); return; }
     if (e.key === 'ArrowDown' && onEntry && !text.slice(el.selectionEnd).includes('\n')) { e.preventDefault(); stepHistory(-1); return; }
-    // Option+M cycles the mode. Shift+Tab stays free to move focus back out of the message box.
-    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyM') { e.preventDefault(); setMode(nextMode(flow.mode)); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
   const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !full && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /design, /review, /audit' : '';
-  const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : MODE_INFO[flow.mode].placeholder;
+  const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : FLOW_CHAT.test(cwd ?? '') ? 'Give feedback, or start a review' : 'Ask Claude anything, or paste a Figma link';
   const level = pct === null ? '' : context! >= COMPACT_AT ? 'over' : context! >= COMPACT_AT * 0.75 ? 'near' : '';
 
   return (
-    <div className="cp" data-mode={flow.mode}>
+    <div className="cp">
       <div
         ref={card}
         className={`cp-card${shell ? ' shell' : ''}${drag ? ' drop' : ''}`}
@@ -581,25 +554,7 @@ export function Composer() {
           />
         </div>
         <div className="cp-foot">
-          <div className="cp-mode" ref={modeWrap}>
-            <button ref={modeBtn} className="cp-pill cp-modebtn" aria-haspopup="true" aria-expanded={modeOpen} title="Mode (⌥M to switch)" onClick={() => setModeOpen((o) => !o)}>
-              <Icon name={MODE_INFO[flow.mode].icon} small /><span>{MODE_INFO[flow.mode].label}</span><Icon name="chevron-down" small />
-            </button>
-            {modeOpen && (
-              <div ref={modePop} className="cp-modepop" style={modePopStyle} role="menu" aria-label="Mode" onKeyDown={menuKeys}>
-                {FLOW_MODES.map((m) => (
-                  <button key={m} role="menuitemradio" aria-checked={flow.mode === m} className={flow.mode === m ? 'active' : ''} onClick={() => { setMode(m); if (m !== 'design') setModeOpen(false); }}>
-                    <Icon name={MODE_INFO[m].icon} small />
-                    <span className="cp-modetext"><b>{MODE_INFO[m].label}</b><span>{MODE_INFO[m].detail}</span></span>
-                  </button>
-                ))}
-                {flow.mode === 'design' && (
-                  <RunOptions stopAfterSketch={flow.stopAfterSketch} onDepth={() => setModeOpen(false)} />
-                )}
-              </div>
-            )}
-          </div>
-          {!shell && flow.mode === 'chat' && <ModelPicker />}
+          {!shell && <ModelPicker />}
           {!shell && <LongRunButton text={full} onStart={startLongRun} />}
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
@@ -675,26 +630,3 @@ export function Composer() {
   );
 }
 
-/**
- * This chat's Design options, in the same switch and segmented control as Settings.
- * Each shows the default new chats start with, which lives in Settings.
- */
-// Review depth is chosen on the Review tab; the menu shows it and links there, so the chat has one depth control.
-function RunOptions({ stopAfterSketch, onDepth }: { stopAfterSketch: boolean; onDepth: () => void }) {
-  const [def, setDef] = useState<Pick<Settings, 'stopAfterSketch'> | null>(null);
-  useEffect(() => {
-    fetch(api('/api/settings')).then((r) => r.json()).then(setDef, () => {});
-  }, []);
-  const set = (patch: { stopAfterSketch?: boolean }) => send({ type: 'set_flow', patch });
-  return (
-    <div className="cp-modeopts">
-      <div className="cp-opt" onClick={(e) => !(e.target as Element).closest('.switch') && set({ stopAfterSketch: !stopAfterSketch })}>
-        <span className="cp-opt-text"><span id="cp-stop-l">Stop after sketch</span>{def && <span className="cp-opt-def">Default: {def.stopAfterSketch ? 'On' : 'Off'}</span>}</span>
-        <button type="button" className="switch" role="switch" aria-checked={stopAfterSketch} aria-labelledby="cp-stop-l" onClick={() => set({ stopAfterSketch: !stopAfterSketch })}><span className="switch-thumb" /></button>
-      </div>
-      <div className="cp-opt" onClick={(e) => { if ((e.target as Element).closest('.link')) onDepth(); }}>
-        <DepthLink />
-      </div>
-    </div>
-  );
-}

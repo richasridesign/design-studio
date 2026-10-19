@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { approvalReply } from '../../../shared/stages';
 import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
-import { FIX_ASK } from './Stages';
+import { FIX_ASK } from '../../../shared/workflow';
 import { getJson, setUi, useRev, useStore } from '../store';
 import { CHECKS, lastMcp } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';

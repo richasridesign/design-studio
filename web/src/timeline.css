@@ -156,4 +156,7 @@
 /* Allow edits anywhere (ScopeSwitch.tsx): an icon toggle right of the view switch, before Steps. */
 .chat-head .scope-switch { margin-left: auto; flex: none; width: 32px; height: 32px; }
 .chat-head .scope-switch.on { color: var(--accent); background: var(--bg-hover); }
-.chat-head .scope-switch + .steps-btn { margin-left: 0; }
+
+/* Add to Up next (Brief.tsx): a 24px target at least, 36px on a phone like mobile.css. */
+.up-next .step.add .link { min-height: 24px; }
+@media (max-width: 900px) { .up-next .step.add .link { min-height: 36px; } }
