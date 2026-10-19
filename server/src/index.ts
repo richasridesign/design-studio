@@ -651,6 +651,9 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'set_model':
         void chat.setModel(String(msg.model));
         break;
+      case 'set_edits_anywhere':
+        chat.setEditsAnywhere(Boolean(msg.on));
+        break;
       case 'set_flow':
         chat.updateFlow(msg.patch ?? {});
         break;
