@@ -43,6 +43,8 @@ export type FlowResult = {
   // Names of the sections around this one, outermost first.
   path: string[];
   page: string;
+  // The tagged iteration this section sits in, for an adopted file.
+  iteration?: string;
   screens: number;
   state: FlowState;
   counts: Partial<Record<FlowRule, number>>;

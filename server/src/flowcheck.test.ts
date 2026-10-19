@@ -187,6 +187,33 @@ describe('checkFlows', () => {
       expect(stale(r)).toEqual(['l1>Home (old)']);
     });
 
+    describe('in a file with tagged iterations', () => {
+      const its = { L: { id: '1', state: 'frozen' as const }, W1: { id: '1.19', state: 'working' as const }, W2: { id: '1.20', state: 'working' as const } };
+      const page = () => [
+        section('W2', 'V1.20 · Next', [sub('w2a', 'V1.20 · Flow 1 · Discover', [screen('n1', 'Home', [link('l3', 'h1')])], -6000)], 0, -6000, 3000, 2000),
+        section('W1', 'V1.19 · Readiness', [sub('w1a', 'V1.19 · Flow 1 · Discover', [screen('h1', 'Home', [link('l1', 'o1'), link('l2', 'n1')])], -3000)], 0, -3000, 3000, 2000),
+        section('L', 'LATEST flows', [sub('la', 'Flow 1 · Discover', [screen('o1', 'Home (old)', [link('l4', 'o2')]), screen('o2', 'Done', [], 2000, 0)], 0)], 0, 0, 5000, 2000),
+      ];
+
+      it('counts every working iteration as the latest version and a frozen LATEST as old', () => {
+        const r = checkFlows(doc(page()), maps, undefined, { iterations: its });
+        expect(stale(r)).toEqual(['l1>Home (old)']);
+        // Untagged, the same file keeps the name rule: LATEST is the latest version, the V sections are old ones.
+        expect(stale(checkFlows(doc(page()), maps))).toEqual(['l3>Home', 'l1>Home (old)', 'l2>Home']);
+      });
+
+      it('says which iteration each section sits in', () => {
+        const r = checkFlows(doc(page()), maps, undefined, { iterations: its });
+        expect(Object.fromEntries(r.flows.map((f) => [f.id, f.iteration ?? null]))).toEqual({ w2a: '1.20', w1a: '1.19', la: '1' });
+      });
+
+      it('reads the iteration of a destination the walk did not reach', () => {
+        const outside = { o9: { n: 'Old', t: 'FRAME', w: 1440, h: 900, s: [['L', 'LATEST flows'], ['la', 'Flow 1 · Discover']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] } };
+        const r = checkFlows(doc([section('W1', 'V1.19 · Readiness', [screen('h1', 'Home', [link('l1', 'o9')])])]), { ...maps, outside }, undefined, { iterations: its });
+        expect(stale(r)).toEqual(['l1>Old']);
+      });
+    });
+
     it('reads destinations the walk did not reach from the plugin lookups', () => {
       const outside = {
         o1: { n: 'Connectors', t: 'FRAME', w: 1440, h: 900, s: [['O', 'Flow 1 · First run (V1.13, superseded)']] as Array<[string, string]>, p: ['0:1', 'Page 1'] as [string, string] },
@@ -253,8 +280,8 @@ describe('checkFlows', () => {
   it('lists the working flow subsections of an adopted file for the sticky rule', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
     expect(await stickyRule(dir, 'KEY')).toEqual({});
-    await writeFile(path.join(dir, 'project.json'), JSON.stringify({ key: 'KEY', flows: [{ n: 1, slug: 'a', name: 'A', entry: [] }], iterations: [{ id: '1.18', state: 'frozen', flows: { a: { node: '8:2' } } }, { id: '1.19', state: 'working', flows: { a: { node: '9:2', states: '9:3' } } }] }));
-    expect(await stickyRule(dir, 'KEY')).toEqual({ working: ['9:2', '9:3'] });
+    await writeFile(path.join(dir, 'project.json'), JSON.stringify({ key: 'KEY', flows: [{ n: 1, slug: 'a', name: 'A', entry: [] }], iterations: [{ id: '1.18', node: '8:1', state: 'frozen', flows: { a: { node: '8:2' } } }, { id: '1.19', node: '9:1', state: 'working', flows: { a: { node: '9:2', states: '9:3' } } }] }));
+    expect(await stickyRule(dir, 'KEY')).toEqual({ working: ['9:2', '9:3'], iterations: { '8:1': { id: '1.18', state: 'frozen' }, '9:1': { id: '1.19', state: 'working' } } });
     expect(await stickyRule(dir, 'OTHER')).toEqual({});
   });
 
