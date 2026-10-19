@@ -50,19 +50,12 @@ export type ReviewPreset = (typeof PRESETS)[number];
 export const SHOWN_PRESETS = ['quick', 'focused', 'full'] as const;
 export type ShownPreset = (typeof SHOWN_PRESETS)[number];
 
-/** fixRounds null: the run uses the Fix rounds setting. */
-export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; fixRounds: number | null }> = {
-  check: { label: 'Check', detail: 'Code scan only, no reviewers', fixRounds: 1 },
-  quick: { label: 'Quick', detail: 'Code scan, then one reviewer covering the ticked areas', fixRounds: 1 },
-  focused: { label: 'Focused', detail: 'Code scan, then one reviewer per ticked area', fixRounds: null },
-  full: { label: 'Full', detail: 'Code scan, then one reviewer for each of the five areas', fixRounds: null },
+export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string }> = {
+  check: { label: 'Check', detail: 'Code scan only, no reviewers' },
+  quick: { label: 'Quick', detail: 'Code scan, then one reviewer covering the ticked areas' },
+  focused: { label: 'Focused', detail: 'Code scan, then one reviewer per ticked area' },
+  full: { label: 'Full', detail: 'Code scan, then one reviewer for each of the five areas' },
 };
-
-export const FIX_ROUNDS = [1, 2, 3, 4] as const;
-export const DEFAULT_FIX_ROUNDS = 3;
-
-/** How many fix rounds a design run makes before the final check. */
-export const fixRoundsFor = (preset: ReviewPreset, setting: number) => PRESET_INFO[preset].fixRounds ?? Math.min(4, Math.max(1, Math.round(setting) || DEFAULT_FIX_ROUNDS));
 
 /** How many model reviewers a run starts. */
 export const reviewerCount = (preset: ReviewPreset, areas: Area[]) => (preset === 'check' ? 0 : preset === 'quick' ? 1 : preset === 'full' ? AREAS.length : Math.max(1, areas.length));
@@ -183,8 +176,6 @@ export type Settings = {
   autoCheck: boolean;
   devTools: boolean;
   dailyBudgetUsd: number;
-  /** Fix rounds in a design run for Focused and Full. Quick fixes once. */
-  fixRounds: number;
   /** Where new projects are made. Empty means the default (~/workspace/design-projects, or DESIGN_STUDIO_PROJECTS). */
   projectsRoot: string;
   /** Chats that run at once when a prompt runs across flows. The rest wait their turn. */
@@ -199,7 +190,6 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCheck: true,
   devTools: false,
   dailyBudgetUsd: 0,
-  fixRounds: DEFAULT_FIX_ROUNDS,
   projectsRoot: '',
   parallelChats: 3,
 };
