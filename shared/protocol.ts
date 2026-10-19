@@ -61,6 +61,8 @@ export type SessionInfo = {
   /** The latest plan limit per window ("five_hour", "seven_day", ...). */
   limits?: Record<string, PlanLimit>;
   longRun?: LongRun | null;
+  /** The scope guard is off for this chat: its edit scripts may touch other flows and iterations. */
+  editsAnywhere?: boolean;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };
@@ -161,6 +163,7 @@ export type ClientMessage =
   | { type: 'new_session'; cwd?: string; flow?: string; iteration?: string }
   | { type: 'new_chat'; url?: string }
   | { type: 'set_figma'; url: string }
+  | { type: 'set_edits_anywhere'; on: boolean }
   | { type: 'mcp_status' }
   | { type: 'mcp_reconnect'; name: string; quiet?: boolean }
   | { type: 'mcp_toggle'; name: string; enabled: boolean };

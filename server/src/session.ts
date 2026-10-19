@@ -27,7 +27,8 @@ import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type 
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
 import { acquireWrite } from './figmaLock.js';
-import { chatContext } from './project.js';
+import { chatContext, readProject } from './project.js';
+import { checkScope } from './scopeGuard.js';
 import { projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
@@ -293,6 +294,13 @@ export class AgentSession {
     await this.refreshMcp();
   }
 
+  /** "Allow edits anywhere" in the chat header: turns the scope guard off for this chat until turned on again. */
+  setEditsAnywhere(on: boolean) {
+    if (Boolean(this.state.session.editsAnywhere) === on) return;
+    this.setSession({ editsAnywhere: on });
+    this.system(on ? 'Allow edits anywhere: on. This chat can edit other flows and iterations.' : 'Allow edits anywhere: off. This chat edits only its own flow.');
+  }
+
   async setModel(model: string) {
     this.start();
     await this.q?.setModel(model);
@@ -316,6 +324,12 @@ export class AgentSession {
     // An edit waits for the file's write lock, so two chats on one file never run their scripts at the same time.
     const key = this.figma?.key;
     if (key && key !== SAMPLE_KEY && typeof call.code === 'string' && figmaEdits(call.code)) {
+      // The scope guard runs before the lock, so a denied script never waits: a flow chat edits only its own flow.
+      if (this.projectCtx && !this.state.session.editsAnywhere) {
+        const map = this.map ?? (await cachedMap(this.cwd, key));
+        const v = checkScope(map, this.projectCtx, await readProject(this.cwd), touchedIds(call.code));
+        if (!v.allow) return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: v.reason } };
+      }
       try {
         this.locks.set(input.tool_use_id, await acquireWrite(key));
       } catch (err) {
