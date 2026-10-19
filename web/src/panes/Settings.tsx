@@ -148,7 +148,6 @@ export function Settings() {
           <div className="seg" role="radiogroup" aria-label="Default review depth">
             {SHOWN_PRESETS.map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
           </div>
-          <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}.</span>
           <span className="muted small">{costLine(shownPreset(s.preset), s.areas)}</span>
         </div>
         {shownPreset(s.preset) !== 'full' && (
