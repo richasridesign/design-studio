@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import {
   PORTFOLIO_FOLDER, SITE_PAGES, blockKey, blockLabel, blockOutcome, cleanConfig, cleanPortfolio, cleanSite, cleanSuggestions, dayStart, decisionsOf,
-  changedPages, findFlags, hideNames, isNew, isRunId, isRunning, mergeFlags, pickOf, pickSummary, projectLinkError, publishLine, publishMoved, runBlock, runId, siteError,
+  changedPages, findFlags, hideNames, isNew, isRunId, isRunning, mergeFlags, pickOf, pickSummary, keyError, projectLinkError, publishLine, publishMoved, runBlock, runId, siteError,
   upsertRunBlock, usedLine,
   type BlockRef, type Clearance, type EditPlanItem, type EditRecord, type PublishReading, type FlagKind, type FramerConfig, type PickEntry, type Picks, type PortfolioFile, type Run, type RunState, type ScreenNote, type Suggestion,
 } from '../../shared/portfolio.js';
@@ -14,7 +14,9 @@ import { iterationDir, readProject } from './project.js';
 import { historyFile, recordDone, syncDecisions } from './history.js';
 import { pluginShots, type ReadDeps } from './pluginRead.js';
 import { cleanChromePlan, cleanEditReport, editInChrome, plan as planTurn, suggest, type BrowserTools, type ChatDeps } from './portfolioChat.js';
-import { BrowserPending, CHROME_EDITS_READY, checkChrome, pendingBrowser, readPublish, watchPublish, type FramerBrowser } from './portfolioChrome.js';
+import { BrowserPending, CHROME_EDITS_READY, checkChrome, pendingBrowser, projectId, readPublish, watchPublish, type FramerBrowser } from './portfolioChrome.js';
+import { deleteKey, hasKey, readKey, saveKey, type KeyDeps } from './framerKey.js';
+import { projectInfo, type Connect } from './framer.js';
 
 // Update portfolio, on the server: the portfolio folder, finding finished work, a run (gather, suggest, pick, copy
 // pack or Framer edits) and what is recorded afterwards. Reads only project folders in the roots (project.json and
@@ -27,7 +29,11 @@ export class PortfolioError extends Error {
   }
 }
 
-export type PortfolioDeps = { figma?: ReadDeps; fetch?: typeof fetch; chat?: ChatDeps; browser?: FramerBrowser; browserTools?: BrowserTools; pollMs?: number; now?: () => Date };
+export type PortfolioDeps = {
+  figma?: ReadDeps; fetch?: typeof fetch; chat?: ChatDeps; browser?: FramerBrowser; browserTools?: BrowserTools; pollMs?: number; now?: () => Date;
+  /** The Keychain (security) and the Framer API connection, faked in tests. */
+  keychain?: KeyDeps; framerConnect?: Connect;
+};
 /** Tests swap these. The real ones refuse to run under vitest. */
 export const portfolioDeps: PortfolioDeps = {};
 
@@ -497,14 +503,15 @@ const browser = () => portfolioDeps.browser ?? pendingBrowser;
 /** Edits in Chrome need a browser tool the portfolio chat can reach. Until Phase 0 picks it, runs end in the copy pack. */
 export const canEdit = async () => {
   const config = await readConfig();
-  if (!config || config.mode !== 'chrome' || !config.project) return { ok: false, reason: 'Copy and paste mode: you paste the copy in Framer yourself.' };
+  if (!config || config.mode === 'copy' || !config.project) return { ok: false, reason: 'Copy and paste mode: you paste the copy in Framer yourself.' };
+  // With a key the edits still go through her Chrome for now: the API edit route waits for the Phase 0 spike.
   if (!portfolioDeps.browserTools && !CHROME_EDITS_READY) return { ok: false, reason: new BrowserPending().message };
   return { ok: true, reason: '' };
 };
 
 async function chromeProject(): Promise<string> {
   const config = await readConfig();
-  if (!config || config.mode !== 'chrome' || !config.project) throw new PortfolioError('Connect Framer in your Chrome to make edits there');
+  if (!config || config.mode === 'copy' || !config.project) throw new PortfolioError('Connect Framer in your Chrome to make edits there');
   const tab = await checkChrome(browser(), config.project);
   if (!tab.ok) throw new PortfolioError(tab.reason ?? 'Chrome is not showing this Framer project. Open it there, signed in.');
   return config.project;
@@ -626,22 +633,82 @@ export async function undoRun(id: string): Promise<Run> {
 
 // ---------- Setup ----------
 
-export type SetupInput = { project?: string; site?: string; mode?: 'chrome' | 'copy' };
+export type SetupInput = { project?: string; site?: string; mode?: 'chrome' | 'copy' | 'api'; key?: string };
 
-/** Chrome: checks the project is open in her Chrome, signed in. Copy: the site only. No key, no Framer login. */
+const keyAccount = (project: string) => {
+  const id = projectId(project);
+  if (!id) throw new PortfolioError('This is not a Framer project link');
+  return id;
+};
+
+/**
+ * Chrome: checks the project is open in her Chrome, signed in. Copy: the site only. API: the key is checked with
+ * Framer first (Check key), then saved in the Keychain; framer.json only says hasKey. A key that fails leaves the
+ * saved setup as it was, so Chrome stays the route.
+ */
 export async function setup(input: SetupInput): Promise<FramerConfig> {
-  const mode = input.mode === 'copy' ? 'copy' : 'chrome';
+  const mode = input.mode === 'copy' ? 'copy' : input.mode === 'api' ? 'api' : 'chrome';
   const site = cleanSite(String(input.site ?? ''));
   const project = String(input.project ?? '').trim();
-  const fieldErr = siteError(site) || (mode === 'chrome' || project ? projectLinkError(project) : '');
+  const fieldErr = siteError(site) || (mode !== 'copy' || project ? projectLinkError(project) : '');
   if (fieldErr) throw new PortfolioError(fieldErr);
+  const before = await readConfig();
+  const keptKey = !!before?.hasKey && before.project === project;
+  if (mode === 'api') {
+    const typed = String(input.key ?? '');
+    if (!typed.trim() && !keptKey) throw new PortfolioError('Paste the API key');
+    await checkKey({ project, key: typed.trim() ? typed : undefined }, true);
+    if (typed.trim()) await saveKey(keyAccount(project), typed, keyDeps()).catch(() => { throw new PortfolioError('The Keychain did not save the key. Nothing was changed.', 500); });
+  }
   if (mode === 'chrome') {
     const tab = await checkChrome(browser(), project);
     if (!tab.ok) throw new PortfolioError(tab.reason ?? 'Chrome is not showing this Framer project. Open it there, signed in.');
   }
-  const config: FramerConfig = { site, project, mode };
+  const config: FramerConfig = { site, project, mode, ...(mode === 'api' || keptKey ? { hasKey: true } : {}) };
   await writeJson(configFile(), config);
   return config;
+}
+
+const keyDeps = (): KeyDeps => portfolioDeps.keychain ?? {};
+
+/**
+ * Check key: connect, read the project name, disconnect. With no key typed it checks the one in the Keychain.
+ * The key is never in the answer or the error.
+ */
+export async function checkKey(input: { project?: string; key?: string }, raise = false): Promise<{ ok: boolean; name?: string; error?: string }> {
+  const project = String(input.project ?? '').trim();
+  const fail = (error: string, status = 400) => {
+    if (raise) throw new PortfolioError(error, status);
+    return { ok: false, error };
+  };
+  const linkErr = projectLinkError(project);
+  if (linkErr) return fail(linkErr);
+  let key = typeof input.key === 'string' ? input.key.trim() : '';
+  if (key) {
+    const err = keyError(key);
+    if (err) return fail(err);
+  } else {
+    key = (await readKey(keyAccount(project), keyDeps()).catch(() => null)) ?? '';
+    if (!key) return fail('No key is saved for this project. Paste the API key.');
+  }
+  try {
+    const info = await projectInfo(project, key, portfolioDeps.framerConnect);
+    return { ok: true, name: info.name };
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : 'Framer did not accept the key check.', 400);
+  }
+}
+
+/** Remove key: deletes it from the Keychain. Edits go back to Framer in her Chrome. */
+export async function removeKey(): Promise<FramerConfig | null> {
+  const config = await readConfig();
+  if (!config?.project) return config;
+  const id = keyAccount(config.project);
+  await deleteKey(id, keyDeps()).catch(() => {});
+  if (await hasKey(id, keyDeps()).catch(() => false)) throw new PortfolioError('The Keychain did not remove the key. Open Keychain Access and delete DesignStudio.framer.', 500);
+  const next: FramerConfig = { site: config.site, project: config.project, mode: config.mode === 'copy' ? 'copy' : 'chrome' };
+  await writeJson(configFile(), next);
+  return next;
 }
 
 /** "Framer in your Chrome: Signed in", or why not. Reads tab addresses only. */
