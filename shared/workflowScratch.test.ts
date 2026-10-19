@@ -56,7 +56,7 @@ describe('From scratch prompts', () => {
     expect(p).toContain('"V1.19 · Flow 3 · Option A: <name>"');
     expect(p).toContain('set_status options from DS.options(flowSubsection)');
     expect(p).toContain('set_status picked');
-    expect(p).not.toMatch(/—/);
+    expect(p).not.toMatch(/\u2014/);
   });
 
   it('High fidelity quotes the pick, the options it beat and her reason', () => {
