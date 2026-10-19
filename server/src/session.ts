@@ -29,6 +29,7 @@ import { SAMPLE_KEY } from './figma.js';
 import { acquireWrite } from './figmaLock.js';
 import { chatContext, readProject } from './project.js';
 import { checkScope } from './scopeGuard.js';
+import { markTurn, scheduleRestack } from './iterations.js';
 import { projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
@@ -48,6 +49,13 @@ export const weeklyPct = () => windowPct(lastLimits, 'weekly');
 
 /** Most screens the auto check after an edit reads. */
 export const AUTO_CHECK_MAX = 20;
+
+/** What the project block depends on for a flow chat: its iteration's node and state, its subsection and states. */
+function projectKeyOf(ctx: ChatContext | null): string {
+  if (!ctx || ctx.scope !== 'flow' || !ctx.iteration || !ctx.flow) return '';
+  const f = ctx.iteration.flows?.[ctx.flow.slug];
+  return [ctx.iteration.node, ctx.iteration.state, f?.node, f?.states].join('|');
+}
 
 export class AgentSession {
   private q: Query | null = null;
@@ -113,6 +121,7 @@ export class AgentSession {
 
   setFigma(figma: FigmaFile) {
     if (this.state.session.running) return this.system('Wait for the current turn to finish before attaching a Figma file');
+    if (this.figma && this.figma.key !== figma.key) markTurn(this.figma.key, this.id, false);
     this.figma = figma;
     this.map = null;
     this.mapRead = 0;
@@ -148,6 +157,8 @@ export class AgentSession {
   }
 
   private setSession(patch: Partial<SessionInfo>) {
+    // A chat mid-turn on a file holds off the restack of its iterations (iterations.ts scheduleRestack).
+    if ('running' in patch && this.figma) markTurn(this.figma.key, this.id, Boolean(patch.running));
     this.state.session = { ...this.state.session, ...patch };
     this.emit({ type: 'session', session: this.state.session });
   }
@@ -164,6 +175,7 @@ export class AgentSession {
   close() {
     this.closed = true;
     this.unlock();
+    if (this.figma) markTurn(this.figma.key, this.id, false);
     this.endLongRun('stopped', 'ended');
     this.work?.abort();
     this.listeners.clear();
@@ -187,6 +199,7 @@ export class AgentSession {
     this.rules = rulesBlock(await readRules(this.cwd));
     // A chat on an adopted file knows its flow and iteration; the prompt block replaces the "Design Studio page" rule.
     this.projectCtx = await chatContext(this.cwd).catch(() => null);
+    this.projectKey = projectKeyOf(this.projectCtx);
     this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     // The profile's review areas (a starter's) are this chat's ticks until she changes them.
     this.defaultAreas = s.areas;
@@ -202,6 +215,9 @@ export class AgentSession {
   private rules = '';
   private rulesNote = '';
   private projectCtx: ChatContext | null = null;
+  /** The node ids and state the prompt's project block was written with, and a note when they changed since. */
+  private projectKey = '';
+  private projectNote = '';
   /** The file's write lock, held per use_figma call that edits (keyed by tool_use_id) and released after it. */
   private locks = new Map<string, () => void>();
   private stageKey = '';
@@ -416,6 +432,21 @@ export class AgentSession {
     this.mapRead = map.readAt;
   }
 
+  /**
+   * project.json read again before each prompt: the guard and the map scope use the fresh one, and Claude is told once
+   * when its iteration's section or its flow subsection got a node id (Retry, another chat) or the iteration froze, so
+   * it never makes a second section.
+   */
+  private async refreshProject() {
+    const ctx = await chatContext(this.cwd);
+    if (!ctx) return;
+    this.projectCtx = ctx;
+    const key = projectKeyOf(ctx);
+    if (key === this.projectKey) return;
+    this.projectKey = key;
+    if (this.q) this.projectNote = `The project changed since this chat started (a section was made or tagged, or the iteration was frozen or reopened). Follow this from now on:\n${projectInstructions(ctx)}`;
+  }
+
   /** The refresh_file_map tool: reads the map now and returns its summary. */
   private async readMapNow() {
     const key = this.figma?.key;
@@ -461,6 +492,10 @@ export class AgentSession {
       text = `${this.mapNote}\n\n${text}`;
       this.mapNote = '';
     }
+    if (this.projectNote) {
+      text = `${this.projectNote}\n\n${text}`;
+      this.projectNote = '';
+    }
     this.inputQueue.push(userMessage(text, blocks));
     this.wake?.();
   }
@@ -501,6 +536,7 @@ export class AgentSession {
       this.rules = rules;
     }
     this.askBeforeEdit = (await settings()).askBeforeEdit;
+    await this.refreshProject().catch(() => {});
     await this.refreshMapNote().catch(() => {});
     // Tell Claude where the work stands when the designer marks a step or picks a kind. Only a status line, never a gate.
     const note = stageNote(await readChatSteps(this.cwd, this.state.session.sessionId));
@@ -1070,6 +1106,10 @@ export class AgentSession {
       console.error('file map:', (err as Error).message);
       return null;
     });
+    // A flow chat's edited turn restacks its iteration's flows (800px apart), 20s after the last edit and only while
+    // no chat on the file is mid-turn.
+    const it = this.projectCtx?.scope === 'flow' ? this.projectCtx.iteration : null;
+    if (it?.node && it.state === 'working') void mapRead.then(() => scheduleRestack(this.cwd, key, it.id));
     if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
     void this.checkEdited(key, touched, mapRead);
   }
