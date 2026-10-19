@@ -203,6 +203,8 @@ export type Settings = {
   dailyBudgetUsd: number;
   /** Fix rounds in a design run for Focused and Full. Quick fixes once. */
   fixRounds: number;
+  /** Where new projects are made. Empty means the default (~/workspace/design-projects, or DESIGN_STUDIO_PROJECTS). */
+  projectsRoot: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -215,6 +217,7 @@ export const DEFAULT_SETTINGS: Settings = {
   devTools: false,
   dailyBudgetUsd: 0,
   fixRounds: DEFAULT_FIX_ROUNDS,
+  projectsRoot: '',
 };
 
 export const flowOff = (s: Pick<Settings, 'preset' | 'areas' | 'stopAfterSketch'> = DEFAULT_SETTINGS): FlowState => ({

@@ -3,6 +3,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { fetchTo } from './frameRead.js';
 import { SAMPLE_KEY } from './figma.js';
 import { pluginScript, pluginShots, type ReadDeps } from './pluginRead.js';
+import { projectRoot } from './roots.js';
 
 // What the UI shows from a Figma file (the outline of top-level frames and thumbnails) is read through
 // the plugin and kept on disk in the chat folder, so showing it never starts a Claude run. It is read again when a
@@ -15,7 +16,8 @@ export const CACHE_DIR = '.figma-cache';
 const THUMB_MAX = 480;
 const MAX_THUMBS = 24;
 
-export const cacheDir = (dir: string, key: string) => path.join(dir, CACHE_DIR, key.replace(/[^A-Za-z0-9]/g, ''));
+/** One cache per project (at its root), shared by every chat on the file. */
+export const cacheDir = (dir: string, key: string) => path.join(projectRoot(dir), CACHE_DIR, key.replace(/[^A-Za-z0-9]/g, ''));
 
 const SAMPLE: Outline = (() => {
   const frame = (id: string, name: string): FrameInfo => ({ id, name, page: 'Design', type: 'FRAME', w: 390, h: 844 });
@@ -46,7 +48,7 @@ export function outlineFrom(raw: RawPages, name: string): Outline {
   };
 }
 
-const fileName = (dir: string) => readFile(path.join(dir, 'figma.json'), 'utf8').then((t) => String(JSON.parse(t).name ?? ''), () => '');
+const fileName = (dir: string) => readFile(path.join(projectRoot(dir), 'figma.json'), 'utf8').then((t) => String(JSON.parse(t).name ?? ''), () => '');
 
 /** The outline saved on disk, or null when it has not been read yet. */
 export async function cachedOutline(dir: string, key: string): Promise<Outline | null> {
@@ -92,7 +94,7 @@ for (const id of ${JSON.stringify(ids)}) {
 return out;`;
 
 /** Map rows: [letter, id, name, x, y, w, h, children?]. Letters as in fileMap's MAP_SCRIPT. */
-type MapRow = [string, string, string, number, number, number, number, MapRow[]?, number?];
+type MapRow = [string, string, string, number, number, number, number, MapRow[]?, number?, ...unknown[]];
 
 /** Screen ids in a file map: frames on a page, in a section or in a frame that holds sections. Sections are left out. */
 export function mapScreens(pages: Array<[string, string, MapRow[], ...unknown[]]>): string[] {
@@ -127,9 +129,10 @@ export async function framesContaining(dir: string, key: string, ids: string[], 
 
 const fileFor = (id: string) => `${id.replace(/[^0-9A-Za-z]+/g, '-')}.png`;
 const rel = (dir: string, file: string) => path.relative(dir, file).split(path.sep).join('/');
+// Thumbnails sit in the project's cache, so the path is relative to the project root (chat-file serves both).
 const servedAt = async (dir: string, file: string) => {
   const s = await stat(file).catch(() => null);
-  return s ? `/api/chat-file/${rel(dir, file)}?v=${Math.round(s.mtimeMs)}` : null;
+  return s ? `/api/chat-file/${rel(projectRoot(dir), file)}?v=${Math.round(s.mtimeMs)}` : null;
 };
 
 type ThumbIndex = Record<string, { rev: number; at: number }>;

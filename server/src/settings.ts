@@ -5,7 +5,17 @@ import { DEFAULT_FIX_ROUNDS, DEFAULT_SETTINGS, PRESETS, tickedAreas, type Settin
 
 export const HOME = path.join(os.homedir(), '.designstudio');
 export const CHATS_ROOT = process.env.DESIGN_STUDIO_ROOT ?? path.join(os.homedir(), 'DesignStudio');
+/** Where new projects (one folder per Figma file) are made unless Settings says otherwise. */
+export const PROJECTS_ROOT_DEFAULT = process.env.DESIGN_STUDIO_PROJECTS ?? path.join(os.homedir(), 'workspace', 'design-projects');
 const FILE = path.join(HOME, 'settings.json');
+
+const expandHome = (p: string) => (p === '~' || p.startsWith('~/') ? path.join(os.homedir(), p.slice(1)) : p);
+
+/** The projects root: the Settings value when set, else DESIGN_STUDIO_PROJECTS, else ~/workspace/design-projects. */
+export const projectsRoot = () => {
+  const v = (cached ?? DEFAULT_SETTINGS).projectsRoot;
+  return path.resolve(v ? expandHome(v) : PROJECTS_ROOT_DEFAULT);
+};
 
 let cached: Settings | null = null;
 
@@ -29,6 +39,7 @@ export function clean(s: Settings): Settings {
     devTools: Boolean(s.devTools),
     dailyBudgetUsd: Math.max(0, Number(s.dailyBudgetUsd) || 0),
     fixRounds: Math.min(4, Math.max(1, Math.round(Number(s.fixRounds)) || DEFAULT_FIX_ROUNDS)),
+    projectsRoot: typeof s.projectsRoot === 'string' ? s.projectsRoot.trim().slice(0, 500) : '',
   };
 }
 

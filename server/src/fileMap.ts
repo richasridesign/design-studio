@@ -3,14 +3,19 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { SAMPLE_KEY } from './figma.js';
 import { cacheDir, outlineFrom, type Outline } from './figmaCache.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
+import { projectRoot } from './roots.js';
+import { unpackTag, type MapRow, type Tag } from '../../shared/project.js';
 
 // A map of the whole Figma file, read once through the plugin and kept on disk in the chat folder, so Claude can
 // find pages, sections, screens, components with their Hover variants, variables and text styles without spending
 // Figma calls on discovery. It is read when a chat with a file opens, after a run that edited the file, when the
 // designer refreshes the outline, and when Claude asks for it. The same read also writes the outline the UI shows.
 
-/** Node: [type letter, id, name, x, y, w, h, children?, other count?]. S section, F frame, C component, K set, I instance, G group. */
-type RawNode = [string, string, string, number, number, number, number, RawNode[]?, number?];
+/**
+ * Node: [type letter, id, name, x, y, w, h, children?, other count?, tag?]. S section, F frame, C component, K set,
+ * I instance, G group. The tag ("kind;iteration;flow") is the Design Studio plugin data on a section, see shared/project.ts.
+ */
+type RawNode = MapRow;
 type RawSet = [string, string, string, Array<[string, string, string[]]>, Array<[string, string]>];
 export type RawMap = {
   pages: Array<[string, string, RawNode[], Array<[string, string]>]>;
@@ -34,6 +39,14 @@ function walk(n, depth) {
     let other = 0;
     for (const c of n.children) { if (c.type === 'SECTION' || isScreen(c)) kids.push(walk(c, depth + 1)); else other++; }
     row.push(kids, other);
+    if (n.type === 'SECTION') {
+      let tag = null;
+      try {
+        const kind = n.getSharedPluginData('designstudio', 'kind');
+        if (kind) tag = kind + ';' + n.getSharedPluginData('designstudio', 'iteration') + ';' + n.getSharedPluginData('designstudio', 'flow');
+      } catch (e) {}
+      row.push(tag);
+    }
   }
   return row;
 }
@@ -147,19 +160,76 @@ const SUB_MAX = 12;
 /** Newer nodes have a larger first number in their id, so sorting by it puts recent work first. */
 const age = (n: RawNode) => Number(n[1].split(':')[0]) || 0;
 
-/** The short version Claude gets in the message: pages (most recently worked on first) and their newest sections with screen counts, and where the full map is. */
-export function mapSummary(map: FileMap, file: string): string {
+/** The Design Studio tag on a map row (sections only), or null. */
+export const tagOf = (n: RawNode): Tag | null => unpackTag(n[9]);
+
+export type TaggedSection = { id: string; name: string; tag: Tag; page: string; parent: string | null; box: [number, number, number, number] };
+
+/** Every section in the map that carries a Design Studio tag, with where it sits. */
+export function taggedSections(map: FileMap): TaggedSection[] {
+  const out: TaggedSection[] = [];
+  for (const [pid, , top] of map.raw.pages) {
+    const walk = (n: RawNode, parent: string | null) => {
+      const tag = tagOf(n);
+      if (tag) out.push({ id: n[1], name: n[2], tag, page: pid, parent, box: [n[3], n[4], n[5], n[6]] });
+      for (const k of n[7] ?? []) walk(k, n[1]);
+    };
+    for (const n of top) walk(n, null);
+  }
+  return out;
+}
+
+/** The chain of sections (outermost first) a node sits in, from the map. Empty when the id is not in the map. */
+export function ownerChain(map: FileMap, id: string): Array<{ id: string; name: string; tag: Tag | null }> {
+  for (const [, , top] of map.raw.pages) {
+    const find = (n: RawNode, trail: RawNode[]): RawNode[] | null => {
+      if (n[1] === id) return trail;
+      for (const k of n[7] ?? []) {
+        const hit = find(k, n[0] === 'S' ? [...trail, n] : trail);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    for (const n of top) {
+      const hit = find(n, []);
+      if (hit) return hit.map((s) => ({ id: s[1], name: s[2], tag: tagOf(s) }));
+    }
+  }
+  return [];
+}
+
+export type SummaryScope = {
+  /** Page-level sections to list in full (this iteration, this flow's baseline). Other sections are counted only. */
+  sections: string[];
+  /** Pages always listed in full (the components page). */
+  pages?: string[];
+};
+
+/**
+ * The short version Claude gets in the message: pages (most recently worked on first) and their newest sections with
+ * screen counts, and where the full map is. With a scope, only the scoped sections are listed and the rest are
+ * counted, so eight chats starting together do not each carry the whole file.
+ */
+export function mapSummary(map: FileMap, file: string, scope?: SummaryScope): string {
   const out: string[] = [];
   const newest = (top: RawNode[]) => Math.max(0, ...top.map(age));
   const pages = [...map.raw.pages].sort((a, b) => newest(b[2]) - newest(a[2]));
+  const want = scope ? new Set(scope.sections) : null;
+  const fullPages = new Set(scope?.pages ?? []);
   for (const [pid, pname, top] of pages) {
-    const secs = top.filter((n) => n[7]).sort((a, b) => age(b) - age(a));
-    const loose = top.length - secs.length;
-    out.push(`- Page ${pid} "${pname}": ${secs.length} sections${loose ? `, ${loose} loose frames` : ''}${secs.length > PER_PAGE ? ` (newest ${PER_PAGE} below)` : ''}`);
+    const all = top.filter((n) => n[7]).sort((a, b) => age(b) - age(a));
+    const secs = want && !fullPages.has(pid) ? all.filter((s) => want.has(s[1])) : all;
+    const loose = top.length - all.length;
+    const skipped = all.length - secs.length;
+    out.push(`- Page ${pid} "${pname}": ${all.length} sections${loose ? `, ${loose} loose frames` : ''}${skipped ? ` (${skipped} outside this chat's scope, see the full map)` : secs.length > PER_PAGE ? ` (newest ${PER_PAGE} below)` : ''}`);
     for (const s of secs.slice(0, PER_PAGE)) {
-      out.push(`  - ${s[1]} "${cut(s[2], 70)}" (${screens(s)} screens)`);
+      const tag = tagOf(s);
+      out.push(`  - ${s[1]} "${cut(s[2], 70)}" (${screens(s)} screens)${tag ? ` [${tag.kind}${tag.iteration ? ` ${tag.iteration}` : ''}${tag.flow ? ` ${tag.flow}` : ''}]` : ''}`);
       const subs = (s[7] ?? []).filter((k) => k[7]);
-      for (const k of subs.slice(0, SUB_MAX)) out.push(`    - ${k[1]} "${cut(k[2], 70)}" (${screens(k)} screens)`);
+      for (const k of subs.slice(0, SUB_MAX)) {
+        const t = tagOf(k);
+        out.push(`    - ${k[1]} "${cut(k[2], 70)}" (${screens(k)} screens)${t ? ` [${t.kind}${t.flow ? ` ${t.flow}` : ''}]` : ''}`);
+      }
       if (subs.length > SUB_MAX) out.push(`    - … ${subs.length - SUB_MAX} more sections`);
     }
   }
@@ -198,7 +268,7 @@ export function buildMap(dir: string, key: string, opts: { signal?: AbortSignal 
     const r = await pluginScript<RawMap>(key, MAP_SCRIPT, 'Map pages, sections, screens and components (read only)', { ...opts, dir, key: 'map' });
     const raw = r.value;
     if (!raw || !Array.isArray(raw.pages)) throw new Error('The file map came back empty');
-    const name = await readFile(path.join(dir, 'figma.json'), 'utf8').then((t) => String(JSON.parse(t).name ?? ''), () => '');
+    const name = await readFile(path.join(projectRoot(dir), 'figma.json'), 'utf8').then((t) => String(JSON.parse(t).name ?? ''), () => '');
     const map: FileMap = { key, name, readAt: Date.now(), raw };
     const files = mapFiles(dir, key);
     await mkdir(path.dirname(files.json), { recursive: true });

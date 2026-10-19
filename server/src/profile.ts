@@ -3,6 +3,7 @@ import { access, readFile, writeFile } from 'node:fs/promises';
 import { MODELS, type DesignSystem, type FigmaFile } from '../../shared/design.js';
 import { fileOutline } from './figmaCache.js';
 import { figmaMcp, lean } from './lean.js';
+import { projectRoot } from './roots.js';
 
 export const PROFILE_FILE = 'design-system.json';
 /** Written when she removes the profile, so a design run does not build a new one. Any saved profile deletes it. */
@@ -23,13 +24,14 @@ const SCHEMA = {
   },
 };
 
+/** The design system profile is per project, at the project root. */
 export async function readProfile(dir: string): Promise<DesignSystem | null> {
-  return readFile(path.join(dir, PROFILE_FILE), 'utf8').then(JSON.parse).catch(() => null);
+  return readFile(path.join(projectRoot(dir), PROFILE_FILE), 'utf8').then(JSON.parse).catch(() => null);
 }
 
 /** True when she removed the profile on purpose and has not added one since. */
 export async function profileOff(dir: string): Promise<boolean> {
-  return access(path.join(dir, PROFILE_OFF_FILE)).then(() => true, () => false);
+  return access(path.join(projectRoot(dir), PROFILE_OFF_FILE)).then(() => true, () => false);
 }
 
 export function profileMarkdown(ds: DesignSystem) {
