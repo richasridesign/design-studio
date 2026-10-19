@@ -1,0 +1,44 @@
+/* From scratch parts of the workflow strip: the workflow menu (Ghost button at the strip's left) and the pick card. */
+
+.wf-menu { position: relative; flex: none; display: flex; align-items: center; gap: 8px; }
+.wf-menu-btn {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px; margin-left: -8px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--fg); font-size: var(--text-sm); line-height: 20px; font-weight: 600; white-space: nowrap;
+}
+.wf-menu-btn:hover:not(:disabled) { background: var(--bg-hover); }
+.wf-menu-btn:disabled { cursor: default; color: var(--fg-muted); }
+.wf-menu-pop {
+  position: absolute; z-index: 30; left: -8px; top: calc(100% + 4px); width: min(320px, calc(100vw - 32px)); padding: 4px;
+  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md);
+}
+.wf-menu-pop > button {
+  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--fg); text-align: left; font-size: var(--text-sm); line-height: 20px;
+}
+.wf-menu-pop > button:hover { background: var(--bg-hover); }
+.wf-menu-pop > button.active { background: var(--accent-soft); }
+.wf-menu-pop > button .codicon { margin-top: 2px; color: var(--fg); }
+.wf-menu-text { display: flex; flex-direction: column; min-width: 0; white-space: normal; }
+.wf-menu-text > b { font-weight: 500; }
+.wf-menu-text > span { color: var(--fg-muted); font-size: var(--text-xs); line-height: 16px; }
+.wf-menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
+
+.wf-pick-set { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.wf-pick-set > legend { padding: 0; margin-bottom: 8px; }
+.wf-opts { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.wf-opt { display: flex; align-items: center; gap: 12px; min-height: var(--row); padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.wf-opt.on { border-color: var(--fg); }
+.wf-opt input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--fg); }
+.wf-opt label { flex: 1; min-width: 0; min-height: var(--row); display: flex; align-items: center; font-size: var(--text-sm); line-height: 20px; color: var(--fg); cursor: pointer; }
+.wf-opt .link { flex: none; min-height: 28px; font-size: var(--text-sm); line-height: 20px; text-decoration: underline; }
+.wf-why { display: flex; flex-direction: column; gap: 4px; }
+.wf-why label { font-size: var(--text-sm); line-height: 20px; font-weight: 500; color: var(--fg); }
+.wf-why input { height: var(--row); padding: 0 16px; font: inherit; font-size: var(--text-sm); color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm); }
+.wf-why input[aria-invalid='true'] { border-color: var(--err); }
+.wf-why .small { line-height: 16px; }
+.wf-pick [aria-disabled='true'] { opacity: 0.5; cursor: default; }
+
+@media (max-width: 900px) {
+  .wf-menu-btn, .wf-opt, .wf-opt label, .wf-why input { min-height: 44px; font-size: var(--text-md); }
+  .wf-opt .link { min-height: 44px; font-size: var(--text-md); }
+}
