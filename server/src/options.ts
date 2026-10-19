@@ -21,13 +21,17 @@ export function figmaSpeed(mapFile: string | null) {
   ].filter(Boolean).join('\n');
 }
 
-export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null) {
+/**
+ * The system prompt. `project` is the flow and iteration block from shared/project.ts for a chat on an adopted
+ * file: it replaces the "Design Studio page" rule, which is how files without flows are kept safe.
+ */
+export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null, project: string | null = null) {
   return [
     'You work with a product designer in Design Studio. They follow your work on a timeline, often from a phone, and watch the Figma file in their browser. Write for a designer: no code, file paths or tool names in your replies unless they ask.',
     figma ? `This chat belongs to the Figma file "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file.` : 'No Figma file is linked to this chat yet. If the designer asks for design work, ask them to paste the Figma file link.',
     'Use mcp__designstudio__set_status to report progress. Call it when you begin, when you move to a new step and when you finish. Keep text to one short sentence. Pass done when you finish a meaningful part, next as the remaining steps, important only for a risk, blocker or surprise the designer must know, and nodes with the Figma node ids you are working on so their Figma view follows you.',
     'Log each design or product decision once in set_status decisions, when the designer gives a direction or you make a choice they should know (what, what it replaced, why, and by: "you" when the designer asked for it, "claude" when you chose it). Not for routine steps.',
-    'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
+    project ? `Projects, flows and iterations:\n${project}` : 'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
     figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
     // The Fix button on the Steps panel asks in plain words; the file name lives here, out of the designer's message.
@@ -99,14 +103,18 @@ export function agentOptions(o: {
   beforeFigma: HookCallback;
   beforeAgent?: HookCallback;
   afterTool: HookCallback;
+  /** PostToolUseFailure on use_figma: releases the file's write lock when a call fails. */
+  afterFigmaFailure?: HookCallback;
   mapFile?: string | null;
+  /** The flow and iteration block for a chat on an adopted file. */
+  project?: string | null;
   refreshMap?: () => Promise<string>;
 }): Options {
   return {
     cwd: o.cwd,
     resume: o.resume,
     model: MODELS.work,
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null) },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,
     allowedTools: ['mcp__designstudio__set_status', 'mcp__designstudio__refresh_file_map'],
@@ -120,6 +128,7 @@ export function agentOptions(o: {
     hooks: {
       PreToolUse: [{ matcher: 'mcp__.*use_figma', hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : [])],
       PostToolUse: [{ hooks: [o.afterTool] }],
+      ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },
     stderr: (d) => process.stderr.write(d),
   };

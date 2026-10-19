@@ -26,6 +26,13 @@ describe('instructions', () => {
   it('leaves the Figma speed notes out when no file is attached', () => {
     expect(instructions(null)).not.toContain('DS.');
   });
+
+  it('swaps the Design Studio page rule for the flow and iteration block on an adopted file', () => {
+    expect(instructions(figma as never)).toContain('put new work on a page named "Design Studio"');
+    const text = instructions(figma as never, '', null, 'This chat works on Flow 2 · Connectors in iteration 1.19 (working).');
+    expect(text).toContain('Projects, flows and iterations:\nThis chat works on Flow 2 · Connectors');
+    expect(text).not.toContain('page named "Design Studio"');
+  });
 });
 
 describe('agentOptions', () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { isLocked } from './figmaLock.js';
 import { AgentSession } from './session.js';
 import { contextFrom, historyFrom } from './transcript.js';
 
@@ -206,32 +207,51 @@ describe('AgentSession turns', () => {
 });
 
 describe('Figma helpers', () => {
-  const pre = (s: AgentSession, input: Record<string, unknown>) =>
-    (s as unknown as { beforeFigma: (i: unknown) => any }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__use_figma', tool_input: input });
+  const pre = (s: AgentSession, input: Record<string, unknown>, id = 't1') =>
+    (s as unknown as { beforeFigma: (i: unknown) => Promise<any> }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__use_figma', tool_input: input, tool_use_id: id });
 
-  it('leaves plain calls alone and never adds a version save, which use_figma does not support', () => {
+  it('leaves plain calls alone and never adds a version save, which use_figma does not support', async () => {
     const { s } = fakeSession();
     s.sendPrompt('make it blue');
-    expect(pre(s, { code: 'node.fills = []' })).toEqual({});
+    expect(await pre(s, { code: 'node.fills = []' })).toEqual({});
     expect(s.state.events.some((e) => e.kind === 'system' && e.text.startsWith('Checkpoint'))).toBe(false);
   });
 
-  it('adds the helpers to calls that use DS, and leaves code that does not parse alone', () => {
+  it('adds the helpers to calls that use DS, and leaves code that does not parse alone', async () => {
     const { s } = fakeSession();
     s.sendPrompt('x');
-    expect(pre(s, { code: 'DS.node(' })).toEqual({});
-    const out = pre(s, { fileKey: 'k', code: 'const n = await DS.node("1:2"); return DS.check([n.id]);' });
+    expect(await pre(s, { code: 'DS.node(' })).toEqual({});
+    const out = await pre(s, { fileKey: 'k', code: 'const n = await DS.node("1:2"); return DS.check([n.id]);' });
     expect(out.hookSpecificOutput.permissionDecision).toBeUndefined();
     expect(out.hookSpecificOutput.updatedInput.fileKey).toBe('k');
     expect(out.hookSpecificOutput.updatedInput.code).toMatch(/^const DS = \(\(\) => \{/);
     expect(out.hookSpecificOutput.updatedInput.code).not.toContain('saveVersionHistoryAsync');
   });
 
-  it('ignores other tools', () => {
+  it('ignores other tools', async () => {
     const { s } = fakeSession();
     s.sendPrompt('x');
-    const out = (s as unknown as { beforeFigma: (i: unknown) => any }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__get_screenshot', tool_input: {} });
+    const out = await (s as unknown as { beforeFigma: (i: unknown) => Promise<any> }).beforeFigma({ hook_event_name: 'PreToolUse', tool_name: 'mcp__figma__get_screenshot', tool_input: {} });
     expect(out).toEqual({});
+  });
+
+  it('holds the file write lock for an editing call and lets it go after the call, on failure, and on close', async () => {
+    const s = new AgentSession('/tmp/project', { key: 'LOCKKEY', name: 'F', url: 'https://www.figma.com/design/LOCKKEY' });
+    const edit = { fileKey: 'k', code: 'const n = await figma.getNodeByIdAsync("1:2"); n.name = "Renamed";' };
+    await pre(s, edit, 'a');
+    expect(isLocked(s.figmaFile!.key)).toBe(true);
+    // A read never waits, an edit from this chat on the same file queues behind the first.
+    expect(await pre(s, { code: 'return figma.root.children.length' }, 'r')).toEqual({});
+    let second = false;
+    const p2 = pre(s, edit, 'b').then(() => { second = true; });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(second).toBe(false);
+    s.afterTool({ hook_event_name: 'PostToolUse', tool_name: 'mcp__figma__use_figma', tool_input: edit, tool_response: 'ok', tool_use_id: 'a' } as never);
+    await p2;
+    expect(second).toBe(true);
+    expect(isLocked(s.figmaFile!.key)).toBe(true);
+    s.close();
+    expect(isLocked(s.figmaFile!.key)).toBe(false);
   });
 });
 

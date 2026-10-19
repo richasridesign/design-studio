@@ -26,6 +26,9 @@ import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpe
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
+import { acquireWrite } from './figmaLock.js';
+import { chatContext } from './project.js';
+import { projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
 import { awaitQuestions, readAwaiting } from './awaiting.js';
@@ -154,6 +157,7 @@ export class AgentSession {
 
   close() {
     this.closed = true;
+    this.unlock();
     this.endLongRun('stopped', 'ended');
     this.work?.abort();
     this.listeners.clear();
@@ -175,6 +179,8 @@ export class AgentSession {
   async init() {
     const s = await settings();
     this.rules = rulesBlock(await readRules(this.cwd));
+    // A chat on an adopted file knows its flow and iteration; the prompt block replaces the "Design Studio page" rule.
+    this.projectCtx = await chatContext(this.cwd).catch(() => null);
     this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     // The profile's review areas (a starter's) are this chat's ticks until she changes them.
     this.defaultAreas = s.areas;
@@ -189,6 +195,9 @@ export class AgentSession {
 
   private rules = '';
   private rulesNote = '';
+  private projectCtx: ChatContext | null = null;
+  /** The file's write lock, held per use_figma call that edits (keyed by tool_use_id) and released after it. */
+  private locks = new Map<string, () => void>();
   private stageKey = '';
   private stageNote = '';
   private pickKey = '[]';
@@ -224,9 +233,14 @@ export class AgentSession {
           if (last) this.onFocus([last]);
         },
         canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
-        beforeFigma: async (input) => this.beforeFigma(input),
+        beforeFigma: (input) => this.beforeFigma(input),
         beforeAgent: async (input) => this.beforeAgent(input),
         afterTool: async (input) => this.afterTool(input),
+        afterFigmaFailure: async (input) => {
+          if (input.hook_event_name === 'PostToolUseFailure') this.unlock(input.tool_use_id);
+          return {};
+        },
+        project: this.projectCtx ? projectInstructions(this.projectCtx) : null,
         // The path is fixed per file, so Claude gets it even when the background read has not finished yet.
         mapFile: this.figma && this.figma.key !== SAMPLE_KEY ? mapFiles(this.cwd, this.figma.key).md : null,
         refreshMap: () => this.readMapNow(),
@@ -291,10 +305,30 @@ export class AgentSession {
    * Every use_figma call that uses the DS helpers gets them added. No version is saved: use_figma does not support
    * figma.saveVersionHistoryAsync, it fails the whole call.
    */
-  private beforeFigma(input: HookInput): HookJSONOutput {
+  private async beforeFigma(input: HookInput): Promise<HookJSONOutput> {
     if (input.hook_event_name !== 'PreToolUse' || !/use_figma$/.test(input.tool_name)) return {};
-    const next = prepareFigmaCall((input.tool_input ?? {}) as FigmaCall);
+    const call = (input.tool_input ?? {}) as FigmaCall;
+    // An edit waits for the file's write lock, so two chats on one file never run their scripts at the same time.
+    const key = this.figma?.key;
+    if (key && key !== SAMPLE_KEY && typeof call.code === 'string' && figmaEdits(call.code)) {
+      try {
+        this.locks.set(input.tool_use_id, await acquireWrite(key));
+      } catch (err) {
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: (err as Error).message } };
+      }
+    }
+    const next = prepareFigmaCall(call);
     return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
+  }
+
+  private unlock(toolUseId?: string) {
+    if (toolUseId === undefined) {
+      for (const release of this.locks.values()) release();
+      this.locks.clear();
+      return;
+    }
+    this.locks.get(toolUseId)?.();
+    this.locks.delete(toolUseId);
   }
 
   /** Subagents do not see the system prompt, so a subagent doing Figma work gets the map and the helpers in its prompt. */
@@ -359,7 +393,7 @@ export class AgentSession {
     this.map = map;
     if (map.readAt === this.mapRead) return;
     const file = mapFiles(this.cwd, key).md;
-    this.mapNote = this.mapRead ? `The file map has been read again (${file}). Grep it again for anything made since you last looked.` : mapSummary(map, file);
+    this.mapNote = this.mapRead ? `The file map has been read again (${file}). Grep it again for anything made since you last looked.` : mapSummary(map, file, this.mapScope());
     this.mapRead = map.readAt;
   }
 
@@ -370,7 +404,16 @@ export class AgentSession {
     const map = await buildMap(this.cwd, key);
     this.map = map;
     this.mapRead = map.readAt;
-    return mapSummary(map, mapFiles(this.cwd, key).md);
+    return mapSummary(map, mapFiles(this.cwd, key).md, this.mapScope());
+  }
+
+  /** A flow chat's map summary lists only its own sections: the iteration, its flow subsection and the baseline. */
+  private mapScope() {
+    const c = this.projectCtx;
+    if (!c || c.scope !== 'flow' || !c.iteration || !c.flow) return undefined;
+    const inIt = c.iteration.flows?.[c.flow.slug];
+    const sections = [c.iteration.node, inIt?.node, inIt?.states, c.flow.baseline].filter((x): x is string => Boolean(x));
+    return sections.length ? { sections } : undefined;
   }
 
   private enqueue(text: string, blocks: Parameters<typeof userMessage>[1] = []) {
@@ -425,6 +468,7 @@ export class AgentSession {
     this.setSession({ stopping: true });
     try {
       await this.q.interrupt();
+      this.unlock();
     } catch (err) {
       this.setSession({ stopping: false });
       this.system(`Stop failed: ${String(err)}`);
@@ -961,7 +1005,9 @@ export class AgentSession {
   }
 
   afterTool(input: HookInput): HookJSONOutput {
-    if (input.agent_id || input.hook_event_name !== 'PostToolUse') return {};
+    if (input.hook_event_name !== 'PostToolUse') return {};
+    this.unlock(input.tool_use_id);
+    if (input.agent_id) return {};
     const notes: string[] = [];
     if (this.planChange) notes.push(this.planChange);
     this.planChange = null;
