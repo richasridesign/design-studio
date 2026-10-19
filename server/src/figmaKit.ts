@@ -175,7 +175,13 @@ export const FIGMA_KIT = `const DS = (() => {
     const ok = (c) => DECISION_COMP.test(String(c.name).trim()) && !(c.type === 'COMPONENT' && c.parent && c.parent.type === 'COMPONENT_SET');
     const look = (root) => (root.findAllWithCriteria ? root.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] }) : []).find(ok);
     let hit = look(pageOf(screen) || figma.currentPage);
-    if (!hit) { await figma.loadAllPagesAsync(); hit = look(figma.root); }
+    // Other pages one by one (the MCP cannot load every page at once), stopping at the first hit.
+    for (const pg of hit ? [] : figma.root.children) {
+      if (pg === (pageOf(screen) || figma.currentPage)) continue;
+      if (pg.loadAsync) await pg.loadAsync();
+      hit = look(pg);
+      if (hit) break;
+    }
     if (!hit) throw new Error('No Decision sticky component: make one first (a local component or component set named "Decision").');
     return hit.type === 'COMPONENT_SET' ? hit.defaultVariant || hit.children[0] : hit;
   }
