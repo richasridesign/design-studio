@@ -55,7 +55,7 @@ export function NewFlowDialog({ cwd, name, project, onClose, onCreated }: { cwd:
       <Shell title={`New flow on ${name}`} onClose={onClose} busy={busy}>
         <div className="project-dialog-body">
           {ph.kind === 'failed'
-            ? <p className="project-dialog-note error-text" role="alert">Flow {made.flow.n} · {made.flow.name} is saved, but its Figma subsection was not made: {ph.error}</p>
+            ? <p className="project-dialog-note error-text" role="alert">Flow {made.flow.n} · {made.flow.name} is saved, but its Figma subsection was not made: {ph.error.replace(/[.\s]+$/, '')}.</p>
             : <p className="project-dialog-note ni-wait" role="status"><span className="ni-spin" aria-hidden="true" />{WAIT}</p>}
           <p className="muted small ni-line">Retry makes only the subsection. If you start the chat now, Claude makes it.</p>
           <div className="dialog-actions">
@@ -85,7 +85,7 @@ export function NewFlowDialog({ cwd, name, project, onClose, onCreated }: { cwd:
               <label htmlFor="nf-topic">Iteration topic *</label>
               <input id="nf-topic" value={f.topic} maxLength={80} required autoComplete="off" aria-invalid={err.topic ? true : undefined} aria-describedby="nf-topic-help"
                 readOnly={busy} onChange={(e) => dispatch({ type: 'edit', field: 'topic', value: e.target.value })} onBlur={() => dispatch({ type: 'leave', field: 'topic' })} />
-              <span id="nf-topic-help" className={err.topic ? 'error-text small' : 'muted small'}>{err.topic || `Iteration: ${iteration}. No iteration is working, so this starts one.`}</span>
+              <span id="nf-topic-help" className={err.topic ? 'error-text small' : 'muted small'}>{err.topic || (project ? `Iteration: ${iteration}. No iteration is working, so this starts one.` : `Iteration: ${iteration}, the first in this file.`)}</span>
             </div>
           )}
           {!topic && <p className="muted small ni-line">Iteration: {iteration}</p>}
