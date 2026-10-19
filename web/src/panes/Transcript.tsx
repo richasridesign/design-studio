@@ -13,7 +13,7 @@ import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
-import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse } from './steps';
+import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, replySummary, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
@@ -154,7 +154,9 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
           <Welcome fileName={fileName} />
         )}
         {hidden > 0 && <div className="tl-earlier"><button className="link" onClick={() => setEarly(true)}>Show {hidden} earlier {hidden === 1 ? 'prompt' : 'prompts'}</button></div>}
-        {turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
+        {view === 'timeline'
+          ? turns.map((t) => <TimelineTurn key={t.id} t={t} cwd={cwd} thumb={thumb} />)
+          : turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
         {running && children === undefined && (
           <div className="tr-working">
             <span className="tr-mark"><Icon name="loading" small spin /></span>
@@ -264,6 +266,159 @@ function Reply({ text, streaming }: { text: string; streaming: boolean }) {
       <div ref={body} className={`tr-reply ${clamp ? 'clamp' : ''} ${clamp && long ? 'clipped' : ''}`}><Markdown text={text} /></div>
       {!streaming && (long || open) && <button className="link tr-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? 'Show less' : 'Show more'}</button>}
     </div>
+  );
+}
+
+type Thumb = (id: string) => string | null;
+type Bulleted = Extract<Item, { kind: 'done' | 'note' | 'system' | 'assistant' | 'phase' }>;
+const BULLETED = new Set<Item['kind']>(['done', 'note', 'system', 'assistant', 'phase']);
+
+/**
+ * One prompt in the Timeline: her prompt as one quiet line, then a bullet list of what came of it (finished work, notes,
+ * notices and the first sentence of Claude's reply). Review cards and run reports keep their own cards, in order.
+ */
+function TimelineTurn({ t, cwd, thumb }: { t: Turn; cwd: string; thumb: Thumb }) {
+  const items = t.blocks.filter((b): b is Item => b.kind !== 'steps');
+  const head = items[0]?.kind === 'user' ? items[0] : null;
+  const head2 = items[0]?.kind === 'phase' ? items[0] : null;
+  const parts: Array<Bulleted[] | Item> = [];
+  for (const it of items.slice(head || head2 ? 1 : 0)) {
+    if (!BULLETED.has(it.kind)) parts.push(it);
+    else if (Array.isArray(parts[parts.length - 1])) (parts[parts.length - 1] as Bulleted[]).push(it as Bulleted);
+    else parts.push([it as Bulleted]);
+  }
+  return (
+    <div className="tl-turn">
+      {head && <PromptLine text={head.text} stopping={!!head.stopping} />}
+      {head2 && <Row it={head2} cwd={cwd} thumb={thumb} />}
+      {parts.map((p) => (Array.isArray(p)
+        ? <ul key={p[0].id} className="tl-list">{p.map((it) => <Bullet key={it.id} it={it} thumb={thumb} />)}</ul>
+        : <Row key={p.id} it={p} cwd={cwd} thumb={thumb} />))}
+    </div>
+  );
+}
+
+/** Her prompt in one muted line. A long prompt opens to the full text, frame links and all. */
+function PromptLine({ text, stopping }: { text: string; stopping: boolean }) {
+  const outline = useOutline(useStore((s) => s.session.figma?.key));
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  const line = useRef<HTMLSpanElement>(null);
+  const less = useRef<HTMLButtonElement>(null);
+  const more = useRef<HTMLButtonElement>(null);
+  const moved = useRef(false);
+  const { settle, recheck } = useContext(Settle);
+  useLayoutEffect(() => {
+    const el = line.current;
+    if (!el || open) return;
+    const measure = () => setLong(text.trim().includes('\n') || el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open, long, text]);
+  useEffect(() => {
+    if (open) recheck(); else settle();
+    // Focus follows the toggle, so the keyboard never lands on a control that just went away.
+    if (moved.current) (open ? less : more).current?.focus();
+    moved.current = false;
+  }, [open, long, settle, recheck]);
+  const toggle = (v: boolean) => { moved.current = true; setOpen(v); };
+  const spin = stopping && <span className="tl-prompt-stop" aria-label="Stopping"><Icon name="loading" small spin /></span>;
+  if (open) {
+    return (
+      <div className="tl-prompt open">
+        <div className="tl-prompt-full"><UserText text={text} /></div>
+        {spin}
+        <button ref={less} className="link tl-more" aria-expanded onClick={() => toggle(false)}>Show less</button>
+      </div>
+    );
+  }
+  // Inside the one-line button, frame links are styled names that still open the frame on click.
+  const flat = <span ref={line} className="tl-prompt-text">{splitFrameLinks(text.replace(/\s+/g, ' ').trim()).map((p, i) => (typeof p === 'string'
+    ? p
+    : long ? <span key={i} className="frame-chip" data-node={p.id} title={p.url}>{frameName(outline, p.id) ?? p.id}</span>
+      : <button key={i} className="frame-chip" title={p.url} onClick={() => showNode(p.id)}>{frameName(outline, p.id) ?? p.id}</button>))}</span>;
+  if (!long) return <div className="tl-prompt">{flat}{spin}</div>;
+  return (
+    <div className="tl-prompt">
+      <button
+        ref={more}
+        className="tl-prompt-open"
+        aria-expanded={false}
+        title="Show the full prompt"
+        onClick={(e) => {
+          const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-node]');
+          if (chip) void showNode(chip.dataset.node!);
+          else toggle(true);
+        }}
+      >
+        {flat}
+        <Icon name="chevron-down" small />
+      </button>
+      {spin}
+    </div>
+  );
+}
+
+function Bullet({ it, thumb }: { it: Bulleted; thumb: Thumb }) {
+  switch (it.kind) {
+    case 'done': {
+      const shown = it.nodes.filter(([id]) => thumb(id));
+      return (
+        <li className="tl-li done">
+          <span className="tl-mark"><Icon name="check" small /></span>
+          <span className="tl-say">{it.text}</span>
+          {shown.length > 0 && (
+            <span className="tl-thumbs">
+              {shown.map(([id]) => <button key={id} title="Show in Figma" onClick={() => showNode(id)}><img src={thumb(id)!} alt="" loading="lazy" /></button>)}
+            </span>
+          )}
+        </li>
+      );
+    }
+    case 'note':
+      return <li className="tl-li note"><span className="tl-mark"><i className="tr-dot" /></span><span className="tl-say"><b>Note:</b> {it.text}</span></li>;
+    case 'assistant':
+      return <ReplyBullet text={it.text} streaming={it.streaming} />;
+    default:
+      return <li className={`tl-li ${it.kind}`}><span className="tl-mark"><i className="tl-bullet" /></span><span className="tl-say">{it.text}</span></li>;
+  }
+}
+
+/** Claude's reply as its first sentence. Show reply opens the whole reply in place. */
+function ReplyBullet({ text, streaming }: { text: string; streaming: boolean }) {
+  const outline = useOutline(useStore((s) => s.session.figma?.key));
+  const [open, setOpen] = useState(false);
+  const { settle, recheck } = useContext(Settle);
+  const sum = useMemo(() => replySummary(text, (url) => {
+    const p = splitFrameLinks(url)[0];
+    return typeof p === 'object' ? frameName(outline, p.id) ?? p.id : null;
+  }), [text, outline]);
+  const btn = useRef<HTMLButtonElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (open) recheck(); else settle();
+    if (moved.current) btn.current?.focus();
+    moved.current = false;
+  }, [open, settle, recheck]);
+  const toggle = () => { moved.current = true; setOpen((v) => !v); };
+  const full = open && !streaming;
+  return (
+    <li className={`tl-li reply ${full ? 'open' : ''}`}>
+      <span className="tl-mark"><i className="tl-bullet" /></span>
+      {full ? (
+        <div className="tl-say">
+          <div className="tr-assistant"><Markdown text={text} /></div>
+          <button ref={btn} className="link tl-more" aria-expanded onClick={toggle}>Show less</button>
+        </div>
+      ) : (
+        <span className="tl-say">
+          {sum.text || (streaming ? 'Writing a reply…' : '')}
+          {!streaming && sum.more && <button ref={btn} className="link tl-more" aria-expanded={false} onClick={toggle}>Show reply</button>}
+        </span>
+      )}
+    </li>
   );
 }
 

@@ -29,6 +29,7 @@ export function nextSteps(events: ChatEvent[]) {
 
 const VIEW_KEY = 'designstudio.chatView';
 const STEPS_KEY = 'designstudio.nextSteps';
+const FOOT_KEY = 'designstudio.chatFoot';
 
 function load(key: string) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -60,6 +61,9 @@ export function Brief() {
   const [stepsOpen, setStepsOpen] = useState(() => load(STEPS_KEY) !== '0');
   const pick = (v: ChatView) => { setView(v); save(VIEW_KEY, v); };
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
+  // The foot's details (quick replies, Up next) fold away so the conversation gets the room; the status line stays.
+  const [footOpen, setFootOpen] = useState(() => load(FOOT_KEY) !== '0');
+  const toggleFoot = () => { setFootOpen(!footOpen); save(FOOT_KEY, footOpen ? '0' : '1'); };
   const stages = useStages();
   const steps = useStepsOpen();
   const narrow = useNarrow();
@@ -102,8 +106,17 @@ export function Brief() {
                 {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {ago(lastReply.at)}</span>}
                 {state === 'running' && toolLine && <span className={`tool ${toolLine.mono ? 'mono' : ''}`} title={toolLine.object}>{toolLine.verb} {toolLine.object}</span>}
               </span>
-              <ReadAloud />
+              <span className="tl-now-acts">
+                <ReadAloud />
+                {(quick.length > 0 || hasSteps) && <>
+                  {!footOpen && next.length > 0 && <span className="badge" title={`Up next: ${next.length}`}><span className="sr-only">Up next: </span>{next.length}</span>}
+                  <IconButton label={footOpen ? 'Hide details' : 'Show details'} place="top" aria-expanded={footOpen} aria-controls="tl-foot-details" onClick={toggleFoot}>
+                    <Icon name={footOpen ? 'chevron-up' : 'chevron-down'} small />
+                  </IconButton>
+                </>}
+              </span>
             </div>
+            <div className="tl-foot-details" id="tl-foot-details" hidden={!footOpen}>
             {quick.length > 0 && (
               <div className="quick-replies" role="group" aria-label="Quick replies">
                 {quick.map((q) => (
@@ -133,6 +146,7 @@ export function Brief() {
                 )}
               </section>
             )}
+            </div>
           </div>}
         </Transcript>
       </div>
