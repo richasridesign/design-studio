@@ -5,6 +5,8 @@ import { WORKFLOW_INFO, type CardAction, type StepCard, type StepId, type StepVi
 import type { Project } from '../../../shared/project';
 import { focusComposer, insertPrompt } from './composerEvents';
 import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED, Shell } from './ProjectDialogs';
+import { PickCard } from './PickCard';
+import { WorkflowMenu } from './WorkflowMenu';
 import '../workflow.css';
 
 // The workflow strip and the step card above a flow chat: which step the flow's iteration is at, and the one next
@@ -64,11 +66,11 @@ function Mark({ state }: { state: StepView['state'] }) {
 }
 
 /** One row: the workflow's name, then its steps as text buttons, and the round once it is above 1. */
-export function WorkflowStrip({ view, onStep, disabled }: { view: FlowView; onStep: (s: StepId) => void; disabled?: boolean }) {
+export function WorkflowStrip({ view, onStep, onSwitch, disabled }: { view: FlowView; onStep: (s: StepId) => void; onSwitch?: (body: Extract<Post, { action: 'switch' }>) => Promise<unknown>; disabled?: boolean }) {
   const round = view.state.round;
   return (
     <nav className="wf-strip" aria-label={`Workflow: ${WORKFLOW_INFO[view.state.workflow].name}`}>
-      <span className="wf-name">{WORKFLOW_INFO[view.state.workflow].name}</span>
+      {onSwitch ? <WorkflowMenu state={view.state} flowName={view.flow.name} iteration={view.iteration.id} post={onSwitch} disabled={disabled} /> : <span className="wf-name">{WORKFLOW_INFO[view.state.workflow].name}</span>}
       <ol className="wf-steps">
         {view.steps.map((s, i) => (
           <li key={s.id} className={`wf-step ${s.state}`}>
@@ -147,6 +149,7 @@ export function WorkflowPanel() {
       case 'freeze': return setDialog('freeze');
       case 'next-iteration': return setDialog('next');
       case 'adopt': return setDialog('adopt');
+      case 'pick': return run(() => post({ action: 'step', step: 'pick' }));
     }
   };
   const wait = (a: CardAction) => running && SENDS.has(a);
@@ -155,8 +158,8 @@ export function WorkflowPanel() {
 
   return (
     <div className="wf">
-      <WorkflowStrip view={v} disabled={working} onStep={(step) => void run(() => post({ action: 'step', step }))} />
-      <div className="wf-card" aria-live="polite">
+      <WorkflowStrip view={v} disabled={working} onSwitch={post} onStep={(step) => void run(() => post({ action: 'step', step }))} />
+      {card.pick ? <PickCard state={v.state} flow={v.flow} post={post} busy={busy} running={running} /> : <div className="wf-card" aria-live="polite">
         <p className="wf-line">{card.line}</p>
         {(b || card.link) && (
           <div className="wf-acts">
@@ -174,7 +177,7 @@ export function WorkflowPanel() {
           </div>
         )}
         {error && <p className="error-text small" role="alert">{error}</p>}
-      </div>
+      </div>}
       {dialog === 'freeze' && <FreezeDialog view={v} onClose={() => setDialog(null)} />}
       {dialog === 'next' && (
         <NewIterationDialog
