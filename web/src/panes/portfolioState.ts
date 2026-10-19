@@ -68,6 +68,9 @@ const pagesOf = (edits: EditRecord[], state?: EditRecord['state']) =>
 /** "Editing 3 pages in Framer, about 30 minutes per edit. Nothing is published." 30 minutes is an estimate to confirm. */
 export const editingLine = (edits: EditRecord[]) => `Editing ${plural(pagesOf(edits).length, 'page')} in Framer, about 30 minutes per edit. Nothing is published.`;
 
+/** Undo all is running: the pages whose edits landed get the old text back. Same 30 minute estimate as editing. */
+export const undoingLine = (edits: EditRecord[]) => `Putting the old text back on ${plural(pagesOf(edits, 'done').length, 'page')} in Framer, about 30 minutes per edit. Nothing is published.`;
+
 /** "Plan: 3 edits in Framer, 1 by copy and paste." */
 export function planLine(edits: EditRecord[]): string {
   const text = edits.filter((e) => e.kind === 'text').length;

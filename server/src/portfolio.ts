@@ -492,6 +492,9 @@ export async function finishRun(id: string): Promise<Run> {
   const run = await readRun(id);
   // publish-changed: Framer published the edits without her, she checked the live site and keeps them.
   if (run.state !== 'copy' && run.state !== 'edited' && run.state !== 'publish-changed') throw new PortfolioError('This run is not ready to finish', 409);
+  // Keep them only when every Framer edit landed: a block whose edit never reached Framer must stay in gather.
+  if (run.state === 'publish-changed' && (await editsOf(id)).some((e) => e.kind === 'text' && e.state !== 'done'))
+    throw new PortfolioError('Some edits did not reach Framer. Undo all, then start again', 409);
   const published = run.state !== 'copy';
   const r = await record(id, published);
   return updateRun(id, { state: 'done', doneAt: now().getTime(), published, used: r.used, skipped: r.skipped });

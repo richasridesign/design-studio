@@ -263,11 +263,18 @@ describe('edits in her Chrome (mocked browser)', () => {
     const { run } = await pickedRun(() => ({ lastPublishedAt: ++calls > 1 ? Date.now() : 1000, changed: [], warnings: [] }));
     P.portfolioDeps.chat = { run: (async (_p: string, o: any) => {
       await new Promise((r) => setTimeout(r, 60));
+      if (o?.signal?.aborted) throw new Error('Stopped');
       return fakeChat([])(_p, o);
     }) as any };
     await P.applyRun(run.id);
     await until(async () => (await P.readRun(run.id)).state === 'publish-changed');
     expect((await P.readRun(run.id)).publishAfter).toMatch(/^Framer: Published /);
+    // Keep them is refused while an edit never reached Framer, so its block is not marked used.
+    expect((await P.runView(run.id)).edits.some((e) => e.state !== 'done')).toBe(true);
+    const before = JSON.stringify(await P.readPortfolio());
+    await expect(P.finishRun(run.id)).rejects.toThrow('Some edits did not reach Framer');
+    expect((await P.readRun(run.id)).state).toBe('publish-changed');
+    expect(JSON.stringify(await P.readPortfolio())).toBe(before);
   });
 
   it('plans only text the live page shows, the rest as copy and paste', () => {
