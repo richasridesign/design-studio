@@ -244,6 +244,22 @@ describe('run across flows', () => {
     await expect(tasks.start(root, { prompt: 'x', flows: all })).rejects.toThrow('no working iteration');
   });
 
+  it('forgets a removed project: stops its open task and writes nothing after the folder moved', async () => {
+    const { root, tasks, chats, tick } = await setup();
+    const t = await tasks.start(root, { prompt: 'Fix the toast offset', flows: all.slice(0, 2) });
+    expect(await tasks.forget(root)).toBe(1);
+    expect(chats.every((c) => c.stopped)).toBe(true);
+    const { rename } = await import('node:fs/promises');
+    const { existsSync } = await import('node:fs');
+    await rename(root, `${root}-trash`);
+    tasks.chatClosed(chats[0].id);
+    chats[1].finish();
+    await tick();
+    expect(existsSync(root)).toBe(false);
+    expect(await tasks.get(t.id)).toBeNull();
+    expect(await tasks.list(root)).toEqual([]);
+  });
+
   it('after a restart, open flows stop and the task pauses', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'ds-task-'));
     const dir = path.join(root, 'iterations', '1.19', 'tasks');

@@ -387,6 +387,20 @@ export class Tasks {
     return run;
   }
 
+  /**
+   * Remove project: stops every open task on the root, waits for their file writes and drops them from memory, so a
+   * chat that closes afterwards never writes a task file into the moved folder. Returns how many were open.
+   */
+  async forget(root: string): Promise<number> {
+    await this.load();
+    const mine = [...this.tasks.values()].filter((t) => t.root === root);
+    const open = mine.filter((t) => t.state === 'running' || t.state === 'paused');
+    for (const t of open) await this.stop(t.id);
+    await this.flushed();
+    for (const t of mine) { this.tasks.delete(t.id); this.writes.delete(t.id); }
+    return open.length;
+  }
+
   /** For tests: every pending file write done. */
   async flushed() {
     await this.pumping;
