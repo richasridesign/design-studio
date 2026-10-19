@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentSession, finishText } from './session.js';
+import { AgentSession } from './session.js';
 import { withReviews } from './transcript.js';
 
 const run = { id: 'r1', kind: 'audit', at: 1234, round: 0, preset: 'check', frames: ['1:2'], check: [], results: [], tokens: 0, costUsd: 0 };
@@ -48,13 +48,6 @@ describe('review events', () => {
     expect(s.state.session.flow.areas).toEqual(['interaction', 'writing']);
     s.useProfileAreas(null);
     expect(s.state.session.flow.areas).toEqual(['system', 'interaction', 'visual', 'writing', 'accessibility']);
-  });
-
-  it('the design run line says what is left and what waits for her decision', () => {
-    expect(finishText(0, 0)).toBe(', review passed');
-    expect(finishText(2, 0)).toBe(', 2 issues left for you to look at');
-    expect(finishText(0, 1)).toBe(', 1 waits for your decision');
-    expect(finishText(1, 3)).toBe(', 1 issue left for you to look at, 3 wait for your decision');
   });
 
   it('replays saved runs in time order on history load', () => {

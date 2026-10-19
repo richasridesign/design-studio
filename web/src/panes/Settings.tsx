@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { getJson, postJson } from '../store';
 import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, mcpResult, type CheckId, type CheckResult } from '../setupChecks';
-import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, fixRoundsFor, type Settings as S } from '../../../shared/design';
+import { AREAS, AREA_NAMES, PRESET_INFO, SHOWN_PRESETS, type Settings as S } from '../../../shared/design';
 import { MAX_PARALLEL } from '../../../shared/tasks';
 
 const PARALLEL_CHOICES = Array.from({ length: MAX_PARALLEL }, (_, i) => i + 1);
@@ -121,8 +121,6 @@ export function Settings() {
     }
   };
   if (!s) return <div className="settings-page"><div className="hint">{msg || 'Loading…'}</div></div>;
-  const fixedRounds = PRESET_INFO[shownPreset(s.preset)].fixRounds !== null;
-  const rounds = fixRoundsFor(shownPreset(s.preset), s.fixRounds);
 
   return (
     <div className="settings-page">
@@ -143,15 +141,15 @@ export function Settings() {
       <CheckSetup />
 
       <section className="set-card" id="set-runs" aria-labelledby="set-runs-h">
-        <h2 id="set-runs-h" className="sr-only">Design runs</h2>
-        <p className="muted small">Defaults for new chats. For one chat, change Stop after sketch in the mode menu of the message box, and review depth and areas on the <button className="link" onClick={openReviewTab}>Review tab</button>.</p>
-        <Toggle label="Default: Stop after sketch" detail="Wait for you to pick a sketch direction before Claude designs in Figma" on={s.stopAfterSketch} set={(v) => save({ stopAfterSketch: v })} />
+        <h2 id="set-runs-h" className="sr-only">Reviews</h2>
+        <p className="muted small">Defaults for new chats. For one chat, change review depth and areas on the <button className="link" onClick={openReviewTab}>Review tab</button>.</p>
         <div className="field">
           <span>Default: Review depth</span>
           <div className="seg" role="radiogroup" aria-label="Default review depth">
             {SHOWN_PRESETS.map((p) => <button key={p} role="radio" aria-checked={shownPreset(s.preset) === p} className={shownPreset(s.preset) === p ? 'on' : ''} title={PRESET_INFO[p].detail} onClick={() => save({ preset: p })}>{PRESET_INFO[p].label}</button>)}
           </div>
           <span className="muted small">{PRESET_INFO[shownPreset(s.preset)].detail}.</span>
+          <span className="muted small">{costLine(shownPreset(s.preset), s.areas)}</span>
         </div>
         {shownPreset(s.preset) !== 'full' && (
           <fieldset className="field rs-areas">
@@ -164,18 +162,6 @@ export function Settings() {
             ))}
           </fieldset>
         )}
-        <div className="field">
-          <span id="set-rounds-l">Fix rounds</span>
-          <div className="inline set-rounds">
-            {/* Quick always fixes once, so its rounds are shown, not picked. The setting applies to Focused and Full. */}
-            <div className={`seg${fixedRounds ? ' fixed' : ''}`} role="radiogroup" aria-labelledby="set-rounds-l" aria-describedby={fixedRounds ? 'set-rounds-fixed' : undefined}>
-              {FIX_ROUNDS.map((n) => <button key={n} role="radio" disabled={fixedRounds} aria-checked={rounds === n} className={rounds === n ? 'on' : ''} onClick={() => save({ fixRounds: n })}>{n}</button>)}
-            </div>
-            {fixedRounds && <span className="muted small" id="set-rounds-fixed">{PRESET_INFO[shownPreset(s.preset)].label} fixes once</span>}
-          </div>
-          <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. {fixedRounds ? `Your choice of ${s.fixRounds} applies to Focused and Full.` : 'Quick fixes once.'} Shared changes wait for you.</span>
-          <span className="muted small">{costLine(shownPreset(s.preset), s.areas, s.fixRounds)}</span>
-        </div>
         <div className="field">
           <span id="set-parallel-l">Parallel chats</span>
           <div className="seg" role="radiogroup" aria-labelledby="set-parallel-l" aria-describedby="set-parallel-help">
@@ -190,7 +176,7 @@ export function Settings() {
 
       <section className="set-card" id="set-models" aria-labelledby="set-models-h">
         <h2 id="set-models-h" className="sr-only">Models</h2>
-        <p className="muted">Design runs: Opus 5.5 writes the plan, Sonnet 5.5 sketches, designs, fixes and reviews. Chat: pick the model next to the mode in the message box.</p>
+        <p className="muted">Reviews: Sonnet 5.5. Chat: pick the model in the message box.</p>
       </section>
 
       <section className="set-card" id="set-usage" aria-labelledby="set-usage-h">
@@ -243,7 +229,7 @@ function McpState() {
   );
 }
 
-const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma'], ['set-checks', 'Check setup'], ['set-runs', 'Design runs'], ['set-models', 'Models'], ['set-usage', 'Usage'], ['set-advanced', 'Advanced']];
+const SECTIONS: [id: string, title: string][] = [['set-figma', 'Figma'], ['set-checks', 'Check setup'], ['set-runs', 'Reviews'], ['set-models', 'Models'], ['set-usage', 'Usage'], ['set-advanced', 'Advanced']];
 
 const scroller = (el: HTMLElement | null): HTMLElement | null => {
   for (let p = el?.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;

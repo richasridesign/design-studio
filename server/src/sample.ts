@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { CHATS_ROOT } from './settings.js';
 import { installSkills } from './figma.js';
-import { readSketch, renderAll } from './sketch.js';
 
 const SAMPLE = fileURLToPath(new URL('../sample', import.meta.url));
 
@@ -16,8 +15,6 @@ export async function loadSample(root = CHATS_ROOT) {
   await mkdir(dir, { recursive: true });
   await cp(SAMPLE, dir, { recursive: true, force: true });
   await freshen(dir);
-  const sketch = await readSketch(dir);
-  if (sketch) await renderAll(dir, sketch);
   await installSkills(dir);
   return dir;
 }

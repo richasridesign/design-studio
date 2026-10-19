@@ -85,59 +85,8 @@
 .pick-list button { width: 100%; text-align: left; background: none; display: flex; gap: 8px; align-items: center; }
 .pick-list button:hover { background: var(--bg-hover); }
 
-/* Phase stepper */
-.run-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin: 10px 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
-.run-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
-.run-tokens { color: var(--fg-muted); }
-.run-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.run-rows li { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-faint); }
-.run-rows .mark { width: 16px; display: inline-flex; justify-content: center; flex: none; }
-.run-rows .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.run-rows li.done { color: var(--ok); }
-.run-rows li.now { color: var(--accent); font-weight: 600; }
-.run-rows li.sub { padding-left: 24px; color: var(--fg-muted); font-weight: 400; }
-.run-rows li.sub.pass .mark { color: var(--ok); }
-.run-rows li.sub.fail .mark, .run-rows li.sub.error .detail { color: var(--err); }
-.run-rows .detail { color: var(--fg-muted); font-weight: 400; }
-.run-acts { display: flex; justify-content: flex-end; }
-.run-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.run-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
-
 /* Composer pills */
 .cp-pill.on { background: var(--accent-soft); color: var(--accent); }
-
-/* Sketch */
-.sketch-page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.sketch-head { flex: none; max-height: 45%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
-/* With no sketches yet the head has nothing in it, so it leaves no empty bar above the empty state. */
-.sketch-head:empty { display: none; }
-.sketch-screen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.screen-name { font-weight: 600; min-width: 120px; }
-@media (max-width: 900px) { .screen-name { flex-basis: 100%; } }
-.dir { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px; display: inline-flex; align-items: center; gap: 6px; }
-.dir.chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-/* The Why field, or Claude's pick with Confirm, sits on a line under the direction pills, aligned with them. */
-.sketch-sub { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding-left: 128px; }
-.sketch-sub button.link { min-height: 24px; font-size: 14px; }
-.sketch-why label { font-size: 14px; line-height: 20px; color: var(--fg-muted); }
-.sketch-why input { flex: 1; min-width: 0; max-width: 480px; height: 36px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--fg); background: var(--input); border: 1px solid var(--input-border); border-radius: var(--radius-sm); }
-.sketch-why input:hover { border-color: var(--input-border-hover); }
-.sketch-why input:focus { border-color: var(--focus); }
-.sketch-count { margin: 0; }
-.sketch-notes { flex-basis: 100%; margin: 0; padding: 0 0 0 128px; list-style: none; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
-.sketch-notes b { font-weight: 600; color: var(--fg); }
-.sketch-notes:empty { display: none; }
-@media (max-width: 900px) { .sketch-sub, .sketch-notes { padding-left: 0; } }
-.dir-group { display: inline-flex; align-items: center; gap: 4px; }
-.dir-group .dir-view { min-height: 24px; padding: 0 4px; font-size: 14px; }
-.sketch-saved { display: inline-flex; align-items: center; gap: 4px; min-width: 56px; color: var(--ok); }
-.sketch-tabs button { min-width: 44px; min-height: 44px; font-weight: 600; }
-.sketch-panel { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.sketch-dir { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
-.sketch-dir b { color: var(--fg); font-weight: 600; }
-.sketch-picked { display: inline-flex; align-items: center; gap: 4px; }
-.sketch-canvas { flex: 1; min-height: 0; position: relative; }
-.sketch-canvas .excalidraw { --color-primary: var(--link); }
 
 /* Review */
 .review-page { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 16px; }
@@ -150,10 +99,6 @@
 .review-bar .seg button, .set-card .seg button { min-height: 32px; padding: 0 12px; }
 /* 36px controls on a desktop, 44px on a phone: 2px of padding and border round the 40px buttons. */
 @media (max-width: 600px) { .review-bar .seg button, .set-card .seg button { min-height: 40px; } }
-/* Fix rounds under Quick: shown, not picked. The chosen number stays readable, the others fade. */
-.set-rounds { gap: 12px; flex-wrap: wrap; }
-.set-card .seg.fixed button:disabled { cursor: not-allowed; }
-.set-card .seg.fixed button:disabled:not(.on) { opacity: 0.5; }
 .review-bar .spacer { flex: 1; }
 /* Handoff report and its download read as one peach pill: the stage's end product, quieter than the primary Review. */
 .review-bar > button.ghost:has(+ .report-download) { background: var(--tint-peach); color: var(--fg); border-radius: var(--radius-pill) 0 0 var(--radius-pill); padding: 0 8px 0 16px; }
@@ -243,7 +188,6 @@
 
 @media (max-width: 900px) {
   .workbench[data-tab='figma'] .pane.code,
-  .workbench[data-tab='sketch'] .pane.code,
   .workbench[data-tab='review'] .pane.code,
   .workbench[data-tab='more'] .pane.side { display: flex; }
 }
@@ -271,7 +215,6 @@
   .empty-actions button { width: 100%; min-height: 44px; }
 }
 
-.sketch-canvas .HintViewer { display: none; }
 .check-head { justify-content: space-between; align-items: center; flex-wrap: wrap; }
 .check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .check-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }

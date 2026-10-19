@@ -490,7 +490,7 @@ export function Composer() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
-  const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !full && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /design, /review, /audit' : '';
+  const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !full && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /review, /audit' : '';
   const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : FLOW_CHAT.test(cwd ?? '') ? 'Give feedback, or start a review' : 'Ask Claude anything, or paste a Figma link';
   const level = pct === null ? '' : context! >= COMPACT_AT ? 'over' : context! >= COMPACT_AT * 0.75 ? 'near' : '';
 

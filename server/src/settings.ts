@@ -30,7 +30,6 @@ export async function settings(): Promise<Settings> {
 
 export function clean(s: Settings): Settings {
   return {
-    stopAfterSketch: Boolean(s.stopAfterSketch),
     preset: PRESETS.includes(s.preset) ? s.preset : DEFAULT_SETTINGS.preset,
     // Old files hold the old default of three of the six old areas, which no screen let her change: they get all five.
     areas: tickedAreas(s.areas),

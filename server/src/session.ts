@@ -1,21 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { writeFile } from 'node:fs/promises';
 import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMessage, type PermissionMode, type HookInput, type HookJSONOutput, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
-import { AREAS, FLOW_ACTIVE, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
+import { AREAS, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, figmaSpeed, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
 import { advisorEvent, cacheFrom, contextFrom, limitFrom, historyFrom, toolResultText, toolUseEvent, withReviews } from './transcript.js';
-import { afterFix, afterReview, designFilePrompt, designPrompt, designerPicksKey, fixPrompt, parseCommand, picksNote, planPrompt, sketchFixPrompt, sketchPrompt } from './flow.js';
+import { DESIGN_MOVED, parseCommand } from './flow.js';
 import { FIGMA_WRITE, figmaMcp, isFigmaTool } from './lean.js';
-import { boardNotes, readSketch, renderAll } from './sketch.js';
-import { buildProfile, profileOff, readProfile } from './profile.js';
+import { buildProfile, readProfile } from './profile.js';
 import { reviewAreas } from '../../shared/dsProfiles.js';
 import { parseTone, runCopy, runCrit } from './crit.js';
 import { parseBuildArg, runBuildCheck } from './buildcheck.js';
-import { failedAreas, readDesign, readReview, runReview, toFix } from './review.js';
+import { readDesign, readReview, runReview } from './review.js';
 import { settings } from './settings.js';
 import { TouchedIds, figmaEdits, touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
@@ -33,10 +31,8 @@ import { markTurn, scheduleRestack } from './iterations.js';
 import { projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
-import { awaitQuestions, readAwaiting } from './awaiting.js';
+import { awaitQuestions } from './awaiting.js';
 import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
-
-type Step = { phase: FlowPhase; model: string; mode: string; label: string; prompt: string };
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
@@ -77,10 +73,6 @@ export class AgentSession {
   private sinceStatus = 0;
   private autoCompact = true;
   private lastResult = '';
-  private task = '';
-  private retried = false;
-  private fixesDone = 0;
-  private lastRun: ReviewRun | null = null;
   private work: AbortController | null = null;
   /** Node ids to show in her Figma tab: the frame set_status names, or the nodes a Figma edit just changed. */
   onFocus: (nodeIds: string[]) => void = () => {};
@@ -129,7 +121,6 @@ export class AgentSession {
     this.setSession({ figma });
     if (this.q) this.figmaNote = `A Figma file is now attached to this chat: "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file from now on.`;
     this.system(`Attached ${figma.name}`);
-    if (this.state.session.flow.phase === 'file') void this.toDesign();
   }
 
   onMessage(fn: (m: ServerMessage) => void) {
@@ -200,7 +191,6 @@ export class AgentSession {
     // A chat on an adopted file knows its flow and iteration; the prompt block replaces the "Design Studio page" rule.
     this.projectCtx = await chatContext(this.cwd).catch(() => null);
     this.projectKey = projectKeyOf(this.projectCtx);
-    this.pickKey = designerPicksKey(await readSketch(this.cwd).catch(() => null));
     // The profile's review areas (a starter's) are this chat's ticks until she changes them.
     this.defaultAreas = s.areas;
     this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
@@ -225,8 +215,6 @@ export class AgentSession {
   private workflowNote = '';
   /** From scratch: the Design system step finished after this rebuilds the profile once (older marks never do). */
   private profileAt = Date.now();
-  private pickKey = '[]';
-  private pickNote = '';
   private figmaNote = '';
   /** The file map, and the read time of the one Claude was last told about. */
   private map: FileMap | null = null;
@@ -257,7 +245,7 @@ export class AgentSession {
           const last = nodes.at(-1);
           if (last) this.onFocus([last]);
         },
-        canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
+        canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
         beforeFigma: (input) => this.beforeFigma(input),
         beforeAgent: async (input) => this.beforeAgent(input),
         afterTool: async (input) => this.afterTool(input),
@@ -280,8 +268,6 @@ export class AgentSession {
     try {
       const [models, commands] = await Promise.all([this.q.supportedModels(), this.q.supportedCommands()]);
       const own = [
-        { name: 'design', description: 'Plan, sketch, design in Figma and review' },
-        { name: 'sketch', description: 'Plan and sketch directions only' },
         { name: 'review', description: 'Review frames: /review [check|quick|focused|full] [frame links]' },
         { name: 'audit', description: 'Code scan across the whole file. Reads every frame through the Figma plugin, a few minutes on a large file' },
         { name: 'crit', description: 'Design crit from four viewpoints: /crit [frame links]' },
@@ -482,11 +468,6 @@ export class AgentSession {
       text = `${this.workflowNote}\n\n${text}`;
       this.workflowNote = '';
     }
-    if (this.pickNote) {
-      // The design phase prompt already lists the picks.
-      if (!text.includes('Chosen sketch directions')) text = `${this.pickNote}\n\n${text}`;
-      this.pickNote = '';
-    }
     if (this.figmaNote) {
       text = `${this.figmaNote}\n\n${text}`;
       this.figmaNote = '';
@@ -505,16 +486,15 @@ export class AgentSession {
 
   async interrupt() {
     if (isActive(this.state.session.longRun)) this.endLongRun('stopped', 'user');
-    if (this.state.session.flow.phase === 'file') return this.endFlow('stopped', 'Design run stopped');
     if (this.work && this.turns === 0) {
       this.work.abort();
-      this.endFlow('stopped', 'Design run stopped');
+      this.setFlow({ reviewers: [] });
+      this.system('Stopped');
       this.setSession({ running: false });
       return;
     }
     if (!this.q || !this.state.session.running || this.state.session.stopping) return;
     this.planChange = null;
-    if (this.flowActive()) this.endFlow('stopped', 'Design run stopped');
     this.turns -= this.inputQueue.length;
     this.inputQueue = [];
     if (this.turns <= 0) {
@@ -554,12 +534,6 @@ export class AgentSession {
         this.workflowKey = note;
       }
     }
-    const sketch = await readSketch(this.cwd).catch(() => null);
-    const picks = designerPicksKey(sketch);
-    if (picks !== this.pickKey) {
-      if (this.q) this.pickNote = picksNote(sketch);
-      this.pickKey = picks;
-    }
   }
 
   async prompt(text: string, refs?: unknown) {
@@ -585,7 +559,7 @@ export class AgentSession {
     if (this.sampleBlocked()) return;
     const task = text.trim();
     if (!task) return this.system('Write the task for the long run in the message box first');
-    if (this.state.session.running || this.flowActive() || isActive(this.state.session.longRun)) return this.system('Wait for the current turn to finish before starting a long run');
+    if (this.state.session.running || isActive(this.state.session.longRun)) return this.system('Wait for the current turn to finish before starting a long run');
     const now = Date.now();
     if (!Number.isFinite(until) || until <= now) return this.system('Pick a time later than now for the long run');
     if (!Number.isFinite(cap) || cap < 1 || cap > 100) return this.system('Set the 5-hour usage cap between 1 and 100%');
@@ -685,11 +659,6 @@ export class AgentSession {
     }
   }
 
-  private flowActive() {
-    const p = this.state.session.flow.phase;
-    return p !== null && (FLOW_ACTIVE.includes(p) || p === 'pick' || p === 'file');
-  }
-
   private onArea = (area: ReviewerState['area'], state: ReviewerState['state']) => {
     const list = this.state.session.flow.reviewers ?? [];
     this.setFlow({ reviewers: list.some((r) => r.area === area) ? list.map((r) => (r.area === area ? { area, state } : r)) : [...list, { area, state }] });
@@ -699,7 +668,7 @@ export class AgentSession {
     this.setSession({ flow: { ...this.state.session.flow, ...patch } });
   }
 
-  updateFlow(patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas' | 'stopAfterSketch'>>) {
+  updateFlow(patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas'>>) {
     const next: Partial<FlowState> = {};
     // The mode pill is gone: a saved Design or Review mode reads as Chat, so typed text never starts a run.
     if (patch.mode) next.mode = 'chat';
@@ -708,7 +677,6 @@ export class AgentSession {
       next.areas = AREAS.filter((a) => patch.areas!.includes(a));
       this.areasChosen = true;
     }
-    if (typeof patch.stopAfterSketch === 'boolean') next.stopAfterSketch = patch.stopAfterSketch;
     this.setFlow(next);
   }
 
@@ -734,11 +702,9 @@ export class AgentSession {
 
   private async command(cmd: 'design' | 'sketch' | 'review' | 'audit' | 'system' | 'crit' | 'copy' | 'buildcheck', arg: string, raw: string) {
     if (this.sampleBlocked()) return;
-    if (cmd === 'design' || cmd === 'sketch') {
-      if (!arg) return this.system(`Describe what to ${cmd} after /${cmd}`);
-      return this.startFlow(arg, cmd);
-    }
     this.pushEvent({ id: randomUUID(), kind: 'user', text: raw, at: Date.now() });
+    // Design runs became the From scratch workflow: the typed commands say where they went.
+    if (cmd === 'design' || cmd === 'sketch') return this.system(DESIGN_MOVED);
     if (!this.figma) return this.system('Link a Figma file to this chat first: start a new chat from a Figma link');
     if (cmd === 'system') return this.background('Building the design system profile', async (signal) => {
       const r = await buildProfile(this.cwd, this.figma!, signal);
@@ -819,45 +785,6 @@ export class AgentSession {
     this.pushEvent({ id: randomUUID(), kind: 'review', at: Date.now(), runAt: run.at });
   }
 
-  private async startFlow(task: string, kind: FlowKind) {
-    if (this.sampleBlocked()) return;
-    this.pushEvent({ id: randomUUID(), kind: 'user', text: task, at: Date.now() });
-    this.task = task;
-    this.retried = false;
-    this.fixesDone = 0;
-    this.lastRun = null;
-    this.flowDecide.clear();
-    this.setFlow({ kind, phase: 'plan', round: 0, tokens: 0 });
-    await this.runStep({ phase: 'plan', model: MODELS.plan, mode: 'plan', label: 'Plan · Opus', prompt: planPrompt(task, this.figma, kind) }, false);
-  }
-
-  private async runStep(step: Step, marker = true) {
-    this.turns++;
-    this.setSession({ running: true });
-    try {
-      if (this.state.session.model !== step.model) await this.setModel(step.model);
-      if (this.state.session.permissionMode !== step.mode) await this.setPermissionMode(step.mode, true);
-    } finally {
-      this.turns--;
-    }
-    this.setFlow({ phase: step.phase });
-    if (marker) this.pushEvent({ id: randomUUID(), kind: 'user', text: step.label, at: Date.now(), phase: step.phase });
-    await this.refreshMapNote().catch(() => {});
-    this.enqueue(step.prompt);
-  }
-
-  private flowTool(toolName: string, input: Record<string, unknown>): Promise<PermissionResult> | null {
-    if (toolName.endsWith('__set_status')) return Promise.resolve({ behavior: 'allow', updatedInput: input });
-    if (toolName !== 'ExitPlanMode' || this.state.session.flow.phase !== 'plan') return null;
-    const plan = typeof input.plan === 'string' ? input.plan : '';
-    return writeFile(path.join(this.cwd, 'plan.md'), plan).then(() => {
-      this.planSaved = true;
-      return { behavior: 'deny' as const, message: 'The plan is saved. Stop here and end your turn; the sketch phase starts automatically.' };
-    });
-  }
-
-  private planSaved = false;
-
   /** Reads a long run's turn text: the round Claude says it is on, and the report. */
   private longRunText(text: string) {
     const run = this.state.session.longRun;
@@ -870,132 +797,6 @@ export class AgentSession {
   private longRunTool(toolName: string): Promise<PermissionResult> | null {
     if (toolName !== 'AskUserQuestion' || !isActive(this.state.session.longRun)) return null;
     return Promise.resolve({ behavior: 'deny', message: ASK_DENIED });
-  }
-
-  continueFlow() {
-    if (this.state.session.flow.phase !== 'pick' || this.state.session.running) return;
-    void this.toDesign();
-  }
-
-  private endFlow(phase: 'done' | 'stopped', note: string) {
-    this.work?.abort();
-    this.setFlow({ phase, reviewers: [] });
-    this.system(note);
-    if (this.state.session.model !== MODELS.work) void this.setModel(MODELS.work);
-    if (this.state.session.permissionMode === 'plan') void this.setPermissionMode('auto', true);
-  }
-
-  private async advanceFlow() {
-    const flow = this.state.session.flow;
-    try {
-      switch (flow.phase) {
-        case 'plan': {
-          if (!this.planSaved && this.lastResult.trim()) await writeFile(path.join(this.cwd, 'plan.md'), this.lastResult);
-          this.planSaved = false;
-          return this.runStep({ phase: 'sketch', model: MODELS.work, mode: 'auto', label: 'Sketch · Sonnet', prompt: sketchPrompt(flow.stopAfterSketch) });
-        }
-        case 'sketch': {
-          let sketch;
-          try {
-            sketch = await readSketch(this.cwd);
-            if (!sketch) throw new Error('sketch.json was not written');
-          } catch (err) {
-            if (this.retried) return this.endFlow('stopped', `Design run stopped: ${(err as Error).message}`);
-            this.retried = true;
-            return this.runStep({ phase: 'sketch', model: MODELS.work, mode: 'auto', label: 'Sketch fix', prompt: sketchFixPrompt((err as Error).message) });
-          }
-          this.retried = false;
-          await renderAll(this.cwd, sketch);
-          this.system(`Sketches ready: ${sketch.screens.map((s) => `${s.name} (${s.directions.length})`).join(', ')}. See the Sketch tab.`);
-          if (flow.kind === 'sketch') return this.endFlow('done', 'Sketch run finished');
-          if (flow.stopAfterSketch && sketch.screens.some((s) => !s.chosen)) {
-            this.setFlow({ phase: 'pick' });
-            this.setSession({ running: false });
-            this.system('Pick a direction for each screen on the Sketch tab, then press Continue');
-            return;
-          }
-          return this.toDesign();
-        }
-        case 'design': {
-          const design = await readDesign(this.cwd);
-          if (!design?.frames?.length) {
-            if (this.retried) return this.endFlow('stopped', 'Design run stopped: Claude did not list the frames it made, so there is nothing to review');
-            this.retried = true;
-            return this.runStep({ phase: 'design', model: MODELS.work, mode: 'auto', label: 'Design list', prompt: designFilePrompt });
-          }
-          this.retried = false;
-          return this.review(design.frames.map((f) => f.nodeId), 1, null, 'review');
-        }
-        case 'fix': {
-          this.fixesDone++;
-          const design = await readDesign(this.cwd);
-          const frames = design?.frames.map((f) => f.nodeId) ?? this.lastRun?.frames ?? [];
-          if (afterFix(flow.preset, this.fixesDone) === 'review' && this.lastRun) return this.review(frames, flow.round + 1, failedAreas(this.lastRun), 'review');
-          return this.review(frames, flow.round + 1, [], 'verify');
-        }
-      }
-    } catch (err) {
-      this.endFlow('stopped', `Design run stopped: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  private async toDesign() {
-    if (!this.figma) {
-      this.setFlow({ phase: 'file' });
-      this.setSession({ running: false });
-      this.system('Attach a Figma file to continue the design run');
-      return;
-    }
-    // A profile she removed stays removed: the run goes on without one.
-    if (!(await readProfile(this.cwd)) && !(await profileOff(this.cwd))) {
-      this.setFlow({ phase: 'system' });
-      this.pushEvent({ id: randomUUID(), kind: 'user', text: 'Design system · Sonnet', at: Date.now(), phase: 'system' });
-      await this.background('Building the design system profile', async (signal) => {
-        const r = await buildProfile(this.cwd, this.figma!, signal);
-        this.addTokens(r.tokens);
-        this.recordBackground('system', r);
-        this.system(`Design system profile built: ${r.ds.colors.length} colors, ${r.ds.text.length} text styles, ${r.ds.components.length} components`);
-      });
-      if (this.state.session.flow.phase !== 'system') return;
-    }
-    const sketch = await readSketch(this.cwd).catch(() => null);
-    const hasProfile = Boolean(await readProfile(this.cwd));
-    return this.runStep({ phase: 'design', model: MODELS.work, mode: 'auto', label: 'Design · Sonnet', prompt: designPrompt(sketch, hasProfile, this.task, await boardNotes(this.cwd)) });
-  }
-
-  private async review(frames: string[], round: number, onlyFailed: Area[] | null, kind: 'review' | 'verify') {
-    if (kind === 'review') await this.areasForReview();
-    const flow = this.state.session.flow;
-    const preset = kind === 'verify' ? 'check' : flow.preset;
-    this.setFlow({ phase: 'review', round, reviewers: [] });
-    this.pushEvent({ id: randomUUID(), kind: 'user', text: kind === 'verify' ? 'Final check' : `Review ${round} · ${PRESET_INFO[preset].label}`, at: Date.now(), phase: 'review' });
-    let run: ReviewRun | null = null;
-    await this.background(kind === 'verify' ? 'Checking the fixes' : 'Reviewing the design', async (signal) => {
-      run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset, areas: flow.areas, round, kind, onlyFailed, signal, onProgress: (t) => this.setStatus(t), onArea: this.onArea });
-    });
-    if (this.state.session.flow.phase !== 'review') return;
-    this.setFlow({ reviewers: [] });
-    if (!run) return this.endFlow('stopped', 'Design run stopped: the review could not run');
-    const done: ReviewRun = run;
-    this.lastRun = done;
-    this.addTokens(done.tokens);
-    this.recordBackground('review', done);
-    this.reviewDone(done);
-    for (const f of [...done.check, ...done.results.flatMap((r) => r.findings)]) if (f.decide) this.flowDecide.add(awaitKey(this.figma!.key, f));
-    const pending = toFix(done);
-    if (kind === 'verify') return this.finish(pending.length);
-    const next = afterReview(preset, this.fixesDone, pending);
-    if (next.next === 'fix') return this.runStep({ phase: 'fix', model: MODELS.work, mode: 'auto', label: `Fix ${this.fixesDone + 1} · Sonnet`, prompt: fixPrompt(next.fixes, this.fixesDone + 1) });
-    return this.finish(pending.length);
-  }
-
-  /** Findings from this design run's reviews that went to Awaiting your decision (fix rounds skip them). */
-  private flowDecide = new Set<string>();
-
-  private async finish(left: number) {
-    const tokens = this.state.session.flow.tokens;
-    const waiting = this.flowDecide.size ? openCount(await readAwaiting().catch(() => []), this.flowDecide) : 0;
-    this.endFlow('done', `Design run finished${finishText(left, waiting)} · ${Math.round(tokens / 1000)}k tokens`);
   }
 
   private recordSpend(phase: string, model: string, tokens: number, costUsd: number) {
@@ -1025,8 +826,7 @@ export class AgentSession {
   }
 
   private recordResult(msg: Extract<SDKMessage, { type: 'result' }>) {
-    const p = this.state.session.flow.phase;
-    const phase = this.flowActive() && p ? (p === 'fix' ? 'design' : p === 'pick' ? 'sketch' : p === 'file' ? 'design' : p) : 'chat';
+    const phase = 'chat';
     const cumulative = msg.total_cost_usd >= this.lastCost;
     const prev = cumulative ? this.lastModels : {};
     const next: Record<string, SpendPart> = {};
@@ -1040,10 +840,6 @@ export class AgentSession {
 
   private lastCost = 0;
   private lastModels: Record<string, SpendPart> = {};
-
-  private addTokens(n: number) {
-    if (this.flowActive() || this.state.session.flow.phase === 'system') this.setFlow({ tokens: this.state.session.flow.tokens + n });
-  }
 
   async steer(text: string, id: string = randomUUID(), refs?: unknown) {
     if (this.sampleBlocked()) return;
@@ -1095,17 +891,15 @@ export class AgentSession {
   private turnEnded() {
     this.turns = Math.max(0, this.turns - 1);
     const idle = this.turns === 0 && !this.state.session.stopping;
-    const flowing = idle && this.flowActive() && this.state.session.flow.phase !== 'pick' && this.state.session.flow.phase !== 'file';
-    const next = idle && !flowing ? this.followUp() : null;
-    const nudge = idle && !flowing && next === null ? this.longRunNext() : null;
-    this.setSession({ running: this.turns > 0 || next !== null || nudge !== null || flowing, compacting: false, stopping: false });
-    if (flowing) void this.advanceFlow();
-    else if (next) this.sendPrompt(next);
+    const next = idle ? this.followUp() : null;
+    const nudge = idle && next === null ? this.longRunNext() : null;
+    this.setSession({ running: this.turns > 0 || next !== null || nudge !== null, compacting: false, stopping: false });
+    if (next) this.sendPrompt(next);
     else if (nudge) this.enqueue(nudge);
-    if (idle) this.autoCheck(flowing);
+    if (idle) this.autoCheck();
   }
 
-  private autoCheck(flowing: boolean) {
+  private autoCheck() {
     const edited = this.figmaEdited;
     const touched = this.touched.ranked();
     this.figmaEdited = false;
@@ -1124,7 +918,7 @@ export class AgentSession {
     const it = this.projectCtx?.scope === 'flow' ? this.projectCtx.iteration : null;
     if (it?.node && it.state === 'working') void mapRead.then(() => scheduleRestack(this.cwd, key, it.id));
     if (it) void this.profileAfterSystem(mapRead);
-    if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
+    if (isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.work) return;
     void this.checkEdited(key, touched, mapRead);
   }
 
@@ -1310,8 +1104,6 @@ export class AgentSession {
       case 'result': {
         this.liveText.clear();
         this.recordResult(msg);
-        const u = msg.usage as any;
-        this.addTokens((u?.input_tokens ?? 0) + (u?.output_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0));
         this.lastResult = msg.subtype === 'success' ? msg.result : '';
         this.lastError = msg.is_error;
         this.pushEvent({
@@ -1330,10 +1122,4 @@ export class AgentSession {
         return;
     }
   }
-}
-
-/** The end of the design run line: what is left for her and what waits for her decision. */
-export function finishText(left: number, waiting: number) {
-  const parts = [left ? `${left} ${left === 1 ? 'issue' : 'issues'} left for you to look at` : '', waiting ? waitText(waiting) : ''].filter(Boolean);
-  return parts.length ? `, ${parts.join(', ')}` : ', review passed';
 }

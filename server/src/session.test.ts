@@ -17,18 +17,16 @@ function fakeSession() {
 
 describe('AgentSession modes', () => {
   const spy = (s: AgentSession) => {
-    const priv = s as unknown as { startFlow: (t: string, k: string) => Promise<void>; command: (c: string, a: string, r: string) => Promise<void> };
-    const startFlow = vi.spyOn(priv, 'startFlow').mockResolvedValue();
+    const priv = s as unknown as { command: (c: string, a: string, r: string) => Promise<void> };
     const command = vi.spyOn(priv, 'command').mockResolvedValue();
-    return { startFlow, command };
+    return { command };
   };
 
   it('defaults to chat and a plain prompt does not start a flow', async () => {
     const { s } = fakeSession();
-    const { startFlow, command } = spy(s);
+    const { command } = spy(s);
     expect(s.state.session.flow.mode).toBe('chat');
     await s.prompt('make a card');
-    expect(startFlow).not.toHaveBeenCalled();
     expect(command).not.toHaveBeenCalled();
     expect(s.state.session.running).toBe(true);
     expect(s.state.events.filter((e) => e.kind === 'user').at(-1)).toMatchObject({ text: 'make a card' });
@@ -36,12 +34,11 @@ describe('AgentSession modes', () => {
 
   it('reads a saved Design or Review mode as Chat, so typed text never starts a run', async () => {
     const { s } = fakeSession();
-    const { startFlow, command } = spy(s);
+    const { command } = spy(s);
     s.updateFlow({ mode: 'design' });
     expect(s.state.session.flow.mode).toBe('chat');
     s.state.session.flow.mode = 'review';
     await s.prompt('check spacing 1:2');
-    expect(startFlow).not.toHaveBeenCalled();
     expect(command).not.toHaveBeenCalled();
   });
 
@@ -78,44 +75,6 @@ describe('AgentSession setFigma', () => {
     expect(s.figmaFile).toBeNull();
     expect(s.state.events.at(-1)).toMatchObject({ kind: 'system' });
     expect((s.state.events.at(-1) as { text: string }).text).toMatch(/Wait/);
-  });
-});
-
-describe('AgentSession design run without a file', () => {
-  const file = { key: 'AbC123', name: 'Checkout', url: 'https://www.figma.com/design/AbC123' };
-  const toDesign = (s: AgentSession) => (s as unknown as { toDesign: () => Promise<void> }).toDesign();
-
-  it('waits in the file phase and resumes when a file is attached', async () => {
-    const { s } = fakeSession();
-    const next = vi.spyOn(s as unknown as { toDesign: () => Promise<void> }, 'toDesign');
-    await toDesign(s);
-    expect(s.state.session.flow.phase).toBe('file');
-    expect(s.state.session.running).toBe(false);
-    expect(s.state.events.at(-1)).toMatchObject({ kind: 'system', text: 'Attach a Figma file to continue the design run' });
-    next.mockResolvedValue();
-    s.setFigma(file);
-    expect(next).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not build a profile she removed on purpose', async () => {
-    const { mkdtemp, writeFile } = await import('node:fs/promises');
-    const os = await import('node:os');
-    const path = await import('node:path');
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'ds-off-'));
-    await writeFile(path.join(dir, 'design-system.off'), 'Removed\n');
-    const s = new AgentSession(dir, file);
-    const runStep = vi.spyOn(s as unknown as { runStep: (o: { phase: string }) => Promise<void> }, 'runStep').mockResolvedValue();
-    await toDesign(s);
-    expect(s.state.events.some((e) => e.kind === 'user' && e.text.startsWith('Design system'))).toBe(false);
-    expect(runStep).toHaveBeenCalledWith(expect.objectContaining({ phase: 'design' }));
-  });
-
-  it('ends as stopped on interrupt', async () => {
-    const { s } = fakeSession();
-    Object.assign(s, { setModel: async () => {}, setPermissionMode: async () => {} });
-    await toDesign(s);
-    await s.interrupt();
-    expect(s.state.session.flow.phase).toBe('stopped');
   });
 });
 

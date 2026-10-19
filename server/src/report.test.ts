@@ -29,7 +29,6 @@ describe('buildReport', () => {
     expect(html).toContain('Shop &lt;app&gt;');
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
-    expect(html).not.toContain('<h2>Sketches</h2>');
     expect(html).not.toContain('<h2>Copy changes</h2>');
   });
 
@@ -210,14 +209,5 @@ describe('buildReport', () => {
     expect(briefLede('# T\n\nFirst para.\n\n## Goal')).toBe('First para.');
     expect(briefLede('x'.repeat(400))).toHaveLength(280);
     expect(briefLede('- only a list')).toBe('');
-  });
-
-  it('inlines sketches as data images, not markup', async () => {
-    await mkdir(path.join(dir, 'sketches'));
-    await writeFile(path.join(dir, 'sketches', 's1--d1.svg'), '<svg><script>alert(1)</script></svg>');
-    await writeFile(path.join(dir, 'sketch.json'), JSON.stringify({ screens: [{ id: 's1', name: 'Home', directions: [{ id: 'd1', name: 'A', rationale: 'r', items: [] }] }] }));
-    const html = await buildReport(dir, figma);
-    expect(html).toContain('src="data:image/svg+xml;base64,');
-    expect(html).not.toContain('<script>alert');
   });
 });

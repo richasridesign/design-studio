@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { readFile, stat } from 'node:fs/promises';
-import { AREA_NAMES, PERSONA_NAMES, figmaNodeUrl, type CopyRun, type CritRun, type DesignDoc, type Finding, type FigmaFile, type ReviewRun, type Severity, type SketchDoc } from '../../shared/design.js';
-import { readSketch } from './sketch.js';
+import { AREA_NAMES, PERSONA_NAMES, figmaNodeUrl, type CopyRun, type CritRun, type DesignDoc, type Finding, type FigmaFile, type ReviewRun, type Severity } from '../../shared/design.js';
 import { readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
 import { rulesLine, rulesSummary, type RuleResult } from '../../shared/rules.js';
@@ -108,7 +107,6 @@ type Data = {
   plan: string;
   research: string;
   scope: Scope;
-  sketch: SketchDoc | null;
   /** The flow's workflow in this chat's iteration, when the chat is on a flow. */
   workflow: WorkflowState | null;
   /** This chat's iteration block from its flow's history file (heading and markdown), when the chat is on a flow. */
@@ -154,24 +152,6 @@ function scope(d: Data): Section | null {
     ? `<h3>Parked</h3><ul class="rows">${s.parked.map((p) => `<li><strong>${esc(p.name)}</strong>, parked ${esc(day(p.at))}<br>Why: ${esc(p.why)}${p.restore ? `<br>To restore: ${esc(p.restore)}` : ''}</li>`).join('')}</ul>`
     : '';
   return { id: 'scope', title: 'Scope', body: flows + parked };
-}
-
-async function sketches(d: Data): Promise<Section | null> {
-  if (!d.sketch) return null;
-  const blocks: string[] = [];
-  for (const s of d.sketch.screens) {
-    if (!safeId(s.id)) continue;
-    const figs: string[] = [];
-    for (const dir of s.directions) {
-      if (!safeId(dir.id)) continue;
-      const svg = await read(path.join(d.dir, 'sketches', `${s.id}--${dir.id}.svg`));
-      if (!svg) continue;
-      const chosen = s.chosen === dir.id;
-      figs.push(`<figure class="${chosen ? 'chosen' : ''}"><img alt="Sketch: ${esc(dir.name)}" src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}"><figcaption><strong>${esc(dir.name)}</strong>${chosen ? ` ${st('pass', 'Chosen')}` : ''}<small>${esc(dir.rationale)}</small></figcaption></figure>`);
-    }
-    if (figs.length) blocks.push(`<h3>${esc(s.name)}</h3><div class="grid">${figs.join('')}</div>`);
-  }
-  return blocks.length ? { id: 'sketches', title: 'Sketches', body: blocks.join('') } : null;
 }
 
 /** What changed in this iteration and why, with the decisions read from the Decision stickies under each screen. */
@@ -517,11 +497,10 @@ footer p { margin: 0; }
 export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'design';
 
 async function load(dir: string, figma: FigmaFile | null, names: Record<string, string>): Promise<Data> {
-  const [plan, researchMd, scopeDoc, sketch, workflow, designDoc, reviewDoc, flows, critRuns, copyRuns] = await Promise.all([
+  const [plan, researchMd, scopeDoc, workflow, designDoc, reviewDoc, flows, critRuns, copyRuns] = await Promise.all([
     read(path.join(dir, 'plan.md')),
     read(path.join(dir, 'research.md')),
     readScope(dir),
-    readSketch(dir).catch(() => null),
     readWorkflow(dir).catch(() => null),
     readDesign(dir),
     readReview(dir).catch(() => ({ runs: [] })),
@@ -540,7 +519,6 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     plan: plan?.trim() ?? '',
     research: researchMd?.trim() ?? '',
     scope: scopeDoc,
-    sketch,
     workflow,
     history: block ? { heading: block.heading, body: block.body } : null,
     design: designDoc,
@@ -562,7 +540,7 @@ export async function buildReport(dir: string, figma: FigmaFile | null, chatTitl
   const d = await load(dir, figma, names);
   // Older chats only list frames on their review runs.
   const frames = d.design?.frames.length ? d.design.frames.map((f) => f.nodeId) : (d.run?.frames ?? []);
-  const sections = (await Promise.all([brief(d), research(d), scope(d), sketches(d), history(d), design(d), review(d), crit(d), copy(d)])).filter((s): s is Section => !!s);
+  const sections = (await Promise.all([brief(d), research(d), scope(d), history(d), design(d), review(d), crit(d), copy(d)])).filter((s): s is Section => !!s);
   const toc = sections.length >= 3
     ? `<nav class="toc" aria-label="Contents"><p>Contents</p><ol><li><a href="#summary">Summary</a></li>${sections.map((s) => `<li><a href="#${s.id}">${esc(s.title)}</a>${s.count ? `<small>${esc(s.count)}</small>` : ''}</li>`).join('')}</ol></nav>`
     : '';

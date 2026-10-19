@@ -24,11 +24,11 @@ export { buildTree, filterTree } from './projectTree';
 const RECENT = 5;
 const FOLDED_KEY = 'designstudio.foldedFolders';
 
-// Opens the sample chat (Grocery app) and shows its sketch. Shared by the sidebar row and the first-run state.
+// Opens the sample chat (Grocery app) on its Figma tab. Shared by the sidebar row and the first-run state.
 export async function openSample() {
   const { id } = await postJson<{ id: string }>('/api/sample', {});
   send({ type: 'view', id });
-  setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
+  setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } })), 400);
 }
 
 type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number } | { kind: 'flow'; p: TreeProject };
