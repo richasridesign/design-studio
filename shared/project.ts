@@ -382,7 +382,7 @@ export function projectInstructions(ctx: ChatContext): string {
       ctx.flow.baseline ? `The flow's baseline (frozen, read it for reference): section ${ctx.flow.baseline}.` : '',
       `Edit only inside your flow subsection${inIt?.states ? ' and its states subsection' : ''}: put every new or changed screen there and end each edit with DS.fit on your subsection. Never move or resize other subsections${others.length ? ` (${others.join(', ')})` : ''} or the iteration section itself; Design Studio restacks them. ${never}`,
       it.state === 'frozen' ? `Iteration ${it.id} is frozen. Do not edit it; ask the designer to reopen it or to create a new iteration from the sidebar.` : '',
-      'Under each new screen put its two Decision stickies 96px below, and the flow notes as short bullets, as the designer\'s rules say.',
+      'Under each new screen put 3 to 5 Decision stickies right below it, and the flow notes as short bullets, as the designer\'s rules say.',
     ].filter(Boolean).join('\n');
   }
   return [
