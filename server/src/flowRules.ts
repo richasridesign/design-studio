@@ -89,12 +89,19 @@ const LATEST = /\blatest\b/i;
  * - Inside a section named LATEST, at any depth: the latest version. Every LATEST section counts as one.
  * - Otherwise: its top-level section.
  */
-export function versionOf(chain: FlowRef[]): string {
+export function versionOf(chain: FlowRef[], its: Iterations = {}): string {
   const parked = chain.find((s) => namedLike(s.name, 'parked'));
   if (parked) return `parked:${parked.id}`;
+  // A tagged iteration (project.json and the map tags): every working one is the latest version, each frozen one
+  // its own old version. Untagged files fall back to the LATEST name.
+  const it = chain.map((s) => its[s.id]).find(Boolean);
+  if (it) return it.state === 'working' ? 'latest' : `frozen:${it.id}`;
   if (chain.some((s) => LATEST.test(s.name))) return 'latest';
   return chain[0]?.id ?? '';
 }
+
+/** The iteration a section sits in, by the iteration sections around it. */
+const iterationOf = (chain: FlowRef[], its: Iterations) => chain.map((s) => its[s.id]).find(Boolean)?.id;
 
 const visible = (n: any) => n && n.visible !== false;
 const kids = (n: any): any[] => (n?.children ?? []).filter(visible);
@@ -415,7 +422,7 @@ const intersects = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.widt
 const contains = (outer: Box, inner: Box) => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 
 // parked: inside a section named Parked, so no rule runs on it. feature: the parked feature this section is named after.
-type Flow = { ref: FlowRef; path: string[]; ancestors: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null; version: string };
+type Flow = { ref: FlowRef; path: string[]; ancestors: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null; version: string; iteration?: string };
 type Item = { id: string; name: string; box: Box; section: boolean; ancestors: string[]; flow: FlowRef; parent: string | null };
 
 // Flow and section notes: text in a section outside its screens, Decision stickies and the changelog. A note over
@@ -448,12 +455,15 @@ const cutShort = (n: any): boolean => !!n.cut || kids(n).some((c) => c.type !== 
  * screens in those need Decision stickies, 3 to 5 each; frozen iterations, the baseline and entry copies are history.
  * Without it (a file with no project.json) every screen needs Decision 1 and 2, once the file has any sticky.
  */
-export type StickyRule = { working?: string[] };
+export type StickyRule = { working?: string[]; iterations?: Iterations };
+/** Iteration section node id -> its id and state, for the Old link rule and the iteration scope of each flow. */
+export type Iterations = Record<string, { id: string; state: 'working' | 'frozen' }>;
 
 const ENTRY_COPY = /\(entry, unchanged\)/i;
 
 export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE, sticky: StickyRule = {}): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
   const working = sticky.working ? new Set(sticky.working) : null;
+  const its = sticky.iterations ?? {};
   const flows: Flow[] = [];
   const screens = new Map<string, ScreenInfo>();
   // Every layer directly inside a section, screens or not, so links to small overlays are traced too.
@@ -475,11 +485,11 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     if (!tops.some((c) => c.type === 'SECTION')) continue;
     const walkSection = (s: any, path: string[], ancestors: string[], chain: FlowRef[]) => {
       const ref = { id: s.id, name: String(s.name ?? s.id) };
-      const version = versionOf([...chain, ref]);
+      const version = versionOf([...chain, ref], its);
       const own = kids(s).filter(isScreen);
       const subs = kids(s).filter((c) => c.type === 'SECTION');
       const full = [...path, ref.name].join(' / ');
-      const flow: Flow = { ref, path, ancestors, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null, version };
+      const flow: Flow = { ref, path, ancestors, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null, version, iteration: iterationOf([...chain, ref], its) };
       flows.push(flow);
       for (const c of kids(s)) if (c.type !== 'SECTION') owner.set(c.id, flow);
       if (s.absoluteBoundingBox) items.push({ id: s.id, name: ref.name, box: s.absoluteBoundingBox, section: true, ancestors, flow: ref, parent: ancestors[ancestors.length - 1] ?? null });
@@ -518,7 +528,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     const page = o.p ? { id: o.p[0], name: o.p[1] } : { id: '', name: '' };
     const flow = chain[chain.length - 1] ?? { id: page.id, name: `Not in a section (${page.name})` };
     const shape = { type: o.t, name: o.n, absoluteBoundingBox: { x: 0, y: 0, width: o.w, height: o.h } };
-    const far = { info: { id, name: String(o.n ?? id), flow, version: chain.length ? versionOf(chain) : `loose:${page.id}` }, chain, screen: isScreen(shape) };
+    const far = { info: { id, name: String(o.n ?? id), flow, version: chain.length ? versionOf(chain, its) : `loose:${page.id}` }, chain, screen: isScreen(shape) };
     outside.set(id, far);
   }
   const screenAt = (id: string) => {
@@ -621,12 +631,12 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
   const results: FlowResult[] = [];
   for (const f of flows) {
     if (f.parked) {
-      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'parked' });
+      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, ...(f.iteration ? { iteration: f.iteration } : {}), screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'parked' });
       continue;
     }
     // The plugin read stops at a layer cap: a section it cut short would show stickies and links as missing.
     if (cutShort(f.node)) {
-      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'cut' });
+      results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, ...(f.iteration ? { iteration: f.iteration } : {}), screens: f.screens.length, state: 'unchecked', counts: {}, unchecked: [], findings: [], more: 0, skipped: 'cut' });
       continue;
     }
     const list = found.get(f.ref.id) ?? [];
@@ -636,7 +646,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     const state = list.length ? 'fail' : f.screens.length ? 'pass' : 'unchecked';
     const order = (x: FlowFinding) => f.screens.findIndex((s) => s.id === x.screen?.id);
     const sorted = [...list].sort((x, y) => order(x) - order(y) || FLOW_RULES.indexOf(x.rule) - FLOW_RULES.indexOf(y.rule));
-    results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state, counts, unchecked: decisions || working ? [] : ['no-stickies'], findings: sorted.slice(0, MAX_PER_FLOW), more: Math.max(0, sorted.length - MAX_PER_FLOW) });
+    results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, ...(f.iteration ? { iteration: f.iteration } : {}), screens: f.screens.length, state, counts, unchecked: decisions || working ? [] : ['no-stickies'], findings: sorted.slice(0, MAX_PER_FLOW), more: Math.max(0, sorted.length - MAX_PER_FLOW) });
   }
   // Flows named in Scope need a section in the file. Parked sections and loose screens do not count.
   const live = flows.filter((f) => f.section && !f.parked).map((f) => [...f.path, f.ref.name].join(' '));

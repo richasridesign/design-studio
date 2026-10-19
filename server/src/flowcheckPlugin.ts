@@ -29,7 +29,7 @@ const BULLETS = /•|(^|\n)\s*([-*–]|\d+[.)])\s/;
  * It builds a compact tree (short keys, see expandNode) plus the component maps checkFlows groups copies by.
  * Like the REST loader, pages with a top-level SECTION get full SECTION and FRAME subtrees and shallow other nodes.
  */
-type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[]; first?: string[] };
+type WalkOpts = { maxNodes?: number; maxDepth?: number; only?: string[]; first?: string[]; firstIds?: string[] };
 
 /** Sections walked before the rest, so the node cap never cuts them: her live work sits in LATEST and Parked. */
 export const FIRST = /\b(latest|parked)\b/i;
@@ -44,6 +44,7 @@ function flowWalk(opts: WalkOpts = {}) {
 const ONLY = ${JSON.stringify(opts.only ?? null)};
 const FIRST = new RegExp(${JSON.stringify(FIRST.source)}, 'i');
 const FIRST_NAMES = ${JSON.stringify((opts.first ?? []).filter((f) => f.trim()))};
+const FIRST_IDS = ${JSON.stringify(opts.firstIds ?? [])};
 const MARKS = new RegExp(${JSON.stringify(MARKS.source)}, 'g');
 const NON_WORD = new RegExp(${JSON.stringify(NON_WORD.source)}, 'g');
 const words = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFKD').replace(MARKS, '').replace(NON_WORD, ' ').trim();
@@ -179,7 +180,8 @@ const LATEST_TOP = /\\blatest\\b/i;
 const allTops = [];
 for (const p of plan) if (p.flows) for (const t of p.tops) allTops.push(t);
 const kidNames = (t) => { try { return (t.type === 'SECTION' && t.children ? t.children : []).map((c) => c.name); } catch (e) { return []; } };
-const firstIds = new Set();
+// Working iteration sections (project.json) go first too, whatever their name.
+const firstIds = new Set(FIRST_IDS);
 for (const f of FIRST_NAMES) {
   if (allTops.some((t) => LATEST_TOP.test(String(t.name || '')) && (named(t.name, f) || kidNames(t).some((n) => named(n, f))))) continue;
   const exact = allTops.filter((t) => words(t.name) === words(f));
@@ -266,7 +268,8 @@ export function rulesBundle(): Promise<string> {
 
 /** The whole use_figma body: rules, walker, then the check. Only reads. */
 export async function flowCheckBody(scope: Scope = EMPTY_SCOPE, opts: WalkOpts = {}, sticky: StickyRule = {}) {
-  return `${await rulesBundle()}\n${flowWalk({ first: scope.flows, ...opts })}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)}, ${JSON.stringify(sticky)});`;
+  const firstIds = Object.entries(sticky.iterations ?? {}).filter(([, it]) => it.state === 'working').map(([id]) => id);
+  return `${await rulesBundle()}\n${flowWalk({ first: scope.flows, firstIds, ...opts })}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)}, ${JSON.stringify(sticky)});`;
 }
 
 export type PluginCheck = { flows: FlowCheckRun['flows']; unchecked: FlowCheckRun['unchecked']; missing: string[]; truncated: boolean; nodes: number; costUsd: number; ms: number };

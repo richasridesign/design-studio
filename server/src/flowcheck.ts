@@ -5,7 +5,7 @@ import type { FlowCheckRun, FlowRule } from '../../shared/flowcheck.js';
 import type { Scope } from '../../shared/scope.js';
 import { readScope } from './scope.js';
 import { SAMPLE_KEY } from './figma.js';
-import { checkFlows, type StickyRule } from './flowRules.js';
+import { checkFlows, type Iterations, type StickyRule } from './flowRules.js';
 import { pluginFlowCheck } from './flowcheckPlugin.js';
 import { readProject } from './project.js';
 import { projectRoot } from './roots.js';
@@ -32,7 +32,12 @@ export async function stickyRule(dir: string, fileKey: string): Promise<StickyRu
   for (const it of project.iterations) if (working.has(it.id)) for (const f of Object.values(it.flows ?? {})) for (const id of [f.node, f.states]) if (id) ids.add(id);
   const map = await cachedMap(projectRoot(dir), fileKey).catch(() => null);
   if (map) for (const s of taggedSections(map)) if ((s.tag.kind === 'flow' || s.tag.kind === 'states') && s.tag.iteration && working.has(s.tag.iteration)) ids.add(s.id);
-  return { working: [...ids] };
+  // Iteration sections by node, from project.json and then the tags, for the Old link rule and the iteration scope.
+  const iterations: Iterations = {};
+  const stateOf = (id: string): 'working' | 'frozen' => (working.has(id) ? 'working' : 'frozen');
+  for (const it of project.iterations) if (it.node) iterations[it.node] = { id: it.id, state: stateOf(it.id) };
+  if (map) for (const s of taggedSections(map)) if (s.tag.kind === 'iteration' && s.tag.iteration && project.iterations.some((it) => it.id === s.tag.iteration)) iterations[s.id] ??= { id: s.tag.iteration, state: stateOf(s.tag.iteration) };
+  return { working: [...ids], iterations };
 }
 
 // The check runs inside Figma through the plugin. `load` hands a document to the same rules here instead (tests).

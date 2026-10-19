@@ -148,6 +148,13 @@ describe('flowCheckScript', () => {
     expect(flows).toEqual(expect.arrayContaining([['LATEST flows', 'pass', ''], ['Onboarding', 'unchecked', 'cut']]));
   });
 
+  it('walks working iteration sections first by id, whatever their name', async () => {
+    const small = (id: string, name: string, x: number) => section(id, name, x, 0, 2000, 1200, [frame(`${id}0`, `${name} screen`, x + 100, 100, [text(`${id}1`, 'x')])]);
+    const figma = { root: node({ id: '0:0', type: 'DOCUMENT', name: 'Doc' }, [node({ id: '0:1', type: 'PAGE', name: 'Hi fi', loadAsync: async () => {} }, [small('1:', 'Flow 1 · V1', 0), small('2:', 'V1.19 · Readiness', 3000)])]) };
+    const out = await runScript(flowCheckScript({ maxNodes: 3, firstIds: ['2:'] }), figma);
+    expect(out.document.c![0].c!.filter((t: any) => t.c).map((t: any) => t.n)).toEqual(['V1.19 · Readiness']);
+  });
+
   it('matches Scope flows as whole words, prefers an exact name, and leaves old versions behind once LATEST holds the flow', async () => {
     const small = (id: string, name: string, x: number, kids: any[] = []) => section(id, name, x, 0, 2000, 1200, [frame(`${id}0`, `${name} screen`, x + 100, 100, [text(`${id}1`, 'x')]), ...kids]);
     const tops = (out: PluginPayload) => out.document.c![0].c!.filter((t: any) => t.c).map((t: any) => t.n);
