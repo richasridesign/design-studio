@@ -118,8 +118,16 @@
    Folder: chevron, file icon, name at 48px. Chats under it: status dot under the file icon, name at 48px. */
 .sidebar:has(> .sessions.chats) > .sidebar-title { padding: 0 12px; }
 .sessions.chats .sessions-bar { gap: 8px; padding: 0 12px 8px; }
+/* New chat and Add project share a row when the sidebar is wide enough, and stack when it is at its narrow default. */
+.sessions.chats .sessions-bar:has(> .add-project) { flex-wrap: wrap; }
+.sessions.chats .sessions-bar .new-chat { flex: 1 1 auto; }
+.sessions.chats .sessions-bar .add-project {
+  flex: 1 1 auto; height: 32px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--text-md); font-weight: 500; color: var(--fg-muted); border-radius: var(--radius-sm); white-space: nowrap;
+}
+.sessions.chats .sessions-bar .add-project:hover { color: var(--fg); }
 @media (min-width: 901px) {
-  .sessions.chats .sessions-bar .new-chat, .sessions.chats .sessions-bar input { height: 36px; }
+  .sessions.chats .sessions-bar .new-chat, .sessions.chats .sessions-bar .add-project, .sessions.chats .sessions-bar input { height: 36px; }
   .sessions.chats .sessions-bar input { line-height: 34px; font-size: var(--text-sm); }
 }
 .sessions.chats .sessions-bar input { padding: 0 16px; }

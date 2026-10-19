@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getJson, postJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { ATTACH, openAttach } from '../AttachFile';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
 import { type ProjectSummary } from '../../../shared/project';
@@ -198,6 +199,8 @@ export function Chats() {
     <div className="sessions chats">
       <div className="sessions-bar">
         <button className="new-chat" onClick={() => send({ type: 'new_chat' })}><Icon name="add" small /> New chat</button>
+        {/* Rarer than a new chat, so it is the quieter of the two. It opens the same popover as ⌘O, under itself. */}
+        <button className="ghost add-project" aria-haspopup="dialog" aria-keyshortcuts="Meta+O" onClick={(e) => openAttach(e.currentTarget)}><Icon name="file-media" small /> {ATTACH}</button>
       </div>
       <div className="sessions-bar">
         <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />
