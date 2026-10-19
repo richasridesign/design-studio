@@ -35,7 +35,7 @@ export function SelectionReview({ sel }: { sel: Selection }) {
           <p className="ff-line">No working iteration yet. Make one from the project menu, New iteration.</p>
         ) : (
           <>
-            <FlowCheck scope={{ cwd: sel.cwd, iteration: it.id, key: sel.key }} />
+            <FlowCheck scope={{ cwd: sel.cwd, iteration: it.id, key: sel.key, ...(sel.flow && it.flowNodes ? { nodes: it.flowNodes } : {}) }} />
             {flows === null && <p className="ff-line" role="status">Loading reviews…</p>}
             {flows === 'error' && <p className="ff-line error-text" role="alert">The reviews could not be read. Select the row again to retry.</p>}
             {flows && flows !== 'error' && !shown.length && <p className="ff-line">No flows in {it.id} yet.</p>}

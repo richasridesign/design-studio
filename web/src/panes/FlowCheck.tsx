@@ -80,13 +80,15 @@ function FlowRow({ flow, open, onToggle }: { flow: FlowResult; open: boolean; on
   );
 }
 
-/** `scope` checks one iteration of a project selected in the sidebar, with no chat for it. */
-export function FlowCheck({ scope }: { scope?: { cwd: string; iteration: string; key: string } } = {}) {
+/** `scope` checks one iteration of a project selected in the sidebar, with no chat for it; `nodes` shows only those sections (one flow). */
+export function FlowCheck({ scope }: { scope?: { cwd: string; iteration: string; key: string; nodes?: string[] } } = {}) {
   const viewed = useStore((s) => s.session.figma);
   const figma = scope ? { key: scope.key } : viewed;
   const at = scope ? `/api/projects/flowcheck?cwd=${encodeURIComponent(scope.cwd)}&iteration=${encodeURIComponent(scope.iteration)}` : '/api/flowcheck';
   const chat = useStore((s) => s.session.id);
-  const [run, setRun] = useState<FlowCheckRun | null>(null);
+  const [all, setRun] = useState<FlowCheckRun | null>(null);
+  const only = scope?.nodes;
+  const run = all && only ? { ...all, flows: all.flows.filter((f) => only.includes(f.id)) } : all;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -111,7 +113,7 @@ export function FlowCheck({ scope }: { scope?: { cwd: string; iteration: string;
       setRun(r.run);
       // The Validate gate counts this run.
       window.dispatchEvent(new Event('designstudio:evidence'));
-      const first = r.run.flows.find((f) => f.state === 'fail');
+      const first = r.run.flows.find((f) => f.state === 'fail' && (!only || only.includes(f.id)));
       setOpen(first ? { [first.id]: true } : {});
     } catch (e) {
       setError((e as Error).message);
@@ -144,7 +146,7 @@ export function FlowCheck({ scope }: { scope?: { cwd: string; iteration: string;
       {run && !busy && (
         <div className="fc-meta" role="status">
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
-          {run.iteration && <span className="fc-note">Iteration {run.iteration} only. Links into frozen iterations count as old versions.</span>}
+          {run.iteration && <span className="fc-note">{only ? `This flow in iteration ${run.iteration} only.` : `Iteration ${run.iteration} only.`} Links into frozen iterations count as old versions.</span>}
           {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers. It reads LATEST and Parked first, and skips sections it could not finish.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && !scope && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Fix the issues'}</button>}

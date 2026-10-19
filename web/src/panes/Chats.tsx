@@ -90,7 +90,11 @@ export function Chats() {
   };
   const same = (a: Selection | null, b: Selection) => !!a && a.kind === b.kind && a.cwd === b.cwd && a.flow?.slug === b.flow?.slug && a.iteration?.id === b.iteration?.id;
   const base = (p: TreeProject) => ({ cwd: p.cwd, name: p.name, key: p.key, url: p.url });
-  const itSel = (it: Iteration, label: string) => ({ id: it.id, label, state: it.state, ...(it.node ? { node: it.node } : {}) });
+  const itSel = (it: Iteration, label: string, slug?: string) => {
+    const own = slug ? it.flows?.[slug] : undefined;
+    const flowNodes = own ? [own.node, own.states].filter((x): x is string => !!x) : [];
+    return { id: it.id, label, state: it.state, ...(it.node ? { node: it.node } : {}), ...(flowNodes.length ? { flowNodes } : {}) };
+  };
 
   // A flow that is not in the working iteration yet gets its subsection (entry screens copied) before the chat starts.
   const chatIn = (p: TreeProject, f: TreeFlow, it: Iteration) => {
@@ -202,14 +206,14 @@ export function Chats() {
     const acts = <>{working && newChat(`New chat on ${f.flow.name} in ${i.iteration.id}`, () => chatIn(p, f, i.iteration))}{menu}</>;
     const title = `${i.label}: ${working ? 'working, chats can edit it' : 'frozen, chats only read it'}${i.iteration.node ? `. Figma section ${i.iteration.node}` : '. No Figma section yet'}`;
     const name = <><span className="it-id">{i.iteration.id} · </span><span className="it-topic">{i.label.slice(i.iteration.id.length + 3)}</span></>;
-    const me: Selection = { kind: 'iteration', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, iteration: itSel(i.iteration, i.label) };
+    const me: Selection = { kind: 'iteration', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, iteration: itSel(i.iteration, i.label, f.flow.slug) };
     return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title, { label: `${f.flow.name} in ${i.label}`, selected: same(sel, me), run: () => select(me) });
   };
 
   const flowRow = (p: TreeProject, f: TreeFlow) => {
     const w = p.working;
     const acts = w ? newChat(`New chat on ${f.flow.name} in ${w.id}`, () => chatIn(p, f, w)) : null;
-    const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? w.id) } : {}) };
+    const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? w.id, f.flow.slug) } : {}) };
     return group(`${p.cwd}#${f.flow.slug}`, 1, 'git-branch', `${f.flow.n} · ${f.flow.name}`, f.count, null, acts, f.iterations.map((i) => iterationRow(p, f, i)), undefined, { label: f.flow.name, selected: same(sel, me), run: () => select(me) });
   };
 

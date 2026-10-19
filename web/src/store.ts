@@ -15,7 +15,8 @@ export type Selection = {
   key: string;
   url: string;
   flow?: { slug: string; n: number; name: string };
-  iteration?: { id: string; label: string; state: 'working' | 'frozen'; node?: string };
+  // flowNodes: the selected flow's subsection and states in this iteration, so Flow check shows only them.
+  iteration?: { id: string; label: string; state: 'working' | 'frozen'; node?: string; flowNodes?: string[] };
 };
 
 type UiState = {
