@@ -5,7 +5,7 @@ import { Icon } from '../Icon';
 import { useDialogFocus } from '../useDialog';
 import { Shell } from './ProjectDialogs';
 import {
-  CLEARANCE_LABEL, SITE_DEFAULT, SITE_PAGES, draftError, flagLine, isRunning, longSentences, needsTick, pickOf, pickSummary, projectLinkError,
+  CLEARANCE_LABEL, SITE_DEFAULT, SITE_PAGES, draftError, flagLine, keyError, isRunning, longSentences, needsTick, pickOf, pickSummary, projectLinkError,
   RUN_LABEL, runShape, shortDate, siteError, strip, suggestionHead, type Choice, type Clearance, type EditRecord, type PickEntry, type Picks, type Run, type RunState, type Suggestion,
 } from '../../../shared/portfolio';
 import {
@@ -99,17 +99,29 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 // ---------- S1 Setup ----------
 
 type Check = { state: 'idle' | 'checking' | 'ok' | 'off'; reason?: string };
+type KeyCheck = { state: 'idle' | 'checking' | 'ok' | 'off'; text?: string };
+type Route = 'chrome' | 'api';
+type Mode = Route | 'copy';
 
-export function SetupDialog({ initial, onClose, onDone }: { initial: PortfolioView['config']; onClose: () => void; onDone: (v: PortfolioView) => void }) {
+const SUBMITTING: Record<Mode, string> = { chrome: 'Checking Framer in your Chrome…', api: 'Checking the key with Framer…', copy: 'Saving…' };
+
+export function SetupDialog({ initial, onClose, onDone, onView }: { initial: PortfolioView['config']; onClose: () => void; onDone: (v: PortfolioView) => void; onView: (v: PortfolioView) => void }) {
   const [project, setProject] = useState(initial?.project ?? '');
   const [site, setSite] = useState(initial?.site ?? SITE_DEFAULT);
-  const [seen, setSeen] = useState({ project: false, site: false });
+  // Chrome stays the default route until a key has passed its check.
+  const [route, setRoute] = useState<Route>(initial?.mode === 'api' && initial.hasKey ? 'api' : 'chrome');
+  const [key, setKey] = useState('');
+  const [hasKey, setHasKey] = useState(!!initial?.hasKey);
+  const [seen, setSeen] = useState({ project: false, site: false, key: false });
   const [check, setCheck] = useState<Check>({ state: 'idle' });
-  const [phase, setPhase] = useState<{ kind: 'form' | 'submitting'; mode?: 'chrome' | 'copy'; error?: string }>({ kind: 'form' });
+  const [keyCheck, setKeyCheck] = useState<KeyCheck>({ state: 'idle' });
+  const [phase, setPhase] = useState<{ kind: 'form' | 'submitting'; mode?: Mode; error?: string }>({ kind: 'form' });
   const busy = phase.kind === 'submitting';
   const pErr = projectLinkError(project);
   const sErr = siteError(site);
-  const valid = !pErr && !sErr;
+  const keptKey = hasKey && project.trim() === (initial?.project ?? '');
+  const kErr = route === 'api' ? (key.trim() ? keyError(key) : keptKey ? '' : 'Paste the API key') : '';
+  const valid = !pErr && !sErr && !kErr;
   const seq = useRef(0);
 
   const runCheck = useCallback(async (link: string) => {
@@ -125,41 +137,70 @@ export function SetupDialog({ initial, onClose, onDone }: { initial: PortfolioVi
 
   // The Chrome check runs once the link is a Framer project link, 600ms after typing stops.
   useEffect(() => {
-    if (pErr) {
+    if (pErr || route !== 'chrome') {
       seq.current++;
       setCheck({ state: 'idle' });
       return;
     }
     const t = setTimeout(() => void runCheck(project.trim()), 600);
     return () => clearTimeout(t);
-  }, [project, pErr, runCheck]);
+  }, [project, pErr, route, runCheck]);
 
-  const submit = async (mode: 'chrome' | 'copy') => {
-    setSeen({ project: mode === 'chrome', site: true });
-    if (sErr || (mode === 'chrome' && pErr)) return;
+  const checkKeyNow = async () => {
+    setSeen((s) => ({ ...s, project: true, key: true }));
+    if (pErr || kErr) return;
+    setKeyCheck({ state: 'checking' });
+    try {
+      const r = await postJson<{ ok: boolean; name?: string; error?: string }>('/api/portfolio/key/check', { project: project.trim(), ...(key.trim() ? { key } : {}) });
+      setKeyCheck(r.ok ? { state: 'ok', text: `Key works: ${r.name}` } : { state: 'off', text: r.error });
+    } catch (e) {
+      setKeyCheck({ state: 'off', text: (e as Error).message });
+    }
+  };
+
+  const removeKey = async () => {
+    setKeyCheck({ state: 'idle' });
+    try {
+      await postJson('/api/portfolio/key/remove', {});
+      setHasKey(false);
+      setRoute('chrome');
+      setKeyCheck({ state: 'idle', text: 'Key removed from your Keychain. Edits use Framer in your Chrome.' });
+      changed();
+      onView(await getJson<PortfolioView>('/api/portfolio'));
+    } catch (e) {
+      setKeyCheck({ state: 'off', text: (e as Error).message });
+    }
+  };
+
+  const submit = async (mode: Mode) => {
+    setSeen({ project: mode !== 'copy', site: true, key: mode === 'api' });
+    if (sErr || (mode !== 'copy' && pErr) || (mode === 'api' && kErr)) return;
     setPhase({ kind: 'submitting', mode });
     try {
-      await postJson('/api/portfolio/setup', { project: project.trim(), site: site.trim(), mode });
+      await postJson('/api/portfolio/setup', { project: project.trim(), site: site.trim(), mode, ...(mode === 'api' && key.trim() ? { key } : {}) });
+      setKey('');
       changed();
       onDone(await getJson<PortfolioView>('/api/portfolio'));
     } catch (e) {
-      setPhase({ kind: 'form', error: (e as Error).message });
+      setPhase({ kind: 'form', mode, error: (e as Error).message });
       if (mode === 'chrome') void runCheck(project.trim());
     }
   };
 
-  const projectHelp = seen.project && pErr ? pErr : phase.error && phase.mode !== 'copy' ? phase.error : '';
-  const why = !valid ? (pErr || sErr) : undefined;
+  const failed = phase.kind === 'form' && phase.error ? phase : null;
+  const projectHelp = seen.project && pErr ? pErr : failed && failed.mode === 'chrome' ? failed.error : '';
+  const keyHelp = seen.key && kErr ? kErr : failed && failed.mode === 'api' ? failed.error : keyCheck.state === 'off' ? keyCheck.text : '';
+  const why = !valid ? (pErr || sErr || kErr) : undefined;
   return (
     <Shell title="Connect your portfolio" onClose={onClose} busy={busy}>
-      <form className="project-dialog-body pf-setup" noValidate onSubmit={(e) => { e.preventDefault(); void submit('chrome'); }}>
-        <p className="project-dialog-note">Design Studio edits Framer in your Chrome, where you are signed in. It never publishes.</p>
+      <form className="project-dialog-body pf-setup" noValidate onSubmit={(e) => { e.preventDefault(); void submit(route); }}>
+        <p className="project-dialog-note">Design Studio edits Framer for you. It never publishes: you do, in Framer.</p>
         <fieldset className="ni-fields" disabled={busy}>
           <div className="field">
             <label htmlFor="pf-project">Framer project link *</label>
             <input id="pf-project" value={project} required autoFocus autoComplete="off" spellCheck={false} placeholder="https://framer.com/projects/..."
               aria-invalid={projectHelp ? true : undefined} aria-describedby="pf-project-help pf-chrome"
-              onChange={(e) => { setProject(e.target.value); setPhase({ kind: 'form' }); }} onBlur={() => setSeen((s) => ({ ...s, project: true }))} />
+              onChange={(e) => { setProject(e.target.value); setPhase({ kind: 'form' }); setKeyCheck({ state: 'idle' }); }} onBlur={() => setSeen((s) => ({ ...s, project: true }))} />
             {projectHelp && <span id="pf-project-help" className="error-text small" role="alert">{projectHelp}</span>}
           </div>
           <div className="field">
@@ -169,23 +210,54 @@ export function SetupDialog({ initial, onClose, onDone }: { initial: PortfolioVi
             {seen.site && sErr && <span id="pf-site-help" className="error-text small">{sErr}</span>}
           </div>
         </fieldset>
-        <div id="pf-chrome" className="pf-check" aria-live="polite">
-          {check.state === 'ok' && <span className="pf-ok"><Icon name="pass" small />Framer in your Chrome: Signed in</span>}
-          {check.state === 'checking' && !busy && <span className="muted"><span className="ni-spin" aria-hidden="true" />Checking Framer in your Chrome…</span>}
-          {(check.state === 'idle' || check.state === 'off') && (
-            <span className="muted">
-              {check.state === 'off' && check.reason ? check.reason : 'Open your Framer project in Chrome and sign in.'}
-              {!pErr && <> <button type="button" className="link" onClick={() => void runCheck(project.trim())}>Check again</button></>}
+        <fieldset className="pf-route" disabled={busy}>
+          <legend>Edit Framer through</legend>
+          <label><input type="radio" name="pf-route" checked={route === 'chrome'} onChange={() => { setRoute('chrome'); setPhase({ kind: 'form' }); }} />Framer in your Chrome</label>
+          <label><input type="radio" name="pf-route" checked={route === 'api'} onChange={() => { setRoute('api'); setPhase({ kind: 'form' }); }} />Framer API key</label>
+        </fieldset>
+        {route === 'chrome' && (
+          <div id="pf-chrome" className="pf-check" aria-live="polite">
+            {check.state === 'ok' && <span className="pf-ok"><Icon name="pass" small />Framer in your Chrome: Signed in</span>}
+            {check.state === 'checking' && !busy && <span className="muted"><span className="ni-spin" aria-hidden="true" />Checking Framer in your Chrome…</span>}
+            {(check.state === 'idle' || check.state === 'off') && (
+              <span className="muted">
+                {check.state === 'off' && check.reason ? check.reason : 'Open your Framer project in Chrome and sign in.'}
+                {!pErr && <> <button type="button" className="link" onClick={() => void runCheck(project.trim())}>Check again</button></>}
+              </span>
+            )}
+          </div>
+        )}
+        {route === 'api' && (
+          <div className="field pf-key">
+            <label htmlFor="pf-key">Framer API key{keptKey ? '' : ' *'}</label>
+            <div className="pf-key-row">
+              <input id="pf-key" type="password" value={key} required={!keptKey} autoComplete="off" spellCheck={false} disabled={busy}
+                placeholder={keptKey ? 'Saved in your Keychain. Paste a new one to replace it' : undefined}
+                aria-invalid={keyHelp ? true : undefined} aria-describedby="pf-key-help pf-key-result"
+                onChange={(e) => { setKey(e.target.value); setKeyCheck({ state: 'idle' }); setPhase({ kind: 'form' }); }} onBlur={() => setSeen((s) => ({ ...s, key: true }))} />
+              <button type="button" disabled={busy || keyCheck.state === 'checking'} onClick={() => void checkKeyNow()}>{keyCheck.state === 'checking' ? 'Checking…' : 'Check key'}</button>
+            </div>
+            {keyHelp
+              ? <span id="pf-key-help" className="error-text small" role="alert">{keyHelp}</span>
+              : <span id="pf-key-help" className="muted small">Framer: Site Settings &gt; General &gt; API keys. One key per project.</span>}
+            <span id="pf-key-result" className="pf-check small" aria-live="polite">
+              {keyCheck.state === 'ok' && <span className="pf-ok"><Icon name="pass" small />{keyCheck.text}</span>}
+              {keyCheck.state === 'idle' && keyCheck.text && <span className="muted">{keyCheck.text}</span>}
+              {keptKey && keyCheck.state !== 'ok' && !keyCheck.text && <span className="muted">API key: Saved in your Keychain.</span>}
+              {keptKey && <> <button type="button" className="link" disabled={busy} onClick={() => void removeKey()}>Remove key</button></>}
             </span>
-          )}
-        </div>
-        {busy ? <Wait text={phase.mode === 'copy' ? 'Saving…' : 'Checking Framer in your Chrome…'} /> : <p className="muted small">* Required</p>}
-        {phase.error && phase.mode === 'copy' && <p className="error-text small" role="alert">{phase.error}</p>}
+          </div>
+        )}
+        {route === 'chrome' && hasKey && keptKey && (
+          <p className="pf-line muted small">An API key is saved for this project. <button type="button" className="link" disabled={busy} onClick={() => void removeKey()}>Remove key</button></p>
+        )}
+        {busy ? <Wait text={SUBMITTING[phase.mode ?? 'chrome']} /> : <p className="muted small">* Required</p>}
+        {failed && failed.mode === 'copy' && <p className="error-text small" role="alert">{failed.error}</p>}
         <div className="dialog-actions pf-actions">
           <button type="button" className="link" disabled={busy} onClick={() => void submit('copy')}>Use copy and paste instead</button>
           <span className="spacer" />
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" className="primary" disabled={busy || !valid} title={busy ? undefined : why}>{busy && phase.mode === 'chrome' ? 'Connecting…' : 'Connect'}</button>
+          <button type="submit" className="primary" disabled={busy || !valid} title={busy ? undefined : why}>{busy && phase.mode !== 'copy' ? 'Connecting…' : 'Connect'}</button>
         </div>
       </form>
     </Shell>
@@ -672,7 +744,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
           <Icon name="globe" />
           <div className="pf-head-text">
             <h1 id={titleId}>Update portfolio</h1>
-            <span className="muted small">{site}{config ? ` · ${config.mode === 'copy' ? 'Copy and paste' : 'Framer in your Chrome'}` : ''}</span>
+            <span className="muted small">{site}{config ? ` · ${config.mode === 'copy' ? 'Copy and paste' : config.mode === 'api' ? 'Framer API key' : 'Framer in your Chrome'}` : ''}</span>
           </div>
           <span className="spacer" />
           {config && <button type="button" className="link pf-head-link" onClick={() => setSetup(true)}>Connection</button>}
@@ -724,7 +796,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
           )}
         </div>
       </div>
-      {setup && <SetupDialog initial={config} onClose={() => setSetup(false)} onDone={(v) => { setView(v); setSetup(false); }} />}
+      {setup && <SetupDialog initial={config} onClose={() => setSetup(false)} onView={setView} onDone={(v) => { setView(v); setSetup(false); }} />}
       {confirmUndo && <UndoDialog onClose={() => setConfirmUndo(false)} onUndo={() => { setConfirmUndo(false); void act('undo'); }} />}
     </div>
   );

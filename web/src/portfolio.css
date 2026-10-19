@@ -127,3 +127,15 @@
   .pf-foot button, .pf-btn { min-height: 44px; }
   .pf-clearance-row { flex-wrap: wrap; }
 }
+
+/* Setup: route choice and the API key */
+.pf-route { margin: 0 0 12px; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.pf-route legend { padding: 0; margin-bottom: 4px; font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.pf-route label { display: inline-flex; align-items: center; gap: 8px; min-height: 24px; font-size: var(--text-sm); cursor: pointer; }
+.pf-route input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.pf-key { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.pf-key > label { font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.pf-key-row { display: flex; gap: 8px; }
+.pf-key-row input { flex: 1; min-width: 0; }
+.pf-key-row input[aria-invalid='true'] { border-color: var(--err); }
+.pf-key .pf-check { margin: 0; }
