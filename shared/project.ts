@@ -17,6 +17,10 @@ export type Flow = {
   entry: string[];
   /** The flow's section in the adopted baseline (LATEST), when there is one. */
   baseline?: string;
+  /** Found by adoption in LATEST. A flow made with New flow has none, and adopting again never drops it. */
+  adopted?: boolean;
+  /** Adopted earlier, but the last adoption no longer found it in Figma. Kept with its folders. */
+  missing?: boolean;
 };
 
 export type IterationFlow = { node: string; states?: string };

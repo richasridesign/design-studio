@@ -100,7 +100,7 @@ export function AdoptDialog({ cwd, name, onClose }: { cwd: string; name: string;
           <p className="project-dialog-note">
             {proposal.page ? `Page: ${proposal.page.name}. ` : ''}
             Flows are the subsections of LATEST, iterations the dated sections. Nothing moves or is renamed in Figma: each section gets a tag so Design Studio keeps finding it.
-            {proposal.adopted ? ' This file is adopted already: adopting again rewrites its flow list and keeps the iterations made since.' : ''}
+            {proposal.adopted ? ' This file is adopted already: adopting again adds the new flows and iterations and keeps every one you have.' : ''}
           </p>
           <fieldset className="project-fields">
             <legend>Flows ({proposal.flows.length})</legend>
