@@ -5,7 +5,7 @@ import { Icon } from '../Icon';
 import { useDialogFocus } from '../useDialog';
 import { Shell } from './ProjectDialogs';
 import {
-  CLEARANCE_LABEL, SITE_DEFAULT, SITE_PAGES, draftError, flagLine, keyError, isRunning, longSentences, needsTick, pickOf, pickSummary, projectLinkError,
+  CLEARANCE_LABEL, NOTE_MAX, SITE_DEFAULT, SITE_PAGES, draftError, flagLine, keyError, isRunning, longSentences, needsTick, pickOf, pickSummary, projectLinkError,
   RUN_LABEL, runShape, shortDate, siteError, strip, suggestionHead, type Choice, type Clearance, type EditRecord, type PickEntry, type Picks, type Run, type RunState, type Suggestion,
 } from '../../../shared/portfolio';
 import {
@@ -74,7 +74,7 @@ function Strip({ run }: { run: Run | null }) {
         <li key={s.id} className={s.state} aria-current={s.state === 'current' ? 'step' : undefined}>
           <span className="pf-step-mark" aria-hidden="true">{s.state === 'done' ? <Icon name="check" small /> : i + 1}</span>
           <span className="pf-step-label">{s.label}</span>
-          <span className="sr-only">{s.state === 'done' ? ', done' : s.state === 'current' ? ', current' : ''}</span>
+          {s.state === 'done' && <span className="sr-only">, done</span>}
           {i < steps.length - 1 && <Icon name="chevron-right" small />}
         </li>
       ))}
@@ -264,11 +264,59 @@ export function SetupDialog({ initial, onClose, onDone, onView }: { initial: Por
   );
 }
 
+// ---------- Connection status ----------
+
+type Conn = { on: boolean; why?: string } | null;
+
+/**
+ * Header status. API key: the Keychain still holds it (attributes only, the key never reaches the page). Chrome:
+ * the saved project is open there, signed in. Copy and paste connects nothing, so it shows no status.
+ */
+function useConnection(config: PortfolioView['config']): Conn {
+  const [conn, setConn] = useState<Conn>(null);
+  const mode = config?.mode;
+  const project = config?.project ?? '';
+  const hasKey = !!config?.hasKey;
+  useEffect(() => {
+    setConn(null);
+    if (!mode || mode === 'copy') return;
+    let live = true;
+    const set = (c: Conn) => { if (live) setConn(c); };
+    if (mode === 'api') {
+      if (!hasKey) set({ on: false, why: 'No API key is saved. Change connection to paste one.' });
+      else getJson<{ saved: boolean }>('/api/portfolio/key/status')
+        .then((r) => set(r.saved ? { on: true } : { on: false, why: 'The API key is not in your Keychain any more. Change connection to paste it again.' }))
+        .catch((e) => set({ on: false, why: (e as Error).message }));
+    } else {
+      postJson<{ ok: boolean; reason?: string }>('/api/portfolio/check', { project })
+        .then((r) => set(r.ok ? { on: true } : { on: false, why: r.reason ?? 'Chrome is not showing this Framer project. Open it there, signed in.' }))
+        .catch((e) => set({ on: false, why: (e as Error).message }));
+    }
+    return () => { live = false; };
+  }, [mode, project, hasKey]);
+  return conn;
+}
+
+/** Shape plus label: a filled circle when connected, a hollow triangle (attention, not an error) when not. */
+function ConnStatus({ conn }: { conn: Conn }) {
+  if (!conn) return null;
+  return (
+    <span className={`pf-conn ${conn.on ? 'on' : 'off'}`} title={conn.why}>
+      {conn.on
+        ? <span className="pf-shape circle filled" aria-hidden="true" />
+        : <svg className="pf-conn-mark" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 11 10.5H1Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>}
+      {conn.on ? 'Connected' : 'Not connected'}
+      {conn.why && <span className="sr-only">: {conn.why}</span>}
+    </span>
+  );
+}
+
 // ---------- S2 Gather ----------
 
 function Gather({ view, onStarted, onView }: { view: PortfolioView; onStarted: (r: Run) => void; onView: (v: PortfolioView) => void }) {
   const [ticked, setTicked] = useState<Set<string>>(() => new Set(view.blocks.map((b) => b.key)));
   const [date, setDate] = useState<{ open: boolean; value: string; error: string }>({ open: false, value: view.file.since ?? '', error: '' });
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => setTicked((t) => new Set(view.blocks.map((b) => b.key).filter((k) => t.has(k) || !t.size))), [view.blocks]);
@@ -288,7 +336,7 @@ function Gather({ view, onStarted, onView }: { view: PortfolioView; onStarted: (
     setBusy(true);
     setError('');
     try {
-      onStarted(await postJson<Run>('/api/portfolio/runs', { blocks: [...ticked] }));
+      onStarted(await postJson<Run>('/api/portfolio/runs', { blocks: none ? [] : [...ticked], note }));
       changed();
     } catch (e) {
       setError((e as Error).message);
@@ -303,10 +351,12 @@ function Gather({ view, onStarted, onView }: { view: PortfolioView; onStarted: (
 
   const none = !view.blocks.length;
   const projects = view.projects;
+  const wrote = !!note.trim();
+  const why = none ? (wrote ? undefined : 'Write what should change first') : !ticked.size && !wrote ? 'Tick a block of finished work, or write what should change' : undefined;
   return (
     <Card>
       <h2 className="pf-card-title">Gather finished work</h2>
-      <p className="pf-line">{none ? emptyLine(view.file) : gatherLine(view.blocks, view.file)}</p>
+      <p className="pf-line">{none ? emptyLine(view.file, view.config?.site) : gatherLine(view.blocks, view.file)}</p>
       {!none && (
         <fieldset className="pf-blocks">
           <legend className="sr-only">Blocks to read</legend>
@@ -319,6 +369,12 @@ function Gather({ view, onStarted, onView }: { view: PortfolioView; onStarted: (
           ))}
         </fieldset>
       )}
+      <div className="field pf-draft">
+        <label htmlFor="pf-note">{none ? <>What should change? <span aria-hidden="true">*</span></> : 'Anything else to change?'}</label>
+        <textarea id="pf-note" rows={3} maxLength={NOTE_MAX} required={none} value={note} disabled={busy} placeholder="Shorten the About intro and add Design Studio to Work"
+          onChange={(e) => setNote(e.target.value)} />
+        {none && <span className="muted small">* Required</span>}
+      </div>
       {view.adopted > 0 && !view.file.includeAdopted && (
         <p className="pf-line muted">{adoptedLine(view.adopted)} <button type="button" className="link" onClick={() => void settings({ includeAdopted: true })}>Include them</button></p>
       )}
@@ -348,7 +404,7 @@ function Gather({ view, onStarted, onView }: { view: PortfolioView; onStarted: (
       <div className="pf-foot">
         {!date.open && <button type="button" className="link" onClick={() => setDate({ ...date, open: true })}>Change start date</button>}
         <span className="spacer" />
-        {!none && <button type="button" className="primary" disabled={busy || !ticked.size} title={!ticked.size ? 'Tick at least one block of finished work' : undefined} onClick={() => void start()}>{busy ? 'Starting…' : 'Suggest updates'}</button>}
+        <button type="button" className="primary" disabled={busy || !!why} title={why} onClick={() => void start()}>{busy ? 'Starting…' : 'Suggest updates'}</button>
       </div>
     </Card>
   );
@@ -585,6 +641,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
 
   const config = view?.config ?? null;
   const site = config?.site ?? SITE_DEFAULT;
+  const conn = useConnection(config);
   const list = rv?.suggestions ?? [];
   const sum = pickSummary(list, picks);
   const used = list.filter((s) => pickOf(picks, s).choice === 'use');
@@ -762,7 +819,12 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
             <span className="muted small">{site}{config ? ` · ${config.mode === 'copy' ? 'Copy and paste' : config.mode === 'api' ? 'Framer API key' : 'Framer in your Chrome'}` : ''}</span>
           </div>
           <span className="spacer" />
-          {config && <button type="button" className="link pf-head-link" onClick={() => setSetup(true)}>Connection</button>}
+          {config && (
+            <div className="pf-head-conn">
+              <ConnStatus conn={conn} />
+              <button type="button" className="link pf-head-link" onClick={() => setSetup(true)}>Change connection</button>
+            </div>
+          )}
           <button type="button" className="icon-btn" aria-label="Close" title="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
         <div className="pf-body">

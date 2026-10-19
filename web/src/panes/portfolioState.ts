@@ -1,5 +1,5 @@
 import {
-  CLEARANCE_LABEL, dayStart, shortDate, type Clearance, type EditRecord, type FramerConfig, type PortfolioFile, type Run, type RunState, type ScreenNote,
+  CLEARANCE_LABEL, NOTE_BLOCK, SITE_DEFAULT, dayStart, shortDate, type Clearance, type EditRecord, type FramerConfig, type PortfolioFile, type Run, type RunState, type ScreenNote,
 } from '../../../shared/portfolio';
 
 // What the Update portfolio page shows, as pure functions over the server's view, so every line is tested.
@@ -45,10 +45,11 @@ export function gatherLine(blocks: Block[], file: PortfolioFile): string {
   return `Found ${plural(its, 'frozen iteration')}${since ? ` since ${since}` : ''}: ${plural(projects, 'project')}, ${plural(blocks.length, 'flow')}.`;
 }
 
-export function emptyLine(file: PortfolioFile): string {
-  if (file.lastUpdate) return `No finished work since your last update on ${shortDate(file.lastUpdate.at)}. Freeze an iteration to see it here.`;
-  if (file.since) return `No finished work since ${shortDate(dayStart(file.since))}. Freeze an iteration to see it here.`;
-  return 'No finished work yet. Freeze an iteration to see it here.';
+/** With nothing to gather she can still tell Claude what to change. */
+export function emptyLine(file: PortfolioFile, site = SITE_DEFAULT): string {
+  if (file.lastUpdate) return `No finished work since your last update on ${shortDate(file.lastUpdate.at)}. Tell Claude what to change, or freeze an iteration.`;
+  if (file.since) return `No finished work since ${shortDate(dayStart(file.since))}. Tell Claude what to change, or freeze an iteration.`;
+  return `No finished work yet. Tell Claude what to change on ${site}, or freeze an iteration.`;
 }
 
 /** "3 older iterations have no history." */
@@ -57,8 +58,9 @@ export const adoptedLine = (n: number) => `${plural(n, 'older iteration')} ${n =
 /** Running line for the gather and suggest steps. 2 minutes is an estimate to confirm. */
 export function gatherRunning(run: Run): string {
   if (run.progress) return run.progress;
+  const from = !run.blocks.length ? 'your note' : run.hasNote ? 'your decisions, your note' : 'your decisions';
   return run.state === 'suggesting'
-    ? 'Writing suggestions from your decisions and the live site, about 2 minutes. You can keep working.'
+    ? `Writing suggestions from ${from} and the live site, about 2 minutes. You can keep working.`
     : `Reading decisions and exporting ${run.screens ? plural(run.screens, 'screen') : 'screens'}, about 2 minutes. You can keep working.`;
 }
 
@@ -119,5 +121,6 @@ export function screenName(candidates: Candidate[], id: string): string {
 
 /** The block label of a suggestion's first source. */
 export function sourceLabel(candidates: Candidate[], block: string): string {
+  if (block === NOTE_BLOCK) return 'Your note';
   return candidates.find((c) => c.key === block)?.label ?? block;
 }
