@@ -15,7 +15,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
 import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
-import { AgentSession } from './session.js';
+import { AgentSession, weeklyPct } from './session.js';
+import { Tasks, type ChatHandle } from './tasks.js';
+import { TASK_CAP } from '../../shared/tasks.js';
+import { MODELS } from '../../shared/design.js';
 import { notifyAway } from './notify.js';
 import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
@@ -25,10 +28,10 @@ import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isCh
 import { loadSample, samplePath } from './sample.js';
 import { addDaily, today } from './spend.js';
 import { onReadCost } from './pluginRead.js';
-import { ensureMapSoon, refreshMapSoon } from './fileMap.js';
-import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
+import { buildMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
+import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
-import { adoptProposal, confirmAdopt, createIteration, ensureIterationFolders, listProjects, setIterationState } from './project.js';
+import { adoptProposal, confirmAdopt, createIteration, ensureIterationFolders, listProjects, readProject, setIterationState, updateProject } from './project.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
@@ -92,6 +95,7 @@ function summary(chat: AgentSession): LiveChat {
     edits: sumEdits(s.events),
     file: s.session.figma?.name,
     fileUrl: s.session.figma?.url,
+    ...(chat.taskId ? { task: chat.taskId } : {}),
   };
 }
 
@@ -126,8 +130,48 @@ async function createChat(cwd: string, resume?: string, title = '') {
   return chat;
 }
 
+// Run across flows: one chat per flow, started here and followed by the runner (tasks.ts).
+function taskHandle(chat: AgentSession): ChatHandle {
+  return {
+    id: chat.id,
+    state: () => {
+      const s = chat.state;
+      const last = [...s.events].reverse().find((e) => e.kind === 'result');
+      return { running: s.session.running, pending: s.pending.length, error: Boolean(last?.kind === 'result' && last.isError), tokens: s.session.spend.tokens, costUsd: s.session.spend.costUsd, model: s.session.model, sessionId: s.session.sessionId, closed: !live.has(chat.id) };
+    },
+    onChange: (fn) => { const off = chat.onMessage((m) => { if (m.type !== 'event' || m.event.kind === 'result') fn(); }); return () => void off(); },
+    stop: () => chat.interrupt(),
+  };
+}
+
+const tasks = new Tasks({
+  startChat: async ({ cwd, model, prompt, taskId, title }) => {
+    const chat = await createChat(cwd, undefined, title);
+    chat.taskId = taskId;
+    // Every chat starts on Sonnet (options.ts); another model is set before the first message.
+    if (model !== MODELS.work) await chat.setModel(model);
+    await chat.prompt(prompt);
+    broadcastLive();
+    return taskHandle(chat);
+  },
+  weeklyPct,
+  parallel: () => loadedSettings().parallelChats,
+  readProject,
+  flowFolder: (root, slug, iteration) => ensureIterationFolders(root, slug, iteration),
+  roots: async () => (await chatFolders()).filter((f) => f.figma).map((f) => f.dir),
+  // After the first flow ran on an iteration with no section: read the map, move the ids to the tagged nodes, and look.
+  sectionReady: async (root, key, iteration) => {
+    await buildMap(root, key);
+    await listProjects();
+    const p = await updateProject(root, (x) => x);
+    return Boolean(p?.iterations.find((it) => it.id === iteration)?.node);
+  },
+  onChange: () => broadcastLive(),
+});
+
 function closeChat(chat: AgentSession) {
   chat.close();
+  tasks.chatClosed(chat.id);
   closeTerminals(chat.id);
   live.get(chat.id)?.watcher.close();
   live.delete(chat.id);
@@ -346,6 +390,29 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/chrome/figma-tabs') return json(figmaTabs());
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());
     if (url.pathname === '/api/projects') return json({ projects: await listProjects() });
+    if (url.pathname.startsWith('/api/tasks')) {
+      const meta = { weeklyPct: weeklyPct(), cap: TASK_CAP, parallel: (await settings()).parallelChats };
+      if (url.pathname === '/api/tasks' && req.method === 'POST') {
+        const asked = url.searchParams.get('cwd');
+        const dir = asked ? path.resolve(asked) : chat.cwd;
+        if (!isChatFolder(dir)) return json({ error: 'Not a Design Studio folder' }, 400);
+        const root = projectRoot(dir);
+        const file = await readFigma(root);
+        if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
+        const body = await readJsonBody();
+        return json({ task: await tasks.start(root, { prompt: String(body?.prompt ?? ''), flows: Array.isArray(body?.flows) ? body.flows.map(String) : [], model: body?.model, componentsFirst: Boolean(body?.componentsFirst) }), ...meta });
+      }
+      const act = /^\/api\/tasks\/(pause|resume|stop)$/.exec(url.pathname)?.[1];
+      if (act && req.method === 'POST') {
+        const id = String((await readJsonBody())?.id ?? '');
+        const task = act === 'pause' ? await tasks.pause(id) : act === 'resume' ? await tasks.resume(id) : await tasks.stop(id);
+        return json({ task, ...meta });
+      }
+      if (url.pathname === '/api/tasks') {
+        const asked = url.searchParams.get('cwd');
+        return json({ tasks: await tasks.list(asked ? projectRoot(path.resolve(asked)) : undefined), ...meta });
+      }
+    }
     if (url.pathname.startsWith('/api/projects/')) {
       // The sidebar acts on any project folder, not only the viewed chat's: ?cwd= names it, checked against the roots.
       const asked = url.searchParams.get('cwd');
