@@ -17,7 +17,7 @@ const VIEWS = [
   ['system', 'Design System'],
   ['rules', 'House rules'],
 ];
-const CENTER = [['figma', 'Figma'], ['sketch', 'Sketch'], ['review', 'Review'], ['history', 'History'], ['preview', 'Preview'], ['settings', 'Settings']];
+const CENTER = [['figma', 'Figma'], ['review', 'Review'], ['history', 'History'], ['preview', 'Preview'], ['settings', 'Settings']];
 
 export function buildCommands(_models: { value: string; displayName: string }[] = [], custom: { id: string; title: string }[] = []): Command[] {
   return [

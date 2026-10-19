@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { phaseLine } from '../../shared/stages';
 import { connect, getJson, useStore } from './store';
 import { Brief } from './panes/Brief';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -13,7 +12,6 @@ import { Chats } from './panes/Chats';
 import { insertPrompt } from './panes/composerEvents';
 import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
-import { Sketch } from './panes/Sketch';
 import { Review } from './panes/Review';
 import { History } from './panes/History';
 import { Settings } from './panes/Settings';
@@ -34,9 +32,9 @@ import { FigmaLoginHost } from './FigmaLogin';
 import './page.css';
 import './design.css';
 
-type Center = 'figma' | 'sketch' | 'review' | 'history' | 'preview' | 'code';
-type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'history' | 'more';
-const MOBILE_CENTER: Center[] = ['figma', 'sketch', 'review', 'history'];
+type Center = 'figma' | 'review' | 'history' | 'preview' | 'code';
+type Tab = 'chat' | 'figma' | 'review' | 'history' | 'more';
+const MOBILE_CENTER: Center[] = ['figma', 'review', 'history'];
 const isMobileCenter = (t: string): t is Center & Tab => MOBILE_CENTER.some((c) => c === t);
 
 const VIEW_IDS = ['chats', 'system', 'explorer'] as const;
@@ -51,15 +49,12 @@ const VIEWS: { id: View; icon: string; title: string; dev?: boolean }[] = [
 
 const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
   { id: 'figma', icon: 'browser', label: 'Figma' },
-  { id: 'sketch', icon: 'edit', label: 'Sketch' },
   { id: 'review', icon: 'checklist', label: 'Review' },
   { id: 'history', icon: 'history', label: 'History' },
   { id: 'preview', icon: 'play', label: 'Preview', dev: true },
   { id: 'code', icon: 'code', label: 'Files', dev: true },
 ];
 
-const PHASE_TAB: Record<string, Center> = { sketch: 'sketch', pick: 'sketch', file: 'figma', design: 'figma', fix: 'figma', review: 'review' };
-// The status bar reads "Build: designing in Figma", the same step names as the steps panel.
 const narrow = () => window.innerWidth <= 900;
 // Visually hidden, still read by screen readers (the page's one h1).
 const HIDDEN: React.CSSProperties = { position: 'absolute', width: 1, height: 1, margin: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' };
@@ -126,7 +121,6 @@ export function App() {
   const session = useStore((s) => s.session);
   const status = useStore((s) => s.status);
   const events = useStore((s) => s.events);
-  const phase = useStore((s) => s.session.flow.phase);
   const [tab, setTab] = useState<Tab>('chat');
   const [center, setCenter] = useState<Center>('figma');
   const [sidebar, setSidebar] = useState(true);
@@ -206,11 +200,6 @@ export function App() {
   useEffect(() => {
     if (empty) setCenter('figma');
   }, [session.id]);
-
-  useEffect(() => {
-    const next = phase ? PHASE_TAB[phase] : undefined;
-    if (next && !narrow()) setCenter(next);
-  }, [phase]);
 
   useEffect(() => {
     try {
@@ -341,7 +330,6 @@ export function App() {
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
-              <button onClick={() => open('sketch')}>Sketch</button>
               {/* Settings is the gear in the top bar, so it is not repeated here. */}
             </div>
           )}
@@ -362,7 +350,6 @@ export function App() {
                 <button key={c.id} id={`tab-${c.id}`} role="tab" aria-selected={shownCenter === c.id} aria-controls={`panel-${c.id}`} tabIndex={(centers.some((x) => x.id === rove) ? rove : shownCenter) === c.id ? 0 : -1}
                   className={`tab ${shownCenter === c.id ? 'active' : ''}`} onClick={() => { setRove(null); open(c.id); }}>
                   <Icon name={c.icon} small /> {c.label}
-                  {c.id === 'sketch' && phase === 'pick' && <span className="badge waiting" title="Waiting for your pick" aria-label="Waiting for your pick">!</span>}
                 </button>
               ))}
             </div>
@@ -378,7 +365,6 @@ export function App() {
           </div>
           <ErrorBoundary label="panel">
           <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`} id="panel-figma" role="tabpanel" aria-labelledby="tab-figma">{shownCenter === 'figma' && <BrowserPane />}</div>
-          <div className={`editor ${shownCenter === 'sketch' ? 'shown' : ''}`} id="panel-sketch" role="tabpanel" aria-labelledby="tab-sketch">{shownCenter === 'sketch' && <Sketch />}</div>
           <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`} id="panel-review" role="tabpanel" aria-labelledby="tab-review">{shownCenter === 'review' && <Review dev={dev} />}</div>
           <div className={`editor ${shownCenter === 'history' ? 'shown' : ''}`} id="panel-history" role="tabpanel" aria-labelledby="tab-history">{shownCenter === 'history' && <History />}</div>
           <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`} id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">{shownCenter === 'preview' && <Preview />}</div>
@@ -387,8 +373,6 @@ export function App() {
           {focusMode && (
             <div className="focus-pill desktop-only">
               <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} />
-              <span>{phaseLine(phase ?? null)}</span>
-              <span className="sep">·</span>
               <span>{session.running ? 'Running' : 'Idle'}</span>
               <IconButton label="Exit focus mode" tip="Exit focus mode (⌘.)" aria-keyshortcuts="Meta+Period" place="top" onClick={toggleFocus}><Icon name="screen-normal" small /></IconButton>
             </div>
@@ -416,7 +400,7 @@ export function App() {
 
       <nav className="tabbar mobile-only" aria-label="Sections">
         {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['review', 'checklist', 'Review'], ['history', 'history', 'History'], ['more', 'ellipsis', 'More']] as const).map(([id, icon, label]) => (
-          <button key={id} className={tab === id || (id === 'more' && tab === 'sketch') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'sketch') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') setCenter(id); }}>
+          <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') setCenter(id); }}>
             <Icon name={icon} />
             <span>{label}</span>
             {id === 'chat' && pendingCount > 0 && <span className="badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{pendingCount === 1 ? ', 1 request waiting' : `, ${pendingCount} requests waiting`}</span></span>}

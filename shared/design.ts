@@ -53,7 +53,7 @@ export type ShownPreset = (typeof SHOWN_PRESETS)[number];
 /** fixRounds null: the run uses the Fix rounds setting. */
 export const PRESET_INFO: Record<ReviewPreset, { label: string; detail: string; fixRounds: number | null }> = {
   check: { label: 'Check', detail: 'Code scan only, no reviewers', fixRounds: 1 },
-  quick: { label: 'Quick', detail: 'Code scan, then one reviewer covering the ticked areas. Fixes once', fixRounds: 1 },
+  quick: { label: 'Quick', detail: 'Code scan, then one reviewer covering the ticked areas', fixRounds: 1 },
   focused: { label: 'Focused', detail: 'Code scan, then one reviewer per ticked area', fixRounds: null },
   full: { label: 'Full', detail: 'Code scan, then one reviewer for each of the five areas', fixRounds: null },
 };
@@ -80,21 +80,13 @@ export function roundCost(preset: ReviewPreset, areas: Area[], perReviewer = REV
 // read: the cheap model that only drives Figma plugin reads (it never sees the file content).
 export const MODELS = { plan: 'claude-opus-5-5', work: 'claude-sonnet-5-5', read: 'claude-haiku-5-5' } as const;
 
-export type FlowPhase = 'plan' | 'sketch' | 'pick' | 'file' | 'system' | 'design' | 'review' | 'fix' | 'done' | 'stopped';
-export type FlowKind = 'design' | 'sketch';
-
 export const FLOW_MODES = ['chat', 'design', 'review'] as const;
 export type FlowMode = (typeof FLOW_MODES)[number];
 
 export type FlowState = {
   mode: FlowMode;
-  kind: FlowKind;
-  phase: FlowPhase | null;
-  round: number;
   preset: ReviewPreset;
   areas: Area[];
-  stopAfterSketch: boolean;
-  tokens: number;
   reviewers?: ReviewerState[];
 };
 
@@ -143,15 +135,6 @@ export type ReviewRun = {
 
 export type ReviewDoc = { runs: ReviewRun[]; posted?: string[] };
 
-export const SKETCH_ITEMS = ['box', 'text', 'heading', 'button', 'input', 'image', 'icon', 'line', 'circle', 'note'] as const;
-export type SketchItemType = (typeof SKETCH_ITEMS)[number];
-export type SketchItem = { t: SketchItemType; x: number; y: number; w: number; h: number; label?: string };
-export type SketchDirection = { id: string; name: string; rationale: string; w: number; h: number; items: SketchItem[] };
-/** reason, rejected and at record the pick for the decision log. Older sketch.json files do not have them. */
-export type SketchScreen = { id: string; name: string; directions: SketchDirection[]; chosen?: string; chosenBy?: 'claude' | 'designer'; reason?: string; rejected?: string[]; at?: number };
-export const REASON_MAX = 200;
-export type SketchDoc = { screens: SketchScreen[] };
-
 export type DesignFrame = { screen: string; state: string; nodeId: string; name?: string };
 export type DesignDoc = { page?: string; frames: DesignFrame[] };
 
@@ -193,7 +176,6 @@ export type DesignSystem = {
 export type FigmaFile = { key: string; name: string; url: string };
 
 export type Settings = {
-  stopAfterSketch: boolean;
   preset: ReviewPreset;
   areas: Area[];
   askBeforeEdit: boolean;
@@ -210,7 +192,6 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  stopAfterSketch: false,
   preset: 'quick',
   areas: [...AREAS],
   askBeforeEdit: false,
@@ -223,19 +204,12 @@ export const DEFAULT_SETTINGS: Settings = {
   parallelChats: 3,
 };
 
-export const flowOff = (s: Pick<Settings, 'preset' | 'areas' | 'stopAfterSketch'> = DEFAULT_SETTINGS): FlowState => ({
+export const flowOff = (s: Pick<Settings, 'preset' | 'areas'> = DEFAULT_SETTINGS): FlowState => ({
   mode: 'chat',
-  kind: 'design',
-  phase: null,
-  round: 0,
   preset: s.preset,
   areas: s.areas,
-  stopAfterSketch: s.stopAfterSketch,
-  tokens: 0,
   reviewers: [],
 });
-
-export const FLOW_ACTIVE: FlowPhase[] = ['plan', 'sketch', 'system', 'design', 'review', 'fix'];
 
 export function parseFigmaUrl(input: string): { key: string; nodeId: string | null } | null {
   const m = /figma\.com\/(?:design|file|proto|board|make)\/([A-Za-z0-9]{10,})/.exec(input);

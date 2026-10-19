@@ -5,7 +5,6 @@ import { ago } from '../ago';
 import { IconButton } from '../Tip';
 import { Pending } from './Pending';
 import { Composer } from './Chat';
-import { RunCard } from './RunCard';
 import { ReadAloud } from './Voice';
 import { touch } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
@@ -93,7 +92,6 @@ export function Brief() {
         {/* A flow chat's workflow: shown from the start, before the first message. */}
         <WorkflowPanel />
         <Transcript view={view}>
-          <RunCard />
           {(events.length > 0 || running) && <div className="tl-foot">
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>

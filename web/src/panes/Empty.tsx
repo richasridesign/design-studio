@@ -22,17 +22,6 @@ const line = { fill: 'none', stroke: 'var(--fg-faint)', strokeWidth: 2, strokeLi
 const accent = { fill: 'none', stroke: 'var(--accent)', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 const blue = { ...accent, stroke: 'var(--figma)' } as const;
 
-export function SketchArt() {
-  return (
-    <svg viewBox="0 0 120 120" aria-hidden="true">
-      <path {...line} d="M14 28 L56 26 L58 62 L16 64 Z" />
-      <path {...line} d="M64 40 L104 42 L102 76 L66 74 Z" />
-      <path {...line} d="M16 90 q8 -12 16 0 t16 0 t16 0" />
-      <path {...accent} d="M84 108 L106 62 L114 66 L92 112 L82 114 Z" />
-    </svg>
-  );
-}
-
 export function ReviewArt() {
   return (
     <svg viewBox="0 0 120 120" aria-hidden="true">

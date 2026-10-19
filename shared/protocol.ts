@@ -1,4 +1,4 @@
-import type { FigmaFile, FlowPhase, FlowState } from './design.js';
+import type { FigmaFile, FlowState } from './design.js';
 import type { LongRun } from './longRun.js';
 
 export type PendingQuestion = {
@@ -26,7 +26,7 @@ export type PendingPermission = {
 export type PendingRequest = PendingQuestion | PendingPermission;
 
 export type ChatEvent =
-  | { id: string; kind: 'user'; text: string; at: number; stopping?: boolean; phase?: FlowPhase }
+  | { id: string; kind: 'user'; text: string; at: number; stopping?: boolean; phase?: string }
   | { id: string; kind: 'assistant'; text: string; streaming: boolean; at: number }
   | { id: string; kind: 'tool_use'; name: string; input: Record<string, unknown>; summary: string; at: number }
   | { id: string; kind: 'tool_result'; toolUseId: string; text: string; isError: boolean; at: number }
@@ -147,9 +147,7 @@ export type ClientMessage =
   | { type: 'permission'; id: string; allow: boolean; always?: boolean; note?: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }
-  | { type: 'set_flow'; patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas' | 'stopAfterSketch'>> }
-  | { type: 'flow_continue' }
-  | { type: 'flow_pick'; screen: string; direction: string; reason?: string }
+  | { type: 'set_flow'; patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas'>> }
   | { type: 'interrupt' }
   | { type: 'long_run_start'; text: string; until: number; cap: number; weeklyCap?: number; rounds?: number; images?: string[] }
   /** Older clients sent the weekly cap and rounds here, just before long_run_start. Still accepted. */

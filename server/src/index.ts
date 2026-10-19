@@ -41,7 +41,6 @@ import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectio
 import { createFlow } from './newFlow.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
-import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
 import { readBuildChecks } from './buildcheck.js';
 import { readFlowChecks, runFlowCheck } from './flowcheck.js';
 import { copyApplyPrompt, readCopy, readCrit } from './crit.js';
@@ -535,16 +534,6 @@ const server = http.createServer(async (req, res) => {
       const { nodeId } = await readJsonBody();
       return json({ result: await focusFigma(needFigma().key, String(nodeId), true) });
     }
-    if (url.pathname === '/api/sketch/pick' && req.method === 'POST') {
-      const { screen, direction, reason } = await readJsonBody();
-      return json(await pickDirection(chat.cwd, String(screen), String(direction), reason));
-    }
-    if (url.pathname === '/api/sketch/board' && req.method === 'POST') {
-      await writeBoard(chat.cwd, (await readJsonBody()).elements);
-      return json({ ok: true });
-    }
-    if (url.pathname === '/api/sketch/board') return json(await readBoard(chat.cwd));
-    if (url.pathname === '/api/sketch') return json(await readSketch(chat.cwd).catch((err) => ({ error: (err as Error).message })));
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
     if (url.pathname === '/api/flowcheck' && req.method === 'POST') {
       // A flow chat checks its own iteration's section; other chats check the whole file.
@@ -681,12 +670,6 @@ wss.on('connection', (ws: WebSocket, req) => {
         break;
       case 'set_flow':
         chat.updateFlow(msg.patch ?? {});
-        break;
-      case 'flow_continue':
-        chat.continueFlow();
-        break;
-      case 'flow_pick':
-        pickDirection(chat.cwd, String(msg.screen), String(msg.direction), msg.reason).catch(fail);
         break;
       case 'new_chat':
         (msg.url?.trim() ? chatForUrl(msg.url) : freshChatFolder().then(createChat)).then((c) => view(client, c), fail);

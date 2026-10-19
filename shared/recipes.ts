@@ -26,7 +26,7 @@ export const RECIPES: Recipe[] = [
   {
     id: 'brief',
     title: 'Design from a brief',
-    blurb: 'Plan, sketch, design and review screens from a few lines of text.',
+    blurb: 'Plan, design and review screens from a few lines of text.',
     icon: 'sparkle',
     group: 'make',
     needsFrames: false,

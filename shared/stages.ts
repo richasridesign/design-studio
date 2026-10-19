@@ -1,7 +1,7 @@
 // What is left of the old per-chat steps (stages.json is no longer read; workflow.json took its place): the step
-// names a design run's phases still use, the frames a chat designed, and how a plan approval is read.
+// names, the frames a chat designed, and how a plan approval is read.
 
-import type { DesignDoc, FlowPhase, ReviewDoc } from './design.js';
+import type { DesignDoc, ReviewDoc } from './design.js';
 
 export const STAGE_IDS = ['spec', 'research', 'explore', 'decide', 'build', 'validate', 'ship'] as const;
 export type StageId = (typeof STAGE_IDS)[number];
@@ -16,27 +16,6 @@ export const STAGE_INFO: Record<StageId, { name: string; goal: string }> = {
   validate: { name: 'Review', goal: 'Check the frames, fix, check again' },
   ship: { name: 'Hand off', goal: 'Share the frames, decisions and review' },
 };
-
-/** A design run's phases, named by the step they belong to. The step is the main name; the phase is its sub-line. */
-export const PHASE_STAGE: Record<Exclude<FlowPhase, 'done' | 'stopped'>, { stage: StageId; doing: string }> = {
-  plan: { stage: 'spec', doing: 'writing the plan' },
-  sketch: { stage: 'explore', doing: 'sketching directions' },
-  pick: { stage: 'explore', doing: 'pick a direction' },
-  file: { stage: 'build', doing: 'attach the Figma file' },
-  system: { stage: 'build', doing: 'reading the design system' },
-  design: { stage: 'build', doing: 'designing in Figma' },
-  review: { stage: 'validate', doing: 'checking the frames' },
-  fix: { stage: 'validate', doing: 'fixing issues' },
-};
-
-/** "Build: designing in Figma". Done and stopped are run states, not steps. */
-export function phaseLine(phase: FlowPhase | null): string {
-  if (!phase) return 'No design run';
-  if (phase === 'done') return 'Design run done';
-  if (phase === 'stopped') return 'Design run stopped';
-  const p = PHASE_STAGE[phase];
-  return `${STAGE_INFO[p.stage].name}: ${p.doing}`;
-}
 
 /** The frames a chat designed. Older chats only list them on their review runs, by node id. */
 export const stageFrames = (design: DesignDoc | null, review: ReviewDoc | null): Array<{ nodeId: string; screen?: string; state?: string; name?: string }> =>

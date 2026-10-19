@@ -9,10 +9,9 @@ type Page = { key: string; page: string; label: string; dev?: boolean };
 /** One list for the key handler and the sheet, so the sheet always says what the keys do. */
 export const PAGES: Page[] = [
   { key: '1', page: 'figma', label: 'Figma' },
-  { key: '2', page: 'sketch', label: 'Sketch' },
-  { key: '3', page: 'review', label: 'Review' },
-  { key: '4', page: 'history', label: 'History' },
-  { key: '5', page: 'preview', label: 'Preview', dev: true },
+  { key: '2', page: 'review', label: 'Review' },
+  { key: '3', page: 'history', label: 'History' },
+  { key: '4', page: 'preview', label: 'Preview', dev: true },
   { key: ',', page: 'settings', label: 'Settings' },
 ];
 

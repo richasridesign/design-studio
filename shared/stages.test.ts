@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHASE_STAGE, approvalReply, phaseLine, planApprovedOnCard, stageFrames } from './stages.js';
+import { approvalReply, planApprovedOnCard, stageFrames } from './stages.js';
 
 describe('approvalReply', () => {
   it('takes her short approvals and nothing longer', () => {
@@ -50,26 +50,5 @@ describe('stageFrames', () => {
     expect(stageFrames({ frames: [{ nodeId: '1:2', screen: 'Cart' }] } as never, null)).toEqual([{ nodeId: '1:2', screen: 'Cart' }]);
     expect(stageFrames(null, { runs: [{ frames: ['3:4'] }] } as never)).toEqual([{ nodeId: '3:4' }]);
     expect(stageFrames(null, null)).toEqual([]);
-  });
-});
-
-describe('phaseLine', () => {
-  it('names a run phase by its stage, with the phase as the sub-line', () => {
-    expect(phaseLine('design')).toBe('Build: designing in Figma');
-    expect(phaseLine('plan')).toBe('Plan: writing the plan');
-    expect(phaseLine('pick')).toBe('Sketch: pick a direction');
-    expect(phaseLine('fix')).toBe('Review: fixing issues');
-  });
-
-  it('keeps done and stopped as run states', () => {
-    expect(phaseLine(null)).toBe('No design run');
-    expect(phaseLine('done')).toBe('Design run done');
-    expect(phaseLine('stopped')).toBe('Design run stopped');
-  });
-
-  it('maps phases onto the steps in order', () => {
-    const order = ['spec', 'explore', 'build', 'validate'];
-    const seen = Object.values(PHASE_STAGE).map((p) => order.indexOf(p.stage));
-    expect(seen.every((i, k) => i >= 0 && (k === 0 || i >= seen[k - 1]))).toBe(true);
   });
 });
