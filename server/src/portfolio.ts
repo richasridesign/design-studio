@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import {
-  NOTE_BLOCK, PORTFOLIO_FOLDER, SITE_PAGES, blockKey, cleanNote, blockLabel, blockOutcome, cleanConfig, cleanPortfolio, cleanSite, cleanSuggestions, dayStart, decisionsOf,
+  NOTE_BLOCK, PORTFOLIO_FOLDER, SITE_PAGES, blockKey, carryPicks, cleanNote, blockLabel, blockOutcome, cleanConfig, cleanPortfolio, cleanSite, cleanSuggestions, dayStart, decisionsOf,
   changedPages, findFlags, hideNames, isNew, isRunId, isRunning, mergeFlags, pickOf, pickSummary, keyError, projectLinkError, publishLine, publishMoved, runBlock, runId, siteError,
   upsertRunBlock, usedLine,
   type BlockRef, type Clearance, type EditPlanItem, type EditRecord, type PublishReading, type FlagKind, type FramerConfig, type PickEntry, type Picks, type PortfolioFile, type Run, type RunState, type ScreenNote, type Suggestion,
@@ -210,7 +210,8 @@ export type Candidate = PublicBlock & { screens: ScreenNote[] };
 export async function readRun(id: string): Promise<Run> {
   const run = await readJson<Run | null>(runFile(id), null);
   if (!run) throw new PortfolioError('There is no such run', 404);
-  // A step that was running when the server stopped will not finish.
+  // A step that was running when the server stopped will not finish. A revision goes back to her picks as they were.
+  if (run.revise && run.state === 'suggesting' && !active.has(id)) return { ...run, state: 'picking', revise: undefined, error: 'Design Studio restarted while revising. Your suggestions are as they were.' };
   if (isRunning(run.state) && !active.has(id)) {
     const failed: Record<string, RunState> = { gathering: 'gather-failed', suggesting: 'suggest-failed', planning: 'plan-failed', editing: 'edit-failed' };
     return { ...run, state: failed[run.state], error: 'Design Studio restarted during this step. Nothing was published.' };
@@ -300,10 +301,10 @@ async function readSite(id: string): Promise<string> {
 const projectNames = (c: Candidate[]): Array<{ name: string; kind: FlagKind }> => [...new Set(c.map((x) => x.project.name))].map((name) => ({ name, kind: 'product' as const }));
 
 /** Claude's raw suggestions, cleaned, with names hidden for "Cleared, hide names" projects. */
-export function finishSuggestions(raw: unknown, candidates: Candidate[], note = false): Suggestion[] {
+export function finishSuggestions(raw: unknown, candidates: Candidate[], note = false, keep?: string[]): Suggestion[] {
   const names = projectNames(candidates);
   const known = candidates.map((c) => ({ key: c.key, screens: c.screens.map((s) => s.id).filter((x): x is string => !!x) }));
-  const list = cleanSuggestions(raw, note ? [...known, { key: NOTE_BLOCK, screens: [] }] : known, names, note ? NOTE_BLOCK : undefined);
+  const list = cleanSuggestions(raw, note ? [...known, { key: NOTE_BLOCK, screens: [] }] : known, names, note ? NOTE_BLOCK : undefined, keep);
   const cleared = new Set(candidates.filter((c) => c.clearance === 'cleared').map((c) => c.key));
   return list.map((s) => {
     if (!s.sources.some((x) => cleared.has(x.block))) return s;
@@ -401,9 +402,48 @@ export async function stopRun(id: string): Promise<Run> {
   const run = await readRun(id);
   active.get(id)?.abort();
   active.delete(id);
+  if (run.revise && run.state === 'suggesting') return updateRun(id, { state: 'picking', revise: undefined });
   if (run.state === 'gathering' || run.state === 'suggesting') return updateRun(id, { state: 'stopped', progress: undefined, error: undefined });
   if (run.state === 'planning') return updateRun(id, { state: 'picking' });
   return run;
+}
+
+// ---------- Revise, on the Pick step ----------
+
+/**
+ * Her ask on the Pick step: Claude suggests again from it and her current picks, and the new list replaces the old
+ * one only when it is ready. Stop or a failure leaves her suggestions and picks as they were.
+ */
+export async function reviseRun(id: string, input: unknown): Promise<Run> {
+  const run = await readRun(id);
+  if (run.state !== 'picking') throw new PortfolioError('Suggestions can be revised only while you pick', 409);
+  const ask = cleanNote(input);
+  if (!ask) throw new PortfolioError('Write what to change in these suggestions');
+  if ([...active.keys()].length) throw new PortfolioError('A run is already going. Stop it or wait for it to finish', 409);
+  const [list, picks] = await Promise.all([suggestionsOf(id), readPicks(id)]);
+  await writeFile(path.join(runDir(id), 'revise.md'), `${ask}\n`);
+  await writeJson(path.join(runDir(id), 'previous.json'), list.map((s) => ({ ...s, choice: pickOf(picks, s).choice, draft: pickOf(picks, s).draft })));
+  const abort = new AbortController();
+  active.set(id, abort);
+  const next = await updateRun(id, { state: 'suggesting', revise: true, error: undefined });
+  void (async () => {
+    try {
+      const candidates = await candidatesOf(id);
+      const raw = (await suggest(runDir(id), candidates.length, portfolioDeps.chat, abort.signal, true, true)).raw;
+      if (abort.signal.aborted) return;
+      const fresh = finishSuggestions(raw, candidates, true, list.map((s) => s.id));
+      if (!fresh.length) throw new Error('Claude returned no suggestions');
+      const kept = carryPicks(list, fresh, await readPicks(id));
+      await writeJson(path.join(runDir(id), 'suggestions.json'), fresh);
+      await queued(picksFile(id), () => writeJson(picksFile(id), kept));
+      await updateRun(id, { state: 'picking', revise: undefined });
+    } catch (e) {
+      if (!abort.signal.aborted) await updateRun(id, { state: 'picking', revise: undefined, error: `Claude could not revise the suggestions: ${e instanceof Error ? e.message : String(e)}. They are as they were.` });
+    } finally {
+      active.delete(id);
+    }
+  })();
+  return next;
 }
 
 // ---------- Picks ----------

@@ -67,7 +67,8 @@ function Card({ children, tone }: { children: ReactNode; tone?: 'error' }) {
 const Wait = ({ text }: { text: string }) => <p className="pf-wait" role="status"><span className="ni-spin" aria-hidden="true" />{text}</p>;
 
 function Strip({ run }: { run: Run | null }) {
-  const steps = strip(run?.state ?? null);
+  // Revising suggestions is still the Pick step.
+  const steps = strip(run?.revise ? 'picking' : run?.state ?? null);
   return (
     <ol className="pf-strip" aria-label="Steps">
       {steps.map((s, i) => (
@@ -546,6 +547,9 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
   const [picks, setPicks] = useState<Picks>({});
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [confirmUndo, setConfirmUndo] = useState(false);
+  const [ask, setAsk] = useState('');
+  // Her unsaved local picks win only while the run stays in picking; after a revision the server's picks do.
+  const lastState = useRef<RunState | null>(null);
   useDialogFocus(!setup && !confirmUndo, box, onClose);
 
   const run = fresh ? null : view ? currentRun(view.runs, chosen) : null;
@@ -566,7 +570,9 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
     try {
       const r = await getJson<RunView>(runUrl(runId));
       setRv(r);
-      setPicks((p) => (Object.keys(p).length && r.run.state === 'picking' ? p : r.picks));
+      const was = lastState.current;
+      lastState.current = r.run.state;
+      setPicks((p) => (Object.keys(p).length && r.run.state === 'picking' && was === 'picking' ? p : r.picks));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -576,6 +582,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
   useEffect(() => {
     setRv(null);
     setPicks({});
+    lastState.current = null;
     if (id) void loadRun(id);
   }, [id, loadRun]);
 
@@ -595,13 +602,15 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
     else if (['plan', 'planning', 'editing', 'edited', 'edit-failed', 'publish-changed', 'copy'].includes(state)) setTab('changes');
   }, [state]);
 
-  const act = async (what: string) => {
+  const act = async (what: string, body: unknown = {}) => {
     if (!id) return;
     setBusy(what);
     setError('');
     try {
-      const r = await postJson<RunView>(runUrl(id, what), {});
+      const r = await postJson<RunView>(runUrl(id, what), body);
+      lastState.current = r.run.state;
       setRv(r);
+      if (what === 'revise') setAsk('');
       await loadView();
       changed();
     } catch (e) {
@@ -678,7 +687,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
       case 'gathering': case 'suggesting': case 'planning':
         return (
           <Card>
-            <h2 className="pf-card-title">{r.state === 'planning' ? 'Planning the edits' : r.state === 'suggesting' ? 'Suggesting updates' : 'Gathering finished work'}</h2>
+            <h2 className="pf-card-title">{r.state === 'planning' ? 'Planning the edits' : r.revise ? 'Revising suggestions' : r.state === 'suggesting' ? 'Suggesting updates' : 'Gathering finished work'}</h2>
             <Wait text={r.state === 'planning' ? 'Planning the edits from your picks and the live site, about 2 minutes. Nothing is written yet.' : gatherRunning(r)} />
             <div className="pf-foot"><span className="spacer" /><button type="button" disabled={!!busy} onClick={() => void act('stop')}>{busy === 'stop' ? 'Stopping…' : 'Stop'}</button></div>
           </Card>
@@ -698,6 +707,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
             <p className="pf-line">{sum.picked} of {sum.total} picked.{saved === 'saving' ? ' Saving…' : saved === 'saved' ? ' Saved.' : saved === 'failed' ? '' : ''}</p>
             {saved === 'failed' && <p className="pf-line error-text small" role="alert">Your picks were not saved. They save again on your next change.</p>}
             {r.note && <p className="pf-line muted small">{r.note}</p>}
+            {r.error && <p className="pf-line error-text small" role="alert">{r.error}</p>}
             {!view.canEdit && <p className="pf-line muted small">{view.editReason}</p>}
             {sum.blocker && sum.picked > 0 && <p className="pf-line small" id="pf-blocker"><span className="pf-shape triangle" aria-hidden="true" />{sum.blocker} <button type="button" className="link" onClick={() => document.getElementById(`pf-s-${sum.blockerId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>Show it</button></p>}
             <div className="pf-foot">
@@ -842,6 +852,18 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
                 {tab === 'suggestions' && (list.length
                   ? list.map((s) => <SuggestionCard key={s.id} s={s} rv={rv} pick={pickOf(picks, s)} editable={editable} blocking={sum.blockerId === s.id} onPick={(p, now) => onPick(s.id, p, now)} />)
                   : <p className="pf-line muted">{rv.run.state === 'suggesting' ? 'Suggestions show here when Claude is done.' : 'No suggestions in this run.'}</p>)}
+                {tab === 'suggestions' && editable && (
+                  <div className="pf-revise">
+                    <div className="field pf-draft">
+                      <label htmlFor="pf-revise">Ask for changes to these suggestions</label>
+                      <textarea id="pf-revise" rows={2} maxLength={NOTE_MAX} value={ask} disabled={!!busy} placeholder="Drop the Home card and make the About intro warmer" onChange={(e) => setAsk(e.target.value)} />
+                    </div>
+                    <div>
+                      <button type="button" disabled={!!busy || !ask.trim()} title={!ask.trim() ? 'Write what to change first' : undefined}
+                        onClick={() => void flush().then(() => act('revise', { note: ask }))}>{busy === 'revise' ? 'Starting…' : 'Revise suggestions'}</button>
+                    </div>
+                  </div>
+                )}
                 {tab === 'changes' && (
                   rv.run.state === 'copy' ? <CopyPack rv={rv} items={used} /> : <>
                     {rv.run.publishBefore && rv.run.state !== 'editing' && <p className="pf-line small muted">{rv.run.publishBefore}</p>}

@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import {
-  PortfolioError, applyRun, backToPicks, checkKey, chromeCheck, finishRun, keyStatus, makePlan, portfolioView, readShot, removeKey, retryRun, runView, savePicks, setup, skipBlocks,
+  PortfolioError, applyRun, backToPicks, checkKey, chromeCheck, finishRun, keyStatus, makePlan, reviseRun, portfolioView, readShot, removeKey, retryRun, runView, savePicks, setup, skipBlocks,
   startRun, stopRun, toCopy, undoRun, updateSettings,
 } from './portfolio.js';
 
@@ -86,6 +86,7 @@ export async function portfolioRoute(req: http.IncomingMessage, res: http.Server
           done: () => finishRun(id),
           stop: () => stopRun(id),
           retry: () => retryRun(id),
+          revise: async () => reviseRun(id, (await body(req)).note),
         };
         const fn = act ? acts[act] : undefined;
         if (fn) {

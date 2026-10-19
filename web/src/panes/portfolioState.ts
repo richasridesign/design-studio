@@ -58,6 +58,7 @@ export const adoptedLine = (n: number) => `${plural(n, 'older iteration')} ${n =
 /** Running line for the gather and suggest steps. 2 minutes is an estimate to confirm. */
 export function gatherRunning(run: Run): string {
   if (run.progress) return run.progress;
+  if (run.revise) return 'Revising the suggestions from what you asked, about 2 minutes. Your picks stay where they still fit.';
   const from = !run.blocks.length ? 'your note' : run.hasNote ? 'your decisions, your note' : 'your decisions';
   return run.state === 'suggesting'
     ? `Writing suggestions from ${from} and the live site, about 2 minutes. You can keep working.`
