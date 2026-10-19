@@ -9,6 +9,10 @@ import { historyContext, type HistoryContext } from './history.js';
 import { cachedMap } from './fileMap.js';
 import { readReview } from './review.js';
 import { readTriage } from './triage.js';
+import { projectRoot } from './roots.js';
+import { readProject } from './project.js';
+import { SAMPLE_KEY } from './figma.js';
+import type { Project } from '../../shared/project.js';
 
 // workflow.json in a flow chat's folder (flows/NN-slug/iterations/<id>/): the step state of the flow's workflow in
 // that iteration, shared by every chat on it. Only this module writes it, one write at a time per file. The file
@@ -99,8 +103,12 @@ export async function reviewFrames(cwd: string): Promise<string[]> {
 
 export type WorkflowView =
   | { scope: 'none' }
+  /** A chat at the root of a project with a Figma file and no project.json: the card offers to adopt it. */
+  | { scope: 'unadopted'; root: string; name: string }
   | {
       scope: 'flow';
+      root: string;
+      project: Project;
       flow: { n: number; name: string; slug: string };
       iteration: { id: string; state: 'working' | 'frozen' };
       state: WorkflowState;
@@ -117,7 +125,13 @@ const ACTIONS = ['step', 'done', 'skip', 'again', 'switch', 'pick', 'ask'] as co
 /** What the strip and the step card show. preset and areas are the Review tab's depth in this chat. */
 export async function workflowView(cwd: string, opts: { preset: ReviewPreset; areas: Area[]; reviewing: boolean }): Promise<WorkflowView> {
   const f = await flowOf(cwd);
-  if (!f) return { scope: 'none' };
+  if (!f) {
+    const root = projectRoot(cwd);
+    const file = (await readJson(path.join(root, 'figma.json'))) as { key?: string; name?: string } | null;
+    const atRoot = path.resolve(root) === path.resolve(cwd);
+    if (atRoot && file?.key && file.key !== SAMPLE_KEY && !(await readProject(root).catch(() => null))) return { scope: 'unadopted', root, name: String(file.name ?? 'this file') };
+    return { scope: 'none' };
+  }
   const { state } = await current(cwd, f);
   const review = reviewTally((await readReview(cwd)).runs, await readTriage(cwd));
   const it = f.ctx.iteration;
@@ -135,6 +149,8 @@ export async function workflowView(cwd: string, opts: { preset: ReviewPreset; ar
   });
   return {
     scope: 'flow',
+    root: f.ctx.root,
+    project: f.ctx.project,
     flow: { n: f.ctx.flow.n, name: f.ctx.flow.name, slug: f.ctx.flow.slug },
     iteration: { id: it.id, state: it.state },
     state,

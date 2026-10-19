@@ -84,3 +84,8 @@
 .set-card fieldset.rs-areas { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0 16px; }
 .set-card .rs-areas legend { float: none; line-height: 20px; margin: 0 0 4px; color: var(--fg); font-weight: 600; font-size: var(--text-md); width: 100%; }
 .set-card .rs-area { flex: none; justify-content: flex-start; margin: 0; }
+
+/* Scope and States, moved here from the old Steps panel: each a one-line summary with its own Edit or Show link. */
+.review-boxes { display: grid; margin: 0 0 16px; }
+.review-boxes .scope, .review-boxes .smap { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.review-boxes:empty { display: none; }

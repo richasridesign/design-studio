@@ -127,34 +127,6 @@
   .step-body, .step-acts { padding-left: 0; }
 }
 
-/* Scope: flows the work keeps and parked features, between the rail and the gate. */
-.scope { display: grid; gap: 8px; margin: 0 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); font-size: var(--text-sm); line-height: 20px; }
-.scope-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.scope-head b { font-weight: 600; }
-.scope-head .link { min-height: 24px; }
-.scope-edit { display: grid; gap: 8px; }
-.scope-edit > p { margin: 0; }
-.scope-label { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; font-weight: 600; color: var(--fg-muted); }
-.scope-list { display: grid; margin: 0; padding: 0; list-style: none; }
-.scope-list li { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 4px 0; border-top: 1px solid var(--border); }
-.scope-list li:first-child { border-top: 0; }
-.scope-list.parked li { align-items: start; }
-.scope-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.scope-parked { flex: 1; display: grid; min-width: 0; }
-.scope-parked .muted { overflow-wrap: anywhere; }
-.scope-list .link { min-height: 24px; }
-.scope-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.scope-add input { flex: 1 1 200px; min-width: 0; }
-.scope-add button:not(.link) { min-height: 36px; }
-.scope-park { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.scope-park .field { gap: 4px; }
-.scope-req { font-size: var(--text-xs); line-height: 16px; }
-.scope-park-foot { display: flex; align-items: center; gap: 12px; }
-.scope-park-foot button:not(.link) { min-height: 36px; }
-@media (max-width: 900px) {
-  .scope-head .link, .scope-list .link, .scope-park-foot .link, .scope-add .link { min-height: 36px; }
-}
-
 /* Phone: the steps open as a full-height sheet above the tab bar, so they never sit over the quick replies. */
 .steps-sheet-overlay {
   position: fixed; inset: 0; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 40;

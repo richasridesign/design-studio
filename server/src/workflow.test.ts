@@ -98,7 +98,7 @@ describe('workflow.json', () => {
 
   it('a chat that is not on a flow has no workflow', async () => {
     const { root } = await setup();
-    expect(await workflowView(root, OPTS)).toEqual({ scope: 'none' });
+    expect(await workflowView(path.join(root, 'flows'), OPTS)).toEqual({ scope: 'none' });
     expect(await workflowEvent(root, { type: 'edited', at: 1 })).toBeNull();
   });
 
@@ -122,6 +122,15 @@ describe('workflow.json', () => {
   it('tells flow chats about the workflow, and only them', () => {
     expect(instructions(null, '', null, 'Flow 3 block', '/p/flows/03-connectors/history.md')).toContain('pass stepDone');
     expect(instructions(null)).not.toContain('stepDone');
+  });
+
+  it('a chat at the root of a file with no project.json offers to adopt it', async () => {
+    const root = path.join(ROOTS.projects, `p-${++n}`);
+    await mkdir(root, { recursive: true });
+    await writeFile(path.join(root, 'figma.json'), JSON.stringify({ key: 'KEY', name: 'Atlas', url: 'https://www.figma.com/design/KEY' }));
+    expect(await workflowView(root, OPTS)).toEqual({ scope: 'unadopted', root, name: 'Atlas' });
+    await writeFile(path.join(root, 'project.json'), JSON.stringify({ key: 'KEY', flows: [], iterations: [] }));
+    expect(await workflowView(root, OPTS)).toEqual({ scope: 'none' });
   });
 
   it('checks what the UI posts', () => {
