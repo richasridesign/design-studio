@@ -329,7 +329,7 @@ export const STEP_CARDS: Record<StepId, (c: CardContext) => StepCard> = {
     if (e.reviewing) return card(`Reviewing ${plural(e.screens, 'screen')}, about 3 minutes. You can keep chatting.`);
     if (s.failed && e.screens) return card(`The review stopped: ${s.failed.reason.replace(/[.\s]+$/, '')}. Nothing was changed.`, { label: 'Try again', action: 'review', primary: false });
     if (!e.screens) return card(`No screens to review ${e.source.kind === 'none' ? 'in this flow yet' : sourceLine(e.source)}. Give feedback, or ask Claude to design them.`, undefined, { label: 'Give feedback', action: 'feedback' });
-    const src = e.source.kind === 'iteration' ? `in ${where}` : `${sourceLine(e.source)} · Flow ${e.flow.n}`;
+    const src = e.source.kind === 'iteration' ? `in ${where}` : `of Flow ${e.flow.n} ${sourceLine(e.source)}`;
     // An older or baseline source may miss her newest work: offer to name the screens instead.
     const link = e.source.kind === 'iteration' ? { label: 'Or give feedback', action: 'feedback' as const } : { label: 'Pick screens', action: 'pick-screens' as const };
     return card(`Reviews ${plural(e.screens, 'screen')} ${src}. Depth: ${e.depth}, ${e.cost}.`, { label: 'Start review', action: 'review' }, link);

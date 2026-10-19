@@ -218,7 +218,7 @@ function FreezeDialog({ view, onClose }: { view: FlowView; onClose: () => void }
         {phase.kind === 'error' && <p className="project-dialog-note error-text" role="alert">Could not freeze: {phase.text}</p>}
         <div className="dialog-actions">
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="primary" autoFocus disabled={busy} onClick={() => void freeze()}>{busy ? 'Freezing…' : 'Freeze'}</button>
+          <button type="button" className="primary" data-autofocus disabled={busy} onClick={() => void freeze()}>{busy ? 'Freezing…' : 'Freeze'}</button>
         </div>
       </div>
     </Shell>
