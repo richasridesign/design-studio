@@ -31,7 +31,12 @@ export const SITE_PAGES: Array<{ path: string; title: string }> = [
 export type Clearance = 'ask' | 'cleared' | 'never';
 export const CLEARANCE_LABEL: Record<Clearance, string> = { ask: 'Ask each time', cleared: 'Cleared, hide names', never: 'Never' };
 
-export type FramerConfig = { site: string; project: string; mode: 'api' | 'copy' };
+/**
+ * chrome: Claude edits the Framer editor in her signed-in Chrome (how every past edit was made). copy: a copy pack she
+ * pastes. api: the Framer Server API, on hold until the Phase 0 spike adopts it.
+ */
+export type FramerMode = 'chrome' | 'api' | 'copy';
+export type FramerConfig = { site: string; project: string; mode: FramerMode };
 
 export type UseRecord = { frozenAt: number; run: string; state: 'edited' | 'published' };
 export type SkipRecord = { frozenAt: number; run: string; why?: string };
@@ -68,7 +73,7 @@ export function cleanPortfolio(input: unknown): PortfolioFile {
 export function cleanConfig(input: unknown): FramerConfig | null {
   const o = isObj(input) ? input : null;
   if (!o || typeof o.site !== 'string' || !o.site) return null;
-  return { site: o.site, project: typeof o.project === 'string' ? o.project : '', mode: o.mode === 'api' ? 'api' : 'copy' };
+  return { site: o.site, project: typeof o.project === 'string' ? o.project : '', mode: o.mode === 'api' || o.mode === 'copy' ? o.mode : 'chrome' };
 }
 
 // ---------- Blocks of finished work ----------
@@ -350,6 +355,40 @@ export type EditPlanItem =
   | { id: string; suggestion: string; kind: 'copy'; reason: string };
 
 export type EditState = 'waiting' | 'done' | 'failed' | 'undone' | 'copy';
+
+// ---------- Framer's Publish panel ----------
+
+/**
+ * One reading of the Publish panel in the Framer editor, before and after each run (publish-before.json,
+ * publish-after.json). lastPublishedAt is the time of the last publish, so a reading an hour later still compares.
+ */
+export type PublishReading = { at: number; lastPublishedAt: number | null; changed: string[]; warnings: string[] };
+
+export function cleanReading(input: unknown, at: number): PublishReading | null {
+  const o = isObj(input) ? input : null;
+  if (!o) return null;
+  const paths = (v: unknown) => (Array.isArray(v) ? v.map(String).filter((p) => p.startsWith('/')).slice(0, 50) : []);
+  const t = Number(o.lastPublishedAt);
+  return { at, lastPublishedAt: Number.isFinite(t) && t > 0 ? t : null, changed: paths(o.changed), warnings: (Array.isArray(o.warnings) ? o.warnings : []).map((w) => oneLineText(String(w), 160)).filter(Boolean).slice(0, 10) };
+}
+
+const oneLineText = (s: string, max: number) => stripDashes(s).replace(/\s+/g, ' ').trim().slice(0, max);
+
+/** True when a publish happened between the two readings: one she did not make during a run. */
+export const publishMoved = (before: PublishReading, after: PublishReading) => after.lastPublishedAt !== before.lastPublishedAt;
+
+/** "Framer: Published Sat 17 Oct, 23:22. No unpublished changes." */
+export function publishLine(r: PublishReading): string {
+  const when = r.lastPublishedAt ? (() => { const d = new Date(r.lastPublishedAt); return `Published ${shortDate(r.lastPublishedAt)}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; })() : 'Never published';
+  const changes = r.changed.length ? `Unpublished changes: ${r.changed.join(', ')}.` : 'No unpublished changes.';
+  return `Framer: ${when}. ${changes}`;
+}
+
+/** Pages this run changed, and pages changed outside it (pending before the run, or not touched by an edit). */
+export function changedPages(before: PublishReading, after: PublishReading, touched: string[]): { changed: string[]; outside: string[] } {
+  const t = new Set(touched);
+  return { changed: after.changed.filter((p) => t.has(p)), outside: [...new Set([...before.changed, ...after.changed])].filter((p) => !t.has(p)) };
+}
 export type EditRecord = EditPlanItem & { state: EditState; error?: string };
 
 // ---------- Runs ----------
@@ -360,6 +399,8 @@ export type RunState =
   | 'picking'
   | 'planning' | 'plan' | 'plan-failed'
   | 'editing' | 'edited' | 'edit-failed'
+  /** The Publish panel moved during the run: a publish she did not make. The run stops. */
+  | 'publish-changed'
   | 'copy'
   | 'done' | 'stopped';
 
@@ -368,7 +409,7 @@ export type Run = {
   state: RunState;
   startedAt: number;
   blocks: string[];
-  mode: 'api' | 'copy';
+  mode: FramerMode;
   error?: string;
   /** Shown while a step runs. */
   progress?: string;
@@ -380,6 +421,10 @@ export type Run = {
   changed?: string[];
   outside?: string[];
   published?: boolean;
+  /** The Publish panel before and after the edits, as lines, and its warnings (nested links blocked a publish once). */
+  publishBefore?: string;
+  publishAfter?: string;
+  warnings?: string[];
   doneAt?: number;
   used?: number;
   skipped?: number;
@@ -397,7 +442,7 @@ export function stepOf(state: RunState | null): Step | 'done' {
   switch (state) {
     case null: case 'gathering': case 'gather-failed': case 'suggesting': case 'suggest-failed': case 'stopped': return 'gather';
     case 'picking': return 'pick';
-    case 'planning': case 'plan': case 'plan-failed': case 'editing': case 'edit-failed': case 'copy': return 'edit';
+    case 'planning': case 'plan': case 'plan-failed': case 'editing': case 'edit-failed': case 'publish-changed': case 'copy': return 'edit';
     case 'edited': return 'publish';
     case 'done': return 'done';
   }
@@ -419,7 +464,7 @@ export const RUN_LABEL: Record<RunState, string> = {
   suggesting: 'Suggesting', 'suggest-failed': 'Could not suggest',
   picking: 'Waiting for your picks',
   planning: 'Planning', plan: 'Plan ready', 'plan-failed': 'Could not plan',
-  editing: 'Editing', edited: 'Edited, not published', 'edit-failed': 'Edit stopped',
+  editing: 'Editing', edited: 'Edited, not published', 'edit-failed': 'Edit stopped', 'publish-changed': 'Framer published',
   copy: 'Copy pack ready',
   done: 'Done', stopped: 'Stopped',
 };
@@ -427,7 +472,7 @@ export const RUN_LABEL: Record<RunState, string> = {
 /** Shape for the state: ring for waiting on her, filled for done, spinner for running, cross for failed. */
 export function runShape(s: RunState): 'running' | 'waiting' | 'done' | 'failed' {
   if (isRunning(s)) return 'running';
-  if (s.endsWith('failed') || s === 'stopped') return 'failed';
+  if (s.endsWith('failed') || s === 'stopped' || s === 'publish-changed') return 'failed';
   if (s === 'done') return 'done';
   return 'waiting';
 }
