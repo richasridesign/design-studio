@@ -10,7 +10,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { watch, type FSWatcher } from 'node:fs';
+import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
@@ -39,6 +39,11 @@ import { iterationReviews, selectionNode, selectionView } from './selection.js';
 import { cleanId } from '../../shared/project.js';
 import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectionsFor, reopenIteration } from './iterations.js';
 import { createFlow } from './newFlow.js';
+import { createFileFor, createProject, linkFile, ProjectError, shownRoot } from './newProject.js';
+import { figmaTeams } from './figmaCreate.js';
+import { commitProject } from './projectGit.js';
+import { figmaProjectId } from '../../shared/newProject.js';
+import type { FigmaFile } from '../../shared/design.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
 import { readBuildChecks } from './buildcheck.js';
@@ -312,8 +317,17 @@ await settings().catch(() => null);
 const last = await readFile(LAST, 'utf8').then(JSON.parse).catch(() => null);
 lastViewed = await (last?.sessionId ? openSaved(last.sessionId).catch(firstChat) : firstChat());
 
+/** After a file is linked to a project: every open chat in it gets the file, and the file map is read. */
+function fileLinked(root: string, f: FigmaFile) {
+  for (const c of [...live.values()].map((l) => l.chat)) if (!c.figmaFile && projectRoot(c.cwd) === root) c.setFigma(f);
+  refreshOutlineSoon(root, f.key);
+  void commitProject(root, `Link Figma file ${f.name}`);
+  broadcastLive();
+}
+
 async function chatForUrl(url: string) {
-  const dir = await folderFor(url);
+  const { dir, created, name } = await folderFor(url);
+  if (created) void commitProject(dir, `Create project ${name} from its Figma file`);
   const key = (await readFigma(dir))?.key;
   if (key) refreshOutlineSoon(dir, key);
   const open = [...live.values()].map((l) => l.chat).filter((c) => c.cwd === dir).sort((a, b) => summary(b).lastActive - summary(a).lastActive)[0];
@@ -442,10 +456,39 @@ const server = http.createServer(async (req, res) => {
       const asked = url.searchParams.get('cwd');
       const dir = asked ? path.resolve(asked) : chat.cwd;
       if (asked && !isChatFolder(dir)) return json({ error: 'Not a Design Studio folder' }, 400);
+      // New project: a named folder with no Figma file yet. Then a file is linked, or made in Figma on her click.
+      if (url.pathname === '/api/projects/root') return json({ root: shownRoot() });
+      if (url.pathname === '/api/projects/new' && req.method === 'POST') {
+        const r = await createProject((await readJsonBody())?.name);
+        void commitProject(r.cwd, `Create project ${r.name}`);
+        broadcastLive();
+        return json({ cwd: r.cwd, name: r.name });
+      }
+      if (url.pathname === '/api/projects/link' && req.method === 'POST') {
+        if (!asked) return json({ error: 'Name the project' }, 400);
+        const f = await linkFile(dir, { url: String((await readJsonBody())?.url ?? '') });
+        fileLinked(projectRoot(dir), f);
+        return json({ figma: f });
+      }
+      if (url.pathname === '/api/projects/figma-teams') {
+        if (!asked) return json({ error: 'Name the project' }, 400);
+        return json({ teams: await figmaTeams(projectRoot(dir)) });
+      }
+      if (url.pathname === '/api/projects/figma-file' && req.method === 'POST') {
+        if (!asked) return json({ error: 'Name the project' }, 400);
+        const body = await readJsonBody();
+        const link = String(body?.projectLink ?? '').trim();
+        const projectId = link ? figmaProjectId(link) : undefined;
+        if (link && !projectId) return json({ error: 'That is not a Figma project link.' }, 400);
+        const f = await createFileFor(dir, { planKey: String(body?.planKey ?? ''), ...(projectId ? { projectId } : {}) });
+        fileLinked(projectRoot(dir), f);
+        return json({ figma: f });
+      }
       const file = asked ? await readFigma(dir) : figma;
       if (url.pathname === '/api/projects/adopt' && req.method === 'POST') {
         if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
         const r = await confirmAdopt(dir, file.key, await readJsonBody());
+        void commitProject(dir, `Adopt ${file.name}: ${r.project.flows.length} flows, ${r.project.iterations.length} iterations`);
         broadcastLive();
         return json(r);
       }
@@ -460,12 +503,15 @@ const server = http.createServer(async (req, res) => {
         const body = await readJsonBody();
         const id = String(body?.id ?? '');
         const r = body?.state === 'working' ? await reopenIteration(dir, id) : body?.state ? await freezeIteration(dir, figmaKey, id) : await createIterationInFigma(dir, figmaKey, body);
+        const made = 'iteration' in r ? r.iteration : null;
+        void commitProject(dir, body?.state === 'working' ? `Reopen iteration ${cleanId(id) ?? id}` : body?.state ? `Freeze iteration ${cleanId(id) ?? id}` : `Create iteration ${made?.id ?? ''} ${made?.topic ?? ''}`);
         broadcastLive();
         return json(r);
       }
       // New flow (From scratch): the flow, project.json on a file that has none, a working iteration, then its subsection.
       if (url.pathname === '/api/projects/flow' && req.method === 'POST') {
         const r = await createFlow(dir, figmaKey, await readJsonBody());
+        void commitProject(dir, `Create flow ${r.flow.n} ${r.flow.name}`);
         broadcastLive();
         return json(r);
       }
@@ -505,7 +551,7 @@ const server = http.createServer(async (req, res) => {
       }
       // Remove project moves the folder to .trash (nothing deleted, Figma untouched); rename fixes the working sections' names.
       if (url.pathname === '/api/projects/remove' && req.method === 'POST') {
-        if (!asked || !file || file.key === SAMPLE_KEY) return json({ error: 'Only a project folder with a Figma file can be removed' }, 400);
+        if (!asked || file?.key === SAMPLE_KEY || (!file && !(await readProject(dir)))) return json({ error: 'Only a project folder can be removed' }, 400);
         const r = await removeProject(dir, { stopTasks: (root) => tasks.forget(root), closeChats: closeChatsIn });
         broadcastLive();
         return json(r);
@@ -612,7 +658,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (err) {
-    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError ? err.status : err instanceof HistoryError ? 409 : 500);
+    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof ProjectError ? err.status : err instanceof HistoryError ? 409 : 500);
   }
 });
 
@@ -677,7 +723,10 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'set_figma': {
         const url = String(msg.url ?? '').trim();
         const attach = !chat.figmaFile && isChatFolder(chat.cwd) && path.resolve(chat.cwd) !== path.resolve(CHATS_ROOT, 'scratch');
+        // A chat in a project made with New project links the file to the project's own folder, not the chat's.
+        const root = projectRoot(chat.cwd);
         if (!attach) chatForUrl(url).then((c) => view(client, c), fail);
+        else if (existsSync(path.join(root, 'project.json')) && !existsSync(path.join(root, 'figma.json'))) linkFile(root, { url }).then((f) => fileLinked(root, f), fail);
         else attachFolder(chat.cwd, url).then((f) => (chat.setFigma(f), refreshOutlineSoon(chat.cwd, f.key), broadcastLive()), fail);
         break;
       }

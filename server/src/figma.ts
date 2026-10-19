@@ -67,12 +67,13 @@ export function nameFromUrl(url: string, key: string) {
 
 const figmaFile = (key: string, name: string): FigmaFile => ({ key, name, url: `https://www.figma.com/design/${key}` });
 
-export async function folderFor(url: string) {
+/** The project folder for a file link: the one that holds the file, else a new one (created true). */
+export async function folderFor(url: string): Promise<{ dir: string; created: boolean; name: string }> {
   const parsed = parseUrl(url);
   const existing = (await chatFolders()).find((f) => f.figma?.key === parsed.key);
   if (existing) {
     await installSkills(existing.dir);
-    return existing.dir;
+    return { dir: existing.dir, created: false, name: existing.figma!.name };
   }
   const name = nameFromUrl(url, parsed.key);
   // New projects go in the projects root; older ones under the chats root are found above and kept where they are.
@@ -80,7 +81,7 @@ export async function folderFor(url: string) {
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, 'figma.json'), JSON.stringify(figmaFile(parsed.key, name), null, 2));
   await installSkills(dir);
-  return dir;
+  return { dir, created: true, name };
 }
 
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);

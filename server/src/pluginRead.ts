@@ -369,6 +369,15 @@ export function onReadCost(fn: ((c: ReadCost) => void) | null) {
   costSink = fn;
 }
 
+/** Sends the cost of another short Figma run (New project's whoami and create file) to the same place. */
+export function reportCost(c: ReadCost) {
+  try {
+    if (c.costUsd || c.tokens) costSink?.(c);
+  } catch (err) {
+    console.error('read cost:', err);
+  }
+}
+
 const SYSTEM = 'You make Figma read calls for Design Studio exactly as told. The tools fill in their own code and settings, so pass the arguments as given. You never edit the file, never load skills and never call other tools.';
 
 function hookFor(state: ReadState, tools: string[]): Partial<Record<'PreToolUse' | 'PostToolUse' | 'PostToolUseFailure', HookCallbackMatcher[]>> {
