@@ -330,15 +330,18 @@ function release(session: string) {
 
 async function emulate(restart = true) {
   if (!watching) return;
-  const m = [...sizes.values()].reverse().find((d) => d.mobile);
-  const key = m ? `${m.cssW}x${m.cssH}@${m.dpr}` : '';
+  // Chrome draws the tab at the panel's own size, so the picture fills the Figma tab instead of keeping the shape of
+  // her Chrome window. A phone wins over a desktop viewer, since it needs the touch layout.
+  const all = [...sizes.values()].reverse();
+  const m = all.find((d) => d.mobile) ?? all[0];
+  const key = m ? `${m.mobile ? 'm' : 'd'}${m.cssW}x${m.cssH}@${m.dpr}` : '';
   const { session } = watching;
   if ((emulated?.session === session ? emulated.key : '') === key) return;
   emulated = { session, key };
   try {
     if (m) {
-      await call('Emulation.setDeviceMetricsOverride', { width: m.cssW, height: m.cssH, deviceScaleFactor: m.dpr, mobile: true }, session);
-      await call('Emulation.setTouchEmulationEnabled', { enabled: true }, session);
+      await call('Emulation.setDeviceMetricsOverride', { width: m.cssW, height: m.cssH, deviceScaleFactor: m.dpr, mobile: m.mobile }, session);
+      await call('Emulation.setTouchEmulationEnabled', { enabled: m.mobile }, session);
     } else {
       await call('Emulation.clearDeviceMetricsOverride', {}, session);
       await call('Emulation.setTouchEmulationEnabled', { enabled: false }, session);
