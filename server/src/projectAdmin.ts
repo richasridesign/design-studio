@@ -33,7 +33,8 @@ export async function removeProject(dir: string, deps: RemoveDeps): Promise<{ fr
   const root = projectRoot(dir);
   const home = roots().find((r) => path.dirname(root) === r);
   if (!home) throw new Error('Only a project folder can be removed');
-  if (!(await stat(path.join(root, 'figma.json')).then(() => true, () => false))) throw new Error('This folder has no Figma file');
+  const has = (f: string) => stat(path.join(root, f)).then(() => true, () => false);
+  if (!(await has('figma.json')) && !(await has('project.json'))) throw new Error('This folder has no Figma file and no project');
   const tasks = await deps.stopTasks(root);
   const chats = await deps.closeChats(root);
   const trash = path.join(home, TRASH);

@@ -15,7 +15,7 @@ const within = (dir: string, root: string) => dir.startsWith(root + path.sep);
 export const insideRoots = (dir: string) => roots().some((r) => within(path.resolve(dir), r));
 
 /**
- * The project root of a chat folder: the nearest folder, from `dir` upward, that holds figma.json. The walk stops
+ * The project root of a chat folder: the nearest folder, from `dir` upward, that holds figma.json or project.json. The walk stops
  * at the root that holds `dir` and never looks above it. A folder outside the roots, or with no figma.json on the
  * way up, is its own root (chats with no file, the sample, the scratch folder).
  */
@@ -25,7 +25,8 @@ export function projectRoot(dir: string): string {
   if (!root) return abs;
   let cur = abs;
   while (within(cur, root)) {
-    if (existsSync(path.join(cur, 'figma.json'))) return cur;
+    // figma.json marks a project with a file; project.json alone, one made with New project before its file.
+    if (existsSync(path.join(cur, 'figma.json')) || existsSync(path.join(cur, 'project.json'))) return cur;
     cur = path.dirname(cur);
   }
   return abs;
