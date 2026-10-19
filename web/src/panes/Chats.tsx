@@ -216,7 +216,11 @@ export function Chats() {
     const w = p.working;
     const acts = w ? newChat(`New chat on ${f.flow.name} in ${w.id}`, () => chatIn(p, f, w)) : null;
     const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? w.id, f.flow.slug) } : {}) };
-    return group(`${p.cwd}#${f.flow.slug}`, 1, 'git-branch', `${f.flow.n} · ${f.flow.name}`, f.count, null, acts, f.iterations.map((i) => iterationRow(p, f, i)), undefined, { label: f.flow.name, selected: same(sel, me), run: () => select(me) });
+    // A flow adoption found before but not the last time stays, with its folders and chats, and says so.
+    // At the 160px default the name needs the room, so the icon and grey name carry it; the tag shows when wider.
+    const tag = f.flow.missing ? <span className="state-tag missing"><span className="missing-text">Not in Figma</span></span> : null;
+    const title = f.flow.missing ? `${f.flow.name}: the last adoption did not find this flow in Figma. Its folders and chats are kept.` : undefined;
+    return group(`${p.cwd}#${f.flow.slug}`, 1, f.flow.missing ? 'circle-slash' : 'git-branch', f.flow.missing ? <span className="flow-missing">{`${f.flow.n} · ${f.flow.name}`}</span> : `${f.flow.n} · ${f.flow.name}`, f.count, tag, acts, f.iterations.map((i) => iterationRow(p, f, i)), title, { label: f.flow.name, selected: same(sel, me), run: () => select(me) });
   };
 
   const plain = (p: TreeProject, key: string, name: string, s: ChatSet, extra?: ReactNode) =>
