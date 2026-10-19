@@ -15,6 +15,8 @@ export type TreeProject = {
   url: string;
   stage: string | null;
   adopted: boolean;
+  /** Made with New project and no Figma file added yet: no adopt, no Open in Figma, an Add Figma file instead. */
+  noFile: boolean;
   working: Iteration | null;
   flows: TreeFlow[];
   before: ChatSet;
@@ -51,7 +53,9 @@ export function buildTree(live: LiveChat[], saved: SavedSession[], projects: Pro
     const flows: TreeFlow[] = (project?.flows ?? []).map((flow) => ({ flow, iterations: [], count: 0 }));
     const its = project ? [...project.iterations].sort((a, b) => compareIds(b.id, a.id)) : [];
     const working = its.find((it) => it.state === 'working') ?? null;
-    const node: TreeProject = { cwd: p.cwd, key: p.key, name: p.name, url: p.url, stage: p.stage ?? null, adopted: Boolean(project), working, flows, before: set(), tasks: set(), count: 0, last: 0 };
+    // New project writes project.json before any adoption: it counts as adopted once it was adopted or has flows.
+    const adopted = Boolean(project && (project.adoptedAt || project.flows.length || project.iterations.length));
+    const node: TreeProject = { cwd: p.cwd, key: p.key, name: p.name, url: p.url, stage: p.stage ?? null, adopted, noFile: Boolean(p.noFile), working, flows, before: set(), tasks: set(), count: 0, last: 0 };
     for (const f of flows) for (const it of its) f.iterations.push({ iteration: it, label: iterationLabel(it), open: [], recent: [] });
     return node;
   });

@@ -230,7 +230,18 @@ export function Chats() {
     const sum = projects.find((x) => x.cwd === p.cwd);
     const inside = (cwd: string) => cwd === p.cwd || cwd.startsWith(`${p.cwd}/`);
     const remove = () => setDialog({ kind: 'remove', p, chats: live.filter((c) => inside(c.cwd)).length, tasks: taskList.tasks.filter((t) => t.root === p.cwd && (t.state === 'running' || t.state === 'paused')).length });
-    const menu = (
+    // New project with no Figma file yet: Add Figma file reopens "Add a Figma file to <name>?", and the file-only
+    // items wait for the file. Focus goes back to this row's More button when the popover closes.
+    const addFile = () => {
+      const more = document.querySelector<HTMLElement>(`.row.project button.icon-btn[aria-label="${CSS.escape(`More for ${p.name}`)}"]`);
+      openAttach(more, { cwd: p.cwd, name: p.name }, more);
+    };
+    const menu = p.noFile ? (
+      <RowMenu label={`More for ${p.name}`} items={[
+        { label: 'Add Figma file', hint: 'A new file, or one you have', run: addFile },
+        { label: 'Remove project', hint: 'Moves the folder to .trash', run: remove },
+      ]} />
+    ) : (
       <RowMenu label={`More for ${p.name}`} items={[
         { label: p.adopted ? 'Adopt this file again' : 'Adopt this file', hint: 'Sections become flows and iterations', run: () => setDialog({ kind: 'adopt', p }) },
         ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${p.working.id} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
@@ -255,7 +266,14 @@ export function Chats() {
         {p.stage ? <span className="stage-tag" title={`Next step: ${p.stage}`}>{p.stage}</span> : null}
       </>
     );
-    const body = p.adopted
+    const body = p.noFile
+      ? (
+        <>
+          <div className="hint adopt-hint">No Figma file yet. <button className="link" onClick={addFile}>Add Figma file</button></div>
+          {plain(p, 'before', 'Before flows', p.before)}
+        </>
+      )
+      : p.adopted
       ? (
         <>
           <TaskRows tasks={taskList.tasks.filter((t) => t.root === p.cwd)} onOpen={(id) => setDialog({ kind: 'task', id })} />
