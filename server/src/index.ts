@@ -27,6 +27,8 @@ import { addDaily, today } from './spend.js';
 import { onReadCost } from './pluginRead.js';
 import { ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, publicSettings, saveSettings, settings } from './settings.js';
+import { projectRoot } from './roots.js';
+import { adoptProposal, confirmAdopt, createIteration, ensureIterationFolders, listProjects, setIterationState } from './project.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
@@ -211,10 +213,12 @@ async function openSaved(sessionId: string) {
   return createChat(info.cwd, sessionId, info.summary);
 }
 
-async function newChat(cwd: string, from: AgentSession) {
-  const dir = path.resolve(cwd);
+async function newChat(cwd: string, from: AgentSession, flow?: string, iteration?: string) {
+  let dir = path.resolve(cwd);
   if (dir !== from.cwd && dir !== PROJECT && !isChatFolder(dir)) throw new Error(`Not a Design Studio folder: ${dir}`);
   if (!(await isDir(dir))) throw new Error(`Folder no longer exists: ${dir}`);
+  // A chat on a flow in an iteration runs in that iteration's folder of the project (made on first use).
+  if (flow && iteration) dir = await ensureIterationFolders(dir, String(flow), String(iteration));
   return createChat(dir);
 }
 
@@ -228,6 +232,7 @@ function remember(chat: AgentSession) {
 
 const DEFAULT_PROJECT = !process.argv[2] && !process.env.PROJECT_DIR;
 const firstChat = async () => createChat(DEFAULT_PROJECT ? await freshChatFolder() : PROJECT);
+await settings().catch(() => null);
 const last = await readFile(LAST, 'utf8').then(JSON.parse).catch(() => null);
 lastViewed = await (last?.sessionId ? openSaved(last.sessionId).catch(firstChat) : firstChat());
 
@@ -340,6 +345,23 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/chrome/status') return json(chromeStatus());
     if (url.pathname === '/api/chrome/figma-tabs') return json(figmaTabs());
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());
+    if (url.pathname === '/api/projects') return json({ projects: await listProjects() });
+    if (url.pathname === '/api/projects/adopt' && req.method === 'POST') {
+      if (!figma || figma.key === SAMPLE_KEY) return json({ error: 'This chat has no Figma file' }, 400);
+      const r = await confirmAdopt(chat.cwd, figma.key, await readJsonBody());
+      broadcastLive();
+      return json(r);
+    }
+    if (url.pathname === '/api/projects/adopt') {
+      if (!figma || figma.key === SAMPLE_KEY) return json({ error: 'This chat has no Figma file' }, 400);
+      return json(await adoptProposal(chat.cwd, figma.key));
+    }
+    if (url.pathname === '/api/projects/iteration' && req.method === 'POST') {
+      const body = await readJsonBody();
+      const r = body?.state ? await setIterationState(chat.cwd, String(body.id), body.state === 'working' ? 'working' : 'frozen') : await createIteration(chat.cwd, body);
+      broadcastLive();
+      return json(r);
+    }
     if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));
     // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.
     if (url.pathname === '/api/figma/outline') {
@@ -404,7 +426,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/design-system/view') return json(await designSystemView(chat.cwd));
     if (url.pathname.startsWith('/api/chat-file/')) {
-      const file = inside(chat.cwd, decodeURIComponent(url.pathname.slice('/api/chat-file/'.length)));
+      // Project files (thumbs, the map cache) sit at the project root, a flow chat's own files in its folder.
+      const rel = decodeURIComponent(url.pathname.slice('/api/chat-file/'.length));
+      const file = inside(chat.cwd, rel) ?? inside(projectRoot(chat.cwd), rel);
       const data = file && (await readFile(file).catch(() => null));
       if (!data) return json({ error: 'Not found' }, 404);
       res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
@@ -549,7 +573,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         void chat.toggleMcp(String(msg.name), Boolean(msg.enabled));
         break;
       case 'new_session':
-        newChat(msg.cwd ?? chat.cwd, chat).then((c) => view(client, c), fail);
+        newChat(msg.cwd ?? chat.cwd, chat, msg.flow, msg.iteration).then((c) => view(client, c), fail);
         break;
     }
   });

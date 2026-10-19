@@ -155,7 +155,8 @@ export type ClientMessage =
   | { type: 'view'; id: string }
   | { type: 'close'; id: string }
   | { type: 'open_session'; sessionId: string }
-  | { type: 'new_session'; cwd?: string }
+  /** With flow and iteration, the chat runs in that flow's iteration folder of the project at cwd (made if new). */
+  | { type: 'new_session'; cwd?: string; flow?: string; iteration?: string }
   | { type: 'new_chat'; url?: string }
   | { type: 'set_figma'; url: string }
   | { type: 'mcp_status' }
