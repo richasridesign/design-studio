@@ -6,6 +6,7 @@ import { Confirm, type ConfirmRequest } from '../Confirm';
 import { QuickPick, type PickItem } from '../QuickPick';
 import { ago } from '../ago';
 import type { LiveChat, SavedSession } from '../../../shared/protocol';
+import type { Project } from '../../../shared/project';
 import { buildTree, type ChatSet, type TreeProject } from './projectTree';
 import { defaultIteration, iterationsFor, needsCopy, placeLabel, placeOf, startFlowChat, useProjects, vId, type Place } from './chatPlaceState';
 import '../chatPlace.css';
@@ -35,18 +36,24 @@ function chatItems(s: ChatSet, keywords: string, indent: number): PickItem[] {
   ];
 }
 
-/** One project: itself (a project-wide chat) and its chats, then each flow's iterations, each with its chats. */
-function projectItems(p: TreeProject, projectFlows: Map<string, TreeProject['flows'][number]['flow']>): PickItem[] {
+/**
+ * One project: itself (a project-wide chat) and its chats, then each flow's iterations, each with its chats. The
+ * iterations are the new chat picker's (every working one, frozen ones that hold the flow), plus any with chats.
+ */
+function projectItems(p: TreeProject, project: Project | null, projectFlows: Map<string, TreeProject['flows'][number]['flow']>): PickItem[] {
   const out: PickItem[] = [
     { value: `new|${p.cwd}`, label: p.name, detail: 'Whole project · New chat', icon: 'file-media', keywords: 'project' },
     ...chatItems({ open: [...p.tasks.open, ...p.before.open], recent: [...p.tasks.recent, ...p.before.recent].sort((a, b) => b.lastModified - a.lastModified) }, p.name, 1),
   ];
   for (const f of p.flows) {
     projectFlows.set(`${p.cwd}|${f.flow.slug}`, f.flow);
-    for (const i of f.iterations) {
-      const frozen = i.iteration.state === 'frozen';
-      out.push({ value: `new|${p.cwd}|${f.flow.slug}|${i.iteration.id}`, label: placeLabel(f.flow, i.iteration), detail: `${frozen ? 'Frozen, read only' : 'Working'} · New chat`, mark: frozen ? 'frozen' : 'working', keywords: i.label });
-      out.push(...chatItems(i, `${f.flow.name} ${vId(i.iteration.id)}`, 1));
+    const its = project ? iterationsFor(project, f.flow.slug) : [];
+    const extra = f.iterations.map((i) => i.iteration).filter((x) => !its.some((y) => y.id === x.id));
+    for (const it of [...its, ...extra]) {
+      const i = f.iterations.find((x) => x.iteration.id === it.id);
+      const frozen = it.state === 'frozen';
+      out.push({ value: `new|${p.cwd}|${f.flow.slug}|${it.id}`, label: placeLabel(f.flow, it), detail: `${frozen ? 'Frozen, read only' : 'Working'} · New chat`, mark: frozen ? 'frozen' : 'working', keywords: it.topic ?? '' });
+      if (i) out.push(...chatItems(i, `${f.flow.name} ${vId(it.id)}`, 1));
     }
   }
   return out;
@@ -65,7 +72,8 @@ export function ChatPlace({ place, projects, saved }: ReturnType<typeof useChatP
   const show = () => setOpen(chip.current?.getBoundingClientRect() ?? new DOMRect(16, 48, 0, 0));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return;
+      // Cmd only: Ctrl+K deletes to the end of the line in a macOS text field.
+      if (!e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return;
       // The dev terminal clears on ⌘K, and the Figma tab passes keys to Figma.
       const at = document.activeElement;
       if (at?.closest('.xterm, .browser-pane')) return;
@@ -86,7 +94,7 @@ export function ChatPlace({ place, projects, saved }: ReturnType<typeof useChatP
   const flows = new Map<string, TreeProject['flows'][number]['flow']>();
   // The open chat's project; a chat with no project lists every project.
   const shown = place ? tree.projects.filter((p) => p.cwd === place.summary.cwd) : tree.projects;
-  const items = shown.flatMap((p) => projectItems(p, flows));
+  const items = shown.flatMap((p) => projectItems(p, projects.find((x) => x.cwd === p.cwd)?.project ?? null, flows));
 
   const pick = (v: string) => {
     setOpen(null);

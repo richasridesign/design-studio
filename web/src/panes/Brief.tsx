@@ -85,6 +85,8 @@ export function Brief() {
     <div className="brief">
       <div className="brief-status">
         {/* Where the chat works shows from the start; the views once there is something to show. */}
+        {/* With nothing to show yet, the switcher still listens for ⌘K and the palette. */}
+        {events.length === 0 && !where.place && <ChatPlace {...where} />}
         {(events.length > 0 || where.place) && (
           <div className="chat-head">
             <ChatPlace {...where} />
