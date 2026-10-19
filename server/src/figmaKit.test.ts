@@ -185,3 +185,75 @@ describe('DS.decisions', () => {
     expect((await DS.check([b.screen.id])).fewStickies).toEqual([['2:1', 'Connectors', 0]]);
   });
 });
+
+describe('DS.option', () => {
+  /** A flow subsection with one entry copy, and figma.createSection making nested sections. */
+  function world() {
+    let next = 50;
+    const mk = (o: any) => {
+      const n: any = { data: {} as Record<string, string>, x: 0, y: 0, width: 0, height: 0, parent: null, children: [] as any[], ...o };
+      Object.defineProperty(n, 'absoluteBoundingBox', { get: () => { const p = n.parent && n.parent.type !== 'PAGE' ? n.parent.absoluteBoundingBox : { x: 0, y: 0 }; return { x: p.x + n.x, y: p.y + n.y, width: n.width, height: n.height }; } });
+      Object.defineProperty(n, 'absoluteTransform', { get: () => { const b = n.absoluteBoundingBox; return [[1, 0, b.x], [0, 1, b.y]]; } });
+      n.getSharedPluginData = (ns: string, k: string) => n.data[`${ns}/${k}`] ?? '';
+      n.setSharedPluginData = (ns: string, k: string, v: string) => { n.data[`${ns}/${k}`] = v; };
+      n.appendChild = (k: any) => { n.children.push(k); k.parent = n; };
+      n.resizeWithoutConstraints = (w: number, h: number) => Object.assign(n, { width: w, height: h });
+      return n;
+    };
+    const page: any = { type: 'PAGE', name: 'Flows' };
+    const flow = mk({ id: '1:1', type: 'SECTION', name: 'V0.1 · Flow 2 · Connectors', x: 2000, y: 1000, width: 1600, height: 1200, parent: page });
+    flow.appendChild(mk({ id: '1:2', type: 'FRAME', name: 'Home (Entry, unchanged)', x: 320, y: 320, width: 390, height: 844 }));
+    const figma = { currentPage: page, createSection: () => mk({ id: `7:${next++}`, type: 'SECTION', name: 'Section' }), getNodeByIdAsync: async (id: string) => (id === flow.id ? flow : null) };
+    return { figma, flow, mk };
+  }
+
+  it('makes tagged option subsections side by side, 400px apart, under the flow content, and lists them', async () => {
+    const { figma, flow } = world();
+    const DS = await kit(figma);
+    const a = await DS.option(flow, { id: 'a', name: 'Cards', iteration: '0.1' });
+    const b = await DS.option('1:1', { id: 'B', name: ' Table ', iteration: '0.1' });
+    expect(a).toEqual({ id: 'A', name: 'Cards', node: '7:50' });
+    const [sa, sb] = flow.children.slice(1);
+    expect([sa.name, sb.name]).toEqual(['V0.1 · Flow 2 · Option A: Cards', 'V0.1 · Flow 2 · Option B: Table']);
+    expect(sa.data).toEqual({ 'designstudio_option/id': 'A', 'designstudio_option/name': 'Cards', 'designstudio_option/iteration': '0.1' });
+    // Under the entry copy (bottom 1164) plus 400, and B 400 right of A's 1600 width.
+    expect([sa.x, sa.y, sb.x, sb.y]).toEqual([320, 1564, 320 + 1600 + 400, 1564]);
+    expect(flow.width).toBeGreaterThanOrEqual(sb.x + sb.width + 320);
+    expect(DS.options(flow)).toEqual([a, b]);
+  });
+
+  it('renames an option in place and keeps the options where they were', async () => {
+    const { figma, flow } = world();
+    const DS = await kit(figma);
+    await DS.option(flow, { id: 'A', name: 'Cards' });
+    const sa = flow.children[1];
+    sa.y = 2000;
+    const again = await DS.option(flow, { id: 'A', name: 'Card grid' });
+    expect(again.node).toBe(sa.id);
+    expect(flow.children).toHaveLength(2);
+    expect(sa.name).toBe('V0.1 · Flow 2 · Option A: Card grid');
+    expect(sa.y).toBe(2000);
+  });
+
+  it('refuses a bad id, an empty name and a node that is not a section', async () => {
+    const { figma, flow } = world();
+    const DS = await kit(figma);
+    await expect(DS.option(flow, { id: 'D', name: 'x' })).rejects.toThrow('DS.option needs id "A", "B" or "C".');
+    await expect(DS.option(flow, { id: 'A', name: '  ' })).rejects.toThrow(/short name/);
+    await expect(DS.option(flow.children[0], { id: 'A', name: 'x' })).rejects.toThrow(/needs the flow subsection/);
+  });
+
+  it('asks for Decision stickies only under the first screen of an option', async () => {
+    const { figma, flow, mk } = world();
+    const DS = await kit(figma);
+    await DS.option(flow, { id: 'A', name: 'Cards' });
+    const sa = flow.children[1];
+    const first = mk({ id: '8:1', type: 'FRAME', name: 'Home', x: 320, y: 320, width: 390, height: 844, findAllWithCriteria: () => [] });
+    const second = mk({ id: '8:2', type: 'FRAME', name: 'Detail', x: 870, y: 320, width: 390, height: 844, findAllWithCriteria: () => [] });
+    sa.appendChild(second);
+    sa.appendChild(first);
+    figma.getNodeByIdAsync = async (id: string) => [flow, first, second].find((n) => n.id === id) ?? null;
+    const out = await DS.check(['8:1', '8:2']);
+    expect(out.fewStickies).toEqual([['8:1', 'Home', 0]]);
+  });
+});
