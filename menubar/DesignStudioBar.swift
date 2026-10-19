@@ -503,15 +503,27 @@ func writeIcon(_ path: String) {
   NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
   let rgb = { (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) in NSColor(deviceRed: r / 255, green: g / 255, blue: b / 255, alpha: a) }
   let tile = NSBezierPath(roundedRect: NSRect(x: 100, y: 100, width: 824, height: 824), xRadius: 184, yRadius: 184)
-  rgb(249, 248, 245, 1).setFill()
-  tile.fill()
+  NSGradient(starting: rgb(209, 234, 250, 1), ending: rgb(231, 224, 235, 1))?.draw(in: tile, angle: -45)
   rgb(0, 0, 0, 0.08).setStroke()
   tile.lineWidth = 4
   tile.stroke()
-  rgb(186, 138, 214, 1).setFill()
-  NSBezierPath(ovalIn: NSRect(x: 252, y: 352, width: 380, height: 380)).fill()
-  rgb(219, 117, 94, 0.92).setFill()
-  NSBezierPath(ovalIn: NSRect(x: 492, y: 252, width: 280, height: 280)).fill()
+  // Teammate cursor, laid out on a 512 grid like web/public/icon.svg and scaled onto the 824 tile.
+  let s: CGFloat = 824 / 512
+  let p = { (x: CGFloat, y: CGFloat) in NSPoint(x: 100 + x * s, y: 924 - y * s) }
+  let pointer = NSBezierPath()
+  pointer.move(to: p(119, 112))
+  pointer.line(to: p(119, 384))
+  pointer.line(to: p(197, 308))
+  pointer.line(to: p(307, 300))
+  pointer.close()
+  pointer.lineJoinStyle = .round
+  pointer.lineWidth = 24 * s
+  rgb(20, 20, 20, 1).setFill()
+  rgb(20, 20, 20, 1).setStroke()
+  pointer.fill()
+  pointer.stroke()
+  rgb(214, 92, 137, 1).setFill()
+  NSBezierPath(roundedRect: NSRect(x: 100 + 259 * s, y: 924 - 420 * s, width: 150 * s, height: 76 * s), xRadius: 38 * s, yRadius: 38 * s).fill()
   NSGraphicsContext.restoreGraphicsState()
   try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
 }
