@@ -12,11 +12,16 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 export function useDialogFocus(open: boolean, box: RefObject<HTMLElement | null>, onClose: () => void) {
   const close = useRef(onClose);
   close.current = onClose;
+  // What opened it, read while rendering: a child with autoFocus takes focus at commit, before any effect runs.
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  if (open && !wasOpen.current) opener.current = document.activeElement as HTMLElement | null;
+  wasOpen.current = open;
   useEffect(() => {
     if (!open) return;
     const me = {};
     stack.push(me);
-    const trigger = document.activeElement as HTMLElement | null;
+    const trigger = opener.current?.isConnected && !box.current?.contains(opener.current) ? opener.current : (document.activeElement as HTMLElement | null);
     const items = () => [...(box.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => el.getClientRects().length > 0);
     const root = box.current;
     if (root && !root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0])?.focus();
@@ -42,7 +47,12 @@ export function useDialogFocus(open: boolean, box: RefObject<HTMLElement | null>
     return () => {
       window.removeEventListener('keydown', onKey);
       stack.splice(stack.indexOf(me), 1);
-      if (trigger?.isConnected) requestAnimationFrame(() => trigger.focus());
+      // Not when a dialog opened over it has taken focus (Change connection over the portfolio page).
+      if (trigger?.isConnected) requestAnimationFrame(() => {
+        const at = document.activeElement;
+        if (at && at !== document.body && !root?.contains(at) && at.closest('[role="dialog"], [role="alertdialog"]')) return;
+        trigger.focus();
+      });
     };
   }, [open, box]);
 }

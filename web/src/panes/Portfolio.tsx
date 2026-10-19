@@ -552,7 +552,8 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
   const [ask, setAsk] = useState('');
   // Her unsaved local picks win only while the run stays in picking; after a revision the server's picks do.
   const lastState = useRef<RunState | null>(null);
-  useDialogFocus(!setup && !confirmUndo, box, onClose);
+  // Open the whole time: Change connection and Undo all sit on top of it in the dialog stack and give focus back here.
+  useDialogFocus(true, box, onClose);
 
   const run = fresh ? null : view ? currentRun(view.runs, chosen) : null;
   const id = run?.id ?? null;
