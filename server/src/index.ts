@@ -37,6 +37,7 @@ import { adoptProposal, chatContext, confirmAdopt, ensureIterationFolders, listP
 import { iterationReviews, selectionNode, selectionView } from './selection.js';
 import { cleanId } from '../../shared/project.js';
 import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectionsFor, reopenIteration } from './iterations.js';
+import { createFlow } from './newFlow.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
@@ -475,6 +476,12 @@ const server = http.createServer(async (req, res) => {
         const body = await readJsonBody();
         const id = String(body?.id ?? '');
         const r = body?.state === 'working' ? await reopenIteration(dir, id) : body?.state ? await freezeIteration(dir, figmaKey, id) : await createIterationInFigma(dir, figmaKey, body);
+        broadcastLive();
+        return json(r);
+      }
+      // New flow (From scratch): the flow, project.json on a file that has none, a working iteration, then its subsection.
+      if (url.pathname === '/api/projects/flow' && req.method === 'POST') {
+        const r = await createFlow(dir, figmaKey, await readJsonBody());
         broadcastLive();
         return json(r);
       }
