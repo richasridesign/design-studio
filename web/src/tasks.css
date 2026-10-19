@@ -1,0 +1,67 @@
+/* Run across flows: the dialog, the task card and the task rows in the sidebar. 4px grid, type 12/14/16. */
+
+.project-dialog-body .field textarea.tk-prompt { box-sizing: border-box; height: 108px; min-height: 84px; padding: 12px 16px; font: inherit; font-size: var(--text-md); line-height: 20px; color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm); resize: vertical; }
+.project-dialog-body .field textarea.tk-prompt[aria-invalid='true'] { border-color: var(--err); }
+.project-dialog-body .field .error-text, .project-dialog-body .project-fields .error-text { display: block; margin: 0; font-size: var(--text-sm); line-height: 20px; }
+
+.tk-usage { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); background: var(--bg-sunken); border-radius: var(--radius-sm); }
+.tk-usage.blocked { color: var(--fg); background: var(--tint-amber); }
+.tk-usage.blocked .icon { color: var(--warn); flex: none; }
+
+.project-fields legend:has(.tk-all) { display: flex; align-items: center; gap: 12px; width: 100%; }
+.tk-all { margin-left: auto; font-weight: 400; font-size: var(--text-sm); }
+.tk-flow { flex: 1; min-width: 0; }
+.tk-first { margin-top: 4px; }
+.tk-first-help { margin: 0 0 12px 24px; line-height: 20px; }
+.project-dialog-body > p.muted.small { margin: 0 0 8px; line-height: 20px; }
+
+/* Task card. */
+.tk-card { padding-top: 16px; }
+.tk-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; font-size: var(--text-sm); line-height: 20px; }
+.tk-facts > div { display: contents; }
+.tk-facts dt { color: var(--fg-muted); }
+.tk-facts dt::after { content: ':'; }
+.tk-facts dd { margin: 0; color: var(--fg); }
+.tk-prompt-view { margin: 0 0 12px; font-size: var(--text-sm); line-height: 20px; }
+.tk-prompt-view summary { cursor: pointer; color: var(--fg); font-weight: 600; min-height: 24px; }
+.tk-prompt-view p { margin: 4px 0 0; padding: 8px 12px; color: var(--fg); background: var(--bg-sunken); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.tk-flows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.tk-flows li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.tk-row { display: flex; align-items: center; gap: 12px; min-height: 24px; }
+.tk-name { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-meta { min-height: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.tk-meta button.link { min-height: 24px; font-size: var(--text-xs); }
+.tk-note { margin-top: 4px; font-size: var(--text-xs); line-height: 16px; }
+.tk-ask { margin-top: 12px; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
+.tk-ask p { margin: 0 0 4px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.tk-ask .dialog-actions { padding: 0; }
+.tk-stop { margin-right: auto; }
+button.primary.danger-fill { background: var(--err); color: #fff; }
+button.primary.danger-fill:hover { background: #962825; }
+
+/* State: a shape and a word, never colour alone. */
+.tk-state { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
+.tk-dot { width: 8px; height: 8px; flex: none; box-sizing: border-box; }
+.tk-dot.waiting { border: 1.5px solid var(--fg-muted); border-radius: 50%; }
+.tk-dot.running { background: var(--link); border-radius: 50%; }
+.tk-dot.needs_you { background: var(--warn); transform: rotate(45deg) scale(0.85); }
+.tk-dot.done { background: var(--ok); border-radius: 2px; }
+.tk-dot.failed { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--err); }
+.tk-dot.stopped { height: 2px; background: var(--fg-muted); }
+@media (prefers-reduced-motion: no-preference) { .tk-dot.running { animation: tk-pulse 1.6s ease-in-out infinite; } }
+@keyframes tk-pulse { 50% { opacity: 0.45; } }
+
+/* Sidebar task row: the title, then mini state marks and the roll-up line. */
+.tk-mini { display: inline-flex; align-items: center; gap: 2px; margin-right: 6px; vertical-align: middle; }
+.tk-mini .tk-dot { width: 6px; height: 6px; }
+.tk-mini .tk-dot.failed { border-left-width: 4px; border-right-width: 4px; border-bottom-width: 6px; }
+.tk-mini .tk-dot.stopped { height: 2px; }
+
+@media (max-width: 900px) {
+  .project-dialog-body .field textarea.tk-prompt { font-size: 16px; }
+  .tk-meta { min-height: 44px; }
+  .tk-meta button.link { min-height: 44px; }
+}
+.sessions .tree .row.live.two.task > .tk-dot { margin-top: 5px; margin-right: 2px; }
+.project-dialog:has(.tk-card) .project-dialog-head { height: auto; min-height: 48px; padding-block: 12px; gap: 12px; align-items: flex-start; }
+.project-dialog:has(.tk-card) .project-dialog-head h2 { line-height: 24px; }

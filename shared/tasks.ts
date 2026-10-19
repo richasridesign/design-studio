@@ -117,7 +117,7 @@ export function rollup(t: Pick<Task, 'flows' | 'components'>): Rollup {
     tokens: all.reduce((n, f) => n + (f.tokens || 0), 0),
     costUsd: all.reduce((n, f) => n + (f.costUsd || 0), 0),
   };
-  const extra = [r.running && `${r.running} running`, r.needsYou && `${r.needsYou} need you`, r.failed && `${r.failed} failed`].filter(Boolean);
+  const extra = [r.running && `${r.running} running`, r.needsYou && `${r.needsYou} need${r.needsYou === 1 ? 's' : ''} you`, r.failed && `${r.failed} failed`].filter(Boolean);
   return { ...r, line: `${r.done} of ${r.total} done${extra.length ? `, ${extra.join(', ')}` : ''}` };
 }
 
