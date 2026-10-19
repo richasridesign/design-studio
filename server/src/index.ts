@@ -5,6 +5,7 @@ import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
 import { eventFromBody, workflowEvent, workflowView } from './workflow.js';
 import { readRecipes, writeRecipes } from './recipes.js';
+import { portfolioRoute } from './portfolioRoutes.js';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -348,6 +349,7 @@ const server = http.createServer(async (req, res) => {
   };
   try {
     if (req.method !== 'GET' && (!allowedOrigin(req.headers.origin) || !allowedHost(req.headers.host))) return json({ error: 'Forbidden' }, 403);
+    if (await portfolioRoute(req, res, url)) return;
     const chat = live.get(url.searchParams.get('chat') ?? '')?.chat ?? lastViewed;
     const liveCwds = [...live.values()].map((l) => l.chat.cwd);
     if (url.pathname === '/api/terms' && req.method === 'POST') return json(createTerminal(chat.id, chat.cwd));
