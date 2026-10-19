@@ -1,9 +1,11 @@
+import path from 'node:path';
 import { createSdkMcpServer, tool, type CanUseTool, type HookCallback, type McpServerConfig, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { userContent } from './attach.js';
 import { MODELS, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
-import { logDecisions } from './decisionLog.js';
+import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
+import { figmaEdits } from './touched.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -25,13 +27,21 @@ export function figmaSpeed(mapFile: string | null) {
  * The system prompt. `project` is the flow and iteration block from shared/project.ts for a chat on an adopted
  * file: it replaces the "Design Studio page" rule, which is how files without flows are kept safe.
  */
-export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null, project: string | null = null) {
+/** The history file of a flow chat (cwd <root>/flows/NN-slug/iterations/<id>), or null for any other chat. */
+export function historyPathFor(cwd: string | null | undefined): string | null {
+  if (!cwd) return null;
+  const parts = path.resolve(cwd).split(path.sep);
+  return parts.length >= 4 && parts.at(-2) === 'iterations' && parts.at(-4) === 'flows' ? path.join(path.resolve(cwd), '..', '..', 'history.md') : null;
+}
+
+export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null, project: string | null = null, history: string | null = null) {
   return [
     'You work with a product designer in Design Studio. They follow your work on a timeline, often from a phone, and watch the Figma file in their browser. Write for a designer: no code, file paths or tool names in your replies unless they ask.',
     figma ? `This chat belongs to the Figma file "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file.` : 'No Figma file is linked to this chat yet. If the designer asks for design work, ask them to paste the Figma file link.',
     'Use mcp__designstudio__set_status to report progress. Call it when you begin, when you move to a new step and when you finish. Keep text to one short sentence. Pass done when you finish a meaningful part, next as the remaining steps, important only for a risk, blocker or surprise the designer must know, and nodes with the Figma node ids you are working on so their Figma view follows you.',
-    'Log each design or product decision once in set_status decisions, when the designer gives a direction or you make a choice they should know (what, what it replaced, why, and by: "you" when the designer asked for it, "claude" when you chose it). Not for routine steps.',
+    'When you finish a change in Figma, call set_status changes: what changed, on which screens, why. Decisions go on the Decision stickies under each screen, never in set_status.',
     project ? `Projects, flows and iterations:\n${project}` : 'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
+    project && history ? `This flow's history is at ${history}. Read it before changing a screen that was decided before. Do not edit it: Design Studio writes it.` : '',
     figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
     // The Fix button on the Steps panel asks in plain words; the file name lives here, out of the designer's message.
@@ -41,17 +51,14 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
   ].filter(Boolean).join('\n\n');
 }
 
-/** One decision in set_status. Limits are loose on purpose: a value over a limit fails the whole status update. */
-export const DECISION_INPUT = z.object({
-  what: z.string().max(400).describe('The decision in a few words, like "Connector status: Ready replaces Ready to turn on".'),
-  over: z.string().max(400).optional().describe('What it replaced, or the option not chosen.'),
+/** One change in set_status: Design Studio adds it to the flow's history file. Loose limits, so a long line never fails the update. */
+export const CHANGE_INPUT = z.object({
+  what: z.string().max(400).describe('What changed, in a few words, like "Readiness column added to the table".'),
   why: z.string().max(800).optional().describe('The reason, one short sentence.'),
-  // "designer" is accepted too, so a slip in the word never fails the status update.
-  by: z.enum(['you', 'claude', 'designer']).describe('you: the designer asked for it. claude: you chose it.'),
-  screen: z.string().max(200).optional().describe('The screen or flow it applies to, when there is one.'),
+  screens: z.array(z.string().max(160)).max(20).optional().describe('The screens it changed: names or node ids.'),
 });
 
-function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, logDir?: string) {
+function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, cwd?: string) {
   return createSdkMcpServer({
     name: 'designstudio',
     alwaysLoad: true,
@@ -63,14 +70,14 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           text: z.string().max(200),
           done: z.string().max(160).optional().describe('A part of the task you just finished, a few words. Omit when nothing new is done.'),
           next: z.array(z.string().max(120)).max(12).optional().describe('Remaining steps after the current one, in order. Empty when done.'),
-          important: z.string().max(500).optional().describe('A risk, blocker or surprise the designer must know about. Omit when there is none. Decisions go in decisions.'),
-          decisions: z.array(DECISION_INPUT).max(20).optional().describe('Design or product decisions made since the last call: a direction the designer gave, or a choice you made that they should know. Log each once. Omit for routine steps.'),
+          important: z.string().max(500).optional().describe('A risk, blocker or surprise the designer must know about. Omit when there is none. Decisions go on the Decision stickies in Figma.'),
+          changes: z.array(CHANGE_INPUT).max(20).optional().describe('Changes you finished in Figma since the last call, once each: what changed, on which screens, why. Omit when nothing changed.'),
           nodes: z.array(z.string().max(40)).max(10).optional().describe('Figma node ids (like "12:34") you are working on, newest last. Their Figma view moves to the last one.'),
         },
-        async ({ text, nodes, decisions }) => {
+        async ({ text, nodes, changes }) => {
           onStatus(text, nodes ?? []);
           // A failed write never fails the status update.
-          if (logDir && decisions?.length) await logDecisions(logDir, decisions.map((d) => ({ ...d, by: d.by === 'claude' ? 'claude' : 'designer' }))).catch((err) => console.error(`decision log: ${String(err)}`));
+          if (cwd && changes?.length) await recordChanges(cwd, changes).catch((err) => console.error(`history: ${String(err)}`));
           return { content: [{ type: 'text', text: 'ok' }] };
         },
       ),
@@ -89,6 +96,25 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
         : []),
     ],
   });
+}
+
+/** Claude reads a flow's history file but never writes it: Design Studio does, between its markers. */
+export function historyGuard(cwd: string): HookCallback {
+  return async (input) => {
+    const ti = ((input as { tool_input?: Record<string, unknown> }).tool_input ?? {}) as Record<string, unknown>;
+    const file = String(ti.file_path ?? ti.notebook_path ?? '');
+    if (!file || !isHistoryPath(path.resolve(cwd, file))) return {};
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Design Studio writes this file. Report what changed with set_status changes, and put decisions on the Decision stickies in Figma.' } };
+  };
+}
+
+/** After a use_figma call that edited the file in a flow chat, the history's decisions are out of date until the next sync. */
+export function historyAfterFigma(cwd: string): HookCallback {
+  return async (input) => {
+    const code = String(((input as { tool_input?: { code?: unknown } }).tool_input ?? {}).code ?? '');
+    if (code && figmaEdits(code)) void markFlowEdited(cwd).catch(() => {});
+    return {};
+  };
 }
 
 export function agentOptions(o: {
@@ -114,7 +140,7 @@ export function agentOptions(o: {
     cwd: o.cwd,
     resume: o.resume,
     model: MODELS.work,
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null) },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd)) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,
     allowedTools: ['mcp__designstudio__set_status', 'mcp__designstudio__refresh_file_map'],
@@ -126,8 +152,8 @@ export function agentOptions(o: {
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
-      PreToolUse: [{ matcher: 'mcp__.*use_figma', hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : [])],
-      PostToolUse: [{ hooks: [o.afterTool] }],
+      PreToolUse: [{ matcher: 'mcp__.*use_figma', hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
+      PostToolUse: [{ hooks: [o.afterTool] }, { matcher: 'mcp__.*use_figma', hooks: [historyAfterFigma(o.cwd)] }],
       ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },
     stderr: (d) => process.stderr.write(d),
