@@ -16,6 +16,7 @@ import { TaskCard, TaskRows } from './TaskCard';
 import { useTasks } from './taskStore';
 import { RemoveProjectDialog, RenameDialog } from './ProjectActions';
 import { NewFlowDialog } from './NewFlow';
+import { PortfolioGroup } from './PortfolioGroup';
 import { doublesText, renameLabel } from '../../../shared/projectNames';
 
 export { buildTree, filterTree } from './projectTree';
@@ -289,6 +290,7 @@ export function Chats() {
         </div>
         {sampleError && <div className="hint error-text">{sampleError}</div>}
         {note && <div className={`hint ${note.error ? 'error-text' : ''}`} role={note.error ? 'alert' : 'status'}>{note.text}</div>}
+        <PortfolioGroup />
         {tree.projects.map(projectRow)}
         {noFile}
         {!tree.projects.length && !noFile && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
