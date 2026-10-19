@@ -31,7 +31,8 @@ import { onReadCost } from './pluginRead.js';
 import { buildMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
-import { adoptProposal, confirmAdopt, createIteration, ensureIterationFolders, listProjects, readProject, setIterationState, updateProject } from './project.js';
+import { adoptProposal, confirmAdopt, ensureIterationFolders, listProjects, readProject, updateProject } from './project.js';
+import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectionsFor, reopenIteration } from './iterations.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
 import { pickDirection, readBoard, readSketch, writeBoard } from './sketch.js';
@@ -429,9 +430,27 @@ const server = http.createServer(async (req, res) => {
         if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
         return json(await adoptProposal(dir, file.key));
       }
+      // Iterations in Figma: create makes project.json, the folders and then the section (best effort, with Retry on
+      // /sections), state freezes or reopens, /flow adds a flow to a working iteration.
+      const figmaKey = file && file.key !== SAMPLE_KEY ? file.key : null;
       if (url.pathname === '/api/projects/iteration' && req.method === 'POST') {
         const body = await readJsonBody();
-        const r = body?.state ? await setIterationState(dir, String(body.id), body.state === 'working' ? 'working' : 'frozen') : await createIteration(dir, body);
+        const id = String(body?.id ?? '');
+        const r = body?.state === 'working' ? await reopenIteration(dir, id) : body?.state ? await freezeIteration(dir, figmaKey, id) : await createIterationInFigma(dir, figmaKey, body);
+        broadcastLive();
+        return json(r);
+      }
+      if (url.pathname === '/api/projects/iteration/sections' && req.method === 'POST') {
+        if (!figmaKey) return json({ error: 'This folder has no Figma file' }, 400);
+        const body = await readJsonBody();
+        const r = await makeSectionsFor(dir, figmaKey, String(body?.id ?? ''), Array.isArray(body?.flows) ? body.flows.map(String) : null);
+        broadcastLive();
+        return json(r);
+      }
+      if (url.pathname === '/api/projects/iteration/flow' && req.method === 'POST') {
+        if (!figmaKey) return json({ error: 'This folder has no Figma file' }, 400);
+        const body = await readJsonBody();
+        const r = await addFlowToIteration(dir, figmaKey, String(body?.id ?? ''), String(body?.slug ?? ''));
         broadcastLive();
         return json(r);
       }
