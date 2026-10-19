@@ -24,4 +24,11 @@ describe('settings from an older file', () => {
     expect(s.fixRounds).toBe(4);
     expect(clean({ ...DEFAULT_SETTINGS, fixRounds: undefined as any }).fixRounds).toBe(3);
   });
+
+  it('keeps Parallel chats between 1 and 6, 3 when missing', () => {
+    expect(clean({ ...DEFAULT_SETTINGS, parallelChats: 9 }).parallelChats).toBe(6);
+    expect(clean({ ...DEFAULT_SETTINGS, parallelChats: 0 }).parallelChats).toBe(3);
+    expect(clean({ ...DEFAULT_SETTINGS, parallelChats: undefined as any }).parallelChats).toBe(3);
+    expect(clean({ ...DEFAULT_SETTINGS, parallelChats: 2 }).parallelChats).toBe(2);
+  });
 });

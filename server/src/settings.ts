@@ -2,6 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { DEFAULT_FIX_ROUNDS, DEFAULT_SETTINGS, PRESETS, tickedAreas, type Settings } from '../../shared/design.js';
+import { parallelChats } from '../../shared/tasks.js';
 
 export const HOME = path.join(os.homedir(), '.designstudio');
 export const CHATS_ROOT = process.env.DESIGN_STUDIO_ROOT ?? path.join(os.homedir(), 'DesignStudio');
@@ -40,6 +41,7 @@ export function clean(s: Settings): Settings {
     dailyBudgetUsd: Math.max(0, Number(s.dailyBudgetUsd) || 0),
     fixRounds: Math.min(4, Math.max(1, Math.round(Number(s.fixRounds)) || DEFAULT_FIX_ROUNDS)),
     projectsRoot: typeof s.projectsRoot === 'string' ? s.projectsRoot.trim().slice(0, 500) : '',
+    parallelChats: parallelChats(s.parallelChats),
   };
 }
 

@@ -205,6 +205,8 @@ export type Settings = {
   fixRounds: number;
   /** Where new projects are made. Empty means the default (~/workspace/design-projects, or DESIGN_STUDIO_PROJECTS). */
   projectsRoot: string;
+  /** Chats that run at once when a prompt runs across flows. The rest wait their turn. */
+  parallelChats: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -218,6 +220,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dailyBudgetUsd: 0,
   fixRounds: DEFAULT_FIX_ROUNDS,
   projectsRoot: '',
+  parallelChats: 3,
 };
 
 export const flowOff = (s: Pick<Settings, 'preset' | 'areas' | 'stopAfterSketch'> = DEFAULT_SETTINGS): FlowState => ({
