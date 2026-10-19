@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { userContent } from './attach.js';
 import { MODELS, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
+import { logDecisions } from './decisionLog.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -24,7 +25,8 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
   return [
     'You work with a product designer in Design Studio. They follow your work on a timeline, often from a phone, and watch the Figma file in their browser. Write for a designer: no code, file paths or tool names in your replies unless they ask.',
     figma ? `This chat belongs to the Figma file "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file.` : 'No Figma file is linked to this chat yet. If the designer asks for design work, ask them to paste the Figma file link.',
-    'Use mcp__designstudio__set_status to report progress. Call it when you begin, when you move to a new step and when you finish. Keep text to one short sentence. Pass done when you finish a meaningful part, next as the remaining steps, important only for a decision, risk or surprise the designer must know, and nodes with the Figma node ids you are working on so their Figma view follows you.',
+    'Use mcp__designstudio__set_status to report progress. Call it when you begin, when you move to a new step and when you finish. Keep text to one short sentence. Pass done when you finish a meaningful part, next as the remaining steps, important only for a risk, blocker or surprise the designer must know, and nodes with the Figma node ids you are working on so their Figma view follows you.',
+    'Log each design or product decision once in set_status decisions, when the designer gives a direction or you make a choice they should know (what, what it replaced, why, and by: "you" when the designer asked for it, "claude" when you chose it). Not for routine steps.',
     'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
     figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
@@ -35,7 +37,16 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
   ].filter(Boolean).join('\n\n');
 }
 
-function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>) {
+/** One decision in set_status. Limits are loose on purpose: a value over a limit fails the whole status update. */
+export const DECISION_INPUT = z.object({
+  what: z.string().max(400).describe('The decision in a few words, like "Connector status: Ready replaces Ready to turn on".'),
+  over: z.string().max(400).optional().describe('What it replaced, or the option not chosen.'),
+  why: z.string().max(800).optional().describe('The reason, one short sentence.'),
+  by: z.enum(['you', 'claude']).describe('you: the designer asked for it. claude: you chose it.'),
+  screen: z.string().max(200).optional().describe('The screen or flow it applies to, when there is one.'),
+});
+
+function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, logDir?: string) {
   return createSdkMcpServer({
     name: 'designstudio',
     alwaysLoad: true,
@@ -47,11 +58,14 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           text: z.string().max(200),
           done: z.string().max(160).optional().describe('A part of the task you just finished, a few words. Omit when nothing new is done.'),
           next: z.array(z.string().max(120)).max(12).optional().describe('Remaining steps after the current one, in order. Empty when done.'),
-          important: z.string().max(500).optional().describe('A decision, risk, blocker or surprise the designer must know about. Omit when there is none.'),
+          important: z.string().max(500).optional().describe('A risk, blocker or surprise the designer must know about. Omit when there is none. Decisions go in decisions.'),
+          decisions: z.array(DECISION_INPUT).max(20).optional().describe('Design or product decisions made since the last call: a direction the designer gave, or a choice you made that they should know. Log each once. Omit for routine steps.'),
           nodes: z.array(z.string().max(40)).max(10).optional().describe('Figma node ids (like "12:34") you are working on, newest last. Their Figma view moves to the last one.'),
         },
-        async ({ text, nodes }) => {
+        async ({ text, nodes, decisions }) => {
           onStatus(text, nodes ?? []);
+          // A failed write never fails the status update.
+          if (logDir && decisions?.length) await logDecisions(logDir, decisions.map((d) => ({ ...d, by: d.by === 'claude' ? 'claude' : 'designer' }))).catch((err) => console.error(`decision log: ${String(err)}`));
           return { content: [{ type: 'text', text: 'ok' }] };
         },
       ),
@@ -98,7 +112,7 @@ export function agentOptions(o: {
     disallowedTools: ['mcp__playwright'],
     extraArgs: { chrome: null },
     permissionMode: 'auto',
-    mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap), ...o.figmaServers },
+    mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap, o.cwd), ...o.figmaServers },
     strictMcpConfig: o.strictMcp,
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,

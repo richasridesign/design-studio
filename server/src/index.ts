@@ -39,6 +39,7 @@ import { readProfile } from './profile.js';
 import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
+import { readChatDecisions } from './decisionLog.js';
 import { approvalReply, planApprovedOnCard } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
@@ -307,6 +308,8 @@ const server = http.createServer(async (req, res) => {
       const key = url.searchParams.get('key') || figma?.key || '';
       return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
     }
+    // Decisions Claude logged from the chat (decisions-log.json in the chat folder), oldest first.
+    if (url.pathname === '/api/decision-log') return json({ items: await readChatDecisions(chat.cwd) });
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
     if (url.pathname === '/api/awaiting') return json(req.method === 'POST' ? await updateAwaiting(await readJsonBody()) : await readAwaiting());
     if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));

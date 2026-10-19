@@ -7,6 +7,8 @@ import { readDesign, readReview } from './review.js';
 import { rulesLine, rulesSummary, type RuleResult } from '../../shared/rules.js';
 import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
 import { readApprovals } from './stages.js';
+import { readChatDecisions } from './decisionLog.js';
+import type { ChatDecision } from '../../shared/decisionLog.js';
 import { readScope } from './scope.js';
 import { readTriage } from './triage.js';
 import { TRIAGE_LABEL, closedTally, resolvedRules, splitFindings, splitRun, triagedRules, type ClosedFinding, type ResolvedRule, type Triage, type TriageState } from '../../shared/triage.js';
@@ -107,6 +109,8 @@ type Data = {
   scope: Scope;
   sketch: SketchDoc | null;
   approvals: StageApprovals;
+  /** Decisions Claude logged from the chat. */
+  chat?: ChatDecision[];
   design: DesignDoc | null;
   run: ReviewRun | undefined;
   /** Findings and failed house rules resolved by hand. Keys from older runs are ignored. */
@@ -169,12 +173,12 @@ async function sketches(d: Data): Promise<Section | null> {
 }
 
 function decisions(d: Data): Section | null {
-  const rows = decisionLog(d.sketch, d.approvals);
+  const rows = decisionLog(d.sketch, d.approvals, d.chat);
   if (!rows.length) return null;
   const items = rows.map((r) => {
     const when = r.at ? `, ${new Date(r.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '';
     const lines = [r.over.length ? `Over: ${r.over.join(', ')}` : '', r.why ? `Why: ${r.why}` : ''].filter(Boolean).map((l) => `<br>${esc(l)}`).join('');
-    return `<li><strong>${esc(r.title)}</strong>: ${esc(r.choice)}${lines}<br><small>${esc(whoLabel(r, 'the designer'))}${esc(when)}</small></li>`;
+    return `<li><strong>${esc(r.title)}</strong>${r.choice ? `: ${esc(r.choice)}` : ''}${lines}<br><small>${esc(whoLabel(r, 'the designer'))}${esc(when)}</small></li>`;
   });
   return { id: 'decisions', title: 'Decision log', body: `<ul class="rows">${items.join('')}</ul>`, count: String(rows.length) };
 }
@@ -528,6 +532,7 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     readCopy(dir).catch(() => []),
   ]);
   const triage = await readTriage(dir);
+  const chat = await readChatDecisions(dir);
   return {
     names,
     dir,
@@ -537,6 +542,7 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     scope: scopeDoc,
     sketch,
     approvals,
+    chat,
     design: designDoc,
     run: reviewDoc.runs?.at(-1),
     triage,

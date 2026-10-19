@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { agentOptions, instructions } from './options.js';
+import { agentOptions, DECISION_INPUT, instructions } from './options.js';
 
 const figma = { key: 'abc', name: 'Shop', url: 'https://www.figma.com/design/abc/Shop' };
 
@@ -17,6 +17,12 @@ describe('instructions', () => {
     expect(instructions(null)).toContain('Leave the findings that wait for the designer\'s decision');
   });
 
+  it('asks Claude to log decisions in set_status, and keeps them out of important', () => {
+    const text = instructions(null);
+    expect(text).toContain('Log each design or product decision once in set_status decisions');
+    expect(text).toContain('important only for a risk, blocker or surprise');
+  });
+
   it('leaves the Figma speed notes out when no file is attached', () => {
     expect(instructions(null)).not.toContain('DS.');
   });
@@ -29,5 +35,14 @@ describe('agentOptions', () => {
     const o = agentOptions({ ...base, beforeAgent: vi.fn() } as never);
     expect(o.hooks!.PreToolUse!.map((m) => m.matcher)).toEqual(['mcp__.*use_figma', '^(Agent|Task)$']);
     expect(o.allowedTools).toContain('mcp__designstudio__refresh_file_map');
+  });
+});
+
+describe('set_status decisions', () => {
+  it('takes what and by, with over, why and screen optional', () => {
+    expect(DECISION_INPUT.parse({ what: 'Ready replaces Ready to turn on', by: 'you' })).toEqual({ what: 'Ready replaces Ready to turn on', by: 'you' });
+    expect(DECISION_INPUT.safeParse({ what: 'A', over: 'B', why: 'C', by: 'claude', screen: 'Connectors' }).success).toBe(true);
+    expect(DECISION_INPUT.safeParse({ what: 'A', by: 'designer' }).success).toBe(false);
+    expect(DECISION_INPUT.safeParse({ by: 'you' }).success).toBe(false);
   });
 });
