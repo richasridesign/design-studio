@@ -336,13 +336,21 @@ export function reconcileNodes(p: Project, tagged: TaggedNode[], ids: Set<string
   };
   const iterations = p.iterations.map((it) => {
     const self = fix(it.node, { kind: 'iteration', iteration: it.id });
-    const flows = it.flows
+    let flows = it.flows
       ? Object.fromEntries(Object.entries(it.flows).map(([slug, f]) => {
           const main = fix(f.node, { kind: 'flow', iteration: it.id, flow: slug });
-          const states = f.states ? fix(f.states, { kind: 'states', iteration: it.id, flow: slug }) : {};
+          const states = f.states ? fix(f.states, { kind: 'states', iteration: it.id, flow: slug }) : { node: pick({ kind: 'states', iteration: it.id, flow: slug }) };
           return [slug, { ...f, node: main.node ?? f.node, ...(states.node ? { states: states.node } : {}) }];
         }))
       : it.flows;
+    // A flow subsection made in Figma after the iteration (by a chat, or by hand and tagged) joins the iteration.
+    for (const f of p.flows) {
+      if (flows?.[f.slug]) continue;
+      const node = pick({ kind: 'flow', iteration: it.id, flow: f.slug });
+      if (!node) continue;
+      const states = pick({ kind: 'states', iteration: it.id, flow: f.slug });
+      flows = { ...(flows ?? {}), [f.slug]: { node, ...(states ? { states } : {}) } };
+    }
     const { missing: _drop, ...rest } = it;
     return { ...rest, ...(self.node ? { node: self.node } : {}), ...(self.missing ? { missing: true } : {}), ...(flows ? { flows } : {}) };
   });
