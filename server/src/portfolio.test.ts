@@ -226,6 +226,40 @@ describe('a copy pack run', () => {
   });
 });
 
+describe('a run on her note alone', () => {
+  it('reads no project, suggests from the capped note and the site, and refuses a run with neither', async () => {
+    const a = await project('Atlas');
+    P.portfolioDeps.browser = { tabs: async () => tabs, readPublish: async () => ({}), pageText: async () => '' };
+    P.portfolioDeps.figma = { run: (async () => { throw new Error('Figma must not be read'); }) as any };
+    await P.setup({ site: 'richadesign.in', mode: 'copy' });
+    await expect(P.startRun([], '   ')).rejects.toThrow('Write what should change, or freeze an iteration to add finished work');
+    await expect(P.startRun(['gone/1/x'], '')).rejects.toThrow('Tick at least one block of finished work');
+    const prompts: string[] = [];
+    P.portfolioDeps.chat = { run: (async (prompt: string, o: any) => {
+      prompts.push(prompt);
+      expect(JSON.parse(await readFile(path.join(o.cwd, 'candidates.json'), 'utf8'))).toEqual([]);
+      return { data: { suggestions: [
+        { page: '/about', section: 'Intro', kind: 'change', what: 'Shorter intro', why: 'She asked', sources: [{ block: 'note', quotes: ['Shorten the About intro'] }], draft: 'I design calm tools.', images: [], flags: [] },
+        { page: '/', section: 'Work', kind: 'add', what: 'Add Design Studio', why: 'She asked', sources: [], draft: 'Design Studio.', images: ['60:1'], flags: [] },
+      ] }, tokens: 1, costUsd: 0, text: '' };
+    }) as any };
+    const run = await P.startRun([], `Shorten the About intro \u2014 add Design Studio to Work.\n${'x'.repeat(3000)}`);
+    expect(run).toMatchObject({ state: 'suggesting', blocks: [], hasNote: true });
+    await until(async () => (await P.readRun(run.id)).state === 'picking');
+    const dir = P.runDir(run.id);
+    const note = await readFile(path.join(dir, 'note.md'), 'utf8');
+    expect(note.startsWith('Shorten the About intro, add Design Studio to Work.\n')).toBe(true);
+    expect(note.trimEnd().length).toBe(2000);
+    expect(prompts[0]).toMatch(/There is no finished work this time/);
+    expect(await readFile(path.join(dir, 'site', 'home.txt'), 'utf8')).toContain('I led the redesign');
+    const v = await P.runView(run.id);
+    expect(v.candidates).toEqual([]);
+    expect(v.suggestions.map((x) => [x.sources[0].block, x.images])).toEqual([['note', []], ['note', []]]);
+    // Her frozen work is still there for the next run: nothing was read or marked.
+    expect((await P.findBlocks(await P.readPortfolio())).blocks.some((b) => b.key === a.block)).toBe(true);
+  });
+});
+
 describe('edits in her Chrome (mocked browser)', () => {
   async function pickedRun(reading: () => unknown) {
     const a = await project('Atlas');

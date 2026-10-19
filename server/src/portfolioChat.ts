@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import type { HookCallback, McpServerConfig, Options } from '@anthropic-ai/claude-agent-sdk';
 import { lean } from './lean.js';
 import { MODELS } from '../../shared/design.js';
-import { DRAFT_LINE_MAX, LONG_WORDS, MAX_SUGGESTIONS, SITE_PAGES, stripDashes, type EditPlanItem, type EditRecord, type Suggestion } from '../../shared/portfolio.js';
+import { DRAFT_LINE_MAX, LONG_WORDS, MAX_SUGGESTIONS, NOTE_BLOCK, SITE_PAGES, stripDashes, type EditPlanItem, type EditRecord, type Suggestion } from '../../shared/portfolio.js';
 import { BrowserPending } from './portfolioChrome.js';
 import type { FramerText } from './framer.js';
 
@@ -83,7 +83,7 @@ export const CHROME_RULES = [
 
 export const SUGGEST_SYSTEM = [
   "You suggest updates to Richa's portfolio, richadesign.in, built in Framer. You only suggest: you cannot edit Framer and you cannot publish.",
-  'Read only the files in this folder: candidates.json (her finished work, the decisions screen by screen), site/ (the live pages as text) and shots/ (screens as images).',
+  'Read only the files in this folder: candidates.json (her finished work, the decisions screen by screen), note.md (what she asked to change, when there is one), site/ (the live pages as text) and shots/ (screens as images).',
   'Never read anything else. Never read chat transcripts or chat folders.',
   VOICE,
   NDA,
@@ -92,8 +92,10 @@ export const SUGGEST_SYSTEM = [
 
 const sitePaths = SITE_PAGES.map((p) => p.path).join(', ');
 
-export const suggestPrompt = (n: number) => [
-  `Here are ${n} finished iteration blocks in candidates.json, and the live site in site/. Screens are in shots/, named by node id.`,
+export const suggestPrompt = (n: number, note = false) => [
+  n ? `Here are ${n} finished iteration blocks in candidates.json, and the live site in site/. Screens are in shots/, named by node id.`
+    : 'There is no finished work this time: candidates.json is empty. Suggest only from her note in note.md and the live site in site/.',
+  ...(note ? [`Her note in note.md says what she wants changed on the site. Follow it first. A suggestion that rests on her note has the source block "${NOTE_BLOCK}" with the lines of the note it follows, quoted word for word.`] : []),
   `Suggest at most ${MAX_SUGGESTIONS} portfolio updates, most useful first: rank by how much each changes what a reader learns about her work.`,
   'Skip what the site already says.',
   `For each: page (one of ${sitePaths}, or "new" for a new case study), section (for example "Results" or "Home card"), kind (add, change, new-case-study, new-image),`,
@@ -135,8 +137,8 @@ function runner(deps: ChatDeps) {
 }
 
 /** One Opus turn: the run folder in, raw suggestions out (cleaned by the caller). */
-export async function suggest(runDir: string, blocks: number, deps: ChatDeps = {}, signal?: AbortSignal) {
-  const r = await runner(deps)<{ suggestions: unknown[] }>(suggestPrompt(blocks), {
+export async function suggest(runDir: string, blocks: number, deps: ChatDeps = {}, signal?: AbortSignal, note = false) {
+  const r = await runner(deps)<{ suggestions: unknown[] }>(suggestPrompt(blocks, note), {
     cwd: runDir,
     model: MODELS.plan,
     system: SUGGEST_SYSTEM,
