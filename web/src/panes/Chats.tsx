@@ -380,7 +380,7 @@ function RowMenu({ label, items }: { label: string; items: Array<{ label: string
       {open && (
         <div className="row-menu-pop" role="menu" aria-label={label} style={at}>
           {items.map((it) => (
-            <button key={it.label} role="menuitem" onClick={() => { setOpen(false); it.run(); }}>
+            <button key={it.label} role="menuitem" onClick={() => { box.current?.querySelector<HTMLButtonElement>('.icon-btn')?.focus(); setOpen(false); it.run(); }}>
               <span className="t">{it.label}</span>
               {it.hint && <span className="h">{it.hint}</span>}
             </button>
