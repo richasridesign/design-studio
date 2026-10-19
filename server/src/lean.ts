@@ -57,6 +57,8 @@ export async function figmaPluginStatus(): Promise<'connected' | 'needs-auth' | 
 
 export const isFigmaTool = (name: string) => /^mcp__[^_].*?figma.*?__/i.test(name) || /__(use_figma|get_design_context|get_screenshot|get_metadata|get_variable_defs|search_design_system|html_to_figma|upload_assets|generate_figma_design)$/.test(name);
 export const FIGMA_WRITE = /__(use_figma|html_to_figma|upload_assets|generate_figma_design|create_new_file|generate_diagram|add_code_connect_map)$/;
+/** The PreToolUse matcher for every Figma write tool: the scope guard and the frozen-chat guard run on these. */
+export const FIGMA_WRITE_MATCHER = `mcp__.*${FIGMA_WRITE.source}`;
 
 export type LeanResult<T> = { data: T | null; tokens: number; costUsd: number; error?: string; text: string };
 
