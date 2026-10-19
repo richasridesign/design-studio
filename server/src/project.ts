@@ -9,7 +9,7 @@ import { chatFolders, installSkills } from './figma.js';
 import { cachedMap, ensureMapSoon, taggedSections, type FileMap } from './fileMap.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
 import { withWrite } from './figmaLock.js';
-import { folderLabel } from './stages.js';
+import { projectLabel } from './workflow.js';
 import { renamePlan } from '../../shared/projectNames.js';
 
 // A project is one Figma file: a folder with figma.json (its root) and, once adopted, project.json with its flows
@@ -153,7 +153,7 @@ export async function listProjects(): Promise<ProjectView[]> {
         if (JSON.stringify(project) !== JSON.stringify(saved)) void writeProject(f.dir, project).catch(() => {});
       }
     }
-    out.push({ cwd: f.dir, key: f.figma.key, name: f.figma.name, url: f.figma.url, stage: await folderLabel(f.dir).catch(() => null), project, ...(doubles ? { doubles } : {}), ...(renames ? { renames } : {}) });
+    out.push({ cwd: f.dir, key: f.figma.key, name: f.figma.name, url: f.figma.url, stage: await projectLabel(f.dir, project).catch(() => null), project, ...(doubles ? { doubles } : {}), ...(renames ? { renames } : {}) });
   }
   return out;
 }

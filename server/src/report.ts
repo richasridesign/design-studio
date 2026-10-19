@@ -5,7 +5,7 @@ import { readSketch } from './sketch.js';
 import { readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
 import { rulesLine, rulesSummary, type RuleResult } from '../../shared/rules.js';
-import { readApprovals } from './stages.js';
+import { readWorkflow } from './workflow.js';
 import { historyView } from './history.js';
 import { parseHistory } from '../../shared/history.js';
 import { readScope } from './scope.js';
@@ -13,7 +13,7 @@ import { readTriage } from './triage.js';
 import { TRIAGE_LABEL, closedTally, resolvedRules, splitFindings, splitRun, triagedRules, type ClosedFinding, type ResolvedRule, type Triage, type TriageState } from '../../shared/triage.js';
 import { markCss } from '../../shared/marks.js';
 import { readFlowChecks } from './flowcheck.js';
-import { KIND_INFO, STAGE_INFO, stageLabel, type StageApprovals } from '../../shared/stages.js';
+import { WORKFLOW_INFO, stepViews, workflowLabel, type WorkflowState } from '../../shared/workflow.js';
 import { FLOW_RULE_LABEL, flowIssues, type FlowCheckRun, type FlowRule } from '../../shared/flowcheck.js';
 import type { Scope } from '../../shared/scope.js';
 
@@ -109,7 +109,8 @@ type Data = {
   research: string;
   scope: Scope;
   sketch: SketchDoc | null;
-  approvals: StageApprovals;
+  /** The flow's workflow in this chat's iteration, when the chat is on a flow. */
+  workflow: WorkflowState | null;
   /** This chat's iteration block from its flow's history file (heading and markdown), when the chat is on a flow. */
   history?: { heading: string; body: string } | null;
   design: DesignDoc | null;
@@ -340,17 +341,18 @@ function summary(d: Data, frames: string[]) {
     const screens = new Set((d.design?.frames ?? []).map((f) => f.screen).filter(Boolean)).size;
     fact('Frames', esc(`${plural(frames.length, 'frame')}${screens ? `, ${plural(screens, 'screen')}` : ''}`));
   }
-  const stage = stageLabel(d.approvals);
-  if (stage) fact('Next step', esc(stage));
+  const stage = workflowLabel(d.workflow);
+  if (d.workflow && stage) {
+    fact('Workflow', esc(WORKFLOW_INFO[d.workflow.workflow].name));
+    fact('Step', esc(stage));
+  }
   const scope = d.scope.flows.length ? plural(d.scope.flows.length, 'flow') : '';
   if (scope) fact('Scope', esc(`${scope}${d.scope.parked.length ? `, ${d.scope.parked.length} parked` : ''}`));
 
-  const strip = stage
-    ? `<ol class="stages" aria-label="Steps">${KIND_INFO.new.steps.map((id) => {
-        const done = !!d.approvals[id];
-        const next = !done && STAGE_INFO[id].name === stage;
-        return `<li>${st(done ? 'pass' : next ? 'current' : 'none', STAGE_INFO[id].name)}<small>${done ? 'Done' : next ? 'Next' : 'To do'}</small></li>`;
-      }).join('')}</ol>`
+  const WORD = { done: 'Done', current: 'Current', skipped: 'Not needed', todo: 'To do' } as const;
+  const strip = d.workflow
+    ? `<ol class="stages" aria-label="Steps">${stepViews(d.workflow).map((v) =>
+        `<li>${st(v.state === 'done' ? 'pass' : v.state === 'current' ? 'current' : 'none', v.name)}<small>${WORD[v.state]}</small></li>`).join('')}</ol>`
     : '';
 
   let issues = '';
@@ -515,12 +517,12 @@ footer p { margin: 0; }
 export const reportSlug = (figma: FigmaFile | null) => (figma?.name ?? 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'design';
 
 async function load(dir: string, figma: FigmaFile | null, names: Record<string, string>): Promise<Data> {
-  const [plan, researchMd, scopeDoc, sketch, approvals, designDoc, reviewDoc, flows, critRuns, copyRuns] = await Promise.all([
+  const [plan, researchMd, scopeDoc, sketch, workflow, designDoc, reviewDoc, flows, critRuns, copyRuns] = await Promise.all([
     read(path.join(dir, 'plan.md')),
     read(path.join(dir, 'research.md')),
     readScope(dir),
     readSketch(dir).catch(() => null),
-    readApprovals(dir),
+    readWorkflow(dir).catch(() => null),
     readDesign(dir),
     readReview(dir).catch(() => ({ runs: [] })),
     readFlowChecks(dir).catch(() => []),
@@ -539,7 +541,7 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     research: researchMd?.trim() ?? '',
     scope: scopeDoc,
     sketch,
-    approvals,
+    workflow,
     history: block ? { heading: block.heading, body: block.body } : null,
     design: designDoc,
     run: reviewDoc.runs?.at(-1),
