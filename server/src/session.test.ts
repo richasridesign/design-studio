@@ -34,23 +34,15 @@ describe('AgentSession modes', () => {
     expect(s.state.events.filter((e) => e.kind === 'user').at(-1)).toMatchObject({ text: 'make a card' });
   });
 
-  it('starts a flow for a plain prompt in design mode', async () => {
-    const { s } = fakeSession();
-    const { startFlow } = spy(s);
-    s.updateFlow({ mode: 'design' });
-    await s.prompt('a checkout flow');
-    expect(startFlow).toHaveBeenCalledWith(expect.stringContaining('a checkout flow'), 'design');
-  });
-
-  it('runs the review path in review mode and keeps slash commands working', async () => {
+  it('reads a saved Design or Review mode as Chat, so typed text never starts a run', async () => {
     const { s } = fakeSession();
     const { startFlow, command } = spy(s);
-    s.updateFlow({ mode: 'review' });
+    s.updateFlow({ mode: 'design' });
+    expect(s.state.session.flow.mode).toBe('chat');
+    s.state.session.flow.mode = 'review';
     await s.prompt('check spacing 1:2');
-    expect(command).toHaveBeenCalledWith('review', 'check spacing 1:2', 'check spacing 1:2');
     expect(startFlow).not.toHaveBeenCalled();
-    await s.prompt('/audit');
-    expect(command).toHaveBeenLastCalledWith('audit', '', '/audit');
+    expect(command).not.toHaveBeenCalled();
   });
 
   it('ignores unknown modes', () => {

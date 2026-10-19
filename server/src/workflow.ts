@@ -5,7 +5,7 @@ import {
   type FlowFrames, type ReviewTally, type StepCard, type StepView, type WorkflowEvent, type WorkflowState,
 } from '../../shared/workflow.js';
 import { PRESET_INFO, roundCost, type Area, type ReviewPreset } from '../../shared/design.js';
-import { historyContext, type HistoryContext } from './history.js';
+import { historyContext, refreshMeta, type HistoryContext } from './history.js';
 import { cachedMap } from './fileMap.js';
 import { readReview } from './review.js';
 import { readTriage } from './triage.js';
@@ -72,7 +72,12 @@ function write(cwd: string, fn: (s: WorkflowState) => WorkflowState, f: Flow): P
 export async function workflowEvent(cwd: string, e: WorkflowEvent): Promise<WorkflowState | null> {
   const f = await flowOf(cwd);
   if (!f || f.ctx.iteration.state === 'frozen') return null;
-  return write(cwd, (s) => nextState(s, e), f);
+  const had = !!(await readJson(workflowFile(cwd)));
+  const before = (await current(cwd, f)).state;
+  const next = await write(cwd, (s) => nextState(s, e), f);
+  // The history block's meta line names the workflow and round: rewrite it on the first write and when either changes.
+  if (!had || next.workflow !== before.workflow || next.round !== before.round) void refreshMeta(cwd).catch(() => {});
+  return next;
 }
 
 /** The state alone (the session's note, the project row tag). Never writes. */
