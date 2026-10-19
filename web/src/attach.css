@@ -56,3 +56,4 @@
 .ds-toast > .icon { color: var(--ok); }
 .ds-toast.error > .icon { color: var(--err); }
 .ds-toast > span { flex: 1; min-width: 0; }
+.attach-body p { margin: 0; }

@@ -470,7 +470,8 @@ const server = http.createServer(async (req, res) => {
         fileLinked(projectRoot(dir), f);
         return json({ figma: f });
       }
-      if (url.pathname === '/api/projects/figma-teams') {
+      // A POST, though it only reads: it starts a paid Claude run, so a GET-only walk or prefetch never calls Figma.
+      if (url.pathname === '/api/projects/figma-teams' && req.method === 'POST') {
         if (!asked) return json({ error: 'Name the project' }, 400);
         return json({ teams: await figmaTeams(projectRoot(dir)) });
       }

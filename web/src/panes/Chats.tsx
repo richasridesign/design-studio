@@ -270,6 +270,9 @@ export function Chats() {
       ? (
         <>
           <div className="hint adopt-hint">No Figma file yet. <button className="link" onClick={addFile}>Add Figma file</button></div>
+          {/* New flow works before the file, so its flows and their chats show here too. */}
+          {p.flows.map((f) => flowRow(p, f))}
+          {plain(p, 'tasks', 'Project tasks', p.tasks)}
           {plain(p, 'before', 'Before flows', p.before)}
         </>
       )
