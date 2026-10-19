@@ -13,6 +13,8 @@ import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED } from './ProjectDial
 import { RunAcrossFlowsDialog } from './RunAcrossFlows';
 import { TaskCard, TaskRows } from './TaskCard';
 import { useTasks } from './taskStore';
+import { RemoveProjectDialog, RenameDialog } from './ProjectActions';
+import { doublesText, renameLabel } from '../../../shared/projectNames';
 
 export { buildTree, filterTree } from './projectTree';
 
@@ -26,7 +28,7 @@ export async function openSample() {
   setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
 }
 
-type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string };
+type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number };
 
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
@@ -144,12 +146,17 @@ export function Chats() {
     chatCount(s) || extra ? group(`${p.cwd}#${key}`, 1, 'folder', name, chatCount(s), null, extra, chats(s, 2)) : null;
 
   const projectRow = (p: TreeProject) => {
+    const sum = projects.find((x) => x.cwd === p.cwd);
+    const inside = (cwd: string) => cwd === p.cwd || cwd.startsWith(`${p.cwd}/`);
+    const remove = () => setDialog({ kind: 'remove', p, chats: live.filter((c) => inside(c.cwd)).length, tasks: taskList.tasks.filter((t) => t.root === p.cwd && (t.state === 'running' || t.state === 'paused')).length });
     const menu = (
       <RowMenu label={`More for ${p.name}`} items={[
         { label: p.adopted ? 'Adopt this file again' : 'Adopt this file', hint: 'Sections become flows and iterations', run: () => setDialog({ kind: 'adopt', p }) },
         ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${p.working.id} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
         ...(p.adopted ? [{ label: 'Run across flows', hint: 'One prompt, one chat per flow', run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'run', p, project }); } }] : []),
+        ...(sum?.renames ? [{ label: renameLabel(sum.renames), hint: 'Working iteration only', run: () => setDialog({ kind: 'rename', p, count: sum.renames! }) }] : []),
         { label: 'Open in Figma', hint: 'In a new tab', run: () => window.open(p.url, '_blank', 'noopener') },
+        { label: 'Remove project', hint: 'Moves the folder to .trash', run: remove },
       ]} />
     );
     const acts = (
@@ -158,7 +165,13 @@ export function Chats() {
         {menu}
       </>
     );
-    const tag = p.stage ? <span className="stage-tag" title={`Next step: ${p.stage}`}>{p.stage}</span> : null;
+    const dup = sum?.doubles?.length ? doublesText(sum.doubles) : null;
+    const tag = (
+      <>
+        {dup && <span className="dup-tag" title={dup.detail}><Icon name="warning" small /><span className="sr-only">{dup.short}</span></span>}
+        {p.stage ? <span className="stage-tag" title={`Next step: ${p.stage}`}>{p.stage}</span> : null}
+      </>
+    );
     const body = p.adopted
       ? (
         <>
@@ -168,7 +181,12 @@ export function Chats() {
           {plain(p, 'before', 'Before flows', p.before)}
         </>
       )
-      : chats(p.before, 1);
+      : (
+        <>
+          <div className="hint adopt-hint">Not adopted yet. <button className="link" onClick={() => setDialog({ kind: 'adopt', p })}>Adopt this file</button></div>
+          {plain(p, 'before', 'Before flows', p.before)}
+        </>
+      );
     return group(p.cwd, 0, 'file-media', p.name, p.count, tag, acts, body, p.cwd);
   };
 
@@ -198,6 +216,8 @@ export function Chats() {
       {dialog?.kind === 'adopt' && <AdoptDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'iteration' && <NewIterationDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'run' && <RunAcrossFlowsDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} weeklyPct={taskList.weeklyPct} cap={taskList.cap} parallel={taskList.parallel} onClose={() => setDialog(null)} onOpenTask={(id) => setDialog({ kind: 'task', id })} />}
+      {dialog?.kind === 'remove' && <RemoveProjectDialog cwd={dialog.p.cwd} name={dialog.p.name} chats={dialog.chats} tasks={dialog.tasks} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'rename' && <RenameDialog cwd={dialog.p.cwd} name={dialog.p.name} count={dialog.count} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'task' && (() => { const t = taskList.tasks.find((x) => x.id === dialog.id); return t ? <TaskCard task={t} onClose={() => setDialog(null)} /> : null; })()}
     </div>
   );

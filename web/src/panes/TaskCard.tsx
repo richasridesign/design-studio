@@ -116,7 +116,7 @@ export function TaskCard({ task, onClose }: { task: Task; onClose: () => void })
           <p id="tk-ask-t"><strong>Stop this task?</strong> {stopText}</p>
           <div className="dialog-actions">
             <button autoFocus onClick={() => setAsking(false)}>Keep running</button>
-            <button className="primary danger-fill" disabled={busy !== null} onClick={() => void act('stop').then(() => setAsking(false))}>{busy === 'stop' ? 'Stopping…' : 'Stop task'}</button>
+            <button className="destructive" disabled={busy !== null} onClick={() => void act('stop').then(() => setAsking(false))}>{busy === 'stop' ? 'Stopping…' : 'Stop task'}</button>
           </div>
         </div>
       ) : (
