@@ -61,6 +61,12 @@ export const CHANGE_INPUT = z.object({
   screens: z.array(z.string().max(160)).max(20).optional().describe('The screens it changed: names or node ids.'),
 });
 
+const OPTION_INPUT = z.object({
+  id: z.enum(['A', 'B', 'C']),
+  name: z.string().max(60).describe('Its short name, like "Cards".'),
+  node: z.string().max(40).describe('The option subsection\'s node id.'),
+});
+
 function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, cwd?: string) {
   return createSdkMcpServer({
     name: 'designstudio',
@@ -77,8 +83,10 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           changes: z.array(CHANGE_INPUT).max(20).optional().describe('Changes you finished in Figma since the last call, once each: what changed, on which screens, why. Omit when nothing changed.'),
           nodes: z.array(z.string().max(40)).max(10).optional().describe('Figma node ids (like "12:34") you are working on, newest last. Their Figma view moves to the last one.'),
           stepDone: z.enum(STEP_IDS).optional().describe('In a flow chat: the workflow step you just finished (update, hifi or system). Omit otherwise.'),
+          options: z.array(OPTION_INPUT).min(1).max(3).optional().describe('From scratch, Explore: the low fidelity options you made, from DS.options (id, name, node of each option subsection). Send once they are all made.'),
+          picked: z.object({ id: z.enum(['A', 'B', 'C']), why: z.string().max(160).optional() }).optional().describe('From scratch, Pick: the option the designer chose in the chat, with their reason in their words when they gave one.'),
         },
-        async ({ text, nodes, changes, stepDone }) => {
+        async ({ text, nodes, changes, stepDone, options, picked }) => {
           onStatus(text, nodes ?? []);
           // A failed write never fails the status update.
           if (cwd && changes?.length) {
@@ -86,6 +94,8 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
             await workflowEvent(cwd, { type: 'changes', count: changes.length, screens: changes.flatMap((c) => c.screens ?? []), at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
           }
           if (cwd && stepDone) await workflowEvent(cwd, { type: 'done', step: stepDone, at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
+          if (cwd && options?.length) await workflowEvent(cwd, { type: 'options', options, at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
+          if (cwd && picked) await workflowEvent(cwd, { type: 'pick', id: picked.id, why: picked.why, at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
           return { content: [{ type: 'text', text: 'ok' }] };
         },
       ),
