@@ -168,7 +168,7 @@ export function AttachHost() {
 
   const loadTeams = (p: Proj) => {
     setTeams({ kind: 'loading' });
-    getJson<{ teams: FigmaTeam[] }>(withCwd('/api/projects/figma-teams', p.cwd))
+    postJson<{ teams: FigmaTeam[] }>(withCwd('/api/projects/figma-teams', p.cwd), {})
       .then((r) => { setTeams({ kind: 'ready', teams: r.teams }); setTeam(r.teams[0]?.key ?? ''); })
       .catch((e: Error) => setStep({ kind: 'error', p, reason: oneLine(e.message) }));
   };
