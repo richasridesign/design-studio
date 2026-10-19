@@ -156,7 +156,7 @@ export const FIGMA_KIT = `const DS = (() => {
         }
       }
       const p = root.parent;
-      if (p && p.type === 'SECTION' && (root.type === 'FRAME' || root.type === 'COMPONENT') && !/\\(entry, unchanged\\)/i.test(String(root.name))) {
+      if (p && p.type === 'SECTION' && (root.type === 'FRAME' || root.type === 'COMPONENT') && !/\\(entry, unchanged\\)/i.test(String(root.name)) && !(optionId(p) && firstScreen(p) !== root)) {
         const count = stickiesOf(root).length;
         if (count < 3) out.fewStickies.push([root.id, short(root.name, 40), count]);
       }
@@ -273,6 +273,50 @@ export const FIGMA_KIT = `const DS = (() => {
     if (list.length < 3) out.note = 'Fewer than 3 decisions: add the next most important ones.';
     return out;
   }
+  // Lo-fi options (From scratch, Explore): subsections "V1.19 · Flow 3 · Option A: Cards" inside the flow
+  // subsection, side by side 400px apart, tagged in their own namespace so they never read as the flow's subsection.
+  // Only the first screen of an option carries Decision stickies (the idea, who it serves, what it gives up).
+  const ONS = 'designstudio_option';
+  const OPTION = /·\\s*option\\s+([abc])\\s*:\\s*(.*)$/i;
+  const optionId = (s) => { if (!s || s.type !== 'SECTION') return ''; const t = s.getSharedPluginData ? s.getSharedPluginData(ONS, 'id') : ''; const m = OPTION.exec(String(s.name)); return String(t || (m ? m[1] : '')).toUpperCase(); };
+  const screensOf = (s) => (s.children || []).filter((k) => (k.type === 'FRAME' || k.type === 'COMPONENT') && !/^\\s*decision\\s*\\d/i.test(String(k.name)));
+  const firstScreen = (s) => screensOf(s).sort((a, b) => box(a)[0] - box(b)[0] || box(a)[1] - box(b)[1])[0] || null;
+  function options(flowSub) {
+    sure(flowSub, 'DS.options');
+    return (flowSub.children || []).filter((k) => optionId(k)).map((k) => { const m = OPTION.exec(String(k.name)); return { id: optionId(k), name: (m ? m[2] : k.getSharedPluginData(ONS, 'name')).trim(), node: k.id }; }).sort((a, b) => a.id.localeCompare(b.id));
+  }
+  async function option(flowSub, opts = {}) {
+    flowSub = await get(flowSub);
+    if (flowSub.type !== 'SECTION') throw new Error('DS.option needs the flow subsection (a section), not a ' + flowSub.type + '.');
+    const id = String(opts.id || '').trim().toUpperCase();
+    if (!/^[ABC]$/.test(id)) throw new Error('DS.option needs id "A", "B" or "C".');
+    const name = String(opts.name || '').replace(/\\s+/g, ' ').trim().slice(0, 60);
+    if (!name) throw new Error('DS.option needs a short name for the option, like "Cards".');
+    const m = /^(.*?·\\s*flow\\s*\\d+)/i.exec(String(flowSub.name));
+    const label = (m ? m[1] : (opts.iteration ? 'V' + opts.iteration : String(flowSub.name))) + ' · Option ' + id + ': ' + name;
+    const kids = (flowSub.children || []).filter((k) => k.visible !== false);
+    let s = kids.find((k) => optionId(k) === id);
+    const had = kids.filter((k) => optionId(k)).sort((a, b) => optionId(a).localeCompare(optionId(b)));
+    if (!s) {
+      s = figma.createSection();
+      flowSub.appendChild(s);
+      s.resizeWithoutConstraints(opts.width || 1600, opts.height || 1200);
+    }
+    s.name = label;
+    s.setSharedPluginData(ONS, 'id', id);
+    s.setSharedPluginData(ONS, 'name', name);
+    s.setSharedPluginData(ONS, 'iteration', opts.iteration ? String(opts.iteration) : '');
+    // Line the options up in id order: under the flow's other content, 400px apart, all on one top edge.
+    // Options made earlier keep their top left corner, so screens added beside them later are never jumped over.
+    const list = had.concat(had.indexOf(s) < 0 ? [s] : []).sort((a, b) => optionId(a).localeCompare(optionId(b)));
+    const rest = kids.filter((k) => !optionId(k) && k !== s);
+    const fb = box(flowSub);
+    const y = had.length ? box(had[0])[1] : rest.length ? Math.max(...rest.map((k) => box(k)[1] + box(k)[3])) + 400 : fb[1] + 320;
+    let x = had.length ? Math.min(...had.map((k) => box(k)[0])) : rest.length ? Math.min(...rest.map((k) => box(k)[0])) : fb[0] + 320;
+    for (const o of list) { moveTo(o, x, y); x += Math.round(o.width) + 400; }
+    fit(flowSub);
+    return { id, name, node: s.id };
+  }
   function tree(n, depth = 2, max = 150) {
     sure(n, 'DS.tree');
     const lines = [];
@@ -308,7 +352,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return { truncated: true, note: 'The result was cut to fit: return fewer fields.', head: s.slice(0, 17000) };
   }
   async function shot(n, opts) { n = await get(n); await n.screenshot(opts); return n.id; }
-  return { node, page, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, tree, vars, bindColor, box, done, shot };
+  return { node, page, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot };
 })();`;
 
 /** Short reference for Claude, kept next to the code so the two stay in step. */
@@ -320,6 +364,7 @@ export const KIT_GUIDE = [
   '- DS.setVariant(instance|id, { State: "Default", Size: "Small" }): switches variant and points ON_HOVER at the matching Hover variant. DS.wireHover(instance) only rewires the hover. DS.hoverOf(variant) gives the Hover sibling.',
   '- DS.clone(screen, { name, below?, gap? }), DS.placeRight(node, ref, gap=160), DS.placeBelow(node, ref, gap=96), DS.moveTo(node, absX, absY), DS.fit(section, pad=320) grows a section around its children.',
   '- DS.decisions(screen|id, [{ decision, why }, ...], { iteration: "1.19" }): writes the screen\'s 3 to 5 Decision stickies (the Decision sticky component), updates them in place, removes extra ones, lays them out 96px under the screen with one height per row and fits the section. Call it after every new or changed screen.',
+  '- DS.option(flowSubsection|id, { id: "A", name: "Cards", iteration: "1.19" }): finds or makes the low fidelity option subsection "V1.19 · Flow 3 · Option A: Cards" inside the flow subsection, lines the options up 400px apart and fits the flow subsection. Put the option\'s screens in the returned node, then DS.fit it. DS.options(flowSubsection) lists [{ id, name, node }] for set_status options. Only the first screen of an option needs Decision stickies.',
   '- DS.check([ids]): hover missing or pointing at the wrong variant, children outside their frame, overlaps in the section, screens with fewer than 3 Decision stickies. DS.overlaps(parent). DS.tree(node, depth=2): compact layer list for discovery.',
   '- DS.shot(node|id): screenshot returned inline with the result, so no get_screenshot call is needed. DS.done(value) keeps the return value under the size limit.',
   '- Await DS.node, DS.page, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
