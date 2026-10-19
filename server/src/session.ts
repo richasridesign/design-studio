@@ -42,6 +42,9 @@ const STATUS_EVERY = 8;
 let lastLimit: PlanLimit | null = null;
 let lastLimits: Limits = {};
 
+/** The highest weekly plan window in percent, from the latest limit events of any chat. Null before the first one. */
+export const weeklyPct = () => windowPct(lastLimits, 'weekly');
+
 /** Most screens the auto check after an edit reads. */
 export const AUTO_CHECK_MAX = 20;
 
@@ -53,6 +56,8 @@ export class AgentSession {
 
   id = randomUUID();
   title = '';
+  /** The project task (run across flows) that started this chat, if any. */
+  taskId: string | null = null;
   created = Date.now();
   state: ServerState;
   private listeners = new Set<(m: ServerMessage) => void>();

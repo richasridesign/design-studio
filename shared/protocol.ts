@@ -121,6 +121,8 @@ export type LiveChat = {
   edits?: { add: number; del: number };
   file?: string;
   fileUrl?: string;
+  /** The project task that started this chat. */
+  task?: string;
 };
 
 export type SavedSession = {
