@@ -291,7 +291,7 @@ export type StepView = { id: StepId; name: string; state: 'current' | 'done' | '
 
 export type CardAction =
   | 'review' | 'feedback' | 'plan-updates' | 'open-review' | 'mark-done' | 'review-again' | 'freeze'
-  | 'next-iteration' | 'adopt' | 'pick-screens' | 'explore' | 'build' | 'system' | 'skip-system' | 'switch-review-update';
+  | 'next-iteration' | 'adopt' | 'pick-screens' | 'explore' | 'pick' | 'build' | 'system' | 'skip-system' | 'switch-review-update';
 export type CardButton = { label: string; action: CardAction; primary: boolean };
 export type StepCard = { line: string; button?: CardButton; link?: { label: string; action: CardAction }; pick?: boolean };
 
@@ -349,11 +349,17 @@ export const STEP_CARDS: Record<StepId, (c: CardContext) => StepCard> = {
     }
     return card(`Updates go in ${where}. Claude plans first and waits for your go.`, { label: 'Plan the updates', action: 'plan-updates' });
   },
-  explore: ({ card }) => card('Claude makes 2 or 3 low fidelity options in Figma, inside this flow.', { label: 'Explore options', action: 'explore' }),
-  pick: ({ card }) => ({ ...card('Pick the option to take to high fidelity.'), pick: true }),
-  hifi: ({ s, card }) => {
+  explore: ({ s, card }) =>
+    s.options
+      ? card(`${plural(s.options.length, 'option')} in Figma. Explore again for new ones, or pick one.`, { label: 'Explore options', action: 'explore', primary: false }, { label: 'Pick an option', action: 'pick' })
+      : card('Claude makes 2 or 3 low fidelity options in Figma, inside this flow.', { label: 'Explore options', action: 'explore' }),
+  // The card renders the options as radios with a Why field and its own Build button (PickCard.tsx).
+  pick: ({ s, card }) =>
+    s.options ? { ...card('Pick the option to take to high fidelity.'), pick: true } : card('No options to pick from yet. Claude makes them in Explore.', { label: 'Explore options', action: 'explore' }),
+  hifi: ({ s, card, done }) => {
     const o = s.picked && s.options?.find((x) => x.id === s.picked!.id);
-    return card(`Builds ${o ? `Option ${o.id}: ${o.name}` : 'the picked option'} with every state, wired.`, { label: 'Build it', action: 'build' });
+    if (done) return card(`${o ? `Option ${o.id}: ${o.name}` : 'The pick'} is built in high fidelity.`, { label: 'Make the design system', action: 'system' });
+    return card(`Builds ${o ? `Option ${o.id}: ${o.name}` : 'the picked option'} with every state, wired.`, { label: 'Build it', action: 'build' }, o ? undefined : { label: 'Pick an option', action: 'pick' });
   },
   system: ({ e, card }) =>
     e.system
@@ -389,11 +395,11 @@ export function stepPrompt(step: StepId, flow: Pick<Flow, 'n' | 'name'>, iterati
     case 'update':
       return `Update ${f} in ${iteration}. Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules the designer closed by hand (fixed, won't fix or parked) and leave the ones that wait for the designer's decision. Plan the fixes first and wait for the designer's go before any Figma edit. Edit only in your flow subsection: a screen from an older iteration is copied in with DS.clone and rewired, never edited. Update the Decision stickies of every changed screen with DS.decisions. When you finish, call set_status with changes and stepDone "update".`;
     case 'explore':
-      return `Explore ${f} in ${iteration}. Plan first: goal, users, screens, and what makes each option different; wait for the designer's go. After go, make 2 or 3 low fidelity options that differ in structure, not colour: greyscale, real copy, no library components, main path only. Each option is a subsection "V${iteration} · Flow ${flow.n} · Option A: <name>" inside your flow subsection, side by side, 400px apart. Put 3 Decision stickies under the first screen of each option: the idea, who it serves best, what it gives up. End with set_status options (id, name, node of each option) and one line per option with your recommendation.`;
+      return `Explore ${f} in ${iteration}. Plan first: goal, users, screens, and what makes each option different; wait for the designer's go. After go, make 2 or 3 low fidelity options that differ in structure, not colour: greyscale, real copy, no library components, main path only. Make each option with DS.option(flowSubsection, { id: "A", name: "<short name>", iteration: "${iteration}" }): a subsection "V${iteration} · Flow ${flow.n} · Option A: <name>" inside your flow subsection, lined up 400px apart. Put 3 Decision stickies under the first screen of each option: the idea, who it serves best, what it gives up. End with set_status options from DS.options(flowSubsection) and one line per option with your recommendation. When the designer picks one in the chat, call set_status picked with the id and their reason.`;
     case 'hifi': {
       const o = s?.picked && s.options?.find((x) => x.id === s.picked!.id);
       const others = (s?.options ?? []).filter((x) => x.id !== s?.picked?.id).map((x) => x.id);
-      const pick = o ? `The designer picked Option ${o.id}: ${o.name}${others.length ? ` over ${others.join(' and ')}` : ''}.${s?.picked?.why ? ` Why: ${s.picked.why}` : ''} ` : '';
+      const pick = o ? `The designer picked Option ${o.id}: ${o.name}${others.length ? ` over ${others.join(' and ')}` : ''}.${s?.picked?.why ? ` Why: ${s.picked.why.replace(/[.\s]+$/, '')}.` : ''} ` : '';
       return `${pick}Build ${o ? `Option ${o.id}` : 'the picked option'} of ${f} in high fidelity, in your flow subsection beside the options (they stay). Plan first and wait for the designer's go. Main path plus every state in the plan: empty, typing, filled, error, submitting, done. Use the library when design-system.md exists, else local variables and text styles, which the next step turns into the design system. Wire every click and hover. 3 to 5 Decision stickies per screen, carrying the pick's reasons. End each edit with DS.check and DS.fit. When you finish, call set_status with changes and stepDone "hifi".`;
     }
     case 'system':
