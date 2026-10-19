@@ -223,6 +223,8 @@ export class AgentSession {
   /** The workflow line Claude was last told, and the note (with a step button's prompt) for the next message. */
   private workflowKey = '';
   private workflowNote = '';
+  /** From scratch: the Design system step finished after this rebuilds the profile once (older marks never do). */
+  private profileAt = Date.now();
   private pickKey = '[]';
   private pickNote = '';
   private figmaNote = '';
@@ -1125,8 +1127,23 @@ export class AgentSession {
     // no chat on the file is mid-turn.
     const it = this.projectCtx?.scope === 'flow' ? this.projectCtx.iteration : null;
     if (it?.node && it.state === 'working') void mapRead.then(() => scheduleRestack(this.cwd, key, it.id));
+    if (it) void this.profileAfterSystem(mapRead);
     if (flowing || isActive(this.state.session.longRun) || this.state.session.flow.mode !== 'chat' || this.flowActive() || this.work) return;
     void this.checkEdited(key, touched, mapRead);
+  }
+
+  /** From scratch: a turn that finished the Design system step rebuilds the file's profile, as /system does. */
+  private async profileAfterSystem(mapRead: Promise<unknown>) {
+    const done = (await readWorkflow(this.cwd).catch(() => null))?.marks.system;
+    if (done?.state !== 'done' || done.at <= this.profileAt || !this.figma) return;
+    this.profileAt = done.at;
+    await mapRead;
+    if (this.work || this.turns > 0) return;
+    await this.background('Updating the design system profile', async (signal) => {
+      const r = await buildProfile(this.cwd, this.figma!, signal);
+      this.recordBackground('system', r);
+      this.system(`Design system profile updated: ${r.ds.colors.length} colors, ${r.ds.text.length} text styles, ${r.ds.components.length} components.`);
+    });
   }
 
   /**
