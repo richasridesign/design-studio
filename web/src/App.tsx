@@ -29,7 +29,6 @@ import { SpendPill } from './SpendPill';
 import { Shortcuts } from './Shortcuts';
 import { Research } from './panes/Research';
 import { openSection } from './Section';
-import { useCanvasContent } from './canvasContent';
 import { canNotify, toggleNotify, useNotify } from './notify';
 import { FigmaLoginHost } from './FigmaLogin';
 import './page.css';
@@ -135,8 +134,6 @@ export function App() {
   const [phone, setPhone] = useState(false);
   const [settings, setSettings] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
-  const [opened, setOpened] = useState(false);
-  const content = useCanvasContent();
   const [dev, setDev] = useState(false);
   const [chatW, setChatW] = useState(() => stored('designstudio.chatW', 460));
   const [sideW, setSideW] = useState(() => clampSide(stored('designstudio.sideW', SIDE_MIN)));
@@ -198,7 +195,6 @@ export function App() {
   };
   const open = (c: Center) => {
     setCenter(c);
-    setOpened(true);
     if (narrow()) setTab(isMobileCenter(c) ? c : 'more');
   };
 
@@ -208,13 +204,12 @@ export function App() {
 
   const empty = !session.figma || session.id === '' || events.length === 0;
   useEffect(() => {
-    setOpened(false);
     if (empty) setCenter('figma');
   }, [session.id]);
 
   useEffect(() => {
     const next = phase ? PHASE_TAB[phase] : undefined;
-    if (next && !narrow()) { setCenter(next); setOpened(true); }
+    if (next && !narrow()) setCenter(next);
   }, [phase]);
 
   useEffect(() => {
@@ -288,7 +283,8 @@ export function App() {
 
   const figma = session.figma;
   const title = figma?.name ?? 'No Figma file';
-  const centers = CENTER.filter((c) => (c.dev ? dev : content[c.id as keyof typeof content] || (opened && center === c.id)));
+  // Every chat shows the same tabs as the Sample tour. A tab with nothing yet shows its own empty state.
+  const centers = CENTER.filter((c) => !c.dev || dev);
   const collapsed = centers.length === 0;
   const views = VIEWS.filter((v) => !v.dev || dev);
   const wanted = narrow() && isMobileCenter(tab) ? tab : center;
@@ -346,7 +342,7 @@ export function App() {
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
-              {content.decisions && <button onClick={() => open('decisions')}>Decisions</button>}
+              <button onClick={() => open('decisions')}>Decisions</button>
               {/* Settings is the gear in the top bar, so it is not repeated here. */}
             </div>
           )}
@@ -420,8 +416,8 @@ export function App() {
       </ErrorBoundary>
 
       <nav className="tabbar mobile-only" aria-label="Sections">
-        {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['sketch', 'edit', 'Sketch'], ['review', 'checklist', 'Review'], ['more', 'ellipsis', 'More']] as const).filter(([id]) => id === 'chat' || id === 'more' || content[id] || tab === id).map(([id, icon, label]) => (
-          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'decisions') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') { setCenter(id); setOpened(true); } }}>
+        {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['sketch', 'edit', 'Sketch'], ['review', 'checklist', 'Review'], ['more', 'ellipsis', 'More']] as const).map(([id, icon, label]) => (
+          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'decisions') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') setCenter(id); }}>
             <Icon name={icon} />
             <span>{label}</span>
             {id === 'chat' && pendingCount > 0 && <span className="badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{pendingCount === 1 ? ', 1 request waiting' : `, ${pendingCount} requests waiting`}</span></span>}
