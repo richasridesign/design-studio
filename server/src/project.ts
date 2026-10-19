@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import {
-  PROJECT_FILE, TAG_NS, adoptFromMap, cleanId, flowDirName, packTag, reconcileNodes, slugify, todayIso, workingIteration,
-  type AdoptProposal, type ChatContext, type Flow, type Iteration, type Project, type ProjectSummary, type Tag,
+  PROJECT_FILE, TAG_NS, adoptFromMap, cleanId, compareIds, flowDirName, packTag, reconcileNodes, slugify, todayIso, workingIteration,
+  type AdoptProposal, type ChatContext, type Flow, type Iteration, type IterationFlow, type Project, type ProjectSummary, type Tag,
 } from '../../shared/project.js';
 import { projectRoot } from './roots.js';
 import { chatFolders, installSkills } from './figma.js';
@@ -34,7 +34,7 @@ export function cleanProject(input: unknown): Project | null {
   if (!o || typeof o.key !== 'string') return null;
   const flows: Flow[] = (Array.isArray(o.flows) ? o.flows : [])
     .filter((f: any) => f && typeof f.name === 'string')
-    .map((f: any, i: number) => ({ n: Number(f.n) || i + 1, slug: slugify(typeof f.slug === 'string' ? f.slug : f.name), name: String(f.name).slice(0, 80), entry: Array.isArray(f.entry) ? f.entry.filter((x: unknown) => typeof x === 'string') : [], ...(typeof f.baseline === 'string' ? { baseline: f.baseline } : {}) }));
+    .map((f: any, i: number) => ({ n: Number(f.n) || i + 1, slug: slugify(typeof f.slug === 'string' ? f.slug : f.name), name: String(f.name).slice(0, 80), entry: Array.isArray(f.entry) ? f.entry.filter((x: unknown) => typeof x === 'string') : [], ...(typeof f.baseline === 'string' ? { baseline: f.baseline } : {}), ...(f.adopted ? { adopted: true } : {}), ...(f.missing ? { missing: true } : {}) }));
   const iterations: Iteration[] = (Array.isArray(o.iterations) ? o.iterations : [])
     .map((it: any) => ({ ...it, id: cleanId(String(it?.id ?? '')) }))
     .filter((it: any) => it.id)
@@ -185,36 +185,81 @@ export async function adoptProposal(dir: string, key: string): Promise<AdoptProp
   return { ...adoptFromMap(map.raw.pages as never), adopted: await readProject(root) };
 }
 
-/** Writes project.json from the confirmed list, makes the flow folders, then tags the sections in Figma. */
-export async function confirmAdopt(dir: string, key: string, input: AdoptInput, deps: ReadDeps = {}, now = Date.now()): Promise<{ project: Project; tagError: string | null }> {
-  const root = projectRoot(dir);
-  const flows: Flow[] = [];
-  for (const [i, f] of (input.flows ?? []).entries()) {
+/**
+ * project.json after an adoption, merged into what is there. Adopting again never drops anything: every flow and
+ * iteration stays with its number, slug and folders (a flow made with New flow included), the ones the list names
+ * get their Figma nodes refreshed, new ones are added, and an adopted one Figma no longer has is marked missing.
+ */
+export function mergeAdoption(existing: Project | null, key: string, input: AdoptInput, now = Date.now()): Project {
+  const old = existing?.flows ?? [];
+  const flows: Flow[] = old.map((f) => ({ ...f }));
+  const seen = new Set<string>();
+  // Proposal slug -> slug in project.json, so the iteration subsections land on the merged flows.
+  const slugOf = new Map<string, string>();
+  for (const f of input.flows ?? []) {
     const name = String(f?.name ?? '').trim().slice(0, 80);
     if (!name) continue;
-    let slug = slugify(typeof f.slug === 'string' && f.slug ? f.slug : name);
-    while (flows.some((x) => x.slug === slug)) slug = `${slug}-${i + 1}`;
-    flows.push({ n: i + 1, slug, name, entry: (f.entry ?? []).filter((x) => typeof x === 'string').slice(0, 8), ...(typeof f.baseline === 'string' && f.baseline ? { baseline: f.baseline } : {}) });
+    const asked = slugify(typeof f.slug === 'string' && f.slug ? f.slug : name);
+    const baseline = typeof f.baseline === 'string' && f.baseline ? f.baseline : undefined;
+    const entry = (f.entry ?? []).filter((x) => typeof x === 'string').slice(0, 8);
+    const same = (x: Flow) => !seen.has(x.slug) && ((baseline && x.baseline === baseline) || x.slug === asked || x.name.toLowerCase() === name.toLowerCase());
+    const at = flows.findIndex(same);
+    if (at >= 0) {
+      // The folder is nn-slug and chats run inside it: n and slug never change.
+      const { missing: _gone, ...had } = flows[at];
+      flows[at] = { ...had, name, entry: entry.length ? entry : had.entry, ...(baseline ? { baseline } : {}), adopted: true };
+      seen.add(had.slug);
+      slugOf.set(asked, had.slug);
+      continue;
+    }
+    let slug = asked;
+    for (let i = 2; flows.some((x) => x.slug === slug); i++) slug = `${asked.slice(0, 36)}-${i}`;
+    flows.push({ n: Math.max(0, ...flows.map((x) => x.n)) + 1, slug, name, entry, ...(baseline ? { baseline } : {}), adopted: true });
+    seen.add(slug);
+    slugOf.set(asked, slug);
   }
-  const iterations: Iteration[] = [];
+  for (const [i, f] of flows.entries()) if (!seen.has(f.slug) && (f.adopted || f.baseline)) flows[i] = { ...f, missing: true };
+  if (!flows.length) throw new Error('Name at least one flow');
+
+  const iterations: Iteration[] = (existing?.iterations ?? []).map((it) => ({ ...it }));
+  const found = new Set<string>();
   for (const it of input.iterations ?? []) {
     const id = cleanId(String(it?.id ?? ''));
-    if (!id || iterations.some((x) => x.id === id)) continue;
-    const flowsIn = it.flows && typeof it.flows === 'object' ? Object.fromEntries(Object.entries(it.flows).filter(([slug, v]) => flows.some((f) => f.slug === slug) && typeof v?.node === 'string').map(([slug, v]) => [slug, { node: v.node }])) : undefined;
-    iterations.push({ id, ...(it.node ? { node: String(it.node) } : {}), ...(it.name ? { name: String(it.name).slice(0, 120) } : {}), ...(it.topic ? { topic: String(it.topic).slice(0, 80) } : {}), ...(it.date ? { date: String(it.date).slice(0, 10) } : {}), state: 'frozen', adopted: true, ...(flowsIn && Object.keys(flowsIn).length ? { flows: flowsIn } : {}) });
+    if (!id || found.has(id)) continue;
+    found.add(id);
+    const flowsIn: Record<string, IterationFlow> = {};
+    if (it.flows && typeof it.flows === 'object') {
+      for (const [slug, v] of Object.entries(it.flows)) {
+        const to = slugOf.get(slug) ?? slug;
+        if (typeof v?.node === 'string' && flows.some((f) => f.slug === to)) flowsIn[to] = { node: v.node };
+      }
+    }
+    const fields = { ...(it.node ? { node: String(it.node) } : {}), ...(it.name ? { name: String(it.name).slice(0, 120) } : {}), ...(it.topic ? { topic: String(it.topic).slice(0, 80) } : {}), ...(it.date ? { date: String(it.date).slice(0, 10) } : {}) };
+    const at = iterations.findIndex((x) => x.id === id);
+    if (at >= 0) {
+      // State, times and subsections made since (with their states sections) stay.
+      const { missing: _gone, ...had } = iterations[at];
+      const merged: Record<string, IterationFlow> = { ...(had.flows ?? {}) };
+      for (const [slug, v] of Object.entries(flowsIn)) merged[slug] = { ...(merged[slug] ?? {}), node: v.node };
+      iterations[at] = { ...had, ...fields, ...(Object.keys(merged).length || had.flows ? { flows: merged } : {}) };
+      continue;
+    }
+    iterations.push({ id, ...fields, state: 'frozen', adopted: true, ...(Object.keys(flowsIn).length ? { flows: flowsIn } : {}) });
   }
-  if (!flows.length) throw new Error('Name at least one flow');
-  const existing = await readProject(root);
-  const project: Project = {
-    key,
-    adoptedAt: now,
-    ...(input.page?.id ? { page: { id: String(input.page.id), name: String(input.page.name ?? '') } } : {}),
-    flows,
-    // Iterations made in Design Studio since an earlier adoption stay.
-    iterations: [...iterations, ...(existing?.iterations.filter((it) => !it.adopted && !iterations.some((x) => x.id === it.id)) ?? [])],
-    ...(input.parked?.node ? { parked: { node: String(input.parked.node) } } : {}),
-  };
-  await writeProject(root, project);
+  for (const [i, it] of iterations.entries()) if (it.adopted && !found.has(it.id)) iterations[i] = { ...it, missing: true };
+  iterations.sort((a, b) => compareIds(a.id, b.id));
+
+  const page = input.page?.id ? { id: String(input.page.id), name: String(input.page.name ?? '') } : existing?.page;
+  const parked = input.parked?.node ? { node: String(input.parked.node) } : existing?.parked;
+  return { key, adoptedAt: now, ...(page ? { page } : {}), flows, iterations, ...(parked ? { parked } : {}) };
+}
+
+/** Merges the confirmed list into project.json, makes the flow folders, then tags the sections in Figma. */
+export async function confirmAdopt(dir: string, key: string, input: AdoptInput, deps: ReadDeps = {}, now = Date.now()): Promise<{ project: Project; tagError: string | null }> {
+  const root = projectRoot(dir);
+  // Inside the queued writer, so a New flow that lands at the same moment is read and kept.
+  const project = (await updateProject(root, (existing) => mergeAdoption(existing, key, input, now)))!;
+  const { flows } = project;
   for (const f of flows) {
     await mkdir(flowDir(root, f), { recursive: true });
     await writeIfMissing(path.join(flowDir(root, f), 'flow.json'), { n: f.n, slug: f.slug, name: f.name, entry: f.entry, ...(f.baseline ? { baseline: f.baseline } : {}) });
