@@ -24,6 +24,7 @@ export type RawFramer = {
   getNodesWithType(type: 'WebPageNode'): Promise<RawNode[]>;
   getNode(id: string): Promise<RawNode | null>;
   getUnpublishedPageChanges(): Promise<ReadonlyArray<{ path?: string | null; status?: string }>>;
+  getProjectInfo(): Promise<{ name?: string; id?: string }>;
   disconnect(): Promise<void>;
 };
 export type Connect = (project: string, key: string) => Promise<RawFramer>;
@@ -39,6 +40,35 @@ export function isMixed(html: string | null | undefined): boolean {
   if (!html) return false;
   const inner = html.trim().replace(/^<(p|h[1-6]|div|span)(\s[^>]*)?>([\s\S]*)<\/\1>$/i, '$3');
   return /<[a-z!/]/i.test(inner);
+}
+
+/** A Framer error in plain words. The key never appears in it, even if Framer's own message quotes it. */
+export function keyCheckError(e: unknown, key: string): string {
+  const code = String((e as { code?: unknown })?.code ?? '');
+  const raw = e instanceof Error ? e.message : String(e ?? '');
+  if (code === 'UNAUTHORIZED') return 'Framer did not accept this key. Make a new one in Site Settings > General > API keys.';
+  if (code === 'INVALID_REQUEST' || code === 'PROJECT_CLOSED') return 'Framer could not open this project with this key. Check the link, and that the key was made in this project.';
+  if (code === 'TIMEOUT') return 'Framer did not answer in time. Try again in a minute.';
+  if (code === 'TOKEN_SESSION_LIMIT' || code === 'POOL_EXHAUSTED') return 'Framer has too many open connections for this key. Try again in a few minutes.';
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|fetch failed|getaddrinfo|network/i.test(raw)) return 'Could not reach Framer. Check your internet connection, then try again.';
+  const said = raw.split(key.trim() || '\u0000').join('[key]').replace(/\s+/g, ' ').trim().slice(0, 160);
+  return said ? `Framer did not accept the key check: ${said}` : 'Framer did not accept the key check.';
+}
+
+/**
+ * Check key: connects, reads the project's name and disconnects. Nothing in the project is read or changed.
+ */
+export async function projectInfo(project: string, key: string, connect: Connect = realConnect): Promise<{ name: string }> {
+  let raw: RawFramer | null = null;
+  try {
+    raw = await connect(project, key);
+    const info = await raw.getProjectInfo();
+    return { name: String(info?.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Untitled project' };
+  } catch (e) {
+    throw new Error(keyCheckError(e, key));
+  } finally {
+    await raw?.disconnect().catch(() => {});
+  }
 }
 
 export async function openSite(project: string, key: string, connect: Connect = realConnect): Promise<FramerSite> {

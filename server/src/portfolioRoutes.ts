@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import {
-  PortfolioError, applyRun, backToPicks, chromeCheck, finishRun, makePlan, portfolioView, readShot, retryRun, runView, savePicks, setup, skipBlocks,
+  PortfolioError, applyRun, backToPicks, checkKey, chromeCheck, finishRun, makePlan, portfolioView, readShot, removeKey, retryRun, runView, savePicks, setup, skipBlocks,
   startRun, stopRun, toCopy, undoRun, updateSettings,
 } from './portfolio.js';
 
@@ -38,10 +38,19 @@ export async function portfolioRoute(req: http.IncomingMessage, res: http.Server
     if (p === '/api/portfolio' && !post) return json(await portfolioView()), true;
     if (p === '/api/portfolio/setup' && post) {
       const b = await body(req);
-      await setup({ project: b.project, site: b.site, mode: b.mode });
+      await setup({ project: b.project, site: b.site, mode: b.mode, key: typeof b.key === 'string' ? b.key : undefined });
       return json(await portfolioView()), true;
     }
     if (p === '/api/portfolio/check' && post) return json(await chromeCheck(String((await body(req)).project ?? ''))), true;
+    // The key arrives in the body only. It is never echoed: the answer is the project name or a plain error.
+    if (p === '/api/portfolio/key/check' && post) {
+      const b = await body(req);
+      return json(await checkKey({ project: b.project, key: typeof b.key === 'string' ? b.key : undefined })), true;
+    }
+    if (p === '/api/portfolio/key/remove' && post) {
+      await removeKey();
+      return json(await portfolioView()), true;
+    }
     if (p === '/api/portfolio/settings' && post) {
       await updateSettings(await body(req));
       return json(await portfolioView()), true;

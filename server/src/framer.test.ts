@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { applyPlan, isMixed, openSite, undoAll, type RawFramer } from './framer.js';
+import { applyPlan, isMixed, keyCheckError, openSite, projectInfo, undoAll, type RawFramer } from './framer.js';
 import { hasKey, readKey, saveKey, type Exec } from './framerKey.js';
 import type { EditPlanItem } from '../../shared/portfolio.js';
 
@@ -118,17 +118,45 @@ describe('Framer key in the Keychain', () => {
 
   it('saves the key over stdin, never in argv, and reads it back', async () => {
     const { exec, seen } = fakeSecurity();
-    expect(await hasKey('richadesign.in', { exec })).toBe(false);
-    await saveKey('richadesign.in', 'fr_secret123', { exec });
-    expect(seen.flatMap((s) => s.args).join(' ')).not.toContain('fr_secret123');
-    expect(await hasKey('richadesign.in', { exec })).toBe(true);
-    expect(await readKey('richadesign.in', { exec })).toBe('fr_secret123');
+    expect(await hasKey('Portfolio--abc123', { exec })).toBe(false);
+    await saveKey('Portfolio--abc123', 'fr_fake_test_key_1', { exec });
+    expect(seen.flatMap((s) => s.args).join(' ')).not.toContain('fr_fake_test_key_1');
+    expect(await hasKey('Portfolio--abc123', { exec })).toBe(true);
+    expect(await readKey('Portfolio--abc123', { exec })).toBe('fr_fake_test_key_1');
   });
 
-  it('refuses a key or site that is not plain', async () => {
+  it('keys the item by project id under DesignStudio.framer', async () => {
+    const { exec, seen } = fakeSecurity();
+    await saveKey('Portfolio--abc123', 'fr_fake_test_key_1', { exec });
+    expect(seen[0].input).toMatch(/^add-generic-password -U -s DesignStudio\.framer -a Portfolio--abc123 /);
+  });
+
+  it('refuses a key or project that is not plain', async () => {
     const { exec } = fakeSecurity();
-    await expect(saveKey('richadesign.in', 'x; rm -rf ~', { exec })).rejects.toThrow('does not look like a Framer API key');
-    await expect(saveKey('a b', 'fr_secret123', { exec })).rejects.toThrow(/without a path/);
-    await expect(hasKey('richadesign.in')).rejects.toThrow('Tests must not reach the Keychain');
+    await expect(saveKey('Portfolio--abc123', 'x; rm -rf ~', { exec })).rejects.toThrow('does not look like a Framer API key');
+    await expect(saveKey('a b', 'fr_fake_test_key_1', { exec })).rejects.toThrow('This is not a Framer project link');
+    await expect(hasKey('Portfolio--abc123')).rejects.toThrow('Tests must not reach the Keychain');
+  });
+});
+
+describe('Check key', () => {
+  const KEY = 'fr_fake_test_key_1';
+  it('reads the project name, then disconnects', async () => {
+    let closed = 0;
+    const connect = async (_p: string, k: string) => {
+      expect(k).toBe(KEY);
+      return { getProjectInfo: async () => ({ name: 'Portfolio', id: 'x' }), disconnect: async () => { closed++; } } as unknown as RawFramer;
+    };
+    expect(await projectInfo('https://framer.com/projects/Portfolio--abc123', KEY, connect)).toEqual({ name: 'Portfolio' });
+    expect(closed).toBe(1);
+  });
+
+  it('says what went wrong in plain words and never repeats the key', async () => {
+    let closed = 0;
+    const connect = async () => ({ getProjectInfo: async () => { throw Object.assign(new Error(`bad token ${KEY}`), { code: 'UNAUTHORIZED' }); }, disconnect: async () => { closed++; } }) as unknown as RawFramer;
+    await expect(projectInfo('https://framer.com/projects/Portfolio--abc123', KEY, connect)).rejects.toThrow('Framer did not accept this key. Make a new one in Site Settings > General > API keys.');
+    expect(closed).toBe(1);
+    expect(keyCheckError(new Error(`odd failure for ${KEY}`), KEY)).toBe('Framer did not accept the key check: odd failure for [key]');
+    expect(keyCheckError(new Error('getaddrinfo ENOTFOUND api.framer.com'), KEY)).toBe('Could not reach Framer. Check your internet connection, then try again.');
   });
 });

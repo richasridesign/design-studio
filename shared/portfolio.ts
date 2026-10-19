@@ -36,7 +36,8 @@ export const CLEARANCE_LABEL: Record<Clearance, string> = { ask: 'Ask each time'
  * pastes. api: the Framer Server API, on hold until the Phase 0 spike adopts it.
  */
 export type FramerMode = 'chrome' | 'api' | 'copy';
-export type FramerConfig = { site: string; project: string; mode: FramerMode };
+/** framer.json. Never holds the key: hasKey only says one is in the Keychain for this project. */
+export type FramerConfig = { site: string; project: string; mode: FramerMode; hasKey?: boolean };
 
 export type UseRecord = { frozenAt: number; run: string; state: 'edited' | 'published' };
 export type SkipRecord = { frozenAt: number; run: string; why?: string };
@@ -73,7 +74,10 @@ export function cleanPortfolio(input: unknown): PortfolioFile {
 export function cleanConfig(input: unknown): FramerConfig | null {
   const o = isObj(input) ? input : null;
   if (!o || typeof o.site !== 'string' || !o.site) return null;
-  return { site: o.site, project: typeof o.project === 'string' ? o.project : '', mode: o.mode === 'api' || o.mode === 'copy' ? o.mode : 'chrome' };
+  const hasKey = o.hasKey === true;
+  // The API route only counts once a key passed its check; else Chrome stays the route.
+  const mode: FramerMode = o.mode === 'copy' ? 'copy' : o.mode === 'api' && hasKey ? 'api' : 'chrome';
+  return { site: o.site, project: typeof o.project === 'string' ? o.project : '', mode, ...(hasKey ? { hasKey } : {}) };
 }
 
 // ---------- Blocks of finished work ----------

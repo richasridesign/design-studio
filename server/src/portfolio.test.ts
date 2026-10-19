@@ -110,6 +110,54 @@ describe('setup', () => {
   });
 });
 
+describe('setup with a Framer API key (Keychain and Framer faked)', () => {
+  const KEY = 'fr_fake_test_key_2';
+  function fakes(accept: boolean) {
+    const store = new Map<string, string>();
+    const argv: string[] = [];
+    P.portfolioDeps.keychain = { exec: async (args, input) => {
+      argv.push(...args);
+      if (args[0] === '-i') { const m = /-a (\S+) .* -w (\S+)/.exec(input ?? ''); if (m) store.set(m[1], m[2]); return { code: 0, out: '' }; }
+      const a = args[args.indexOf('-a') + 1];
+      if (args[0] === 'delete-generic-password') { store.delete(a); return { code: 0, out: '' }; }
+      if (!store.has(a)) return { code: 44, out: '' };
+      return { code: 0, out: args.includes('-w') ? `${store.get(a)}\n` : '' };
+    } };
+    P.portfolioDeps.framerConnect = async (_p, key) => ({
+      getProjectInfo: async () => { if (!accept || key !== KEY) throw Object.assign(new Error(`rejected ${key}`), { code: 'UNAUTHORIZED' }); return { name: 'Portfolio' }; },
+      disconnect: async () => {},
+    }) as any;
+    return { store, argv };
+  }
+
+  it('checks the key with Framer, keeps it only in the Keychain, and Remove key deletes it', async () => {
+    const { store, argv } = fakes(true);
+    expect(await P.checkKey({ project: PROJECT, key: KEY })).toEqual({ ok: true, name: 'Portfolio' });
+    const config = await P.setup({ site: 'richadesign.in', project: PROJECT, mode: 'api', key: KEY });
+    expect(config).toEqual({ site: 'richadesign.in', project: PROJECT, mode: 'api', hasKey: true });
+    expect(store.get('Portfolio--abc123')).toBe(KEY);
+    expect(argv.join(' ')).not.toContain(KEY);
+    expect(await readFile(path.join(P.portfolioDir(), 'framer.json'), 'utf8')).not.toContain(KEY);
+    expect(JSON.stringify(await P.portfolioView())).not.toContain(KEY);
+    // No key typed: the stored one is checked.
+    expect(await P.checkKey({ project: PROJECT })).toEqual({ ok: true, name: 'Portfolio' });
+    expect((await P.removeKey())?.mode).toBe('chrome');
+    expect(store.size).toBe(0);
+    expect(JSON.parse(await readFile(path.join(P.portfolioDir(), 'framer.json'), 'utf8'))).toEqual({ site: 'richadesign.in', project: PROJECT, mode: 'chrome' });
+  });
+
+  it('a key Framer refuses changes nothing, and the error never holds the key', async () => {
+    fakes(false);
+    await P.setup({ site: 'richadesign.in', mode: 'copy' });
+    const r = await P.checkKey({ project: PROJECT, key: KEY });
+    expect(r).toEqual({ ok: false, error: 'Framer did not accept this key. Make a new one in Site Settings > General > API keys.' });
+    await expect(P.setup({ site: 'richadesign.in', project: PROJECT, mode: 'api', key: KEY })).rejects.toThrow('Framer did not accept this key');
+    expect((await P.readConfig())?.mode).toBe('copy');
+    await expect(P.setup({ site: 'richadesign.in', project: PROJECT, mode: 'api', key: 'x; rm -rf ~' })).rejects.toThrow('does not look like a Framer API key');
+    await expect(P.setup({ site: 'richadesign.in', project: PROJECT, mode: 'api' })).rejects.toThrow('Paste the API key');
+  });
+});
+
 describe('finding finished work', () => {
   it('offers frozen, unused blocks after the adoption date, counts adopted ones, and skips Never projects', async () => {
     const a = await project();
