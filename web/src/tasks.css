@@ -36,8 +36,6 @@
 .tk-ask p { margin: 0 0 4px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
 .tk-ask .dialog-actions { padding: 0; }
 .tk-stop { margin-right: auto; }
-button.primary.danger-fill { background: var(--err); color: #fff; }
-button.primary.danger-fill:hover { background: #962825; }
 
 /* State: a shape and a word, never colour alone. */
 .tk-state { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
@@ -65,3 +63,10 @@ button.primary.danger-fill:hover { background: #962825; }
 .sessions .tree .row.live.two.task > .tk-dot { margin-top: 5px; margin-right: 2px; }
 .project-dialog:has(.tk-card) .project-dialog-head { height: auto; min-height: 48px; padding-block: 12px; gap: 12px; align-items: flex-start; }
 .project-dialog:has(.tk-card) .project-dialog-head h2 { line-height: 24px; }
+.tk-facts-top { margin-top: 16px; }
+
+/* Project row extras: the duplicate tag warning (a triangle, named for screen readers, ids in the tooltip) and the
+   adopt hint under a project with no flows yet. */
+.sessions .tree .row .dup-tag { display: inline-flex; align-items: center; flex: none; color: var(--warn); margin-left: 4px; }
+.sessions.chats .tree .hint.adopt-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding: 4px 12px 4px 32px; font-size: var(--text-xs); line-height: 16px; }
+.sessions .tree .hint.adopt-hint button.link { min-height: 24px; font-size: var(--text-xs); }
