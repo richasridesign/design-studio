@@ -10,7 +10,7 @@ import {
 } from '../../../shared/portfolio';
 import {
   adoptedLine, clearanceTag, currentRun, doneLine, editedLine, editingLine, emptyLine, gatherLine, gatherRunning, planLine, publishChangedLine, publishLine,
-  screenName, sourceLabel, type Candidate, type PortfolioView,
+  screenName, sourceLabel, undoingLine, type Candidate, type PortfolioView,
 } from './portfolioState';
 import '../newIteration.css';
 import '../portfolio.css';
@@ -609,6 +609,14 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
     if (!run) return <Gather view={view} onView={setView} onStarted={(r) => { setFresh(false); setChosen(r.id); void loadView(); }} />;
     if (!rv) return <Wait text="Loading the run…" />;
     const r = rv.run;
+    if (busy === 'undo') {
+      return (
+        <Card>
+          <h2 className="pf-card-title">Undoing the edits</h2>
+          <Wait text={undoingLine(edits)} />
+        </Card>
+      );
+    }
     switch (r.state) {
       case 'gathering': case 'suggesting': case 'planning':
         return (
@@ -698,7 +706,9 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
             {r.publishAfter && <p className="pf-line small muted">Now: {r.publishAfter}</p>}
             <div className="pf-foot">
               <button type="button" className="link" onClick={() => setConfirmUndo(true)}>Undo all</button>
-              <button type="button" className="link" disabled={!!busy} onClick={() => void act('done')}>{busy === 'done' ? 'Saving…' : 'Keep them'}</button>
+              {edits.every((e) => e.kind !== 'text' || e.state === 'done') && (
+                <button type="button" className="link" disabled={!!busy} onClick={() => void act('done')}>{busy === 'done' ? 'Saving…' : 'Keep them'}</button>
+              )}
               <span className="spacer" />
               <a className="pf-btn" href={siteUrl(site)} target="_blank" rel="noreferrer">Open {site}</a>
             </div>

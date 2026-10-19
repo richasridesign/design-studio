@@ -140,10 +140,10 @@
 .pf-key .pf-check { margin: 0; }
 
 /* Phones: the strip names only the current step (the others keep their name for screen readers), and card and
-   dialog actions stack full width with the primary on top. */
+   dialog actions stack full width in reading order, so focus moves top to bottom and the primary sits at the thumb. */
 @media (max-width: 600px) {
   .pf-strip li:not(.current) .pf-step-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .pf-foot, .pf-setup .pf-actions { flex-direction: column-reverse; align-items: stretch; }
+  .pf-foot, .pf-setup .pf-actions { flex-direction: column; align-items: stretch; }
   .pf-foot > .spacer, .pf-setup .pf-actions > .spacer { display: none; }
   .pf-foot > button, .pf-foot > a, .pf-setup .pf-actions > button { width: 100%; justify-content: center; text-align: center; }
   .pf-foot > .link, .pf-setup .pf-actions > .link { min-height: 44px; }
