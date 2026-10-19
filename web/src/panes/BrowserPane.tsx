@@ -95,6 +95,40 @@ export function BrowserPane() {
     return { x: ((e.clientX - r.left) / r.width) * vp.current.w, y: ((e.clientY - r.top) / r.height) * vp.current.h };
   };
 
+  // Pinch and Cmd or Ctrl scroll zoom Figma, as they do in Figma itself. A pinch comes in as a wheel with Ctrl held
+  // (Chrome) or as gesture events (the Mac app's WebKit), so both go to Chrome as a Ctrl wheel. The listeners are
+  // not passive, so the Design Studio page itself never zooms or scrolls under the mirror.
+  useEffect(() => {
+    const el = img.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      send({ t: 'wheel', ...pos(e), dx: e.deltaX * k, dy: e.deltaY * k, modifiers: mods(e) });
+    };
+    let last = 1;
+    const onGestureStart = (e: Event) => { e.preventDefault(); last = 1; };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Event & { scale: number; clientX: number; clientY: number };
+      const ratio = g.scale / last;
+      last = g.scale;
+      if (!ratio || ratio === 1) return;
+      send({ t: 'wheel', ...pos(g), dx: 0, dy: -Math.log(ratio) * 100, modifiers: 2 });
+    };
+    const stop = (e: Event) => e.preventDefault();
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', onGestureStart);
+    el.addEventListener('gesturechange', onGestureChange);
+    el.addEventListener('gestureend', stop);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', stop);
+    };
+  }, [state.state]);
+
   const onDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     if (e.pointerType !== 'mouse') {
@@ -186,7 +220,6 @@ export function BrowserPane() {
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerCancel={() => { touch.current = null; }}
-          onWheel={(e) => send({ t: 'wheel', ...pos(e), dx: e.deltaX, dy: e.deltaY })}
           onContextMenu={(e) => e.preventDefault()}
         />
         {!hasFrame && (
