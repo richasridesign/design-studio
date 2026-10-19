@@ -11,11 +11,14 @@ describe('loadSample', () => {
     expect(dir).toBe(path.join(root, SAMPLE_NAME));
     for (const _ of [1, 2]) {
       const files = await readdir(dir);
-      for (const f of ['figma.json', 'plan.md', 'sketch.json', 'review.json', 'crit.json', 'copy.json', 'design-system.json', 'design-system.md', 'sketches', 'buildcheck.json', 'buildcheck']) expect(files).toContain(f);
+      for (const f of ['figma.json', 'plan.md', 'sketch.json', 'review.json', 'crit.json', 'copy.json', 'design-system.json', 'design-system.md', 'sketches', 'buildcheck.json', 'buildcheck', 'decisions-log.json']) expect(files).toContain(f);
       expect(await readdir(path.join(dir, 'sketches'))).toEqual(['cart--a.svg', 'cart--b.svg', 'empty--a.svg', 'empty--b.svg']);
       expect((await readdir(path.join(dir, 'buildcheck', 'sample'))).sort()).toEqual(['figma.png', 'site.png']);
       const figma = JSON.parse(await readFile(path.join(dir, 'figma.json'), 'utf8'));
       expect(figma).toMatchObject({ key: 'sample', name: 'Grocery app (sample)' });
+      const log = JSON.parse(await readFile(path.join(dir, 'decisions-log.json'), 'utf8'));
+      expect(log.length).toBeGreaterThanOrEqual(2);
+      expect(log.every((d: { at: number }) => d.at > Date.now() - 3_600_000)).toBe(true);
       await loadSample(root);
     }
   });
