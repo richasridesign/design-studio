@@ -410,7 +410,7 @@ async function input(m: any, ws: WebSocket) {
         modifiers: num(m.modifiers),
       }, s);
     case 'wheel':
-      return call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: num(m.x), y: num(m.y), deltaX: num(m.dx), deltaY: num(m.dy) }, s);
+      return call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: num(m.x), y: num(m.y), deltaX: num(m.dx), deltaY: num(m.dy), modifiers: num(m.modifiers) }, s);
     case 'key': {
       if (typeof m.key !== 'string') return;
       const base = { key: m.key, code: String(m.code ?? ''), windowsVirtualKeyCode: num(m.keyCode), modifiers: num(m.modifiers) };
