@@ -1,0 +1,129 @@
+/* Update portfolio page (web/src/panes/Portfolio.tsx) and its sidebar group. Light mode only. 4px grid. */
+.pf-overlay { position: fixed; inset: 0; z-index: 15; background: var(--overlay); display: flex; justify-content: center; }
+.pf-page { width: min(880px, 100%); height: 100%; display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.pf-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--bg-raised); }
+.pf-head-text { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.pf-head h1 { margin: 0; font-size: var(--text-lg); line-height: 24px; font-weight: 600; }
+.pf-head .icon-btn { width: 32px; height: 32px; }
+.pf-head-link { min-height: 32px; font-size: var(--text-sm); }
+.pf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+.pf-host .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Strip: 1 Gather > 2 Pick > 3 Edit > 4 Publish. State is the mark's shape plus hidden text. */
+.pf-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-muted); }
+.pf-strip li { display: inline-flex; align-items: center; gap: 8px; line-height: 24px; }
+.pf-strip li.current { color: var(--fg); font-weight: 600; }
+.pf-step-mark { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); border: 1px solid var(--input-border); background: var(--bg-elevated); }
+.pf-strip li.current .pf-step-mark { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.pf-strip li.done .pf-step-mark { background: var(--tint-green); border-color: var(--ok); color: var(--ok); }
+
+/* Step card */
+.pf-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.pf-card.error { border-color: var(--err); }
+.pf-card.error .pf-card-title { color: var(--err); }
+.pf-card-title { margin: 0; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.pf-line { margin: 0; line-height: 20px; font-size: var(--text-sm); }
+.pf-line.small, .pf-host .small { font-size: var(--text-xs); line-height: 16px; }
+.pf-host .muted { color: var(--fg-muted); }
+.pf-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+.pf-foot .link, .pf-line .link, .pf-actions .link { min-height: 24px; font-size: var(--text-sm); }
+.pf-btn { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: var(--radius-sm); border: 1px solid var(--fg); color: var(--fg); background: var(--bg-elevated); text-decoration: none; font-size: var(--text-md); }
+.pf-btn:hover { background: var(--btn-hover); }
+.pf-wait { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); line-height: 20px; }
+.pf-small { min-height: 28px; padding: 0 12px; font-size: var(--text-xs); }
+
+/* Shapes: triangle asks (needs her), circle ok, filled circle done, square never. */
+.pf-shape { display: inline-block; flex: none; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; }
+.pf-shape.triangle { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--warn); }
+.pf-shape.circle { border-radius: 50%; border: 2px solid var(--ok); }
+.pf-shape.circle.filled { background: var(--ok); }
+.pf-shape.square { border-radius: 2px; background: var(--fg-muted); }
+.pf-tag { display: inline-flex; align-items: center; padding: 0 8px; margin-left: 12px; font-size: var(--text-xs); line-height: 24px; color: var(--fg-muted); white-space: nowrap; }
+.pf-tag .pf-shape { margin-right: 4px; }
+
+/* Gather */
+.pf-blocks { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
+.pf-block { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: var(--text-sm); border-top: 1px solid var(--border); cursor: pointer; }
+.pf-block:last-child { border-bottom: 1px solid var(--border); }
+.pf-block input, .pf-check-row input, .pf-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
+.pf-block-name { flex: 1; min-width: 0; }
+.pf-clearance { font-size: var(--text-sm); }
+.pf-clearance summary { cursor: pointer; line-height: 24px; color: var(--fg-muted); }
+.pf-clearance-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.pf-clearance-row label { min-width: 120px; }
+.pf-host select { height: 36px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--input-border); background: var(--bg-sunken); color: var(--fg); font: inherit; font-size: var(--text-sm); }
+.pf-date { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: var(--text-sm); }
+.pf-date input { width: 180px; }
+.pf-date > span { flex-basis: 100%; }
+
+/* Check line in setup */
+.pf-check { font-size: var(--text-sm); line-height: 20px; margin-bottom: 12px; }
+.pf-check > span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.pf-ok { color: var(--ok); }
+.pf-actions { flex-wrap: wrap; align-items: center; }
+
+/* Tabs */
+.pf-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.pf-tabs button { min-height: 36px; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 0 12px; color: var(--fg-muted); font-size: var(--text-sm); }
+.pf-tabs button:hover { color: var(--fg); background: var(--bg-hover); }
+.pf-tabs button.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+.pf-panel { display: flex; flex-direction: column; gap: 12px; }
+.pf-sub { margin: 8px 0 0; font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+
+/* Suggestion cards */
+.pf-sugg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 16px; }
+.pf-sugg.used { border-color: var(--input-border); }
+.pf-sugg.blocking { border-color: var(--warn); }
+.pf-sugg h3 { margin: 0; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.pf-quotes { margin: 0; padding-left: 20px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.pf-draft { display: flex; flex-direction: column; gap: 4px; }
+.pf-draft label { font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.pf-draft textarea { font-size: var(--text-sm); line-height: 20px; padding: 12px 16px; }
+.pf-draft textarea[aria-invalid='true'] { border-color: var(--err); }
+.pf-draft textarea[readonly] { background: var(--bg-raised); }
+.pf-shots { display: flex; flex-wrap: wrap; gap: 12px; }
+.pf-shot { display: flex; flex-direction: column; gap: 4px; width: 200px; font-size: var(--text-sm); cursor: pointer; }
+.pf-shot img { width: 200px; height: 128px; object-fit: cover; object-position: top; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-raised); }
+.pf-noshot { display: flex; align-items: center; justify-content: center; height: 128px; padding: 8px; text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); color: var(--fg-muted); font-size: var(--text-xs); }
+.pf-check-row { display: inline-flex; align-items: center; gap: 8px; min-height: 24px; font-size: var(--text-sm); }
+.pf-flags { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--tint-amber); }
+.pf-choice { margin: 0; padding: 0; border: 0; display: flex; gap: 16px; }
+.pf-choice label { display: inline-flex; align-items: center; gap: 8px; min-height: 24px; font-size: var(--text-sm); cursor: pointer; }
+
+/* Edits and copy pack */
+.pf-edits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pf-edits li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.pf-edits li > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.pf-edit-mark { flex: none; width: 20px; height: 20px; margin-top: 0; border-radius: 50%; border: 1px solid var(--input-border); display: inline-flex; align-items: center; justify-content: center; }
+.pf-edit-mark.done { background: var(--tint-green); border-color: var(--ok); color: var(--ok); }
+.pf-edit-mark.failed { border-color: var(--err); color: var(--err); }
+.pf-edit-mark.copy { border-style: dashed; }
+.pf-pack { display: flex; flex-direction: column; gap: 12px; }
+.pf-pack-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.pf-pack-item h3 { margin: 0; font-size: var(--text-md); line-height: 24px; }
+.pf-paste { display: flex; align-items: flex-start; gap: 12px; }
+.pf-paste p { flex: 1; margin: 0; font-size: var(--text-sm); line-height: 20px; white-space: pre-wrap; }
+.pf-warnings { margin: 0; padding-left: 20px; font-size: var(--text-sm); line-height: 20px; }
+.pf-site { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); }
+.pf-site .link { min-height: 24px; }
+
+/* Runs list */
+.pf-runs ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.pf-run { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; background: transparent; text-align: left; font-size: var(--text-sm); padding: 0 8px; }
+.pf-run.current { background: var(--accent-soft); font-weight: 600; }
+.pf-mark { flex: none; margin-right: 0; }
+.pf-mark.failed { display: inline-flex; color: var(--err); }
+
+/* Sidebar */
+.sessions .tree .row.pf-site-row .badge { margin-right: 8px; }
+.sessions .tree .row.pf-run-row { gap: 8px; }
+.sessions .tree .row.pf-run-row .pf-shape { margin-right: 0; }
+
+@media (max-width: 900px) {
+  .pf-head { padding: 8px 16px; }
+  .pf-body { padding: 16px 16px 48px; }
+  .pf-page { border: 0; }
+  .pf-shot, .pf-shot img { width: 100%; }
+  .pf-foot button, .pf-btn { min-height: 44px; }
+  .pf-clearance-row { flex-wrap: wrap; }
+}
