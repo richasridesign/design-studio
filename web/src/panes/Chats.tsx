@@ -207,7 +207,7 @@ export function Chats() {
       : { label: `Reopen ${vId(i.iteration.id)}`, hint: 'Chats can edit it again', run: () => reopen(p, i.iteration, all) }]} />;
     const acts = <>{working && newChat(`New chat on ${f.flow.name} in ${vId(i.iteration.id)}`, () => chatIn(p, f, i.iteration))}{menu}</>;
     const title = `${i.label}: ${working ? 'working, chats can edit it' : 'frozen, chats only read it'}${i.iteration.node ? `. Figma section ${i.iteration.node}` : '. No Figma section yet'}`;
-    const name = <><span className="it-id">{vId(i.iteration.id)} · </span><span className="it-topic">{i.label.slice(vId(i.iteration.id).length + 3)}</span></>;
+    const name = <><span className="it-id">{vId(i.iteration.id)}</span><span className="it-topic">{i.label.slice(vId(i.iteration.id).length)}</span></>;
     const me: Selection = { kind: 'iteration', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, iteration: itSel(i.iteration, i.label, f.flow.slug) };
     return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title, { label: `${f.flow.name} in ${i.label}`, selected: same(sel, me), run: () => select(me) });
   };
