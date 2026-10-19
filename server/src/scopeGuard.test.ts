@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatContext, MapRow, Project } from '../../shared/project.js';
 import type { FileMap } from './fileMap.js';
-import { checkScope } from './scopeGuard.js';
+import { checkScope, frozenChat } from './scopeGuard.js';
+import { FIGMA_WRITE_MATCHER } from './lean.js';
 
 // Page "Hi fi": LATEST (1, frozen) with Flow 1 and 2, V1.19 (working) with Flow 1, Flow 2 and Flow 1 states, V1.20
 // (working) with Flow 1, Parked, a loose frame. Page "Comp": a section of components. One section (40:1) has no tag,
@@ -106,5 +107,31 @@ describe('scope guard, nothing to decide by', () => {
     expect(checkScope(null, flowChat('discover'), project, ['2:5']).allow).toBe(true);
     expect(checkScope(map, null, project, ['2:5']).allow).toBe(true);
     expect(checkScope(map, flowChat('discover'), null, ['2:5']).allow).toBe(true);
+  });
+});
+
+describe('a chat on a frozen iteration is read only', () => {
+  const setState = (state: 'working' | 'frozen'): Project => ({ ...project, iterations: project.iterations.map((it) => (it.id === '1.19' ? { ...it, state } : it)) });
+  it('walks freeze and reopen on an open chat: writes stop at once and come back, read from the fresh project', () => {
+    // The chat was opened while 1.19 was working; its context is cached at start.
+    const ctx = flowChat('discover', '1.19');
+    expect(frozenChat(ctx, project)).toBeNull();
+    // Frozen from the sidebar while the chat is open: every write is denied, own subsection included.
+    expect(frozenChat(ctx, setState('frozen'))).toMatch(/1\.19, which is frozen/);
+    // Reopened: allowed again, even though the chat started on a frozen iteration.
+    expect(frozenChat(flowChat('discover', '1.19', setState('frozen')), setState('working'))).toBeNull();
+  });
+  it('denies a chat opened on frozen LATEST, also with no map and no project.json read', () => {
+    expect(frozenChat(flowChat('discover', '1'), project)).not.toBeNull();
+    expect(frozenChat(flowChat('discover', '1'), null)).not.toBeNull();
+  });
+  it('leaves project chats to the scope guard, which keeps them off frozen iterations', () => {
+    expect(frozenChat(projectChat, setState('frozen'))).toBeNull();
+    expect(frozenChat(null, project)).toBeNull();
+  });
+  it('runs on every Figma write tool, not only use_figma, and never on reads', () => {
+    const m = new RegExp(FIGMA_WRITE_MATCHER);
+    for (const t of ['use_figma', 'generate_figma_design', 'upload_assets', 'html_to_figma', 'create_new_file']) expect(m.test(`mcp__plugin_figma_figma__${t}`)).toBe(true);
+    for (const t of ['get_screenshot', 'get_metadata', 'get_design_context']) expect(m.test(`mcp__plugin_figma_figma__${t}`)).toBe(false);
   });
 });

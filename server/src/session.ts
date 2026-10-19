@@ -26,7 +26,7 @@ import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
 import { SAMPLE_KEY } from './figma.js';
 import { acquireWrite } from './figmaLock.js';
 import { chatContext, readProject } from './project.js';
-import { checkScope } from './scopeGuard.js';
+import { checkScope, frozenChat } from './scopeGuard.js';
 import { markTurn, scheduleRestack } from './iterations.js';
 import { projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
@@ -324,8 +324,16 @@ export class AgentSession {
    * figma.saveVersionHistoryAsync, it fails the whole call.
    */
   private async beforeFigma(input: HookInput): Promise<HookJSONOutput> {
-    if (input.hook_event_name !== 'PreToolUse' || !/use_figma$/.test(input.tool_name)) return {};
+    if (input.hook_event_name !== 'PreToolUse') return {};
     const call = (input.tool_input ?? {}) as FigmaCall;
+    const script = /use_figma$/.test(input.tool_name);
+    // A chat on a frozen iteration is read only: no edit script and no other Figma write tool, checked before the
+    // scope guard and "Allow edits anywhere", on a fresh project.json.
+    if (this.projectCtx && FIGMA_WRITE.test(input.tool_name) && (!script || (typeof call.code === 'string' && figmaEdits(call.code)))) {
+      const frozen = frozenChat(this.projectCtx, await readProject(this.cwd).catch(() => null));
+      if (frozen) return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: frozen } };
+    }
+    if (!script) return {};
     // An edit waits for the file's write lock, so two chats on one file never run their scripts at the same time.
     const key = this.figma?.key;
     if (key && key !== SAMPLE_KEY && typeof call.code === 'string' && figmaEdits(call.code)) {

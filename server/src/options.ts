@@ -6,6 +6,7 @@ import { MODELS, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
 import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
 import { figmaEdits } from './touched.js';
+import { FIGMA_WRITE_MATCHER } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 
@@ -176,7 +177,7 @@ export function agentOptions(o: {
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
-      PreToolUse: [{ matcher: 'mcp__.*use_figma', hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
+      PreToolUse: [{ matcher: FIGMA_WRITE_MATCHER, hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
       PostToolUse: [{ hooks: [o.afterTool] }, { matcher: 'mcp__.*use_figma', hooks: [historyAfterFigma(o.cwd)] }],
       ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },

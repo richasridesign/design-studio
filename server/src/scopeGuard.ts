@@ -14,6 +14,19 @@ import { tagOf, type FileMap } from './fileMap.js';
 
 export type Verdict = { allow: true } | { allow: false; id: string; reason: string };
 
+/**
+ * A flow chat on a frozen iteration only reads Figma: every edit script and Figma write tool is denied, wherever it
+ * points (its own subsection, new nodes, the Comp page) and whatever "Allow edits anywhere" says. `project` is read
+ * fresh for each call, so freezing takes effect at once in open chats and reopening lifts it. Null when allowed.
+ */
+export function frozenChat(ctx: ChatContext | null, project: Project | null): string | null {
+  if (ctx?.scope !== 'flow' || !ctx.iteration) return null;
+  const id = ctx.iteration.id;
+  const state = (project ?? ctx.project).iterations.find((it) => it.id === id)?.state ?? ctx.iteration.state;
+  if (state !== 'frozen') return null;
+  return `This chat is on ${id}, which is frozen, so it only reads Figma and cannot change it. Reopen ${id} from the sidebar to edit it, or start a chat on the working iteration.`;
+}
+
 type Where = { page: string; tags: Array<{ id: string; tag: Tag }> };
 
 const ALLOW: Verdict = { allow: true };
