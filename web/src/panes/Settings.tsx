@@ -197,6 +197,13 @@ export function Settings() {
       <section className="set-card" id="set-advanced" aria-labelledby="set-advanced-h">
         <h2 id="set-advanced-h" className="sr-only">Advanced</h2>
         <Toggle label="Developer tools" detail="Show the chat folder's files and a terminal" on={s.devTools} set={(v) => save({ devTools: v })} />
+        <label className="field">
+          <span>Projects folder</span>
+          <div className="inline">
+            <input type="text" placeholder="~/workspace/design-projects" spellCheck={false} aria-describedby="set-projects-help" defaultValue={s.projectsRoot} onBlur={(e) => e.target.value.trim() !== s.projectsRoot && save({ projectsRoot: e.target.value.trim() })} />
+          </div>
+          <span className="muted small" id="set-projects-help">New projects (one folder per Figma file) are made here. Chats in ~/DesignStudio stay where they are.</span>
+        </label>
       </section>
     </div>
   );

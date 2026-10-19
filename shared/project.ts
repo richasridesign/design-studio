@@ -294,6 +294,20 @@ export function adoptFromMap(pages: MapPages, opts: { baselineId?: string } = {}
   return { page: { id: pageId, name: pageName }, flows, iterations, parked, skipped };
 }
 
+// ---------- What the sidebar lists ----------
+
+/** One project folder as /api/projects returns it: its file, its project.json when adopted, and the folder's stage. */
+export type ProjectSummary = {
+  cwd: string;
+  key: string;
+  name: string;
+  url: string;
+  stage: string | null;
+  project: Project | null;
+  /** Two sections carry one tag (a copy was left behind): the newest id is used, the rest listed here. */
+  doubles?: Array<{ tag: Tag; ids: string[] }>;
+};
+
 // ---------- Node ids against the latest map ----------
 
 export type TaggedNode = { id: string; tag: Tag };

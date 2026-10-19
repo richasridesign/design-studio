@@ -1,49 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getJson, postJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
+import { type ProjectSummary } from '../../../shared/project';
 import { replyLine } from '../../../shared/edits';
 import '../chats.css';
 import { press } from '../press';
 import { runningText } from '../StatusBar';
+import { buildTree, chatCount, filterTree, type ChatSet, type TreeFlow, type TreeIteration, type TreeProject } from './projectTree';
+import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED } from './ProjectDialogs';
 
-type Folder = { cwd: string; key: string; name: string; url: string; stage?: string | null };
-type Group = { cwd: string; name: string; stage?: string | null; open: LiveChat[]; recent: SavedSession[] };
+export { buildTree, filterTree } from './projectTree';
 
 const RECENT = 5;
 const FOLDED_KEY = 'designstudio.foldedFolders';
-const urgency = (c: LiveChat) => (c.pending ? 0 : c.running ? 1 : 2);
-const byUrgency = (a: LiveChat, b: LiveChat) => urgency(a) - urgency(b) || b.lastActive - a.lastActive;
-
-export function groupChats(live: LiveChat[], saved: SavedSession[], folders: Folder[]): Group[] {
-  const groups = new Map<string, Group>();
-  const noFile = (cwd: string) => !folders.some((f) => f.cwd === cwd) && /\/(scratch|chat-\d{8}-\d{6}[\w-]*)$/.test(cwd);
-  const name = (cwd: string) => folders.find((f) => f.cwd === cwd)?.name ?? cwd.split('/').pop() ?? cwd;
-  const get = (cwd: string) => {
-    const key = noFile(cwd) ? '' : cwd;
-    return groups.get(key) ?? groups.set(key, { cwd: key, name: key ? name(cwd) : 'No file yet', stage: folders.find((f) => f.cwd === key)?.stage ?? null, open: [], recent: [] }).get(key)!;
-  };
-  for (const c of live) get(c.cwd).open.push(c);
-  const openIds = new Set(live.map((c) => c.sessionId));
-  const roots = new Set([...folders.map((f) => f.cwd), ...live.map((c) => c.cwd)]);
-  for (const s of saved) if (roots.has(s.cwd) && !openIds.has(s.sessionId)) get(s.cwd).recent.push(s);
-  for (const g of groups.values()) {
-    g.open.sort(byUrgency);
-    g.recent.sort((a, b) => b.lastModified - a.lastModified);
-  }
-  const last = (g: Group) => Math.max(0, ...g.open.map((c) => c.lastActive), ...g.recent.map((s) => s.lastModified));
-  return [...groups.values()].sort((a, b) => last(b) - last(a));
-}
-
-export function filterGroups(groups: Group[], query: string): Group[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return groups;
-  const hit = (t: string) => t.toLowerCase().includes(q);
-  return groups
-    .map((g) => (hit(g.name) ? g : { ...g, open: g.open.filter((c) => hit(c.title)), recent: g.recent.filter((r) => hit(r.title)) }))
-    .filter((g) => g.open.length || g.recent.length);
-}
 
 // Opens the sample chat (Grocery app) and shows its sketch. Shared by the sidebar row and the first-run state.
 export async function openSample() {
@@ -52,13 +23,16 @@ export async function openSample() {
   setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
 }
 
+type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> };
+
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
   const current = useStore((s) => s.session.sessionId);
   const live = useStore((s) => s.live);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
   const [ask, setAsk] = useState<ConfirmRequest | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleError, setSampleError] = useState('');
@@ -72,26 +46,32 @@ export function Chats() {
     try { localStorage.setItem(FOLDED_KEY, JSON.stringify([...next])); } catch {}
     return next;
   });
+  const isOpen = (key: string) => Boolean(query) || !folded.has(key);
 
+  const loadProjects = () => void getJson<{ projects: ProjectSummary[] }>('/api/projects').then((r) => setProjects(r.projects)).catch(() => {});
   useEffect(() => {
-    getJson<Folder[]>('/api/figma/folders').then(setFolders).catch(() => {});
+    loadProjects();
     getJson<SavedSession[]>('/api/sessions').then(setSaved).catch(() => {});
     setOpening(null);
   }, [current, live.length]);
 
   useEffect(() => {
-    // The folder rows show each folder's stage: reload them when one is approved or reopened.
-    const reload = () => void getJson<Folder[]>('/api/figma/folders').then(setFolders).catch(() => {});
-    window.addEventListener('designstudio:stages', reload);
-    return () => window.removeEventListener('designstudio:stages', reload);
+    // The project rows show each folder's stage and its iterations: reload them when one changes.
+    window.addEventListener('designstudio:stages', loadProjects);
+    window.addEventListener(PROJECTS_CHANGED, loadProjects);
+    return () => {
+      window.removeEventListener('designstudio:stages', loadProjects);
+      window.removeEventListener(PROJECTS_CHANGED, loadProjects);
+    };
   }, []);
 
-  const all = useMemo(() => groupChats(live, saved, folders), [live, saved, folders]);
-  const groups = useMemo(() => filterGroups(all, query), [all, query]);
+  const all = useMemo(() => buildTree(live, saved, projects), [live, saved, projects]);
+  const tree = useMemo(() => filterTree(all, query), [all, query]);
   const close = (c: LiveChat) =>
     c.running || c.pending
       ? setAsk({ title: 'Close this chat?', detail: c.title, warning: 'Claude is still working on it and will stop. The transcript is kept.', action: 'Close', run: async () => send({ type: 'close', id: c.id }) })
       : send({ type: 'close', id: c.id });
+  const open = (s: SavedSession) => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); };
 
   const runSample = async () => {
     setSampleBusy(true);
@@ -103,6 +83,92 @@ export function Chats() {
     }
     setSampleBusy(false);
   };
+
+  const chats = (s: ChatSet, depth: number) => (
+    <>
+      {s.open.map((c) => <LiveRow key={c.id} c={c} depth={depth} selected={c.id === viewing} onClose={() => close(c)} />)}
+      {(query ? s.recent : s.recent.slice(0, RECENT)).map((r) => (
+        <div key={r.sessionId} className={`row session recent d${depth}`} title={r.title} onClick={() => open(r)} {...press(() => open(r))}>
+          <span className="name">{opening === r.sessionId ? 'Opening… ' : ''}{r.title}</span>
+          <span className="when">{ago(r.lastModified)}</span>
+        </div>
+      ))}
+    </>
+  );
+
+  const group = (key: string, depth: number, icon: ReactNode, name: ReactNode, count: number, tag: ReactNode, acts: ReactNode, body: ReactNode, title?: string) => {
+    const shown = isOpen(key);
+    return (
+      <div key={key} className={`branch d${depth}`}>
+        <div className={`row project d${depth}`} title={title} onClick={() => query || fold(key)}>
+          <span className="fold" aria-expanded={shown} title={shown ? 'Collapse' : 'Expand'} {...press(() => query || fold(key))}>
+            <span className="twistie chevron"><Icon name={shown ? 'chevron-down' : 'chevron-right'} small /></span>
+            <span className="twistie">{typeof icon === 'string' ? <Icon name={icon} small /> : icon}</span>
+            <span className="name">{name}</span>
+          </span>
+          {!shown && <span className="count" title={`${count} chats`}>{count}</span>}
+          {tag}
+          <span className="acts">{acts}</span>
+        </div>
+        {shown && body}
+      </div>
+    );
+  };
+
+  const newChat = (label: string, msg: Parameters<typeof send>[0]) => (
+    <button className="icon-btn" title={label} aria-label={label} onClick={(e) => { e.stopPropagation(); send(msg); }}><Icon name="add" small /></button>
+  );
+
+  const iterationRow = (p: TreeProject, f: TreeFlow, i: TreeIteration) => {
+    const working = i.iteration.state === 'working';
+    // The state is the row's icon (filled dot for Working, ring for Frozen). The 160px sidebar has room for one word, so
+    // only the working iteration, where new chats go, carries its label; Frozen is read by screen readers and the tooltip.
+    const icon = <span className={`state-dot ${working ? 'working' : 'frozen'}`} aria-hidden />;
+    const tag = working ? <span className="state-tag working">Working</span> : <span className="sr-only">Frozen</span>;
+    const acts = working ? newChat(`New chat on ${f.flow.name} in ${i.iteration.id}`, { type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: i.iteration.id }) : null;
+    const title = `${i.label}: ${working ? 'working, chats can edit it' : 'frozen, chats only read it'}${i.iteration.node ? `. Figma section ${i.iteration.node}` : '. No Figma section yet'}`;
+    const name = <><span className="it-id">{i.iteration.id} · </span><span className="it-topic">{i.label.slice(i.iteration.id.length + 3)}</span></>;
+    return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title);
+  };
+
+  const flowRow = (p: TreeProject, f: TreeFlow) => {
+    const acts = p.working ? newChat(`New chat on ${f.flow.name} in ${p.working.id}`, { type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: p.working.id }) : null;
+    return group(`${p.cwd}#${f.flow.slug}`, 1, 'git-branch', `${f.flow.n} · ${f.flow.name}`, f.count, null, acts, f.iterations.map((i) => iterationRow(p, f, i)));
+  };
+
+  const plain = (p: TreeProject, key: string, name: string, s: ChatSet, extra?: ReactNode) =>
+    chatCount(s) || extra ? group(`${p.cwd}#${key}`, 1, 'folder', name, chatCount(s), null, extra, chats(s, 2)) : null;
+
+  const projectRow = (p: TreeProject) => {
+    const menu = (
+      <RowMenu label={`More for ${p.name}`} items={[
+        { label: p.adopted ? 'Adopt this file again' : 'Adopt this file', hint: 'Sections become flows and iterations', run: () => setDialog({ kind: 'adopt', p }) },
+        ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${p.working.id} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
+        { label: 'Open in Figma', hint: 'In a new tab', run: () => window.open(p.url, '_blank', 'noopener') },
+      ]} />
+    );
+    const acts = (
+      <>
+        {newChat(p.adopted ? `New project task on ${p.name}` : `New chat on ${p.name}`, { type: 'new_session', cwd: p.cwd })}
+        {menu}
+      </>
+    );
+    const tag = p.stage ? <span className="stage-tag" title={`Next step: ${p.stage}`}>{p.stage}</span> : null;
+    const body = p.adopted
+      ? (
+        <>
+          {p.flows.map((f) => flowRow(p, f))}
+          {plain(p, 'tasks', 'Project tasks', p.tasks)}
+          {plain(p, 'before', 'Before flows', p.before)}
+        </>
+      )
+      : chats(p.before, 1);
+    return group(p.cwd, 0, 'file-media', p.name, p.count, tag, acts, body, p.cwd);
+  };
+
+  const noFile = chatCount(tree.noFile)
+    ? group('no-file', 0, 'file-media', 'No file yet', chatCount(tree.noFile), null, newChat('New chat with no file', { type: 'new_chat' }), chats(tree.noFile, 1))
+    : null;
 
   return (
     <div className="sessions chats">
@@ -118,37 +184,60 @@ export function Chats() {
           <span className="name">Sample tour</span>
         </div>
         {sampleError && <div className="hint error-text">{sampleError}</div>}
-        {groups.map((g) => {
-          const key = g.cwd || 'no-file';
-          const open = Boolean(query) || !folded.has(key);
-          return (
-          <div key={key}>
-            <div className="row project" title={g.cwd || undefined} onClick={() => query || fold(key)}>
-              <span className="fold" aria-expanded={open} title={open ? 'Collapse' : 'Expand'} {...press(() => query || fold(key))}>
-                <span className="twistie chevron"><Icon name={open ? 'chevron-down' : 'chevron-right'} small /></span>
-                <span className="twistie"><Icon name="file-media" small /></span>
-                <span className="name">{g.name}</span>
-              </span>
-              {!open && <span className="count" title={`${g.open.length + g.recent.length} chats`}>{g.open.length + g.recent.length}</span>}
-              {g.stage && <span className="stage-tag" title={`Next step: ${g.stage}`}>{g.stage}</span>}
-              <span className="acts">
-                <button className="icon-btn" title={`New chat on ${g.name}`} aria-label={`New chat on ${g.name}`} onClick={(e) => { e.stopPropagation(); send(g.cwd ? { type: 'new_session', cwd: g.cwd } : { type: 'new_chat' }); }}><Icon name="add" small /></button>
-              </span>
-            </div>
-            {open && g.open.map((c) => <LiveRow key={c.id} c={c} selected={c.id === viewing} onClose={() => close(c)} />)}
-            {open && (query ? g.recent : g.recent.slice(0, RECENT)).map((s) => (
-              <div key={s.sessionId} className="row session recent" title={s.title} onClick={() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); }} {...press(() => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); })}>
-                <span className="name">{opening === s.sessionId ? 'Opening… ' : ''}{s.title}</span>
-                <span className="when">{ago(s.lastModified)}</span>
-              </div>
-            ))}
-          </div>
-          );
-        })}
-        {!groups.length && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
+        {tree.projects.map(projectRow)}
+        {noFile}
+        {!tree.projects.length && !noFile && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
       </div>
       {ask && <Confirm {...ask} onClose={() => setAsk(null)} />}
+      {dialog?.kind === 'adopt' && <AdoptDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'iteration' && <NewIterationDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} onClose={() => setDialog(null)} />}
     </div>
+  );
+}
+
+/** The row's "more" menu: opens under its button, closes on Esc, outside click or a pick, and gives focus back. */
+function RowMenu({ label, items }: { label: string; items: Array<{ label: string; hint?: string; run: () => void }> }) {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState({ top: 0, left: 0 });
+  const box = useRef<HTMLSpanElement>(null);
+  const toggle = () => {
+    // The sidebar is narrower than the menu and clips it, so the menu is fixed to the viewport, 4px under its button,
+    // its right edge on the button's right edge, and pulled in when that would leave the window.
+    const r = box.current?.querySelector('.icon-btn')?.getBoundingClientRect();
+    if (r) setAt({ top: r.bottom + 4, left: Math.max(8, Math.min(r.right - 200, window.innerWidth - 208)) });
+    setOpen((o) => !o);
+  };
+  useEffect(() => {
+    if (!open) return;
+    box.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); box.current?.querySelector<HTMLButtonElement>('.icon-btn')?.focus(); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const list = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+        const at = list.indexOf(document.activeElement as HTMLButtonElement);
+        list[(at + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length]?.focus();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('mousedown', down);
+    document.addEventListener('keydown', key, true);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key, true); };
+  }, [open]);
+  return (
+    <span className="row-menu" ref={box} onClick={(e) => e.stopPropagation()}>
+      <button className="icon-btn" title={label} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="kebab-vertical" small /></button>
+      {open && (
+        <div className="row-menu-pop" role="menu" aria-label={label} style={at}>
+          {items.map((it) => (
+            <button key={it.label} role="menuitem" onClick={() => { setOpen(false); it.run(); }}>
+              <span className="t">{it.label}</span>
+              {it.hint && <span className="h">{it.hint}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -156,11 +245,11 @@ function line(c: LiveChat, events: ChatEvent[] | null) {
   return c.pending ? 'Needs you' : c.running ? runningText(c.status) : c.last ?? (events ? replyLine(events) : '') ?? '';
 }
 
-function LiveRow({ c, selected, onClose }: { c: LiveChat; selected: boolean; onClose: () => void }) {
+function LiveRow({ c, depth, selected, onClose }: { c: LiveChat; depth: number; selected: boolean; onClose: () => void }) {
   const events = useStore((s) => (s.session.id === c.id ? s.events : null));
   const text = line(c, events);
   return (
-    <div className={`row session live ${text ? 'two' : ''} ${selected ? 'selected' : ''}`} title={c.title} onClick={() => selected || send({ type: 'view', id: c.id })}>
+    <div className={`row session live d${depth} ${text ? 'two' : ''} ${selected ? 'selected' : ''}`} title={c.title} onClick={() => selected || send({ type: 'view', id: c.id })}>
       <span className={`dot ${c.pending ? 'waiting' : c.running ? 'running' : 'idle'}`} />
       <span className="lines" aria-current={selected || undefined} {...press(() => selected || send({ type: 'view', id: c.id }))}>
         <span className="l1">
