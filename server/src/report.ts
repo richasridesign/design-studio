@@ -5,10 +5,9 @@ import { readSketch } from './sketch.js';
 import { readCopy, readCrit } from './crit.js';
 import { readDesign, readReview } from './review.js';
 import { rulesLine, rulesSummary, type RuleResult } from '../../shared/rules.js';
-import { decisionLog, whoLabel } from '../../shared/decisionLog.js';
 import { readApprovals } from './stages.js';
-import { readChatDecisions } from './decisionLog.js';
-import type { ChatDecision } from '../../shared/decisionLog.js';
+import { historyView } from './history.js';
+import { parseHistory } from '../../shared/history.js';
 import { readScope } from './scope.js';
 import { readTriage } from './triage.js';
 import { TRIAGE_LABEL, closedTally, resolvedRules, splitFindings, splitRun, triagedRules, type ClosedFinding, type ResolvedRule, type Triage, type TriageState } from '../../shared/triage.js';
@@ -27,7 +26,9 @@ export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 const inline = (s: string) =>
   esc(s)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // [Open in Figma](https://...): web links only, so a link can never run script.
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
 
 const HEADING = /^(#{1,6})\s+(.*)$/;
 
@@ -109,8 +110,8 @@ type Data = {
   scope: Scope;
   sketch: SketchDoc | null;
   approvals: StageApprovals;
-  /** Decisions Claude logged from the chat. */
-  chat?: ChatDecision[];
+  /** This chat's iteration block from its flow's history file (heading and markdown), when the chat is on a flow. */
+  history?: { heading: string; body: string } | null;
   design: DesignDoc | null;
   run: ReviewRun | undefined;
   /** Findings and failed house rules resolved by hand. Keys from older runs are ignored. */
@@ -172,15 +173,10 @@ async function sketches(d: Data): Promise<Section | null> {
   return blocks.length ? { id: 'sketches', title: 'Sketches', body: blocks.join('') } : null;
 }
 
-function decisions(d: Data): Section | null {
-  const rows = decisionLog(d.sketch, d.approvals, d.chat);
-  if (!rows.length) return null;
-  const items = rows.map((r) => {
-    const when = r.at ? `, ${new Date(r.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '';
-    const lines = [r.over.length ? `Over: ${r.over.join(', ')}` : '', r.why ? `Why: ${r.why}` : ''].filter(Boolean).map((l) => `<br>${esc(l)}`).join('');
-    return `<li><strong>${esc(r.title)}</strong>${r.choice ? `: ${esc(r.choice)}` : ''}${lines}<br><small>${esc(whoLabel(r, 'the designer'))}${esc(when)}</small></li>`;
-  });
-  return { id: 'decisions', title: 'Decision log', body: `<ul class="rows">${items.join('')}</ul>`, count: String(rows.length) };
+/** What changed in this iteration and why, with the decisions read from the Decision stickies under each screen. */
+function history(d: Data): Section | null {
+  if (!d.history?.body.trim()) return null;
+  return { id: 'history', title: 'History', body: markdown(`## ${d.history.heading}\n${d.history.body}`) };
 }
 
 async function shotFor(dir: string, nodeId: string) {
@@ -532,7 +528,9 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     readCopy(dir).catch(() => []),
   ]);
   const triage = await readTriage(dir);
-  const chat = await readChatDecisions(dir);
+  const hist = await historyView(dir).catch(() => null);
+  const blocks = hist?.md ? parseHistory(hist.md).blocks : [];
+  const block = blocks.find((b) => b.id && b.id === hist?.iteration?.id) ?? null;
   return {
     names,
     dir,
@@ -542,7 +540,7 @@ async function load(dir: string, figma: FigmaFile | null, names: Record<string, 
     scope: scopeDoc,
     sketch,
     approvals,
-    chat,
+    history: block ? { heading: block.heading, body: block.body } : null,
     design: designDoc,
     run: reviewDoc.runs?.at(-1),
     triage,
@@ -562,7 +560,7 @@ export async function buildReport(dir: string, figma: FigmaFile | null, chatTitl
   const d = await load(dir, figma, names);
   // Older chats only list frames on their review runs.
   const frames = d.design?.frames.length ? d.design.frames.map((f) => f.nodeId) : (d.run?.frames ?? []);
-  const sections = (await Promise.all([brief(d), research(d), scope(d), sketches(d), decisions(d), design(d), review(d), crit(d), copy(d)])).filter((s): s is Section => !!s);
+  const sections = (await Promise.all([brief(d), research(d), scope(d), sketches(d), history(d), design(d), review(d), crit(d), copy(d)])).filter((s): s is Section => !!s);
   const toc = sections.length >= 3
     ? `<nav class="toc" aria-label="Contents"><p>Contents</p><ol><li><a href="#summary">Summary</a></li>${sections.map((s) => `<li><a href="#${s.id}">${esc(s.title)}</a>${s.count ? `<small>${esc(s.count)}</small>` : ''}</li>`).join('')}</ol></nav>`
     : '';

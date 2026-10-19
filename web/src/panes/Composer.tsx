@@ -61,7 +61,7 @@ export const rankFiles = (files: string[], query: string, limit = MAX_ROWS) => r
 
 export type FrameRef = { id: string; name: string; page: string };
 
-const ATTACH_ROW: FrameRef = { id: '', name: 'Attach a Figma file to list its frames', page: '' };
+const ATTACH_ROW: FrameRef = { id: '', name: 'Add a project to list its frames', page: '' };
 
 export const rankFrames = (frames: FrameRef[], query: string, limit = MAX_ROWS) => rank(frames, (f) => f.name, query, limit);
 

@@ -55,7 +55,7 @@ export function welcomeChips(fileName: string | null): WelcomeChip[] {
     ...(fileName ? [{ label: 'Fix something across all flows', text: 'Fix this across all flows:' }] : []),
     { label: 'Review only, no changes', text: fileName ? `Review only, do not change anything. Review the latest flows in ${fileName}` : 'Review only, do not change anything. Review:' },
   ];
-  return fileName ? starts : [{ label: 'Attach Figma file', attach: true }, ...starts];
+  return fileName ? starts : [{ label: 'Add project', attach: true }, ...starts];
 }
 
 function SetupBanner() {

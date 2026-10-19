@@ -58,7 +58,7 @@ is Quick or Full. The composer gets a dark outline in Design mode and a grey one
 
 A chat does not need a Figma file to start. Attach one when you need it:
 
-- Click "Attach Figma file" in the top bar (or press Cmd+O), paste a link or pick a recent file.
+- Click "Add project" in the sidebar, next to New chat (or press Cmd+O), paste a link or pick a recent file.
 - Or paste a figma.com link in the composer and click Attach on the chip that appears.
 - In a chat that already has a file, a link to another file offers to open that file in its own chat.
 
@@ -209,7 +209,7 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 | --- | --- |
 | Option+M | Cycle the composer mode |
 | Cmd+Shift+P or F1 | Command palette |
-| Cmd+O | Attach a Figma file |
+| Cmd+O | Add project (attach a Figma file) |
 | Cmd+B | Toggle sidebar |
 | Cmd+. | Toggle focus mode |
 | Cmd+J | Toggle terminal (dev tools) |

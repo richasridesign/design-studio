@@ -11,7 +11,7 @@ export const PAGES: Page[] = [
   { key: '1', page: 'figma', label: 'Figma' },
   { key: '2', page: 'sketch', label: 'Sketch' },
   { key: '3', page: 'review', label: 'Review' },
-  { key: '4', page: 'decisions', label: 'Decisions' },
+  { key: '4', page: 'history', label: 'History' },
   { key: '5', page: 'preview', label: 'Preview', dev: true },
   { key: ',', page: 'settings', label: 'Settings' },
 ];
@@ -23,7 +23,7 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     title: 'General',
     rows: [
       [['⌘', '⇧', 'P'], 'Command palette (or F1)'],
-      [['⌘', 'O'], 'Attach Figma file'],
+      [['⌘', 'O'], 'Add project'],
       [['⌘', 'B'], 'Toggle sidebar'],
       [['⌘', '.'], 'Toggle focus mode'],
       [['⌘', 'J'], 'Toggle terminal (dev tools)'],

@@ -33,7 +33,7 @@ export function FigmaFile({ chrome }: { chrome: ReactNode }) {
   if (!figma) {
     return (
       <div className="browser-pane ff-pane">
-        <Empty art={<BrowserArt />} title="No Figma file yet" text="Attach a Figma file to see its screens here." action={{ label: 'Attach Figma file', onClick: attach }} />
+        <Empty art={<BrowserArt />} title="No Figma file yet" text="Add a Figma file as a project to see its screens here." action={{ label: 'Add project', onClick: attach }} />
         {chrome}
       </div>
     );

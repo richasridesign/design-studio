@@ -63,7 +63,7 @@ export function RunCard() {
       <div className="run-acts">
         {flow.phase === 'file' ? (
           <>
-            <button className="primary" onClick={() => window.dispatchEvent(new Event('designstudio:attach'))}>Attach Figma file</button>
+            <button className="primary" onClick={() => window.dispatchEvent(new Event('designstudio:attach'))}>Add project</button>
             <button disabled={stopping} onClick={() => send({ type: 'interrupt' })}>Stop</button>
           </>
         ) : run.waiting ? (

@@ -15,12 +15,12 @@ import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Sketch } from './panes/Sketch';
 import { Review } from './panes/Review';
-import { Decisions } from './panes/Decisions';
+import { History } from './panes/History';
 import { Settings } from './panes/Settings';
 import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';
 import { useDialogFocus } from './useDialog';
-import { FilePill } from './AttachFile';
+import { AttachHost } from './AttachFile';
 import { ConnectPopover } from './ConnectPopover';
 import { McpItem, McpPage } from './panes/McpStatus';
 import { FigmaItem, StatusBar, runningText } from './StatusBar';
@@ -34,9 +34,9 @@ import { FigmaLoginHost } from './FigmaLogin';
 import './page.css';
 import './design.css';
 
-type Center = 'figma' | 'sketch' | 'review' | 'decisions' | 'preview' | 'code';
-type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'decisions' | 'more';
-const MOBILE_CENTER: Center[] = ['figma', 'sketch', 'review', 'decisions'];
+type Center = 'figma' | 'sketch' | 'review' | 'history' | 'preview' | 'code';
+type Tab = 'chat' | 'figma' | 'sketch' | 'review' | 'history' | 'more';
+const MOBILE_CENTER: Center[] = ['figma', 'sketch', 'review', 'history'];
 const isMobileCenter = (t: string): t is Center & Tab => MOBILE_CENTER.some((c) => c === t);
 
 const VIEW_IDS = ['chats', 'system', 'explorer'] as const;
@@ -53,7 +53,7 @@ const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
   { id: 'figma', icon: 'browser', label: 'Figma' },
   { id: 'sketch', icon: 'edit', label: 'Sketch' },
   { id: 'review', icon: 'checklist', label: 'Review' },
-  { id: 'decisions', icon: 'lightbulb', label: 'Decisions' },
+  { id: 'history', icon: 'history', label: 'History' },
   { id: 'preview', icon: 'play', label: 'Preview', dev: true },
   { id: 'code', icon: 'code', label: 'Files', dev: true },
 ];
@@ -307,7 +307,6 @@ export function App() {
       <header className="topbar">
         <h1 style={HIDDEN}>Design Studio</h1>
         <span className="brand" aria-hidden><span className="logo" />Design Studio</span>
-        <FilePill />
         <span className="spacer" />
         <span className={`run-state ${session.running ? 'busy' : ''}`}>
           <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} /> <span className="label">{session.running ? runningText(status) : 'Idle'}</span>
@@ -342,7 +341,7 @@ export function App() {
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}
-              <button onClick={() => open('decisions')}>Decisions</button>
+              <button onClick={() => open('sketch')}>Sketch</button>
               {/* Settings is the gear in the top bar, so it is not repeated here. */}
             </div>
           )}
@@ -381,7 +380,7 @@ export function App() {
           <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`} id="panel-figma" role="tabpanel" aria-labelledby="tab-figma">{shownCenter === 'figma' && <BrowserPane />}</div>
           <div className={`editor ${shownCenter === 'sketch' ? 'shown' : ''}`} id="panel-sketch" role="tabpanel" aria-labelledby="tab-sketch">{shownCenter === 'sketch' && <Sketch />}</div>
           <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`} id="panel-review" role="tabpanel" aria-labelledby="tab-review">{shownCenter === 'review' && <Review dev={dev} />}</div>
-          <div className={`editor ${shownCenter === 'decisions' ? 'shown' : ''}`} id="panel-decisions" role="tabpanel" aria-labelledby="tab-decisions">{shownCenter === 'decisions' && <Decisions />}</div>
+          <div className={`editor ${shownCenter === 'history' ? 'shown' : ''}`} id="panel-history" role="tabpanel" aria-labelledby="tab-history">{shownCenter === 'history' && <History />}</div>
           <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`} id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">{shownCenter === 'preview' && <Preview />}</div>
           {dev && <div className={`editor ${shownCenter === 'code' ? 'shown' : ''}`} id="panel-code" role="tabpanel" aria-labelledby="tab-code"><CodePane /></div>}
           </ErrorBoundary>
@@ -416,8 +415,8 @@ export function App() {
       </ErrorBoundary>
 
       <nav className="tabbar mobile-only" aria-label="Sections">
-        {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['sketch', 'edit', 'Sketch'], ['review', 'checklist', 'Review'], ['more', 'ellipsis', 'More']] as const).map(([id, icon, label]) => (
-          <button key={id} className={tab === id || (id === 'more' && tab === 'decisions') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'decisions') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') setCenter(id); }}>
+        {([['chat', 'comment-discussion', 'Chat'], ['figma', 'browser', 'Figma'], ['review', 'checklist', 'Review'], ['history', 'history', 'History'], ['more', 'ellipsis', 'More']] as const).map(([id, icon, label]) => (
+          <button key={id} className={tab === id || (id === 'more' && tab === 'sketch') ? 'active' : ''} aria-current={tab === id || (id === 'more' && tab === 'sketch') ? 'page' : undefined} onClick={() => { setTab(id); if (id !== 'chat' && id !== 'more') setCenter(id); }}>
             <Icon name={icon} />
             <span>{label}</span>
             {id === 'chat' && pendingCount > 0 && <span className="badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{pendingCount === 1 ? ', 1 request waiting' : `, ${pendingCount} requests waiting`}</span></span>}
@@ -426,6 +425,7 @@ export function App() {
       </nav>
 
       <FileSwitcher />
+      <AttachHost />
       <Palette />
       <RecipeEditorHost />
       <Shortcuts />

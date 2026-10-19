@@ -17,13 +17,13 @@ const VIEWS = [
   ['system', 'Design System'],
   ['rules', 'House rules'],
 ];
-const CENTER = [['figma', 'Figma'], ['sketch', 'Sketch'], ['review', 'Review'], ['preview', 'Preview'], ['settings', 'Settings']];
+const CENTER = [['figma', 'Figma'], ['sketch', 'Sketch'], ['review', 'Review'], ['history', 'History'], ['preview', 'Preview'], ['settings', 'Settings']];
 
 export function buildCommands(_models: { value: string; displayName: string }[] = [], custom: { id: string; title: string }[] = []): Command[] {
   return [
     ...VIEWS.map(([id, title]) => ({ id: `view:${id}`, label: `View: Show ${title}` })),
     ...CENTER.map(([id, title]) => ({ id: `page:${id}`, label: `Open: ${title}` })),
-    { id: 'repo', label: 'Chat: Attach Figma file', key: '⌘O' },
+    { id: 'repo', label: 'Add project', key: '⌘O' },
     { id: 'design', label: 'Design: Toggle Design Run for the Next Message' },
     { id: 'review', label: 'Design: Review the Design' },
     { id: 'audit', label: 'Design: Audit the File' },

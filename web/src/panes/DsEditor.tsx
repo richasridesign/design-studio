@@ -115,7 +115,7 @@ export function DsEditor({ onClose, focus }: { onClose: () => void; focus?: 'cod
             <div className="dse-add">
               {!hasFigma && (figma
                 ? <button disabled={!!busy} onClick={() => run('figma', { action: 'figma' }, `Read ${figma.name}.`)}>{busy === 'figma' ? 'Reading Figma…' : 'Read variables and components from Figma'}</button>
-                : <span className="dse-hint">Attach a Figma file to read its variables, styles and components.</span>)}
+                : <span className="dse-hint">Add a Figma file as a project to read its variables, styles and components.</span>)}
               {!skillsSrc && <button disabled={!!busy} onClick={() => run('skills', { action: 'skills' }, 'Your rule files are on.')}>Use my rule files</button>}
               <form className="dse-code" onSubmit={(e) => { e.preventDefault(); if (codePath.trim()) void run('code', { action: 'code', path: codePath }, 'Read the tokens file.').then(() => setCodePath('')); }}>
                 <label className="field">
