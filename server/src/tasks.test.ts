@@ -141,7 +141,7 @@ describe('run across flows', () => {
     chats[0].set({ pending: 1 });
     await tick();
     expect((await tasks.get(t.id))!.flows.map((f) => f.state)).toEqual(['needs_you', 'waiting']);
-    expect(rollup((await tasks.get(t.id))!).line).toBe('0 of 2 done, 1 need you');
+    expect(rollup((await tasks.get(t.id))!).line).toBe('0 of 2 done, 1 needs you');
     chats[0].set({ pending: 0 });
     chats[0].finish();
     await tick();

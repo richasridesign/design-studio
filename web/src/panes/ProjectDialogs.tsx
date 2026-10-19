@@ -11,7 +11,7 @@ export const PROJECTS_CHANGED = 'designstudio:projects';
 const changed = () => window.dispatchEvent(new Event(PROJECTS_CHANGED));
 const withCwd = (path: string, cwd: string) => `${path}?cwd=${encodeURIComponent(cwd)}`;
 
-function Shell({ title, onClose, children, busy }: { title: string; onClose: () => void; children: ReactNode; busy?: boolean }) {
+export function Shell({ title, onClose, children, busy }: { title: string; onClose: () => void; children: ReactNode; busy?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
   useDialogFocus(true, box, () => busy || onClose());

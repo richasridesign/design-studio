@@ -10,6 +10,9 @@ import { press } from '../press';
 import { runningText } from '../StatusBar';
 import { buildTree, chatCount, filterTree, type ChatSet, type TreeFlow, type TreeIteration, type TreeProject } from './projectTree';
 import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED } from './ProjectDialogs';
+import { RunAcrossFlowsDialog } from './RunAcrossFlows';
+import { TaskCard, TaskRows } from './TaskCard';
+import { useTasks } from './taskStore';
 
 export { buildTree, filterTree } from './projectTree';
 
@@ -23,7 +26,7 @@ export async function openSample() {
   setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:sketch' } })), 400);
 }
 
-type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> };
+type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string };
 
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
@@ -33,6 +36,7 @@ export function Chats() {
   const [saved, setSaved] = useState<SavedSession[]>([]);
   const [ask, setAsk] = useState<ConfirmRequest | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const taskList = useTasks();
   const [opening, setOpening] = useState<string | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleError, setSampleError] = useState('');
@@ -144,6 +148,7 @@ export function Chats() {
       <RowMenu label={`More for ${p.name}`} items={[
         { label: p.adopted ? 'Adopt this file again' : 'Adopt this file', hint: 'Sections become flows and iterations', run: () => setDialog({ kind: 'adopt', p }) },
         ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${p.working.id} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
+        ...(p.adopted ? [{ label: 'Run across flows', hint: 'One prompt, one chat per flow', run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'run', p, project }); } }] : []),
         { label: 'Open in Figma', hint: 'In a new tab', run: () => window.open(p.url, '_blank', 'noopener') },
       ]} />
     );
@@ -157,6 +162,7 @@ export function Chats() {
     const body = p.adopted
       ? (
         <>
+          <TaskRows tasks={taskList.tasks.filter((t) => t.root === p.cwd)} onOpen={(id) => setDialog({ kind: 'task', id })} />
           {p.flows.map((f) => flowRow(p, f))}
           {plain(p, 'tasks', 'Project tasks', p.tasks)}
           {plain(p, 'before', 'Before flows', p.before)}
@@ -191,6 +197,8 @@ export function Chats() {
       {ask && <Confirm {...ask} onClose={() => setAsk(null)} />}
       {dialog?.kind === 'adopt' && <AdoptDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'iteration' && <NewIterationDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'run' && <RunAcrossFlowsDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} weeklyPct={taskList.weeklyPct} cap={taskList.cap} parallel={taskList.parallel} onClose={() => setDialog(null)} onOpenTask={(id) => setDialog({ kind: 'task', id })} />}
+      {dialog?.kind === 'task' && (() => { const t = taskList.tasks.find((x) => x.id === dialog.id); return t ? <TaskCard task={t} onClose={() => setDialog(null)} /> : null; })()}
     </div>
   );
 }
