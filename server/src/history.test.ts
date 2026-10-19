@@ -154,6 +154,20 @@ describe('history file', () => {
     expect(out[0].stickies).toEqual([]);
   });
 
+  it('puts this iteration\'s block in the handoff report as History', async () => {
+    const { cwd } = await setup();
+    await recordChanges(cwd, [{ what: 'Readiness column <added>.', why: 'she starts with the closest workflow', screens: ['Connectors'] }], new Date(2026, 9, 20, 14, 2));
+    const { buildReport } = await import('./report.js');
+    const html = await buildReport(cwd, { key: 'KEY', name: 'File', url: 'https://www.figma.com/design/KEY' });
+    const part = html.slice(html.indexOf('<h2>History</h2>'));
+    expect(html).toContain('<h2>History</h2>');
+    expect(part).toContain('<h3>1.19 · Readiness · Tue 20 Oct 2026</h3>');
+    expect(part).toContain('<a href="https://www.figma.com/design/KEY?node-id=50-2">Open in Figma</a>');
+    expect(part).toContain('Readiness column &lt;added&gt; on Connectors');
+    expect(part).not.toContain('ds:');
+    expect(html).not.toContain('Decision log');
+  });
+
   it('builds a script that runs on its own', () => {
     expect(() => new AsyncFunction('figma', stickyScript(['1:1']))).not.toThrow();
   });

@@ -4,8 +4,6 @@
 // The ids are the storage keys from the first version (stages.json), so old approvals still load.
 
 import type { DesignDoc, FlowPhase, ReviewDoc, SketchDoc } from './design.js';
-import type { DecisionDoc } from './decisions.js';
-import { filled } from './decisions.js';
 import { scopeSummary, type Scope } from './scope.js';
 import { flowIssues, wiringIssues, type FlowCheckRun } from './flowcheck.js';
 import { stateMap } from './stateMap.js';
@@ -80,7 +78,7 @@ export type Approval = { at: number; note?: string };
 export type StageApprovals = Partial<Record<StageId, Approval>>;
 
 /** Where a check's evidence lives in the app. */
-export type StageOpen = 'sketch' | 'figma' | 'review' | 'decisions' | 'report' | 'attach' | 'research' | 'states';
+export type StageOpen = 'sketch' | 'figma' | 'review' | 'report' | 'attach' | 'research' | 'states';
 export type StageCheck = { label: string; state: 'met' | 'open' | 'unchecked'; detail: string; open?: StageOpen };
 /** Done, Not needed, or still to do. Nothing is locked: any step can change at any time. A todo mark records a reopen. */
 export type StageState = 'done' | 'skipped' | 'todo';
@@ -123,7 +121,6 @@ export type StageEvidence = {
   planApproved?: boolean;
   /** Findings the designer closed by hand (triage.json). */
   triage?: Triage | null;
-  decisions: DecisionDoc | null;
 };
 
 /** The frames a chat designed. Older chats only list them on their review runs, by node id. */
@@ -171,11 +168,8 @@ function checksFor(id: StageId, e: StageEvidence, kind: ChatKind): StageCheck[] 
       return [check('A direction picked for every screen', screens.length > 0 && picked.length === screens.length, detail, 'sketch')];
     }
     case 'build': {
-      const ids = new Set(frames.map((f) => f.nodeId));
-      const written = [...ids].filter((nid) => e.decisions?.[nid]?.items.every(filled)).length;
       return [
         check('Frames in Figma', frames.length > 0, frames.length ? plural(frames.length, 'frame') : 'Claude has not designed any frames yet', 'figma'),
-        check('Two decisions per frame', ids.size > 0 && written === ids.size, ids.size ? `${written} of ${ids.size} frames` : 'No frames yet', 'decisions'),
         statesCheck(e.plan?.trim() ? e.plan : e.brief ?? '', frames),
       ];
     }

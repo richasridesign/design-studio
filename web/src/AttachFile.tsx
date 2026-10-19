@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { getJson, send, useStore } from './store';
 import { Icon } from './Icon';
+import { IconButton } from './Tip';
+import { useDialogFocus } from './useDialog';
 import { parseFigmaUrl } from '../../shared/design';
 import type { LiveChat } from '../../shared/protocol';
 import './attach.css';
@@ -16,89 +18,109 @@ export function recentFiles(live: LiveChat[], currentUrl?: string, max = 5) {
   return out.slice(0, max);
 }
 
-/** One name for the action everywhere: the top bar, the Stages gate, empty states and the welcome. */
-export const ATTACH = 'Attach Figma file';
+/** One name for the action everywhere: the sidebar, the Stages gate, empty states and the welcome. */
+export const ATTACH = 'Add project';
 
-export function FilePill() {
+const EVENT = 'designstudio:attach';
+type Anchor = { top: number; left: number };
+
+/** Opens the Add project popover, under `from` when given (the sidebar button), else under the top bar. */
+export function openAttach(from?: Element | null) {
+  const r = from?.getBoundingClientRect();
+  window.dispatchEvent(new CustomEvent<Anchor | undefined>(EVENT, { detail: r ? { top: r.bottom + 4, left: r.left } : undefined }));
+}
+
+const WIDTH = 360;
+const GUTTER = 8;
+/** Keeps the popover on screen: a phone is narrower than 360 plus the gutters. */
+const place = (a: Anchor | undefined): React.CSSProperties => {
+  const top = a?.top ?? (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 44) + 4;
+  const left = Math.max(GUTTER, Math.min(a?.left ?? 16, window.innerWidth - Math.min(WIDTH, window.innerWidth - 2 * GUTTER) - GUTTER));
+  return { top, left };
+};
+
+/** The Add project popover. Mounted once in App with no button of its own: ⌘O, the sidebar and the empty states open it. */
+export function AttachHost() {
   const figma = useStore((s) => s.session.figma);
   const live = useStore((s) => s.live);
-  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<Anchor | undefined | null>(null);
   const [url, setUrl] = useState('');
   const [tabs, setTabs] = useState<Array<{ title: string; url: string }>>([]);
-  const wrap = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const valid = Boolean(parseFigmaUrl(url));
+  const box = useRef<HTMLDivElement>(null);
+  const open = anchor !== null;
+  const trimmed = url.trim();
+  const valid = Boolean(parseFigmaUrl(trimmed));
+  const invalid = trimmed !== '' && !valid;
   const recent = recentFiles(live, figma?.url);
   const chromeTabs = tabs.filter((t) => parseFigmaUrl(t.url)?.key !== figma?.key);
+  const close = () => setAnchor(null);
+  useDialogFocus(open, box, close);
 
   useEffect(() => {
-    const show = () => setOpen(true);
-    window.addEventListener('designstudio:attach', show);
-    return () => window.removeEventListener('designstudio:attach', show);
+    const show = (e: Event) => setAnchor((e as CustomEvent<Anchor | undefined>).detail);
+    window.addEventListener(EVENT, show);
+    return () => window.removeEventListener(EVENT, show);
   }, []);
 
   useEffect(() => {
     if (!open) return;
     setUrl('');
     getJson<Array<{ title: string; url: string }>>('/api/chrome/figma-tabs').then(setTabs).catch(() => setTabs([]));
-    input.current?.focus();
-    const down = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    // A click outside closes it, like the menus. Focus goes back to whatever opened it.
+    const down = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setAnchor(null);
     document.addEventListener('mousedown', down);
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('mousedown', down);
-      document.removeEventListener('keydown', key);
-    };
+    return () => document.removeEventListener('mousedown', down);
   }, [open]);
+
+  if (!open) return null;
 
   const attach = (link: string) => {
     send({ type: 'set_figma', url: link });
-    setOpen(false);
+    close();
   };
 
   return (
-    <div className="file-wrap" ref={wrap}>
-      {/* With no file, a phone shows the icon only, so the button carries the visible name as its accessible name. */}
-      <button className={`file-pill${figma ? '' : ' no-file'}`} aria-haspopup="true" aria-expanded={open} aria-label={figma ? undefined : ATTACH} title={figma ? `${figma.url}\nOpen another Figma file (⌘O)` : `${ATTACH} (⌘O)`} onClick={() => setOpen((o) => !o)}>
-        <Icon name="file-media" small /> <span className="file-label">{figma?.name ?? ATTACH}</span> <Icon name="chevron-down" small />
-      </button>
-      {open && (
-        <div className="switcher attach-pop" role="dialog" aria-label={figma ? `Attached: ${figma.name}` : ATTACH}>
-          {figma && (
-            <div className="attach-current">
-              <span className="attach-current-name"><b>Attached:</b> {figma.name}</span>
-              <a className="link" href={figma.url} target="_blank" rel="noreferrer">Open in Figma</a>
-            </div>
-          )}
-          {/* A chat keeps one file: another link opens that file in its own chat, so this one stays as it is. */}
-          {figma && <div className="attach-label" id="attach-other">Open another file in its own chat</div>}
-          <form className="attach-form" onSubmit={(e) => { e.preventDefault(); if (valid) attach(url.trim()); }}>
-            <input ref={input} placeholder="Paste a Figma file link" aria-label="Figma file link" aria-describedby={figma ? 'attach-other' : undefined} value={url} onChange={(e) => setUrl(e.target.value)} />
-            <button type="submit" className="primary" disabled={!valid}>{figma ? 'Open' : 'Attach'}</button>
-          </form>
-          {url && !valid && <div className="attach-note error-text">That does not look like a Figma file link.</div>}
-          {chromeTabs.length > 0 && (
-            <>
-              <div className="attach-label">Open in Chrome</div>
-              <ul>
-                {chromeTabs.map((t) => (
-                  <li key={t.url}><button type="button" title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></button></li>
-                ))}
-              </ul>
-            </>
-          )}
-          {recent.length > 0 && (
-            <>
-              <div className="attach-label">Recent files</div>
-              <ul>
-                {recent.map((f) => (
-                  <li key={f.url}><button type="button" title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></button></li>
-                ))}
-              </ul>
-            </>
-          )}
+    <div ref={box} className="switcher attach-pop" role="dialog" aria-modal="false" aria-labelledby="attach-title" style={place(anchor)}>
+      <div className="attach-head">
+        <h2 id="attach-title">{ATTACH}</h2>
+        <IconButton label="Close" tip="Close (Esc)" className="icon-btn" onClick={close}><Icon name="close" small /></IconButton>
+      </div>
+      {figma && (
+        <div className="attach-current">
+          <span className="attach-current-name"><b>Open now:</b> {figma.name}</span>
+          <a className="link" href={figma.url} target="_blank" rel="noreferrer">Open in Figma</a>
         </div>
+      )}
+      <form className="attach-form" onSubmit={(e) => { e.preventDefault(); if (valid) attach(trimmed); }}>
+        <label htmlFor="attach-url">Figma file link</label>
+        <div className="attach-row">
+          <input id="attach-url" data-autofocus placeholder="https://www.figma.com/design/…" aria-invalid={invalid || undefined} aria-describedby={invalid ? 'attach-error' : figma ? 'attach-other' : undefined}
+            value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button type="submit" className="primary" disabled={!valid}>{figma ? 'Open' : 'Add'}</button>
+        </div>
+        {invalid
+          ? <div className="attach-note error-text" id="attach-error"><Icon name="error" small /> That is not a Figma file link. It starts with figma.com/design/.</div>
+          : figma && <div className="attach-note" id="attach-other">A chat keeps one file, so another link opens in its own chat.</div>}
+      </form>
+      {chromeTabs.length > 0 && (
+        <>
+          <div className="attach-label">Open in Chrome</div>
+          <ul>
+            {chromeTabs.map((t) => (
+              <li key={t.url}><button type="button" title={t.url} onClick={() => attach(t.url)}><Icon name="browser" small /><span className="attach-name">{t.title}</span></button></li>
+            ))}
+          </ul>
+        </>
+      )}
+      {recent.length > 0 && (
+        <>
+          <div className="attach-label">Recent files</div>
+          <ul>
+            {recent.map((f) => (
+              <li key={f.url}><button type="button" title={f.url} onClick={() => attach(f.url)}><Icon name="file-media" small /><span className="attach-name">{f.name}</span></button></li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

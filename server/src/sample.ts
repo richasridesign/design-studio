@@ -4,7 +4,6 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { CHATS_ROOT } from './settings.js';
 import { installSkills } from './figma.js';
 import { readSketch, renderAll } from './sketch.js';
-import { DECISIONS_LOG_FILE } from '../../shared/decisionLog.js';
 
 const SAMPLE = fileURLToPath(new URL('../sample', import.meta.url));
 
@@ -32,8 +31,4 @@ async function freshen(dir: string) {
     const text = await readFile(file, 'utf8').catch(() => null);
     if (text) await writeFile(file, text.replace(/"at": *\d+/g, `"at": ${now - (RUNS.length - i) * 60_000}`));
   }));
-  // Chat decisions a few minutes apart, so the log reads as made during the work.
-  const log = path.join(dir, DECISIONS_LOG_FILE);
-  const items = JSON.parse(await readFile(log, 'utf8').catch(() => '[]')) as Array<{ at?: number }>;
-  if (items.length) await writeFile(log, JSON.stringify(items.map((d, i) => ({ ...d, at: now - (items.length - i) * 7 * 60_000 })), null, 2));
 }

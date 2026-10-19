@@ -98,7 +98,7 @@ export function FlowCheck() {
     getJson<{ runs: FlowCheckRun[] }>('/api/flowcheck').then((d) => setRun(d.runs.filter((r) => r.fileKey === figma?.key).at(-1) ?? null)).catch(() => {});
   }, [chat, figma?.key]);
 
-  if (!figma) return <Empty art={<ReviewArt />} title="No Figma file yet" text="Attach a Figma file to review it and check its flows." secondary={{ label: 'Attach Figma file', onClick: attachFigma }} />;
+  if (!figma) return <Empty art={<ReviewArt />} title="No Figma file yet" text="Add a Figma file as a project to review it and check its flows." secondary={{ label: 'Add project', onClick: attachFigma }} />;
 
   const check = async () => {
     setBusy(true);

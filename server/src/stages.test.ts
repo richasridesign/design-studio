@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { changeStage, folderLabel, readApprovals, readChatSteps, readStages, STAGES_FILE } from './stages.js';
 import type { StageEvidence } from '../../shared/stages.js';
 
-const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
+const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null };
 const folder = () => mkdtemp(path.join(os.tmpdir(), 'stages-'));
 
 describe('stages.json', () => {

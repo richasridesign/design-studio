@@ -70,7 +70,7 @@
   .sessions .tree .row .acts .icon-btn { width: 36px; height: 36px; }
   .sessions .sessions-bar input { height: 40px; font-size: var(--text-lg); }
   .sessions .sessions-bar .icon-btn { width: 40px; height: 40px; }
-  .sessions .sessions-bar .new-chat, .side-switch button, .sessions .side-switch button { height: 44px; font-size: var(--text-md); }
+  .sessions .sessions-bar .new-chat, .sessions .sessions-bar .add-project, .side-switch button, .sessions .side-switch button { height: 44px; font-size: var(--text-md); }
   .sessions .tree .group, .sessions .tree .row.group-row { height: 36px; line-height: 36px; }
   .switcher input { height: 44px; font-size: var(--text-lg); }
   .switcher li { height: 44px; }
@@ -99,7 +99,6 @@
   .topbar .spend-pill, .topbar .item, .topbar .run-state { white-space: nowrap; }
   .topbar .item .label, .topbar .run-state .label { display: none; }
   .topbar .run-state:not(.busy), .topbar .phone-btn { display: none; }
-  .topbar .file-wrap { flex: 1 1 auto; }
   .workbench:is([data-tab='figma'], [data-tab='sketch'], [data-tab='review']) .editor-group > .tabs { display: none; }
   .side-switch { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .side-switch > button { flex: none; white-space: nowrap; }
@@ -108,16 +107,9 @@
   .workbench[data-tab='more'] .side-switch { padding-top: 12px; }
 }
 
-/* "Attach Figma file" does not fit beside the spend, MCP and icon buttons on a phone, so the empty pill is an
-   icon button named by its aria-label and title. Cutting the text would leave "Attach Fi…". */
 @media (max-width: 480px) {
-  .topbar .file-pill.no-file { width: 36px; height: 36px; padding: 0; justify-content: center; }
-  .topbar .file-pill.no-file .file-label, .topbar .file-pill.no-file .codicon-chevron-down { display: none; }
   /* The cost reads as "$0.01" on its own, so its card icon gives the file name the room. */
   .topbar .spend-pill > .codicon { display: none; }
-  /* The file pill's chevron already says it opens the file menu, so its file icon gives the name the room too:
-     "Harisson MVP" reads whole instead of "Harisson ...". */
-  .topbar .file-pill:not(.no-file) > .codicon-file-media { display: none; }
   /* Figma shows its status shape alone, named by its aria-label and title ("Figma: Connected"), at the 36px of the
      icon buttons beside it. */
   .topbar button.figma-item { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: var(--radius-sm); }

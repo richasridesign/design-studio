@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { KIND_INFO, PHASE_STAGE, approvalReply, planApprovedOnCard, chatKind, cleanApprovals, cleanChatSteps, guessKind, markStep, phaseLine, researchSummary, stageFrames, stageLabel, stageNote, stages, stepLine, type ChatSteps, type StageEvidence } from './stages.js';
 import type { ReviewRun, SketchScreen } from './design.js';
 
-const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null, decisions: null };
+const none: StageEvidence = { brief: null, figma: false, sketch: null, design: null, review: null };
 const dir = (id: string) => ({ id, name: id, rationale: '', w: 1, h: 1, items: [] });
 const screen = (id: string, n: number, chosen?: string, chosenBy?: 'claude' | 'designer'): SketchScreen => ({ id, name: id, directions: Array.from({ length: n }, (_, i) => dir(`${id}${i}`)), chosen, chosenBy });
 const run = (over: Partial<ReviewRun> = {}): ReviewRun => ({ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:1'], check: [], results: [], tokens: 0, costUsd: 0, ...over });
 const finding = (severity: 'blocking' | 'major' | 'minor') => ({ id: severity, area: 'check' as const, node: '1:1', severity, rule: 'x', fix: 'y' });
-const pair = { name: 'Home', items: [{ decision: 'A', why: 'B' }, { decision: 'C', why: 'D' }] as [{ decision: string; why: string }, { decision: string; why: string }] };
 const empty: ChatSteps = { marks: {} };
 
 // Every step a check can sit on, in one list, so the check tests do not depend on a kind.
@@ -134,27 +133,27 @@ describe('steps', () => {
     expect(s.explore.checks[1]).toMatchObject({ state: 'open', detail: '2 of 3 picked, 1 by Claude' });
   });
 
-  it('wants frames and two decisions on each', () => {
+  it('wants frames and their states (decisions live on the Decision stickies in Figma)', () => {
     const design = { frames: [{ screen: 'Home', state: 'default', nodeId: '1:1' }, { screen: 'Home', state: 'empty', nodeId: '1:2' }] };
-    const s = byId({ ...none, design, decisions: { '1:1': pair } });
-    expect(s.build.checks.map((c) => [c.state, c.detail])).toEqual([['met', '2 frames'], ['open', '1 of 2 frames'], ['unchecked', 'The brief lists no states']]);
+    const s = byId({ ...none, design });
+    expect(s.build.checks.map((c) => [c.state, c.detail])).toEqual([['met', '2 frames'], ['unchecked', 'The brief lists no states']]);
   });
 
   it('checks every state the brief lists against the frames', () => {
     const plan = '## States\n- Home: default, empty\n- Cart: default, payment failed, signed out';
     const design = { frames: [{ screen: 'home', state: 'default', nodeId: '1:1' }, { screen: 'home', state: 'empty', nodeId: '1:2' }, { screen: 'cart', state: 'payment-failed', nodeId: '1:3' }] };
-    expect(byId({ ...none, plan, design }).build.checks[2]).toEqual({ label: 'Every state designed', state: 'open', detail: '2 of 5 states missing', open: 'states' });
+    expect(byId({ ...none, plan, design }).build.checks[1]).toEqual({ label: 'Every state designed', state: 'open', detail: '2 of 5 states missing', open: 'states' });
     const all = { frames: [...design.frames, { screen: 'cart', state: 'default', nodeId: '1:4' }, { screen: 'cart', state: 'signed out', nodeId: '1:5' }] };
-    expect(byId({ ...none, plan, design: all }).build.checks[2]).toMatchObject({ state: 'met', detail: 'All 5 states designed' });
-    expect(byId({ ...none, plan: '## States\n- Home: empty', design: { frames: [{ screen: 'Home', state: 'Empty', nodeId: '1:1' }] } }).build.checks[2].detail).toBe('The state is designed');
+    expect(byId({ ...none, plan, design: all }).build.checks[1]).toMatchObject({ state: 'met', detail: 'All 5 states designed' });
+    expect(byId({ ...none, plan: '## States\n- Home: empty', design: { frames: [{ screen: 'Home', state: 'Empty', nodeId: '1:1' }] } }).build.checks[1].detail).toBe('The state is designed');
   });
 
   it('lists every state as missing before any frame exists', () => {
-    expect(byId({ ...none, plan: '## States\n- Home: default, empty' }).build.checks[2]).toMatchObject({ state: 'open', detail: '2 of 2 states missing' });
+    expect(byId({ ...none, plan: '## States\n- Home: default, empty' }).build.checks[1]).toMatchObject({ state: 'open', detail: '2 of 2 states missing' });
   });
 
   it('reads the states from the first message when there is no plan.md', () => {
-    expect(byId({ ...none, brief: 'Design a cart\n\n## States\n- Cart: default' }).build.checks[2]).toMatchObject({ state: 'open', detail: '1 of 1 state missing' });
+    expect(byId({ ...none, brief: 'Design a cart\n\n## States\n- Cart: default' }).build.checks[1]).toMatchObject({ state: 'open', detail: '1 of 1 state missing' });
   });
 
   it('reads frames from design.json, or from the last review when it has none', () => {
@@ -166,7 +165,7 @@ describe('steps', () => {
 
   it('does not judge states when the frames have no names', () => {
     const s = byId({ ...none, plan: '## States\n- Home: default', review: { runs: [run({ frames: ['1:1'] })] } });
-    expect(s.build.checks[2]).toMatchObject({ state: 'unchecked', detail: 'The frames have no names to match states against' });
+    expect(s.build.checks[1]).toMatchObject({ state: 'unchecked', detail: 'The frames have no names to match states against' });
   });
 
   it('falls back to the frames of the last review', () => {

@@ -70,7 +70,7 @@ describe('house rule triage', () => {
 
   it('counts a resolved rule as met in the House rules check, and only a failed rule can be resolved', () => {
     const t = changeTriage({}, { action: 'close', key: ruleKey(r, rules[0].rule), state: 'fixed' }, 3);
-    const check = (triage: Triage) => stages({ brief: null, figma: false, sketch: null, design: null, review: { runs: [r] }, decisions: null, triage }, { marks: {} }, 'new').find((s) => s.id === 'validate')!.checks.find((c) => c.label === 'House rules followed');
+    const check = (triage: Triage) => stages({ brief: null, figma: false, sketch: null, design: null, review: { runs: [r] }, triage }, { marks: {} }, 'new').find((s) => s.id === 'validate')!.checks.find((c) => c.label === 'House rules followed');
     expect(check({})).toMatchObject({ state: 'open', detail: '1 of 2 failed' });
     expect(check(t)).toMatchObject({ state: 'met', detail: '1 of 2 followed, 1 resolved by hand' });
     expect(rulesSummary(openRun(r, t).rules!)).toMatchObject({ passed: 1, failed: 0, resolved: 1 });

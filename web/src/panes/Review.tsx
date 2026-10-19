@@ -88,7 +88,7 @@ export function Review({ dev = false }: { dev?: boolean }) {
       <FlowCheck />
       {!rows.length && (hasFigma
         ? <Empty art={<ReviewArt />} title="Nothing reviewed yet" text="Reviews run after every Design run, or type /review with frame links." />
-        : <Empty art={<ReviewArt />} title="Nothing to review yet" text="Reviews check the frames in a Figma file. Attach one to start." secondary={{ label: 'Attach Figma file', onClick: attachFigma }} />)}
+        : <Empty art={<ReviewArt />} title="Nothing to review yet" text="Reviews check the frames in a Figma file. Add one as a project to start." secondary={{ label: 'Add project', onClick: attachFigma }} />)}
       {!!rows.length && (
         <ul className="run-list">
           {rows.map((row, i) => {

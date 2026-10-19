@@ -4,7 +4,6 @@ import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
 import { readRecipes, writeRecipes } from './recipes.js';
-import { DecisionError, readDecisions, writeDecisions } from './decisions.js';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -47,7 +46,6 @@ import { readProfile } from './profile.js';
 import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
 import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
-import { readChatDecisions } from './decisionLog.js';
 import { approvalReply, planApprovedOnCard } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
@@ -375,12 +373,6 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/recipes') return json(await readRecipes());
     if (url.pathname === '/api/rules' && req.method === 'POST') return json(await writeRules(chat.cwd, await readJsonBody()));
     if (url.pathname === '/api/rules') return json(await readRules(chat.cwd));
-    if (url.pathname === '/api/decisions') {
-      const key = url.searchParams.get('key') || figma?.key || '';
-      return json(req.method === 'POST' ? await writeDecisions(key, await readJsonBody()) : await readDecisions(key));
-    }
-    // Decisions Claude logged from the chat (decisions-log.json in the chat folder), oldest first.
-    if (url.pathname === '/api/decision-log') return json({ items: await readChatDecisions(chat.cwd) });
     // The flow's history file (flows/NN-slug/history.md) and a read of its Decision stickies from Figma.
     if (url.pathname === '/api/history/sync' && req.method === 'POST') {
       await syncDecisions(chat.cwd);
@@ -397,12 +389,12 @@ const server = http.createServer(async (req, res) => {
       const first = said[0] ?? null;
       // Her last short "go" after the first message: the plan approval she gives in the chat.
       const approvedInChat = said.slice(1).map(approvalReply).filter(Boolean).at(-1) ?? null;
-      const [sketch, design, review, decisions] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd), figma ? readDecisions(figma.key).catch(() => ({})) : null]);
+      const [sketch, design, review] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd)]);
       if (req.method === 'POST') await changeStage(chat.cwd, sid, await readJsonBody(), { first, seenRound: review.runs.at(-1)?.round ?? 1 });
       // The written brief (plan.md) wins over the first message, so the steps and the report agree.
       const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
       const brief = (plan && briefLede(plan)) || first;
-      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, decisions, triage: await readTriage(chat.cwd) });
+      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, triage: await readTriage(chat.cwd) });
       return json({ ...view, approvals: await readApprovals(chat.cwd) });
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
@@ -596,7 +588,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (err) {
-    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof DecisionError ? err.status : err instanceof HistoryError ? 409 : 500);
+    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError ? err.status : err instanceof HistoryError ? 409 : 500);
   }
 });
 
