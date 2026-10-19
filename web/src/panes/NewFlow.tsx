@@ -76,7 +76,7 @@ export function NewFlowDialog({ cwd, name, project, onClose, onCreated }: { cwd:
         <fieldset className="ni-fields" disabled={busy}>
           <div className="field">
             <label htmlFor="nf-name">Flow name *</label>
-            <input id="nf-name" value={f.name} maxLength={80} required autoFocus autoComplete="off" aria-invalid={err.name ? true : undefined} aria-describedby="nf-name-help"
+            <input id="nf-name" value={f.name} maxLength={80} required data-autofocus autoComplete="off" aria-invalid={err.name ? true : undefined} aria-describedby="nf-name-help"
               readOnly={busy} onChange={(e) => dispatch({ type: 'edit', field: 'name', value: e.target.value })} onBlur={() => dispatch({ type: 'leave', field: 'name' })} />
             <span id="nf-name-help" className={err.name ? 'error-text small' : 'muted small'}>{err.name || `Flow ${Math.max(0, ...(project?.flows ?? []).map((x) => x.n)) + 1} in ${name}`}</span>
           </div>

@@ -1,0 +1,42 @@
+/* Where a chat works: the chip in the chat head, its "Switch flow or chat" list, and the new chat picker on the
+   project row (web/src/panes/ChatPlace.tsx, NewChatPicker.tsx). Working is a filled dot, Frozen a ring, as in the sidebar. */
+.place-chip .state-dot, .place-pick .state-dot, .ncp .state-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.place-chip .state-dot.working, .place-pick .state-dot.working, .ncp .state-dot.working { background: var(--accent); }
+.place-chip .state-dot.frozen, .place-pick .state-dot.frozen, .ncp .state-dot.frozen { border: 1.5px solid var(--fg-muted); }
+
+/* Same height as the Timeline and Transcript switch beside it. */
+.place-chip {
+  flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--fg);
+  font-size: var(--text-sm); line-height: 20px; font-weight: 600; white-space: nowrap;
+}
+.place-chip:hover { background: var(--bg-hover); }
+.place-chip .codicon { flex: none; color: var(--fg-muted); }
+.place-chip .place-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.place-chip .place-frozen { flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; font-weight: 400; color: var(--fg-muted); }
+
+.switcher.place-pick { max-height: min(70vh, 560px); }
+.overlay.anchored .switcher.place-pick li { height: 32px; gap: 8px; }
+.overlay.anchored .switcher.place-pick li > span:first-child { min-width: 0; }
+.switcher.place-pick li .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); }
+.switcher.place-pick li .detail { flex: none; margin-left: auto; font-size: var(--text-xs); color: var(--fg-muted); }
+.switcher.place-pick li .codicon { flex: none; color: var(--fg-muted); }
+.switcher.place-pick .tag { flex: none; margin-left: 0; color: var(--fg-muted); }
+
+/* New chat picker: two radio lists and one primary action. */
+.ncp-group { margin: 16px 0 0; padding: 0; border: 0; min-width: 0; }
+.ncp-group legend { padding: 0; margin-bottom: 4px; font-size: var(--text-sm); font-weight: 600; line-height: 20px; color: var(--fg); }
+.ncp-opt { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: var(--text-sm); line-height: 20px; cursor: pointer; }
+.ncp-opt input[type='radio'] { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.ncp-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ncp-state { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
+.ncp-new { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0; border: 0; background: transparent; color: var(--link); font-size: var(--text-sm); line-height: 20px; }
+.ncp-new:hover { background: transparent; text-decoration: underline; text-underline-offset: 2px; }
+.ncp-line { margin: 12px 0 0; line-height: 20px; }
+.ncp .dialog-actions { margin-top: 16px; }
+
+@media (max-width: 900px) {
+  .place-chip { height: 44px; padding: 0 12px; font-size: var(--text-md); }
+  .ncp-opt, .ncp-new { min-height: 44px; font-size: var(--text-md); }
+  .overlay.anchored .switcher.place-pick li { height: 44px; }
+}
