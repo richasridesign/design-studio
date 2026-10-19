@@ -44,7 +44,7 @@
 /* The id stays readable when the topic truncates in the 160px sidebar. */
 .sessions .tree .row .name:has(.it-id) { display: flex; min-width: 0; }
 .sessions .tree .row .it-id { flex: none; white-space: pre; }
-.sessions .tree .row .it-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions .tree .row .it-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
 .sessions .tree .row .state-tag { flex: none; margin-left: auto; padding: 0 10px 0 8px; font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted); }
 .sessions .tree .row:has(.acts):is(:hover, :focus-within) .state-tag { display: none; }
 /* A flow the last adoption did not find: grey name and a slashed icon; the words show once the sidebar has room. */
@@ -52,6 +52,8 @@
 .sessions .tree .row:has(.flow-missing) .twistie .codicon { color: var(--fg-muted); }
 .sessions { container-type: inline-size; container-name: sessions; }
 @container sessions (max-width: 239px) { .sessions .tree .state-tag.missing { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; } }
+/* At the narrow default the iteration id (V1.19) needs the room: its filled dot says Working, and screen readers still hear it. */
+@container sessions (max-width: 199px) { .sessions .tree .row.d2 .state-tag.working { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; } }
 /* Row menu: opens 4px under its button, on top of the rows below. */
 .sessions .tree .row .row-menu { position: relative; display: inline-flex; }
 .sessions .tree .row .row-menu-pop {
