@@ -1,9 +1,10 @@
 /* The workflow strip and step card above a flow chat. One row of steps, one card with at most one primary button. */
 .wf { flex: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
 
-.wf-strip { display: flex; align-items: center; gap: 12px; min-height: var(--row); padding: 0 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); container: wfstrip / inline-size; }
+.wf-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: var(--row); padding: 4px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); container: wfstrip / inline-size; }
 .wf-name { flex: none; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
-.wf-steps { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+/* The steps never shrink: when they do not fit beside the name they move to a row of their own. */
+.wf-steps { flex: 0 0 auto; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .wf-step { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--fg-muted); }
 .wf-step > .codicon { color: var(--fg-muted); }
 .wf-step-btn {
@@ -25,10 +26,15 @@
 .wf-mark.skipped { border-style: dashed; color: var(--fg-muted); }
 .wf-mark .codicon { font-size: 12px; }
 
-/* Narrow strips keep every step a button, with the names of the other steps folded to their numbers. */
+/* Narrow strips keep every step a button, with the other steps folded to their mark (name kept for screen readers
+   and in the tooltip). Strips of 4 or more steps fold sooner, in workflowScratch.css. */
+@container wfstrip (max-width: 440px) {
+  .wf-step > .codicon { display: none; }
+}
 @container wfstrip (max-width: 360px) {
   .wf-step:not(.current) .wf-step-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
 
 .wf-card { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
 .wf-line { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
@@ -40,7 +46,7 @@
 
 @media (max-width: 900px) {
   .wf { margin-top: 8px; }
-  .wf-strip { padding: 0 8px; gap: 8px; }
+  .wf-strip { padding: 4px 8px; gap: 0 8px; }
   .wf-step-btn, .wf-acts button:not(.link), .wf-acts .link { min-height: 44px; font-size: var(--text-md); }
-  .wf-name { font-size: var(--text-md); }
+  .wf-name, .wf-line { font-size: var(--text-md); line-height: 24px; }
 }

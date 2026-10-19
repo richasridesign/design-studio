@@ -166,7 +166,7 @@ describe('stepCard', () => {
       link: { label: 'Or give feedback', action: 'feedback' },
     });
     expect(stepCard(defaultState(true), ev(), true).button?.primary).toBe(false);
-    expect(stepCard(defaultState(true), ev({ source: { kind: 'older', iteration: '1.18', node: '10:1' }, screens: 1 })).line).toBe('Reviews 1 screen in 1.18, the newest iteration with screens · Flow 3. Depth: Full, about $0.40.');
+    expect(stepCard(defaultState(true), ev({ source: { kind: 'older', iteration: '1.18', node: '10:1' }, screens: 1 })).line).toBe('Reviews 1 screen of Flow 3 in 1.18, the newest iteration with screens. Depth: Full, about $0.40.');
     expect(stepCard(defaultState(true), ev({ reviewing: true })).button).toBeUndefined();
     expect(stepCard(defaultState(true), ev({ source: { kind: 'baseline', node: '1:0' } })).link).toEqual({ label: 'Pick screens', action: 'pick-screens' });
     const failed = nextState(defaultState(true), { type: 'failed', reason: 'Figma is not connected.', at: t(1) });
