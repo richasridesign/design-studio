@@ -65,12 +65,14 @@ export class AgentSession {
   private fixesDone = 0;
   private lastRun: ReviewRun | null = null;
   private work: AbortController | null = null;
-  onFocus: (nodeId: string) => void = () => {};
+  /** Node ids to show in her Figma tab: the frame set_status names, or the nodes a Figma edit just changed. */
+  onFocus: (nodeIds: string[]) => void = () => {};
 
   private liveText = new Map<string, string>();
   private edits = new Map<string, string>();
   /** Figma calls waiting for their result, by tool use id: true when the call's script creates or changes nodes. */
-  private figmaUses = new Map<string, boolean>();
+  /** Each running use_figma call: whether its script edits, and the node ids it names. */
+  private figmaUses = new Map<string, { edits: boolean; ids: string[] }>();
   private figmaEdited = false;
   private touched = new TouchedIds();
   private liveMsgId = '';
@@ -219,7 +221,7 @@ export class AgentSession {
         onStatus: (text, nodes) => {
           this.setStatus(text);
           const last = nodes.at(-1);
-          if (last) this.onFocus(last);
+          if (last) this.onFocus([last]);
         },
         canUseTool: (toolName, input, opts) => this.longRunTool(toolName) ?? this.flowTool(toolName, input) ?? this.figmaTool(toolName, input) ?? this.approvals.ask(toolName, input, opts),
         beforeFigma: async (input) => this.beforeFigma(input),
@@ -1135,8 +1137,9 @@ export class AgentSession {
             if (/use_figma$/.test(block.name)) {
               const code = (block.input as { code?: unknown })?.code;
               const edits = typeof code === 'string' && figmaEdits(code);
-              this.figmaUses.set(block.id, edits);
-              this.touched.add(touchedIds(JSON.stringify(block.input ?? {})), edits ? 'edited' : 'named');
+              const ids = touchedIds(JSON.stringify(block.input ?? {}));
+              this.figmaUses.set(block.id, { edits, ids });
+              this.touched.add(ids, edits ? 'edited' : 'named');
             } else if (block.name.endsWith('__set_status')) {
               this.touched.add(touchedIds(JSON.stringify((block.input as { nodes?: unknown })?.nodes ?? [])), 'edited');
             }
@@ -1154,11 +1157,17 @@ export class AgentSession {
           const edited = this.edits.get(block.tool_use_id);
           this.edits.delete(block.tool_use_id);
           if (edited && !block.is_error) this.noteFile(path.relative(this.cwd, edited), 'tool');
-          const edits = this.figmaUses.get(block.tool_use_id);
-          if (this.figmaUses.delete(block.tool_use_id) && !block.is_error) {
+          const use = this.figmaUses.get(block.tool_use_id);
+          if (this.figmaUses.delete(block.tool_use_id) && !block.is_error && use) {
             this.figmaEdited = true;
             // A call that created or changed nodes returns their ids (new frames have no id in the script): they rank as edited.
-            this.touched.add(touchedIds(toolResultText(block)), edits ? 'edited' : 'returned');
+            const returned = touchedIds(toolResultText(block));
+            this.touched.add(returned, use.edits ? 'edited' : 'returned');
+            // Her Figma tab moves to what this edit changed, so she sees it happen. Reads do not move it.
+            if (use.edits) {
+              const ids = [...new Set([...use.ids, ...returned])].slice(0, 20);
+              if (ids.length) this.onFocus(ids);
+            }
           }
           this.pushEvent({ id: randomUUID(), kind: 'tool_result', toolUseId: block.tool_use_id, text: toolResultText(block).slice(0, 4000), isError: Boolean(block.is_error), at: Date.now() });
         }
