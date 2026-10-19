@@ -23,6 +23,7 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     rows: [
       [['⌘', '⇧', 'P'], 'Command palette (or F1)'],
       [['⌘', 'O'], 'Add project'],
+      [['⌘', 'K'], 'Switch flow or chat'],
       [['⌘', 'B'], 'Toggle sidebar'],
       [['⌘', '.'], 'Toggle focus mode'],
       [['⌘', 'J'], 'Toggle terminal (dev tools)'],
