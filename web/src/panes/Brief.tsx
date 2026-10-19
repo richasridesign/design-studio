@@ -10,6 +10,7 @@ import { touch } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { ScopeSwitch } from './ScopeSwitch';
+import { ChatPlace, useChatPlace } from './ChatPlace';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
 import { WorkflowPanel } from './Workflow';
@@ -72,6 +73,8 @@ export function Brief() {
   const state = waiting ? 'waiting' : stopping ? 'stopping' : running ? 'running' : 'idle';
   const quick = state === 'idle' && answerTo ? quickReplies(answerTo) : [];
   const toolLine = lastTool?.kind === 'tool_use' ? stepLabel(lastTool.name, lastTool.input, cwd) : null;
+  const where = useChatPlace();
+  const frozen = where.place?.iteration?.state === 'frozen';
 
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 30000);
@@ -81,12 +84,15 @@ export function Brief() {
   return (
     <div className="brief">
       <div className="brief-status">
-        {events.length > 0 && (
+        {/* Where the chat works shows from the start; the views once there is something to show. */}
+        {(events.length > 0 || where.place) && (
           <div className="chat-head">
-            <div className="seg chat-view" role="group" aria-label="Chat view">
+            <ChatPlace {...where} />
+            {events.length > 0 && <div className="seg chat-view" role="group" aria-label="Chat view">
               {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
-            </div>
-            <ScopeSwitch />
+            </div>}
+            {/* A frozen chat only reads Figma, so there is no scope to widen. */}
+            {!frozen && <ScopeSwitch />}
           </div>
         )}
         {/* A flow chat's workflow: shown from the start, before the first message. */}

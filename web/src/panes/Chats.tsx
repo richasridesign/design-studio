@@ -17,6 +17,8 @@ import { useTasks } from './taskStore';
 import { RemoveProjectDialog, RenameDialog } from './ProjectActions';
 import { NewFlowDialog } from './NewFlow';
 import { PortfolioGroup } from './PortfolioGroup';
+import { NewChatPicker } from './NewChatPicker';
+import { startFlowChat } from './chatPlaceState';
 import { doublesText, renameLabel } from '../../../shared/projectNames';
 
 export { buildTree, filterTree } from './projectTree';
@@ -31,7 +33,7 @@ export async function openSample() {
   setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } })), 400);
 }
 
-type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number } | { kind: 'flow'; p: TreeProject };
+type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number } | { kind: 'flow'; p: TreeProject } | { kind: 'chat'; p: TreeProject };
 
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
@@ -106,10 +108,8 @@ export function Chats() {
       run: async () => {
         setNote({ text: `Adding ${f.flow.name} to ${it.id} in Figma, about 20 seconds.` });
         try {
-          const r = await postJson<{ figma: { ok: boolean; error?: string } }>(`/api/projects/iteration/flow?cwd=${encodeURIComponent(p.cwd)}`, { id: it.id, slug: f.flow.slug });
-          window.dispatchEvent(new Event(PROJECTS_CHANGED));
-          setNote(r.figma.ok ? null : { text: `${f.flow.name} is in ${it.id}, but its Figma subsection was not made: ${r.figma.error ?? 'unknown error'}. The chat makes it.`, error: true });
-          send({ type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: it.id });
+          const warn = await startFlowChat(p.cwd, f.flow, it);
+          setNote(warn ? { text: warn, error: true } : null);
         } catch (e) {
           setNote({ text: `${f.flow.name} was not added to ${it.id}: ${(e as Error).message}`, error: true });
         }
@@ -243,7 +243,8 @@ export function Chats() {
     );
     const acts = (
       <>
-        {newChat(p.adopted ? `New project task on ${p.name}` : `New chat on ${p.name}`, { type: 'new_session', cwd: p.cwd })}
+        {/* Opens the picker: no flow (a project chat, as before), or a flow and its iteration. */}
+        <button className="icon-btn" title={`New chat in ${p.name}`} aria-label={`New chat in ${p.name}`} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setDialog({ kind: 'chat', p }); }}><Icon name="add" small /></button>
         {menu}
       </>
     );
@@ -308,6 +309,12 @@ export function Chats() {
       {dialog?.kind === 'flow' && (() => {
         const p = dialog.p;
         return <NewFlowDialog cwd={p.cwd} name={p.name} project={projects.find((x) => x.cwd === p.cwd)?.project ?? null} onClose={() => setDialog(null)} onCreated={(made) => send({ type: 'new_session', cwd: p.cwd, flow: made.flow.slug, iteration: made.iteration.id })} />;
+      })()}
+      {dialog?.kind === 'chat' && (() => {
+        const p = dialog.p;
+        // The picker hands over to New flow after its own focus return to the "+", so New flow gives focus back there too.
+        const newFlow = () => { setDialog(null); requestAnimationFrame(() => requestAnimationFrame(() => setDialog({ kind: 'flow', p }))); };
+        return <NewChatPicker cwd={p.cwd} name={p.name} project={projects.find((x) => x.cwd === p.cwd)?.project ?? null} onClose={() => setDialog(null)} onNewFlow={newFlow} onNote={(text) => setNote({ text, error: true })} />;
       })()}
       {dialog?.kind === 'run' && <RunAcrossFlowsDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} weeklyPct={taskList.weeklyPct} cap={taskList.cap} parallel={taskList.parallel} onClose={() => setDialog(null)} onOpenTask={(id) => setDialog({ kind: 'task', id })} />}
       {dialog?.kind === 'remove' && <RemoveProjectDialog cwd={dialog.p.cwd} name={dialog.p.name} chats={dialog.chats} tasks={dialog.tasks} onClose={() => setDialog(null)} />}

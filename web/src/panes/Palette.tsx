@@ -31,6 +31,7 @@ export function buildCommands(_models: { value: string; displayName: string }[] 
     ...[...RECIPES, ...custom].map((r) => ({ id: `recipe:${r.id}`, label: `Recipe: ${r.title}` })),
     ...custom.map((r) => ({ id: `recipe-edit:${r.id}`, label: `Recipe: Edit ${r.title}` })),
     { id: 'recipe-save', label: 'Recipe: Save composer text as recipe' },
+    { id: 'switch-chat', label: 'Chat: Switch flow or chat', key: '⌘K' },
     { id: 'compact', label: 'Chat: Compact Context' },
     { id: 'stop', label: 'Chat: Stop Claude' },
     { id: 'focus', label: 'View: Toggle focus mode', key: '⌘.' },
