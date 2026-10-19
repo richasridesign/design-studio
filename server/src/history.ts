@@ -6,7 +6,8 @@ import {
 } from '../../shared/history.js';
 import { SEP, TAG_NS, cleanId, weekdayDate, type Flow, type Iteration, type Project } from '../../shared/project.js';
 import { figmaNodeUrl } from '../../shared/design.js';
-import { chatContext, flowDir, readProject } from './project.js';
+import { chatContext, flowDir, iterationDir, readProject } from './project.js';
+import { WORKFLOW_FILE, WORKFLOW_INFO, isWorkflow } from '../../shared/workflow.js';
 import { projectRoot } from './roots.js';
 import { cachedMap, ownerChain, taggedSections, type FileMap } from './fileMap.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
@@ -48,9 +49,21 @@ export function flowSections(project: Project, it: Iteration, flow: Flow, map: F
   return { node: known?.node ?? newest('flow'), states: known?.states ?? newest('states') };
 }
 
-function blockIteration(c: Pick<HistoryContext, 'project' | 'iteration' | 'flow'>, map: FileMap | null): HistoryIteration {
+async function blockIteration(root: string, c: Pick<HistoryContext, 'project' | 'iteration' | 'flow'>, map: FileMap | null): Promise<HistoryIteration> {
   const node = flowSections(c.project, c.iteration, c.flow, map).node ?? c.iteration.node;
-  return { id: c.iteration.id, title: blockTitle(c.iteration), state: c.iteration.state, ...(node ? { link: figmaNodeUrl(c.project.key, node) } : {}) };
+  // The meta line names the workflow and round once the flow has a workflow.json in this iteration.
+  const w = await readFile(path.join(iterationDir(root, c.flow, c.iteration.id), WORKFLOW_FILE), 'utf8').then(JSON.parse, () => null) as { workflow?: unknown; round?: unknown } | null;
+  const wf = w && isWorkflow(w.workflow) ? { workflow: WORKFLOW_INFO[w.workflow].name, round: Math.max(1, Math.floor(Number(w.round) || 1)) } : {};
+  return { id: c.iteration.id, title: blockTitle(c.iteration), state: c.iteration.state, ...wf, ...(node ? { link: figmaNodeUrl(c.project.key, node) } : {}) };
+}
+
+/** After a workflow step moves: rewrites the iteration's meta line (State, Workflow, Round). Nothing else changes. */
+export async function refreshMeta(cwd: string): Promise<void> {
+  const ctx = await historyContext(cwd);
+  if (!ctx || ctx.iteration.state === 'frozen') return;
+  const map = await cachedMap(ctx.root, ctx.project.key).catch(() => null);
+  const it = await blockIteration(ctx.root, ctx, map);
+  await updateHistory(ctx.file, (md) => ensureIteration(md, ctx.flow, it));
 }
 
 // ---------- The writer ----------
@@ -131,7 +144,7 @@ export async function recordChanges(cwd: string, changes: Change[], now = new Da
   const map = await cachedMap(root, project.key).catch(() => null);
   const name = screenName(map);
   if (ctx) {
-    const it = blockIteration(ctx, map);
+    const it = await blockIteration(ctx.root, ctx, map);
     await updateHistory(ctx.file, (md) => list.reduce((acc, c) => appendDone(acc, it.id, changeLine(c, name), now), ensureIteration(md, ctx.flow, it)));
     return list.length;
   }
@@ -155,7 +168,7 @@ export async function recordChanges(cwd: string, changes: Change[], now = new Da
     }
   }
   for (const { flow, iteration, lines } of byFlow.values()) {
-    const it = blockIteration({ project, iteration, flow }, map);
+    const it = await blockIteration(root, { project, iteration, flow }, map);
     await updateHistory(historyFile(root, flow), (md) => lines.reduce((acc, l) => appendDone(acc, it.id, l, now), ensureIteration(md, flow, it)));
   }
   return [...byFlow.values()].reduce((n, e) => n + e.lines.length, 0);
@@ -166,7 +179,7 @@ export async function recordDone(cwd: string, text: string, now = new Date()): P
   const ctx = await historyContext(cwd);
   if (!ctx || !text.trim()) return false;
   const map = await cachedMap(ctx.root, ctx.project.key).catch(() => null);
-  const it = blockIteration(ctx, map);
+  const it = await blockIteration(ctx.root, ctx, map);
   await updateHistory(ctx.file, (md) => appendDone(ensureIteration(md, ctx.flow, it), it.id, text, now));
   return true;
 }
@@ -175,7 +188,7 @@ export async function recordDone(cwd: string, text: string, now = new Date()): P
 export async function markFlowEdited(cwd: string, now = new Date()): Promise<void> {
   const ctx = await historyContext(cwd);
   if (!ctx || ctx.iteration.state === 'frozen') return;
-  const it = blockIteration(ctx, null);
+  const it = await blockIteration(ctx.root, ctx, null);
   await updateHistory(ctx.file, (md) => {
     const t = decisionTimes(md, it.id);
     if (md.includes(`<!-- ds:iteration ${it.id} -->`) && t.edited !== null && (t.synced === null || t.edited > t.synced)) return md;
@@ -308,7 +321,7 @@ export async function syncDecisions(cwd: string, deps: ReadDeps = {}, now = new 
     const read: StickyRead = { screens: r.value?.screens ?? [], stickies: r.value?.stickies ?? [], missing: r.value?.missing ?? [] };
     screens = assignStickies(read, ctx.iteration.id, ctx.project.key);
   }
-  const it = blockIteration(ctx, map);
+  const it = await blockIteration(ctx.root, ctx, map);
   await updateHistory(ctx.file, (md) => replaceDecisions(ensureIteration(md, ctx.flow, it), it.id, screens, now));
   return { synced: true, screens: screens.length };
 }

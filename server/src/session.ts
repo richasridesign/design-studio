@@ -3,7 +3,7 @@ import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMessage, type PermissionMode, type HookInput, type HookJSONOutput, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
-import { AREAS, FLOW_ACTIVE, FLOW_MODES, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
+import { AREAS, FLOW_ACTIVE, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowKind, type FlowPhase, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, figmaSpeed, userMessage } from './options.js';
 import { mcpFrom } from './mcp.js';
@@ -569,11 +569,6 @@ export class AgentSession {
     if (this.state.session.longRun && !isActive(this.state.session.longRun)) this.setSession({ longRun: null });
     const cmd = parseCommand(text);
     if (cmd && !this.state.session.running) return this.command(cmd.cmd, cmd.arg, text);
-    const { mode, phase } = this.state.session.flow;
-    if (mode !== 'chat' && !this.state.session.running && !text.trim().startsWith('/') && phase !== 'pick' && phase !== 'file') {
-      if (mode === 'design') return this.startFlow(withRefs(text, images.refs), 'design');
-      return this.command('review', text.trim(), text.trim());
-    }
     this.sendPrompt(text, images);
   }
 
@@ -706,7 +701,8 @@ export class AgentSession {
 
   updateFlow(patch: Partial<Pick<FlowState, 'mode' | 'preset' | 'areas' | 'stopAfterSketch'>>) {
     const next: Partial<FlowState> = {};
-    if (patch.mode && FLOW_MODES.includes(patch.mode)) next.mode = patch.mode;
+    // The mode pill is gone: a saved Design or Review mode reads as Chat, so typed text never starts a run.
+    if (patch.mode) next.mode = 'chat';
     if (patch.preset && PRESETS.includes(patch.preset)) next.preset = patch.preset;
     if (Array.isArray(patch.areas)) {
       next.areas = AREAS.filter((a) => patch.areas!.includes(a));

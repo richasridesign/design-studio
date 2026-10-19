@@ -11,7 +11,8 @@ export const HISTORY_FILE = 'history.md';
 export const LINE_MAX = 160;
 
 export type HistoryFlow = { n: number; name: string };
-export type HistoryIteration = { id: string; title: string; state: 'working' | 'frozen'; link?: string };
+/** workflow and round come from the iteration's workflow.json, once the flow has one. */
+export type HistoryIteration = { id: string; title: string; state: 'working' | 'frozen'; link?: string; workflow?: string; round?: number };
 export type StickyText = { decision: string; why?: string };
 export type ScreenDecisions = { id: string; name: string; link?: string; stickies: StickyText[] };
 
@@ -37,7 +38,8 @@ export const stamp = (d: Date) => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d
 
 export const historyHead = (flow: HistoryFlow) => `# Flow ${flow.n} · ${oneLine(flow.name, 80)}\n${NOTE}\n`;
 
-const metaLine = (it: HistoryIteration) => `State: ${it.state === 'frozen' ? 'Frozen' : 'Working'}${it.link ? ` · [Open in Figma](${it.link})` : ''}`;
+const metaLine = (it: HistoryIteration) =>
+  `State: ${it.state === 'frozen' ? 'Frozen' : 'Working'}${it.workflow ? ` · Workflow: ${oneLine(it.workflow, 40)} · Round: ${it.round ?? 1}` : ''}${it.link ? ` · [Open in Figma](${it.link})` : ''}`;
 
 function iterationBlock(it: HistoryIteration): string[] {
   return [
