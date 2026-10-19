@@ -1,7 +1,7 @@
 /* History tab: one flow's history file, newest iteration first. Read only, calm: headings and dividers, no boxes. */
 .hist-page { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 24px; }
 .hist-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.hist-head h2 { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; }
+.hist-head h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
 .hist-sub { margin: 0; font-size: 14px; line-height: 20px; color: var(--fg); }
 .hist-meta { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; line-height: 20px; color: var(--fg-muted); }
 .hist-meta button.link, .hist-error button.link { min-height: 24px; font-size: 14px; line-height: 20px; }
@@ -19,19 +19,19 @@
 
 .hist-block { border-bottom: 1px solid var(--border); }
 .hist-block h3 { margin: 0; }
-.hist-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 12px 0; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--fg); cursor: pointer; }
+.hist-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 12px 0; font-size: 18px; line-height: 24px; font-weight: 600; color: var(--fg); cursor: pointer; }
 .hist-toggle:hover { color: var(--link); }
 .hist-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-sm); }
 .hist-toggle .icon { flex: none; }
 .hist-body { padding: 0 0 24px 24px; max-width: 760px; font-size: 14px; line-height: 20px; }
-.hist-body .md h4 { margin: 16px 0 8px; font-family: inherit; font-size: 14px; line-height: 20px; font-weight: 600; }
+.hist-body .md h4 { margin: 16px 0 8px; font-family: inherit; font-size: 16px; line-height: 24px; font-weight: 600; }
 .hist-body .md h4:first-child { margin-top: 0; }
 .hist-body .md h5 { margin: 12px 0 4px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--fg); }
 .hist-body .md p { margin: 0 0 8px; color: var(--fg); }
 .hist-body .md ul { margin: 0 0 8px; padding-left: 20px; }
 .hist-body .md li { margin: 4px 0; }
-.hist-body .md a { color: var(--link); text-decoration: none; }
-.hist-body .md a:hover { text-decoration: underline; }
+/* Links inside text are underlined, so they do not rely on colour alone (WCAG 1.4.1). */
+.hist-body .md a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
 
 @media (max-width: 900px) {
   .hist-page { padding: 16px 16px 40px; }

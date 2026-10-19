@@ -155,3 +155,4 @@
 .ds .swatches .sw-name { white-space: normal; overflow-wrap: break-word; font-size: var(--text-sm); line-height: 20px; }
 .ds .swatches .sw-value { line-height: 16px; }
 .ds .comp-list .name { overflow-wrap: anywhere; }
+@media (max-width: 900px) { .sessions.chats .sessions-bar .add-project { height: 44px; } }

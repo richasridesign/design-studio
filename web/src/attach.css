@@ -1,4 +1,4 @@
-.attach-pop { position: fixed; width: min(360px, calc(100vw - 16px)); max-height: min(70vh, 560px); overflow-y: auto; z-index: 40; }
+.switcher.attach-pop { position: fixed; width: min(360px, calc(100vw - 16px)); max-height: min(70vh, 560px); overflow-y: auto; z-index: 40; }
 .attach-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 0 16px; }
 .attach-head h2 { flex: 1; margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .attach-form { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; }
@@ -6,6 +6,7 @@
 .attach-row { display: flex; gap: 8px; }
 .switcher .attach-row input { flex: 1; min-width: 0; margin: 0; }
 .attach-row button { flex: none; height: 36px; }
+.switcher .attach-row input[aria-invalid] { border-color: var(--err); }
 .attach-label { padding: 8px 16px 4px; font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
 .attach-note { display: flex; gap: 4px; align-items: flex-start; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
 .attach-note.error-text { color: var(--err); }
