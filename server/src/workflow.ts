@@ -80,6 +80,8 @@ export async function readWorkflow(cwd: string): Promise<WorkflowState | null> {
 export async function takeAsk(cwd: string, chat: string): Promise<WorkflowState['ask'] | null> {
   const f = await flowOf(cwd);
   if (!f) return null;
+  // Most messages carry no ask: read first, so a flow with no file yet is not written.
+  if ((await current(cwd, f)).state.ask?.chat !== chat) return null;
   let ask: WorkflowState['ask'] | null = null;
   await write(cwd, (s) => {
     if (s.ask?.chat !== chat) return s;
@@ -88,6 +90,11 @@ export async function takeAsk(cwd: string, chat: string): Promise<WorkflowState[
     return rest;
   }, f);
   return ask;
+}
+
+/** The screens a review of this flow chat covers (see flowFrames). Empty for a chat that is not on a flow. */
+export async function reviewFrames(cwd: string): Promise<string[]> {
+  return ((await flowOf(cwd))?.frames.frames ?? []).map((f) => f.id);
 }
 
 export type WorkflowView =

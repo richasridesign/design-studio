@@ -20,8 +20,8 @@ import { settings } from './settings.js';
 import { TouchedIds, figmaEdits, touchedIds } from './touched.js';
 import { loadImages, withRefs, type Images } from './attach.js';
 import { readRules, rulesBlock } from './rules.js';
-import { readChatSteps } from './stages.js';
-import { stageNote } from '../../shared/stages.js';
+import { readWorkflow, reviewFrames, takeAsk, workflowEvent } from './workflow.js';
+import { stepPrompt, workflowNote } from '../../shared/workflow.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
@@ -220,8 +220,9 @@ export class AgentSession {
   private projectNote = '';
   /** The file's write lock, held per use_figma call that edits (keyed by tool_use_id) and released after it. */
   private locks = new Map<string, () => void>();
-  private stageKey = '';
-  private stageNote = '';
+  /** The workflow line Claude was last told, and the note (with a step button's prompt) for the next message. */
+  private workflowKey = '';
+  private workflowNote = '';
   private pickKey = '[]';
   private pickNote = '';
   private figmaNote = '';
@@ -475,9 +476,9 @@ export class AgentSession {
       text = `${this.rulesNote}\n\n${text}`;
       this.rulesNote = '';
     }
-    if (this.stageNote) {
-      text = `${this.stageNote}\n\n${text}`;
-      this.stageNote = '';
+    if (this.workflowNote) {
+      text = `${this.workflowNote}\n\n${text}`;
+      this.workflowNote = '';
     }
     if (this.pickNote) {
       // The design phase prompt already lists the picks.
@@ -538,11 +539,18 @@ export class AgentSession {
     this.askBeforeEdit = (await settings()).askBeforeEdit;
     await this.refreshProject().catch(() => {});
     await this.refreshMapNote().catch(() => {});
-    // Tell Claude where the work stands when the designer marks a step or picks a kind. Only a status line, never a gate.
-    const note = stageNote(await readChatSteps(this.cwd, this.state.session.sessionId));
-    if (note !== this.stageKey) {
-      this.stageNote = note;
-      this.stageKey = note;
+    // On a flow chat, tell Claude where the workflow stands when the step changes (a status line, never a gate), and
+    // once the step prompt a step button asked for in this chat.
+    const c = this.projectCtx;
+    if (c?.scope === 'flow' && c.flow && c.iteration) {
+      const state = await readWorkflow(this.cwd).catch(() => null);
+      const note = state ? workflowNote(state, c.flow, c.iteration.id) : '';
+      const ask = await takeAsk(this.cwd, this.id).catch(() => null);
+      const step = ask && state ? stepPrompt(ask.step, c.flow, c.iteration.id, state) : '';
+      if (note !== this.workflowKey || step) {
+        this.workflowNote = [note !== this.workflowKey ? note : '', step].filter(Boolean).join('\n');
+        this.workflowKey = note;
+      }
     }
     const sketch = await readSketch(this.cwd).catch(() => null);
     const picks = designerPicksKey(sketch);
@@ -777,10 +785,17 @@ export class AgentSession {
     const words = arg.split(/\s+/);
     const preset = (PRESETS as readonly string[]).includes(words[0]) ? (words[0] as ReviewPreset) : this.state.session.flow.preset;
     let frames = nodeIdsIn(arg);
-    if (!frames.length) frames = (await readDesign(this.cwd))?.frames.map((f) => f.nodeId) ?? [];
-    if (!frames.length) return this.system('Review: paste frame links after /review, or run /design first');
+    // A flow chat reviews its flow's screens: this iteration's subsection, else the newest older one, else the baseline.
+    const onFlow = this.projectCtx?.scope === 'flow';
+    if (!frames.length && onFlow) frames = await reviewFrames(this.cwd).catch(() => []);
+    if (!frames.length && !onFlow) frames = (await readDesign(this.cwd))?.frames.map((f) => f.nodeId) ?? [];
+    if (!frames.length) return this.system(onFlow ? 'Review: this flow has no screens yet. Paste frame links after /review' : 'Review: paste frame links after /review, or run /design first');
     return this.background(`Reviewing ${frames.length} ${frames.length === 1 ? 'frame' : 'frames'} (${PRESET_INFO[preset].label})`, async (signal) => {
-      const run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset, areas: await this.areasForReview(), round: 1, kind: 'review', signal, onProgress: (t) => this.setStatus(t), onArea: this.onArea });
+      const run = await runReview({ dir: this.cwd, fileKey: this.figma!.key, frames, preset, areas: await this.areasForReview(), round: 1, kind: 'review', signal, onProgress: (t) => this.setStatus(t), onArea: this.onArea }).catch(async (err: unknown) => {
+        // The step card says the review stopped and offers Try again.
+        if (onFlow && !signal.aborted) await workflowEvent(this.cwd, { type: 'failed', reason: err instanceof Error ? err.message : String(err), at: Date.now() }).catch(() => {});
+        throw err;
+      });
       this.setFlow({ reviewers: [] });
       this.recordBackground('review', run);
       this.reviewDone(run);
