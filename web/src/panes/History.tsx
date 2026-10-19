@@ -136,7 +136,7 @@ function SyncLine({ view, sync, frozen, onSync }: { view: HistoryView; sync: Syn
   return (
     <p className="hist-meta" role="status">
       <span>Synced from Figma: {when}</span>
-      {frozen && view.syncedAt ? <span>Frozen: decisions stay as they were</span> : <><span aria-hidden="true">·</span><button type="button" className="link" onClick={onSync}>Sync now</button></>}
+      {frozen && view.syncedAt ? <><span aria-hidden="true">·</span><span>Frozen: decisions stay as they were</span></> : <><span aria-hidden="true">·</span><button type="button" className="link" onClick={onSync}>Sync now</button></>}
     </p>
   );
 }
