@@ -42,3 +42,11 @@
   .wf-menu-btn, .wf-opt, .wf-opt label, .wf-why input { min-height: 44px; font-size: var(--text-md); }
   .wf-opt .link { min-height: 44px; font-size: var(--text-md); }
 }
+
+/* From scratch has 5 steps: in a side panel strip the other steps fold to their mark (still buttons, named for screen
+   readers and in their tooltip) and the separators go, so nothing overlaps. The current step keeps its number and name. */
+@container wfstrip (max-width: 640px) {
+  .wf-steps:has(> .wf-step:nth-child(4)) .wf-step:not(.current) :is(.wf-step-name, .wf-step-n) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .wf-steps:has(> .wf-step:nth-child(4)) .wf-step > .codicon { display: none; }
+  .wf-steps:has(> .wf-step:nth-child(4)) .wf-step-btn { padding: 0 6px; }
+}

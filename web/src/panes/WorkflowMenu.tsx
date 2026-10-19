@@ -83,7 +83,7 @@ export function WorkflowMenu({ state, flowName, iteration, post, disabled }: { s
           <div role="separator" className="wf-menu-sep" />
           <button type="button" role="menuitem" onClick={portfolio}>
             <Icon name="blank" small />
-            <span className="wf-menu-text"><b>Update portfolio</b><span>Turn decisions from frozen iterations into portfolio copy.</span></span>
+            <span className="wf-menu-text"><b>Update portfolio</b><span>Suggest portfolio updates from your finished work.</span></span>
           </button>
         </div>
       )}
