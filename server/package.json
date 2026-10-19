@@ -11,6 +11,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest",
     "esbuild": "^0.28.2",
+    "framer-api": "^5.1.0",
     "node-pty": "^1.0.0",
     "ws": "^8.18.0",
     "zod": "^4.0.0"
