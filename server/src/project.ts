@@ -6,7 +6,7 @@ import {
 } from '../../shared/project.js';
 import { projectRoot } from './roots.js';
 import { chatFolders, installSkills } from './figma.js';
-import { cachedMap, ensureMapSoon, taggedSections, type FileMap } from './fileMap.js';
+import { buildMap, cachedMap, ensureMapSoon, taggedSections, type FileMap } from './fileMap.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
 import { withWrite } from './figmaLock.js';
 import { projectLabel } from './workflow.js';
@@ -267,11 +267,7 @@ export async function confirmAdopt(dir: string, key: string, input: AdoptInput, 
   const root = projectRoot(dir);
   // Inside the queued writer, so a New flow that lands at the same moment is read and kept.
   const project = (await updateProject(root, (existing) => mergeAdoption(existing, key, input, now)))!;
-  const { flows } = project;
-  for (const f of flows) {
-    await mkdir(flowDir(root, f), { recursive: true });
-    await writeIfMissing(path.join(flowDir(root, f), 'flow.json'), { n: f.n, slug: f.slug, name: f.name, entry: f.entry, ...(f.baseline ? { baseline: f.baseline } : {}) });
-  }
+  await makeFlowFolders(root, project.flows);
   let tagError: string | null = null;
   try {
     await tagProject(root, key, project, deps);
@@ -279,6 +275,35 @@ export async function confirmAdopt(dir: string, key: string, input: AdoptInput, 
     tagError = (err as Error).message;
   }
   return { project: (await readProject(root)) ?? project, tagError };
+}
+
+async function makeFlowFolders(root: string, flows: Flow[]) {
+  for (const f of flows) {
+    await mkdir(flowDir(root, f), { recursive: true });
+    await writeIfMissing(path.join(flowDir(root, f), 'flow.json'), { n: f.n, slug: f.slug, name: f.name, entry: f.entry, ...(f.baseline ? { baseline: f.baseline } : {}) });
+  }
+}
+
+/**
+ * Right after a file is linked: its flows, iterations, section links and node ids go into project.json the way Adopt
+ * does, with the names Figma has and no dialog. Read only: the map is read fresh (one read-only plugin run) and no
+ * tags are written, so the sections are tagged the next time a chat edits the file. The project's name is kept.
+ */
+export async function autoAdopt(dir: string, key: string, deps: ReadDeps = {}, now = Date.now()): Promise<{ flows: number; iterations: number; project: Project | null }> {
+  const root = projectRoot(dir);
+  const map = await buildMap(root, key, deps);
+  const found = adoptFromMap(map.raw.pages as never);
+  // An empty file (a new one, or one with no LATEST section yet) leaves project.json as it is.
+  if (!found.flows.length) return { flows: 0, iterations: 0, project: await readProject(root) };
+  const input: AdoptInput = {
+    page: found.page,
+    flows: found.flows,
+    iterations: found.iterations.map((it) => ({ id: it.id, node: it.node, name: it.name, topic: it.topic, date: it.date, flows: it.flows })),
+    parked: found.parked,
+  };
+  const project = (await updateProject(root, (existing) => mergeAdoption(existing, key, input, now)))!;
+  await makeFlowFolders(root, project.flows);
+  return { flows: found.flows.length, iterations: found.iterations.length, project };
 }
 
 /** Every node the project knows, with the tag it should carry. */

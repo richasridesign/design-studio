@@ -27,9 +27,10 @@ export const shownRoot = (root = projectsRoot()) => {
 };
 
 /** The names already used by projects in both roots, lower case: project.json names and Figma file names. */
-async function takenNames(): Promise<Set<string>> {
+async function takenNames(except?: string): Promise<Set<string>> {
   const out = new Set<string>();
   for (const f of await chatFolders()) {
+    if (except && path.resolve(f.dir) === except) continue;
     if (f.figma?.name) out.add(f.figma.name.toLowerCase());
     const p = await readProject(f.dir).catch(() => null);
     if (p?.name) out.add(p.name.toLowerCase());
@@ -81,6 +82,26 @@ export async function linkFile(dir: string, file: { url: string; name?: string }
   await writeFile(path.join(root, 'figma.json'), JSON.stringify(figma, null, 2));
   await updateProject(root, (p) => (p ? { ...p, key: parsed.key } : p));
   return figma;
+}
+
+/**
+ * Rename project: only the name in project.json changes, inside the project's write queue. The folder keeps its
+ * name, since Claude's saved chats are tied to the folder path. Same rules as New project, and a name another
+ * project has is refused. A folder made from a Figma link with no project.json gets one with the new name.
+ */
+export async function renameProject(dir: string, input: unknown): Promise<{ from: string; name: string }> {
+  const root = projectRoot(dir);
+  const name = cleanProjectName(input);
+  const problem = projectNameProblem(name);
+  if (problem) throw new ProjectError(problem);
+  const figma = await readFile(path.join(root, 'figma.json'), 'utf8').then((t) => JSON.parse(t) as FigmaFile, () => null);
+  const saved = await readProject(root);
+  if (!saved && !figma) throw new ProjectError('This folder is not a project made in Design Studio.');
+  const from = saved?.name ?? figma?.name ?? path.basename(root);
+  if (from === name) throw new ProjectError('That is the name already.');
+  if ((await takenNames(root)).has(name.toLowerCase())) throw new ProjectError(takenText(name), 409);
+  await updateProject(root, (p) => ({ ...(p ?? { key: figma?.key ?? '', flows: [], iterations: [] }), name }));
+  return { from, name };
 }
 
 const making = new Set<string>();

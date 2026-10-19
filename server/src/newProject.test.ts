@@ -14,7 +14,7 @@ const ROOTS = await vi.hoisted(async () => {
 });
 
 import { vi } from 'vitest';
-const { createProject, createFileFor, linkFile } = await import('./newProject.js');
+const { createProject, createFileFor, linkFile, renameProject } = await import('./newProject.js');
 
 describe('New project', () => {
   it('makes a named folder with no file, refuses a taken name or a path outside the root, and links one file into that same folder', async () => {
@@ -48,6 +48,26 @@ describe('New project', () => {
     expect(JSON.parse(await readFile(path.join(made.cwd, 'project.json'), 'utf8')).key).toBe('NEWKEY67890');
     await expect(linkFile(made.cwd, { url: 'https://www.figma.com/design/THIRDKEY123/x' })).rejects.toMatchObject({ status: 409 });
     expect((await readdir(root)).sort()).toEqual(['expense-reports', 'payroll']);
+  });
+
+  it('renames only the project name: flows, key and folder stay, and a taken name is refused', async () => {
+    const root = ROOTS.projects;
+    const made = await createProject('Harrison', { root, now: 3 });
+    await createProject('Onboarding', { root });
+    const file = path.join(made.cwd, 'project.json');
+    const before = { ...JSON.parse(await readFile(file, 'utf8')), key: 'KEY12345678', flows: [{ n: 1, slug: 'setup', name: 'Setup', entry: ['1:2'] }], iterations: [{ id: '1.18', state: 'working' }] };
+    await writeFile(file, JSON.stringify(before));
+    expect(await renameProject(path.join(made.cwd, 'flows'), '  Agentic   AI ')).toEqual({ from: 'Harrison', name: 'Agentic AI' });
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ ...before, name: 'Agentic AI' });
+    expect(existsSync(path.join(root, 'harrison'))).toBe(true);
+    expect(existsSync(path.join(root, 'agentic-ai'))).toBe(false);
+    // Another project's name in any case, the same name, and a bad name change nothing.
+    await expect(renameProject(made.cwd, 'onboarding')).rejects.toMatchObject({ status: 409 });
+    await expect(renameProject(made.cwd, 'Agentic AI')).rejects.toThrow();
+    await expect(renameProject(made.cwd, '../x')).rejects.toThrow();
+    // Its own old name in a new case is fine: the project's own names are not taken.
+    expect((await renameProject(made.cwd, 'agentic ai')).name).toBe('agentic ai');
+    expect(JSON.parse(await readFile(file, 'utf8')).flows).toEqual(before.flows);
   });
 
   it('makes the Figma file once with the pinned arguments, even when the model asks twice', async () => {
