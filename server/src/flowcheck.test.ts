@@ -277,6 +277,21 @@ describe('checkFlows', () => {
     expect(none.flows.flatMap((f) => f.findings).filter((x) => x.rule === 'no-stickies')).toEqual([]);
   });
 
+  it('asks for stickies only under the first screen of a low fidelity option', () => {
+    const three = (name: string) => [1, 2, 3].map((n) => sticky(n, name));
+    const page = [
+      section('9:1', 'V0.1 · Start', [
+        section('9:2', 'V0.1 · Flow 1 · Connectors', [
+          section('9:3', 'V0.1 · Flow 1 · Option A: Cards', [screen('a2', 'Cards detail', [], 1000, 0), screen('a1', 'Cards home', [], 0, 0), ...three('Cards home')], 0, 0, 3000, 2000),
+          section('9:4', 'V0.1 · Flow 1 · Option B: Table', [screen('b1', 'Table home', [], 4000, 0), screen('b2', 'Table detail', [], 5000, 0)], 4000, 0, 3000, 2000),
+        ], 0, 0, 8000, 3000),
+      ], 0, 0, 9000, 4000),
+    ];
+    const r = checkFlows(doc(page), maps, undefined, { working: ['9:2'] });
+    const all = r.flows.flatMap((f) => f.findings.filter((x) => x.rule === 'no-stickies').map((x) => x.message));
+    expect(all).toEqual(['"Table home" has no Decision stickies: it needs 3 to 5.']);
+  });
+
   it('lists the working flow subsections of an adopted file for the sticky rule', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
     expect(await stickyRule(dir, 'KEY')).toEqual({});

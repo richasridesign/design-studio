@@ -61,6 +61,7 @@ const DIALOG = /\b(dialog|modal|drawer|sheet|popover)\b/i;
 const DIALOG_PART = /\b(header|footer|body|content|overlay|backdrop|scrim|title|actions)\b/i;
 const CLOSE = /\b(close|dismiss)\b|(^|[\s/_-])x$/i;
 const DECISION = /^\s*decision\s*(\d+)\s*[·•:|-]\s*(.*)$/i;
+const OPTION_SECTION = /·\s*option\s+[a-c]\s*:/i;
 const NOT_SCREEN = /^\s*(decision|note|notes|flow note|section note|changelog|review|readme|legend|title|label|sticky|arrow)\b/i;
 const LINKS = new Set(['NAVIGATE', 'OVERLAY', 'SWAP']);
 const MAJOR = new Set<FlowRule>(['no-click', 'no-close', 'wrong-hover', 'stale-link', 'parked-link']);
@@ -562,6 +563,8 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       }
     };
     collect(f.node);
+    // A low fidelity option ("V0.1 · Flow 2 · Option A: Cards") carries its stickies under its first screen only.
+    const optionFirst = OPTION_SECTION.test(f.ref.name) ? [...f.screens].sort((a, b) => (a.absoluteBoundingBox?.x ?? 0) - (b.absoluteBoundingBox?.x ?? 0))[0] : null;
     if (f.section && ![...f.path, f.ref.name].some((n) => NOTE_SKIP.test(n))) noteFindings(f, adder(f.ref, null));
     for (const sc of f.screens) {
       const screen = { id: sc.id, name: String(sc.name ?? sc.id) };
@@ -572,7 +575,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       if (scanParked) parkedNameFindings(sc, parkedNames, add, flagged);
       if (working) {
         const inWorking = working.has(f.ref.id) || f.ancestors.some((a) => working.has(a));
-        if (inWorking && !ENTRY_COPY.test(screen.name)) {
+        if (inWorking && !ENTRY_COPY.test(screen.name) && (!optionFirst || optionFirst === sc)) {
           const count = new Set(decisionNames.map((d) => DECISION.exec(d)!).filter((m) => stickyMatch(m[2], screen.name)).map((m) => m[1])).size;
           if (count < 3) add(sc, 'no-stickies', `${quote(screen.name)} has ${count === 0 ? 'no' : count} Decision ${count === 1 ? 'sticky' : 'stickies'}: it needs 3 to 5.`, `Add ${3 - count} more right below the screen, each one bold decision line and one Why line about what is shown and why.`);
           else if (count > 5) add(sc, 'no-stickies', `${quote(screen.name)} has ${count} Decision stickies, 5 at most.`, 'Keep the 5 most important decisions for this screen and remove the rest.');
