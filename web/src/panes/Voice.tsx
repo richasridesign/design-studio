@@ -31,8 +31,9 @@ const ERRORS: Record<string, string> = {
 const HOLD_MS = 400;
 
 // Ending this soon with nothing heard and no error means the system stopped it, not her.
+// In the Mac app the voice goes to the Mac's own speech service, which stays off while Dictation and Siri are both off.
 const QUICK_END_MS = 1500;
-const QUICK_END = 'Dictation stopped right away. Allow Design Studio under Speech Recognition and Microphone in System Settings, Privacy & Security';
+const QUICK_END = 'Dictation stopped right away. Turn on Dictation in System Settings, Keyboard, and allow Design Studio under Speech Recognition and Microphone in Privacy & Security';
 
 export function Voice({ onText, onSubmit, onError }: { onText: (text: string, final: boolean) => void; onSubmit?: () => void; onError?: (message: string) => void }) {
   const [listening, setListening] = useState(false);
@@ -57,6 +58,7 @@ export function Voice({ onText, onSubmit, onError }: { onText: (text: string, fi
     let pending = '';
     let heard = false;
     let failed = false;
+    let code = '';
     const began = Date.now();
     r.onresult = (e) => {
       heard = true;
@@ -68,12 +70,13 @@ export function Voice({ onText, onSubmit, onError }: { onText: (text: string, fi
       if (final) pending = '';
     };
     r.onerror = (e) => {
+      code = e.error;
       if (e.error === 'aborted') return;
       failed = true;
       setError(ERRORS[e.error] ?? `Voice input failed: ${e.error}`);
     };
     r.onend = () => {
-      if (!heard && !failed && Date.now() - began < QUICK_END_MS) setError(QUICK_END);
+      if (!heard && !failed && Date.now() - began < QUICK_END_MS) setError(`${QUICK_END} (${code || 'ended'}, ${Date.now() - began} ms)`);
       if (pending) handlers.current.onText(pending, true);
       rec.current = null;
       setListening(false);
