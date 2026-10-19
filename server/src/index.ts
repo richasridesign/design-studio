@@ -346,21 +346,28 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/chrome/figma-tabs') return json(figmaTabs());
     if (url.pathname === '/api/claude/status') return json(await claudeStatus());
     if (url.pathname === '/api/projects') return json({ projects: await listProjects() });
-    if (url.pathname === '/api/projects/adopt' && req.method === 'POST') {
-      if (!figma || figma.key === SAMPLE_KEY) return json({ error: 'This chat has no Figma file' }, 400);
-      const r = await confirmAdopt(chat.cwd, figma.key, await readJsonBody());
-      broadcastLive();
-      return json(r);
-    }
-    if (url.pathname === '/api/projects/adopt') {
-      if (!figma || figma.key === SAMPLE_KEY) return json({ error: 'This chat has no Figma file' }, 400);
-      return json(await adoptProposal(chat.cwd, figma.key));
-    }
-    if (url.pathname === '/api/projects/iteration' && req.method === 'POST') {
-      const body = await readJsonBody();
-      const r = body?.state ? await setIterationState(chat.cwd, String(body.id), body.state === 'working' ? 'working' : 'frozen') : await createIteration(chat.cwd, body);
-      broadcastLive();
-      return json(r);
+    if (url.pathname.startsWith('/api/projects/')) {
+      // The sidebar acts on any project folder, not only the viewed chat's: ?cwd= names it, checked against the roots.
+      const asked = url.searchParams.get('cwd');
+      const dir = asked ? path.resolve(asked) : chat.cwd;
+      if (asked && !isChatFolder(dir)) return json({ error: 'Not a Design Studio folder' }, 400);
+      const file = asked ? await readFigma(dir) : figma;
+      if (url.pathname === '/api/projects/adopt' && req.method === 'POST') {
+        if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
+        const r = await confirmAdopt(dir, file.key, await readJsonBody());
+        broadcastLive();
+        return json(r);
+      }
+      if (url.pathname === '/api/projects/adopt') {
+        if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
+        return json(await adoptProposal(dir, file.key));
+      }
+      if (url.pathname === '/api/projects/iteration' && req.method === 'POST') {
+        const body = await readJsonBody();
+        const r = body?.state ? await setIterationState(dir, String(body.id), body.state === 'working' ? 'working' : 'frozen') : await createIteration(dir, body);
+        broadcastLive();
+        return json(r);
+      }
     }
     if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));
     // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.

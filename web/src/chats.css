@@ -26,3 +26,67 @@
   .sessions .tree .row.live .lines .l1 .name { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .sessions .tree .row.live .lines .l1 .when { padding-right: 8px; }
 }
+
+/* Project tree: Project > Flow > Iteration > chats, 8px more indent per level (the desktop sidebar is 160px wide). */
+.sessions.chats .tree .row.project.d1 { padding-left: 16px; font-weight: 500; }
+.sessions.chats .tree .row.project.d2 { padding-left: 24px; font-weight: 400; }
+.sessions.chats .tree .row.project.d1 .twistie:not(.chevron), .sessions.chats .tree .row.project.d2 .twistie:not(.chevron) { color: var(--fg-muted); }
+.sessions.chats .tree .row.live.d2, .sessions.chats .tree .row.live.two.d2 { padding-left: 40px; }
+.sessions.chats .tree .row.live.d3, .sessions.chats .tree .row.live.two.d3 { padding-left: 48px; }
+.sessions.chats .tree .row.recent.d2 { padding-left: 56px; }
+.sessions.chats .tree .row.recent.d3 { padding-left: 64px; }
+/* Rows in the chat tree are 32px (a 24px icon button fits with 4px above and below). */
+.sessions.chats .tree .row { height: 32px; }
+/* Iteration state is the row's icon: shape and colour differ (filled dot for Working, hollow ring for Frozen). */
+.sessions .tree .row .state-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.sessions .tree .row .state-dot.working { background: var(--accent); }
+.sessions .tree .row .state-dot.frozen { border: 1.5px solid var(--fg-muted); }
+/* The id stays readable when the topic truncates in the 160px sidebar. */
+.sessions .tree .row .name:has(.it-id) { display: flex; min-width: 0; }
+.sessions .tree .row .it-id { flex: none; white-space: pre; }
+.sessions .tree .row .it-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions .tree .row .state-tag { flex: none; margin-left: auto; padding: 0 10px 0 8px; font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted); }
+.sessions .tree .row:has(.acts):is(:hover, :focus-within) .state-tag { display: none; }
+/* Row menu: opens 4px under its button, on top of the rows below. */
+.sessions .tree .row .row-menu { position: relative; display: inline-flex; }
+.sessions .tree .row .row-menu-pop {
+  position: fixed; z-index: 3; width: 200px; padding: 4px;
+  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+}
+.sessions .tree .row .row-menu-pop button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0; width: 100%; min-height: 36px; padding: 6px 12px;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg); font-weight: 400; text-align: left; white-space: normal;
+}
+.sessions .tree .row .row-menu-pop button:hover, .sessions .tree .row .row-menu-pop button:focus-visible { background: var(--bg-hover); }
+.sessions .tree .row .row-menu-pop button .t { font-size: var(--text-sm); line-height: 20px; }
+.sessions .tree .row .row-menu-pop button .h { font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.sessions .tree .row:has(.row-menu [aria-expanded='true']) .acts { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+.sessions .tree .row:has(.row-menu [aria-expanded='true']) { z-index: 2; }
+
+/* Adopt and New iteration dialogs: a header with a close icon, fields on the 4px grid, actions at the end. */
+.dialog.project-dialog { display: block; width: min(480px, 100%); padding: 0; max-height: calc(100vh - 32px); overflow-y: auto; }
+.project-dialog-head { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
+.project-dialog-head h2 { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--fg); }
+.project-dialog-note { margin: 0; padding: 16px; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
+.project-dialog-note.error-text { color: var(--err); }
+.project-dialog-body { padding: 0 16px 16px; }
+.project-dialog-body > .project-dialog-note { padding: 16px 0; }
+.project-dialog-body .field { gap: 4px; margin-bottom: 12px; }
+.project-dialog-body .field > span:first-child { font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.project-dialog-body .field input:not([type='checkbox']) { height: 36px; padding: 0 12px; font: inherit; font-size: var(--text-md); color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm); }
+.project-dialog-body .field input:focus { outline: 0; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.project-dialog-body .field input[aria-invalid='true'] { border-color: var(--err); }
+.project-dialog-body .error-text { margin: 0; }
+.project-fields { margin: 0 0 12px; padding: 0; border: 0; min-width: 0; }
+.project-fields legend { padding: 0; margin-bottom: 8px; font-size: var(--text-sm); font-weight: 600; line-height: 20px; color: var(--fg); }
+.project-list { list-style: none; margin: 0; padding: 0; }
+.project-list li { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: var(--text-sm); }
+.project-list li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-list li .muted { flex: none; white-space: nowrap; }
+.project-list li .state-tag { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
+.project-list li .state-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--fg-muted); }
+.project-check { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: var(--text-sm); }
+.project-check input[type='checkbox'] { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+.project-dialog .dialog-actions { margin-top: 8px; padding: 0 16px 16px; }
+.project-dialog-body .dialog-actions { padding: 0; }
+@media (max-width: 900px) { .dialog.project-dialog { max-height: calc(100vh - 32px); } .project-dialog-body .field input:not([type='checkbox']) { height: 44px; } }

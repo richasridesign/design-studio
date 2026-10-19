@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import {
   PROJECT_FILE, TAG_NS, adoptFromMap, cleanId, flowDirName, packTag, reconcileNodes, slugify, todayIso, workingIteration,
-  type AdoptProposal, type ChatContext, type Flow, type Iteration, type Project, type Tag,
+  type AdoptProposal, type ChatContext, type Flow, type Iteration, type Project, type ProjectSummary, type Tag,
 } from '../../shared/project.js';
 import { projectRoot } from './roots.js';
 import { chatFolders, installSkills } from './figma.js';
@@ -131,7 +131,7 @@ export async function chatContext(cwd: string): Promise<ChatContext | null> {
 
 // ---------- The tree ----------
 
-export type ProjectView = { cwd: string; key: string; name: string; url: string; stage: string | null; project: Project | null; doubles?: Array<{ tag: Tag; ids: string[] }> };
+export type ProjectView = ProjectSummary;
 
 /** Every project folder in the roots, with its project.json (node ids checked against the latest map). */
 export async function listProjects(): Promise<ProjectView[]> {
