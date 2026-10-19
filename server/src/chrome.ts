@@ -500,6 +500,8 @@ export function pickFigmaTabs(list: Array<{ title: string; url: string; at: numb
 }
 
 export const figmaTabs = () => pickFigmaTabs([...tabs.values()]);
+/** Every open tab's address and title, read only (the portfolio checks a Framer project tab is open and signed in). */
+export const tabList = () => [...tabs.values()].map(({ url, title, at }) => ({ url, title, at }));
 
 function figmaTab(fileKey: string) {
   return [...tabs.values()].filter((t) => t.url.includes(`/${fileKey}`) && /figma\.com\/(design|file|proto)\//.test(t.url)).sort((a, b) => b.at - a.at)[0] ?? null;
