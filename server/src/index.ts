@@ -29,6 +29,7 @@ import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isCh
 import { loadSample, samplePath } from './sample.js';
 import { addDaily, today } from './spend.js';
 import { onReadCost } from './pluginRead.js';
+import { HistoryError, historyView, onHistoryWrite, syncDecisions } from './history.js';
 import { buildMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
@@ -72,6 +73,12 @@ const live = new Map<string, { chat: AgentSession; watcher: FSWatcher }>();
 let lastViewed: AgentSession;
 
 const viewers = (chat: AgentSession) => [...clients].filter((c) => c.view === chat).length;
+
+// A flow's history file sits two levels above its chat folders, out of their file watchers: tell the open chats.
+onHistoryWrite((file) => {
+  const flowDir = path.dirname(file) + path.sep;
+  for (const { chat } of live.values()) if (path.resolve(chat.cwd).startsWith(flowDir)) chat.fileChangedExternally('history.md');
+});
 
 // Plugin reads (thumbnails, outline, file map, checks) count toward the chat that asked for them, or today's total.
 onReadCost(({ dir, costUsd, tokens }) => {
@@ -374,6 +381,12 @@ const server = http.createServer(async (req, res) => {
     }
     // Decisions Claude logged from the chat (decisions-log.json in the chat folder), oldest first.
     if (url.pathname === '/api/decision-log') return json({ items: await readChatDecisions(chat.cwd) });
+    // The flow's history file (flows/NN-slug/history.md) and a read of its Decision stickies from Figma.
+    if (url.pathname === '/api/history/sync' && req.method === 'POST') {
+      await syncDecisions(chat.cwd);
+      return json(await historyView(chat.cwd));
+    }
+    if (url.pathname === '/api/history') return json(await historyView(chat.cwd));
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
     if (url.pathname === '/api/awaiting') return json(req.method === 'POST' ? await updateAwaiting(await readJsonBody()) : await readAwaiting());
     if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
@@ -588,7 +601,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (err) {
-    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof DecisionError ? err.status : 500);
+    json({ error: err instanceof Error ? err.message : String(err) }, err instanceof FigmaError || err instanceof AttachError || err instanceof DecisionError ? err.status : err instanceof HistoryError ? 409 : 500);
   }
 });
 
