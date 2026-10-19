@@ -74,6 +74,7 @@ describe('createFlow', () => {
     const saved = await readProject(dir);
     expect(saved?.flows.map((f) => f.slug)).toEqual(['onboarding']);
     expect(JSON.parse(await readFile(path.join(dir, 'flows', '01-onboarding', 'flow.json'), 'utf8')).name).toBe('Onboarding');
+    expect(JSON.parse(await readFile(path.join(r.cwd, 'workflow.json'), 'utf8'))).toMatchObject({ workflow: 'scratch', step: 'explore', round: 1 });
   });
 
   it('keeps the flow when Figma fails', async () => {
