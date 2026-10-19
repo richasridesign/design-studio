@@ -257,6 +257,26 @@ describe('a run on her note alone', () => {
     expect(v.suggestions.map((x) => [x.sources[0].block, x.images])).toEqual([['note', []], ['note', []]]);
     // Her frozen work is still there for the next run: nothing was read or marked.
     expect((await P.findBlocks(await P.readPortfolio())).blocks.some((b) => b.key === a.block)).toBe(true);
+
+    // Revise on the Pick step: s2 is rewritten and kept by id, s1 is dropped, a new one comes in. Her pick stays on s2.
+    await P.savePicks(run.id, { s1: { choice: 'use', draft: 'Mine.', images: [], cleared: true }, s2: { choice: 'use', draft: 'My Design Studio line.', images: [], cleared: true } });
+    P.portfolioDeps.chat = { run: (async (prompt: string, o: any) => {
+      prompts.push(prompt);
+      const prev = JSON.parse(await readFile(path.join(o.cwd, 'previous.json'), 'utf8'));
+      expect(prev.map((x: any) => [x.id, x.choice, x.draft])).toEqual([['s1', 'use', 'Mine.'], ['s2', 'use', 'My Design Studio line.']]);
+      return { data: { suggestions: [
+        { was: 's2', page: '/', section: 'Work', kind: 'add', what: 'Add Design Studio', why: 'She asked', sources: [{ block: 'note', quotes: [] }], draft: 'Design Studio, shorter.', images: [], flags: [] },
+        { page: '/about', section: 'Intro', kind: 'change', what: 'New', why: 'She asked', sources: [], draft: 'New line.', images: [], flags: [] },
+      ] }, tokens: 1, costUsd: 0, text: '' };
+    }) as any };
+    await expect(P.reviseRun(run.id, ' ')).rejects.toThrow('Write what to change in these suggestions');
+    expect((await P.reviseRun(run.id, 'Drop the About one')).state).toBe('suggesting');
+    await until(async () => (await P.readRun(run.id)).state === 'picking');
+    expect(await readFile(path.join(dir, 'revise.md'), 'utf8')).toBe('Drop the About one\n');
+    const r = await P.runView(run.id);
+    expect(r.suggestions.map((x) => x.id)).toEqual(['s2', 's3']);
+    // Claude rewrote s2's copy, so her tick "I can show this" is asked again.
+    expect(r.picks).toEqual({ s2: { choice: 'use', draft: 'Design Studio, shorter.', images: [], cleared: false } });
   });
 });
 

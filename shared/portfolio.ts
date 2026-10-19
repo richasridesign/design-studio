@@ -274,10 +274,11 @@ const str = (v: unknown, max: number) => stripDashes(String(v ?? '')).replace(/\
  * Claude's suggestions, checked: known blocks and screens only, dashes stripped, the server's own flags added to
  * Claude's, at most MAX_SUGGESTIONS, ids s1..sN in Claude's order (most useful first).
  */
-export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; screens: string[] }>, names: Array<{ name: string; kind: FlagKind }>, fallback?: string): Suggestion[] {
+export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; screens: string[] }>, names: Array<{ name: string; kind: FlagKind }>, fallback?: string, keep?: string[]): Suggestion[] {
   const list = Array.isArray(raw) ? raw : isObj(raw) && Array.isArray(raw.suggestions) ? raw.suggestions : [];
   const known = new Map(blocks.map((b) => [b.key, new Set(b.screens)]));
   const out: Suggestion[] = [];
+  const was: Array<string | null> = [];
   for (const r of list) {
     if (!isObj(r) || out.length >= MAX_SUGGESTIONS) continue;
     const kind: SuggestionKind = ['add', 'change', 'new-case-study', 'new-image'].includes(r.kind) ? r.kind : 'add';
@@ -293,6 +294,8 @@ export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; scre
     const claudeFlags: Flag[] = (Array.isArray(r.flags) ? r.flags : [])
       .filter((f: any) => isObj(f) && typeof f.text === 'string' && f.text.trim())
       .map((f: any) => ({ kind: (['client', 'product', 'person', 'number', 'data'].includes(f.kind) ? f.kind : 'data') as FlagKind, text: String(f.text).trim().slice(0, 80) }));
+    // A revision keeps the id of a suggestion it keeps or changes (once each), so her pick stays on it.
+    was.push(keep && typeof r.was === 'string' && keep.includes(r.was) && !was.includes(r.was) ? r.was : null);
     out.push({
       id: `s${out.length + 1}`,
       page,
@@ -305,6 +308,25 @@ export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; scre
       images: (Array.isArray(r.images) ? r.images : []).map(String).filter((id: string) => screens.has(id)).slice(0, 6),
       flags: mergeFlags(claudeFlags, findFlags(draft, names)),
     });
+  }
+  if (!keep) return out;
+  let next = Math.max(0, ...keep.map((id) => Number(id.slice(1)) || 0));
+  return out.map((s, i) => ({ ...s, id: was[i] ?? `s${++next}` }));
+}
+
+/**
+ * Her picks after a revision: a suggestion that kept its id keeps her choice and images. Her own copy stays
+ * unless Claude rewrote that draft, and "I can show this" stays only when the copy and images she cleared did.
+ */
+export function carryPicks(before: Suggestion[], after: Suggestion[], picks: Picks): Picks {
+  const out: Picks = {};
+  for (const s of after) {
+    const old = before.find((x) => x.id === s.id);
+    const p = old && picks[s.id];
+    if (!old || !p) continue;
+    const draft = s.draft !== old.draft ? s.draft : p.draft;
+    const images = p.images.filter((x) => s.images.includes(x));
+    out[s.id] = { choice: p.choice, draft, images, cleared: p.cleared && draft === p.draft && images.length === p.images.length };
   }
   return out;
 }
@@ -433,6 +455,8 @@ export type Run = {
   note?: string;
   /** She wrote what should change (note.md in the run folder). */
   hasNote?: boolean;
+  /** Suggesting again from her ask on the Pick step (revise.md). Stop or a failure goes back to her picks. */
+  revise?: boolean;
   /** Paths the edits changed, and others Framer lists as unpublished. */
   changed?: string[];
   outside?: string[];
