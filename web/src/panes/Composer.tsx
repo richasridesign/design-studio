@@ -245,6 +245,7 @@ export function Composer() {
   const modePopStyle = usePopAbove(modeOpen, modeWrap);
   const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
   const [text, setText] = useState('');
+  const [voiceError, setVoiceError] = useState('');
   const [caret, setCaret] = useState(0);
   const [sel, setSel] = useState(0);
   const [dismissed, setDismissed] = useState('');
@@ -603,7 +604,7 @@ export function Composer() {
           <span className="cp-spacer" />
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
           <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="paperclip" small /></button>
-          <Voice onText={dictate} />
+          <Voice onText={dictate} onError={setVoiceError} />
           {running && (
             <button className="cp-stop" title={stopping ? 'Stopping…' : 'Stop Claude'} aria-label={stopping ? 'Stopping' : 'Stop'} disabled={stopping} onClick={() => send({ type: 'interrupt' })}>
               <Icon name={stopping ? 'loading' : 'debug-stop'} small spin={stopping} />
@@ -621,7 +622,9 @@ export function Composer() {
         </div>
       </div>
       <div className="cp-under">
-        {hint && <span className="cp-hint">{hint}</span>}
+        {voiceError
+          ? <span className="cp-hint cp-error" role="alert"><Icon name="warning" small />{voiceError}</span>
+          : hint && <span className="cp-hint">{hint}</span>}
         <span className="cp-stats">
           {pct !== null && <span {...memoryTip.props} tabIndex={0} className={level} aria-describedby={memoryTip.open ? memoryTip.id : undefined}>Memory used: {pct}%</span>}
           {memoryTip.tip}

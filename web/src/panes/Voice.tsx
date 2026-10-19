@@ -30,9 +30,14 @@ const ERRORS: Record<string, string> = {
 
 const HOLD_MS = 400;
 
-export function Voice({ onText, onSubmit }: { onText: (text: string, final: boolean) => void; onSubmit?: () => void }) {
+// Ending this soon with nothing heard and no error means the system stopped it, not her.
+const QUICK_END_MS = 1500;
+const QUICK_END = 'Dictation stopped right away. Allow Design Studio under Speech Recognition and Microphone in System Settings, Privacy & Security';
+
+export function Voice({ onText, onSubmit, onError }: { onText: (text: string, final: boolean) => void; onSubmit?: () => void; onError?: (message: string) => void }) {
   const [listening, setListening] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setErrorState] = useState('');
+  const setError = (m: string) => { setErrorState(m); onError?.(m); };
   const rec = useRef<Recognition | null>(null);
   const handlers = useRef({ onText, onSubmit });
   handlers.current = { onText, onSubmit };
@@ -50,7 +55,11 @@ export function Voice({ onText, onSubmit }: { onText: (text: string, final: bool
     r.interimResults = true;
     let done = 0;
     let pending = '';
+    let heard = false;
+    let failed = false;
+    const began = Date.now();
     r.onresult = (e) => {
+      heard = true;
       const rest = Array.from(e.results).slice(done);
       pending = fixTerms(rest.map((x) => x[0].transcript).join('').trim());
       const final = rest.every((x) => x.isFinal);
@@ -58,8 +67,13 @@ export function Voice({ onText, onSubmit }: { onText: (text: string, final: bool
       handlers.current.onText(pending, final);
       if (final) pending = '';
     };
-    r.onerror = (e) => { if (e.error !== 'aborted') setError(ERRORS[e.error] ?? `Voice input failed: ${e.error}`); };
+    r.onerror = (e) => {
+      if (e.error === 'aborted') return;
+      failed = true;
+      setError(ERRORS[e.error] ?? `Voice input failed: ${e.error}`);
+    };
     r.onend = () => {
+      if (!heard && !failed && Date.now() - began < QUICK_END_MS) setError(QUICK_END);
       if (pending) handlers.current.onText(pending, true);
       rec.current = null;
       setListening(false);
