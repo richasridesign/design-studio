@@ -13,7 +13,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
-import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
+import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession } from './session.js';
 import { notifyAway } from './notify.js';
@@ -106,10 +106,10 @@ async function createChat(cwd: string, resume?: string, title = '') {
   const chat = new AgentSession(cwd, figma, resume);
   chat.title = title;
   await chat.init();
-  chat.onFocus = (nodeId) => {
-    clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId }));
+  chat.onFocus = (nodeIds) => {
+    clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId: nodeIds[0] }));
     const current = chat.figmaFile;
-    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? focusFigma(current.key, nodeId, false) : null));
+    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds) : null));
   };
   await chat.loadHistory();
   chat.onMessage((m) => {

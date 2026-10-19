@@ -460,6 +460,30 @@ const FOCUS = (id: string) => `(async () => {
   return 'ok';
 })()`;
 
+/**
+ * Shows the nodes an edit changed: only the deepest ones (a section the script walked is not the edit), on the page of
+ * the first. It stays put when they are already in view, and never zooms past 100%, so a small tag shows with its row.
+ */
+export const FOLLOW = (ids: string[]) => `(async () => {
+  if (typeof figma === 'undefined' || !figma.getNodeByIdAsync) return 'noapi';
+  const found = (await Promise.all(${JSON.stringify(ids)}.map((id) => figma.getNodeByIdAsync(id).catch(() => null))))
+    .filter((n) => n && n.type !== 'PAGE' && n.type !== 'DOCUMENT' && n.absoluteBoundingBox);
+  if (!found.length) return 'nonode';
+  const pageOf = (n) => { let p = n; while (p && p.type !== 'PAGE') p = p.parent; return p; };
+  const page = pageOf(found[0]);
+  const within = (a, b) => { for (let p = a.parent; p; p = p.parent) if (p === b) return true; return false; };
+  const onPage = found.filter((n) => pageOf(n) === page);
+  const nodes = onPage.filter((n) => !onPage.some((m) => m !== n && within(m, n)));
+  if (figma.currentPage === page) {
+    const v = figma.viewport.bounds;
+    const shown = nodes.every((n) => { const b = n.absoluteBoundingBox; return b.x >= v.x && b.y >= v.y && b.x + b.width <= v.x + v.width && b.y + b.height <= v.y + v.height; });
+    if (shown && figma.viewport.zoom >= 0.25) return 'shown';
+  } else if (page) await figma.setCurrentPageAsync(page);
+  figma.viewport.scrollAndZoomIntoView(nodes);
+  if (figma.viewport.zoom > 1) figma.viewport.zoom = 1;
+  return 'ok';
+})()`;
+
 export function pickFigmaTabs(list: Array<{ title: string; url: string; at: number }>, max = 5) {
   const seen = new Set<string>();
   const out: Array<{ title: string; url: string }> = [];
@@ -511,6 +535,44 @@ export async function focusFigma(fileKey: string, nodeId: string, navigate: bool
       await call('Page.navigate', { url }, session);
       return 'navigated';
     }
+    return String(result?.value ?? 'failed');
+  } catch (err) {
+    return `failed: ${(err as Error).message}`;
+  } finally {
+    if (session && !own) void call('Target.detachFromTarget', { sessionId: session }).catch(() => {});
+  }
+}
+
+let following = false;
+let nextFollow: { fileKey: string; ids: string[] } | null = null;
+
+/** Moves her Figma tab to what Claude just edited. Edits come fast, so one move runs at a time and only the newest waits. */
+export async function followFigma(fileKey: string, ids: string[]) {
+  nextFollow = { fileKey, ids };
+  if (following) return;
+  following = true;
+  try {
+    while (nextFollow) {
+      const job: { fileKey: string; ids: string[] } = nextFollow;
+      nextFollow = null;
+      const result = await followOnce(job.fileKey, job.ids);
+      if (result !== 'ok' && result !== 'shown') console.log(`follow in Figma: ${result}`);
+      await sleep(600);
+    }
+  } finally {
+    following = false;
+  }
+}
+
+async function followOnce(fileKey: string, ids: string[]) {
+  if (!cdp) return 'nochrome';
+  const tab = figmaTab(fileKey);
+  if (!tab) return 'notab';
+  const own = watching?.target === tab.id ? watching.session : null;
+  let session = own;
+  try {
+    session ??= (await call('Target.attachToTarget', { targetId: tab.id, flatten: true }, undefined, 3000)).sessionId as string;
+    const { result } = await call('Runtime.evaluate', { expression: FOLLOW(ids), awaitPromise: true, returnByValue: true }, session, 8000);
     return String(result?.value ?? 'failed');
   } catch (err) {
     return `failed: ${(err as Error).message}`;
