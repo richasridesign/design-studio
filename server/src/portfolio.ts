@@ -487,11 +487,12 @@ async function record(id: string, published: boolean) {
   return { used: usedN, skipped: skippedN };
 }
 
-/** "I pasted it" (copy pack) or "I published it" (Framer edits): the run is done. */
+/** "I pasted it" (copy pack), "I published it" (Framer edits) or "Keep them" (publish changed): the run is done. */
 export async function finishRun(id: string): Promise<Run> {
   const run = await readRun(id);
-  if (run.state !== 'copy' && run.state !== 'edited') throw new PortfolioError('This run is not ready to finish', 409);
-  const published = run.state === 'edited';
+  // publish-changed: Framer published the edits without her, she checked the live site and keeps them.
+  if (run.state !== 'copy' && run.state !== 'edited' && run.state !== 'publish-changed') throw new PortfolioError('This run is not ready to finish', 409);
+  const published = run.state !== 'copy';
   const r = await record(id, published);
   return updateRun(id, { state: 'done', doneAt: now().getTime(), published, used: r.used, skipped: r.skipped });
 }

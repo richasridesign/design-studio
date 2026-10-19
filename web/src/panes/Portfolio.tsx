@@ -73,7 +73,7 @@ function Strip({ run }: { run: Run | null }) {
       {steps.map((s, i) => (
         <li key={s.id} className={s.state} aria-current={s.state === 'current' ? 'step' : undefined}>
           <span className="pf-step-mark" aria-hidden="true">{s.state === 'done' ? <Icon name="check" small /> : i + 1}</span>
-          <span>{s.label}</span>
+          <span className="pf-step-label">{s.label}</span>
           <span className="sr-only">{s.state === 'done' ? ', done' : s.state === 'current' ? ', current' : ''}</span>
           {i < steps.length - 1 && <Icon name="chevron-right" small />}
         </li>
@@ -232,7 +232,7 @@ export function SetupDialog({ initial, onClose, onDone, onView }: { initial: Por
             <label htmlFor="pf-key">Framer API key{keptKey ? '' : ' *'}</label>
             <div className="pf-key-row">
               <input id="pf-key" type="password" value={key} required={!keptKey} autoComplete="off" spellCheck={false} disabled={busy}
-                placeholder={keptKey ? 'Saved in your Keychain. Paste a new one to replace it' : undefined}
+                placeholder={keptKey ? 'Paste a new key to replace it' : undefined}
                 aria-invalid={keyHelp ? true : undefined} aria-describedby="pf-key-help pf-key-result"
                 onChange={(e) => { setKey(e.target.value); setKeyCheck({ state: 'idle' }); setPhase({ kind: 'form' }); }} onBlur={() => setSeen((s) => ({ ...s, key: true }))} />
               <button type="button" disabled={busy || keyCheck.state === 'checking'} onClick={() => void checkKeyNow()}>{keyCheck.state === 'checking' ? 'Checking…' : 'Check key'}</button>
@@ -692,11 +692,16 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
       case 'publish-changed':
         return (
           <Card tone="error">
-            <h2 className="pf-card-title">Framer published during this run</h2>
+            <h2 className="pf-card-title">Edits stopped</h2>
             <p className="pf-line" role="alert">{publishChangedLine(r, edits)}</p>
             {r.publishBefore && <p className="pf-line small muted">Before: {r.publishBefore}</p>}
             {r.publishAfter && <p className="pf-line small muted">Now: {r.publishAfter}</p>}
-            <div className="pf-foot"><button type="button" className="link" onClick={() => setConfirmUndo(true)}>Undo all</button><span className="spacer" /><a className="pf-btn" href={siteUrl(site)} target="_blank" rel="noreferrer">Open {site}</a></div>
+            <div className="pf-foot">
+              <button type="button" className="link" onClick={() => setConfirmUndo(true)}>Undo all</button>
+              <button type="button" className="link" disabled={!!busy} onClick={() => void act('done')}>{busy === 'done' ? 'Saving…' : 'Keep them'}</button>
+              <span className="spacer" />
+              <a className="pf-btn" href={siteUrl(site)} target="_blank" rel="noreferrer">Open {site}</a>
+            </div>
           </Card>
         );
       case 'edited':
@@ -740,7 +745,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
   return (
     <div className="pf-overlay">
       <div ref={box} className="pf-page" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header className="pf-head">
+        <div className="pf-head">
           <Icon name="globe" />
           <div className="pf-head-text">
             <h1 id={titleId}>Update portfolio</h1>
@@ -749,7 +754,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
           <span className="spacer" />
           {config && <button type="button" className="link pf-head-link" onClick={() => setSetup(true)}>Connection</button>}
           <button type="button" className="icon-btn" aria-label="Close" title="Close" onClick={onClose}><Icon name="close" /></button>
-        </header>
+        </div>
         <div className="pf-body">
           <Strip run={run && rv ? rv.run : null} />
           {card}
