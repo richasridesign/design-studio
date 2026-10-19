@@ -3,6 +3,9 @@ import { getJson, postJson } from '../store';
 import { Icon } from '../Icon';
 import { CHECKS, CHECK_IDS, CHECK_TITLES, addFigmaToClaude, chromeAsk, mcpResult, type CheckId, type CheckResult } from '../setupChecks';
 import { AREAS, AREA_NAMES, FIX_ROUNDS, PRESET_INFO, SHOWN_PRESETS, fixRoundsFor, type Settings as S } from '../../../shared/design';
+import { MAX_PARALLEL } from '../../../shared/tasks';
+
+const PARALLEL_CHOICES = Array.from({ length: MAX_PARALLEL }, (_, i) => i + 1);
 import { shownPreset } from './reviewRuns';
 import { SETTINGS_CHANGED, costLine, openReviewTab } from './ReviewSetup';
 import { shownState, useFigmaRows } from '../StatusBar';
@@ -172,6 +175,13 @@ export function Settings() {
           </div>
           <span className="muted small">After each review, Claude fixes blocking and major findings, then re-reviews what failed. {fixedRounds ? `Your choice of ${s.fixRounds} applies to Focused and Full.` : 'Quick fixes once.'} Shared changes wait for you.</span>
           <span className="muted small">{costLine(shownPreset(s.preset), s.areas, s.fixRounds)}</span>
+        </div>
+        <div className="field">
+          <span id="set-parallel-l">Parallel chats</span>
+          <div className="seg" role="radiogroup" aria-labelledby="set-parallel-l" aria-describedby="set-parallel-help">
+            {PARALLEL_CHOICES.map((n) => <button key={n} role="radio" aria-checked={s.parallelChats === n} className={s.parallelChats === n ? 'on' : ''} onClick={() => save({ parallelChats: n })}>{n}</button>)}
+          </div>
+          <span className="muted small" id="set-parallel-help">When a prompt runs across flows, this many chats work at once and the rest wait their turn. More at once uses the weekly limit faster.</span>
         </div>
         <Toggle label="Ask before changing the file" detail="Claude asks before each change to Figma. Off: Claude edits without asking" on={s.askBeforeEdit} set={(v) => save({ askBeforeEdit: v })} />
         <Toggle label="Follow Claude in Figma" detail="Move the Figma tab to the frame Claude is working on" on={s.followClaude} set={(v) => save({ followClaude: v })} />
