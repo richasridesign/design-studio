@@ -13,6 +13,7 @@ const ROOTS = await vi.hoisted(async () => {
 
 const { eventFromBody, readWorkflow, takeAsk, workflowEvent, workflowView } = await import('./workflow.js');
 const { mapFiles } = await import('./fileMap.js');
+const { historyAfterFigma, instructions } = await import('./options.js');
 
 const OPTS = { preset: 'full' as const, areas: [], reviewing: false };
 
@@ -99,6 +100,28 @@ describe('workflow.json', () => {
     const { root } = await setup();
     expect(await workflowView(root, OPTS)).toEqual({ scope: 'none' });
     expect(await workflowEvent(root, { type: 'edited', at: 1 })).toBeNull();
+  });
+
+  it('an edit in Figma while Review is current makes Update current, from feedback; a read moves nothing', async () => {
+    const { cwd } = await setup();
+    const hook = historyAfterFigma(cwd);
+    const call = (code: string) => hook({ tool_name: 'use_figma', tool_input: { code } } as never, 'u1', { signal: new AbortController().signal });
+    await call('const n = await figma.getNodeByIdAsync("50:3"); return n.name;');
+    await new Promise((r) => setTimeout(r, 30));
+    await expect(readFile(path.join(cwd, 'workflow.json'), 'utf8')).rejects.toThrow();
+    await call('const n = await figma.getNodeByIdAsync("50:3"); n.name = "Home";');
+    await vi.waitFor(async () => expect(await readWorkflow(cwd)).toMatchObject({ step: 'update', fromFeedback: true }));
+  });
+
+  it('a step ask on a flow with no file yet writes nothing for other chats', async () => {
+    const { cwd } = await setup();
+    expect(await takeAsk(cwd, 'chat-1')).toBeNull();
+    await expect(readFile(path.join(cwd, 'workflow.json'), 'utf8')).rejects.toThrow();
+  });
+
+  it('tells flow chats about the workflow, and only them', () => {
+    expect(instructions(null, '', null, 'Flow 3 block', '/p/flows/03-connectors/history.md')).toContain('pass stepDone');
+    expect(instructions(null)).not.toContain('stepDone');
   });
 
   it('checks what the UI posts', () => {

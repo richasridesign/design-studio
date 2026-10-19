@@ -6,6 +6,8 @@ import { MODELS, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
 import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
 import { figmaEdits } from './touched.js';
+import { workflowEvent } from './workflow.js';
+import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -42,6 +44,7 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
     'When you finish a change in Figma, call set_status changes: what changed, on which screens, why. Decisions go on the Decision stickies under each screen, never in set_status.',
     project ? `Projects, flows and iterations:\n${project}` : 'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
     project && history ? `This flow's history is at ${history}. Read it before changing a screen that was decided before. Do not edit it: Design Studio writes it.` : '',
+    project && history ? WORKFLOW_RULES : '',
     figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
     // The Fix button on the Steps panel asks in plain words; the file name lives here, out of the designer's message.
@@ -73,11 +76,16 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           important: z.string().max(500).optional().describe('A risk, blocker or surprise the designer must know about. Omit when there is none. Decisions go on the Decision stickies in Figma.'),
           changes: z.array(CHANGE_INPUT).max(20).optional().describe('Changes you finished in Figma since the last call, once each: what changed, on which screens, why. Omit when nothing changed.'),
           nodes: z.array(z.string().max(40)).max(10).optional().describe('Figma node ids (like "12:34") you are working on, newest last. Their Figma view moves to the last one.'),
+          stepDone: z.enum(STEP_IDS).optional().describe('In a flow chat: the workflow step you just finished (update, hifi or system). Omit otherwise.'),
         },
-        async ({ text, nodes, changes }) => {
+        async ({ text, nodes, changes, stepDone }) => {
           onStatus(text, nodes ?? []);
           // A failed write never fails the status update.
-          if (cwd && changes?.length) await recordChanges(cwd, changes).catch((err) => console.error(`history: ${String(err)}`));
+          if (cwd && changes?.length) {
+            await recordChanges(cwd, changes).catch((err) => console.error(`history: ${String(err)}`));
+            await workflowEvent(cwd, { type: 'changes', count: changes.length, screens: changes.flatMap((c) => c.screens ?? []), at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
+          }
+          if (cwd && stepDone) await workflowEvent(cwd, { type: 'done', step: stepDone, at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
           return { content: [{ type: 'text', text: 'ok' }] };
         },
       ),
@@ -108,11 +116,17 @@ export function historyGuard(cwd: string): HookCallback {
   };
 }
 
-/** After a use_figma call that edited the file in a flow chat, the history's decisions are out of date until the next sync. */
+/**
+ * After a use_figma call that edited the file in a flow chat: the history's decisions are out of date until the next
+ * sync, and the workflow takes it as feedback (Update becomes current while Review is current or after a done Update).
+ */
 export function historyAfterFigma(cwd: string): HookCallback {
   return async (input) => {
     const code = String(((input as { tool_input?: { code?: unknown } }).tool_input ?? {}).code ?? '');
-    if (code && figmaEdits(code)) void markFlowEdited(cwd).catch(() => {});
+    if (code && figmaEdits(code)) {
+      void markFlowEdited(cwd).catch(() => {});
+      void workflowEvent(cwd, { type: 'edited', at: Date.now() }).catch(() => {});
+    }
     return {};
   };
 }
