@@ -10,10 +10,10 @@ import { cachedMap } from './fileMap.js';
 import { readReview } from './review.js';
 import { readTriage } from './triage.js';
 import { projectRoot } from './roots.js';
-import { readProject } from './project.js';
+import { ITERATIONS_DIR, flowDir, readProject } from './project.js';
 import { readProfile } from './profile.js';
 import { SAMPLE_KEY } from './figma.js';
-import type { Project } from '../../shared/project.js';
+import { workingIteration, type Project } from '../../shared/project.js';
 
 // workflow.json in a flow chat's folder (flows/NN-slug/iterations/<id>/): the step state of the flow's workflow in
 // that iteration, shared by every chat on it. Only this module writes it, one write at a time per file. The file
@@ -101,6 +101,24 @@ export async function takeAsk(cwd: string, chat: string): Promise<WorkflowState[
 export async function reviewFrames(cwd: string): Promise<string[]> {
   return ((await flowOf(cwd))?.frames.frames ?? []).map((f) => f.id);
 }
+
+/**
+ * The project row tag and the report: the step of the working iteration's flow that moved last ("Update, round 2").
+ * Only flows with a workflow.json count, so a project nobody has started shows no tag.
+ */
+export async function projectState(root: string, project: Project | null): Promise<{ flow: Project['flows'][number]; state: WorkflowState } | null> {
+  const it = project && workingIteration(project);
+  if (!project || !it) return null;
+  const found = await Promise.all(project.flows.map(async (flow) => {
+    const cwd = path.join(flowDir(root, flow), ITERATIONS_DIR, it.id);
+    if (!(await readJson(workflowFile(cwd)))) return null;
+    const state = await readWorkflow(cwd).catch(() => null);
+    return state ? { flow, state } : null;
+  }));
+  return found.filter((x) => !!x).sort((a, b) => b.state.at - a.state.at)[0] ?? null;
+}
+
+export const projectLabel = async (root: string, project: Project | null) => workflowLabel((await projectState(root, project))?.state ?? null);
 
 export type WorkflowView =
   | { scope: 'none' }

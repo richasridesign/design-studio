@@ -14,6 +14,8 @@ const ROOTS = await vi.hoisted(async () => {
 const { eventFromBody, readWorkflow, takeAsk, workflowEvent, workflowView } = await import('./workflow.js');
 const { mapFiles } = await import('./fileMap.js');
 const { historyAfterFigma, instructions } = await import('./options.js');
+const { buildReport } = await import('./report.js');
+const { listProjects } = await import('./project.js');
 
 const OPTS = { preset: 'full' as const, areas: [], reviewing: false };
 
@@ -139,5 +141,20 @@ describe('workflow.json', () => {
     expect(() => eventFromBody({ action: 'done' }, 'c')).toThrow(/step/);
     expect(eventFromBody({ action: 'done', step: 'update' }, 'c', 5)).toEqual({ type: 'done', step: 'update', at: 5 });
     expect(eventFromBody({ action: 'pick', id: 'B', why: 'Fewer steps' }, 'c', 5)).toEqual({ type: 'pick', id: 'B', why: 'Fewer steps', at: 5 });
+  });
+
+  it('the project row tag and the report show the step of the flow that moved last', async () => {
+    const { root, cwd } = await setup();
+    const label = async () => (await listProjects()).find((p) => p.cwd === root)?.stage;
+    expect(await label()).toBeNull();
+    await workflowEvent(cwd, { type: 'reviewed', at: 10 });
+    await workflowEvent(cwd, { type: 'done', step: 'update', at: 20 });
+    await workflowEvent(cwd, { type: 'reviewed', at: 30 });
+    expect(await label()).toBe('Update, round 2');
+    const html = await buildReport(cwd, { key: 'KEY', name: 'File', url: 'https://www.figma.com/design/KEY' });
+    expect(html).toContain('<dt>Workflow:</dt><dd>Review and update</dd>');
+    expect(html).toContain('<dt>Step:</dt><dd>Update, round 2</dd>');
+    expect(html).toContain('<span class="st pass">Review</span><small>Done</small>');
+    expect(html).toContain('<span class="st current">Update</span><small>Current</small>');
   });
 });

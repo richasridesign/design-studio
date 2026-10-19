@@ -72,9 +72,8 @@ describe('buildReport', () => {
     expect(html).not.toContain('<h2>Scope</h2>');
   });
 
-  it('opens with a summary: goal, Figma link, stage strip and open issue counts', async () => {
+  it('opens with a summary: goal, Figma link and open issue counts', async () => {
     await writeFile(path.join(dir, 'plan.md'), '# Shop\n\n## Goal\nLet people <check out> fast.\n\n## Users\n- Parents');
-    await writeFile(path.join(dir, 'stages.json'), JSON.stringify({ spec: { at: 1 }, explore: { at: 2 } }));
     await writeFile(path.join(dir, 'design.json'), JSON.stringify({ frames: [{ screen: 'Cart', state: 'Default', nodeId: '1:2' }, { screen: 'Cart', state: 'Error', nodeId: '1:3' }] }));
     const f = (id: string, severity: string) => ({ id, area: 'color', node: '1:2', severity, rule: 'r', fix: 'x' });
     await writeFile(path.join(dir, 'review.json'), JSON.stringify({ runs: [{ id: 'r', kind: 'review', at: 1, round: 1, preset: 'quick', frames: ['1:2'], check: [f('a', 'blocking'), f('b', 'minor')], results: [{ area: 'color', pass: false, summary: 's', findings: [f('c', 'major'), f('d', 'major')], tokens: 0, costUsd: 0 }], rules: [{ rule: 'One primary', state: 'fail', frames: [] }], tokens: 0, costUsd: 0 }] }));
@@ -87,10 +86,8 @@ describe('buildReport', () => {
     expect(top).toContain('<p class="lede">Let people &lt;check out&gt; fast.</p>');
     expect(top).toContain(`<a class="file" href="${figma.url}">Open in Figma</a>`);
     expect(top).toContain('<dt>Frames:</dt><dd>2 frames, 1 screen</dd>');
-    expect(top).toContain('<dt>Next step:</dt><dd>Build</dd>');
-    expect(top).toContain('<span class="st pass">Sketch</span><small>Done</small>');
-    expect(top).toContain('<span class="st current">Build</span><small>Next</small>');
-    expect(top).toContain('<span class="st none">Review</span><small>To do</small>');
+    // Not on a flow: no workflow strip.
+    expect(top).not.toContain('<dt>Workflow:</dt>');
     expect(top).toContain('<span class="num">1</span><span class="st blocking">Blocking</span>');
     expect(top).toContain('<span class="num">2</span><span class="st major">Major</span>');
     expect(top).toContain('<span class="num">1</span><span class="st minor">Minor</span>');
@@ -199,7 +196,7 @@ describe('buildReport', () => {
     const html = await buildReport(dir, figma);
     expect(html).not.toContain('<nav');
     expect(html).not.toContain('Open issues');
-    expect(html).not.toContain('<dt>Next step:</dt>');
+    expect(html).not.toContain('<dt>Workflow:</dt>');
   });
 
   it('drops a title heading and starts headings at h3', () => {

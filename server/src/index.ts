@@ -3,7 +3,7 @@ import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
-import { eventFromBody, workflowEvent, workflowView } from './workflow.js';
+import { eventFromBody, projectLabel, workflowEvent, workflowView } from './workflow.js';
 import { readRecipes, writeRecipes } from './recipes.js';
 import { portfolioRoute } from './portfolioRoutes.js';
 import http from 'node:http';
@@ -50,7 +50,7 @@ import { readAwaiting, updateAwaiting } from './awaiting.js';
 import { readProfile } from './profile.js';
 import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { briefLede, buildReport, reportSlug } from './report.js';
-import { changeStage, folderLabel, readApprovals, readStages } from './stages.js';
+import { changeStage, readApprovals, readStages } from './stages.js';
 import { approvalReply, planApprovedOnCard } from '../../shared/stages.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
@@ -533,7 +533,7 @@ const server = http.createServer(async (req, res) => {
         return json(await renameToConvention(dir, figmaKey));
       }
     }
-    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));
+    if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await projectLabel(f.dir, await readProject(f.dir)).catch(() => null) }))));
     // Saved on disk per chat: only a missing outline or ?fresh=1 reads the file again.
     if (url.pathname === '/api/figma/outline') {
       const fresh = url.searchParams.get('fresh') === '1';
