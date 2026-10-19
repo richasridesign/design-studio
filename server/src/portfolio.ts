@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import {
-  PORTFOLIO_FOLDER, SITE_PAGES, blockKey, blockLabel, blockOutcome, cleanConfig, cleanPortfolio, cleanSite, cleanSuggestions, dayStart, decisionsOf,
+  NOTE_BLOCK, PORTFOLIO_FOLDER, SITE_PAGES, blockKey, cleanNote, blockLabel, blockOutcome, cleanConfig, cleanPortfolio, cleanSite, cleanSuggestions, dayStart, decisionsOf,
   changedPages, findFlags, hideNames, isNew, isRunId, isRunning, mergeFlags, pickOf, pickSummary, keyError, projectLinkError, publishLine, publishMoved, runBlock, runId, siteError,
   upsertRunBlock, usedLine,
   type BlockRef, type Clearance, type EditPlanItem, type EditRecord, type PublishReading, type FlagKind, type FramerConfig, type PickEntry, type Picks, type PortfolioFile, type Run, type RunState, type ScreenNote, type Suggestion,
@@ -284,18 +284,26 @@ async function gather(id: string, found: Found[], signal: AbortSignal) {
     if (signal.aborted) return null;
     notes.push(`Screens were not exported (${e instanceof Error ? e.message : String(e)}), so suggestions use the decisions only.`);
   }
-  const config = await readConfig();
-  const site = await fetchSite(config?.site ?? 'richadesign.in', path.join(dir, 'site'), portfolioDeps.fetch, (url) => browser().pageText(url)).catch(() => ({ read: 0, failed: SITE_PAGES.map((p) => p.path) }));
-  if (site.failed.length) notes.push(site.read ? `Could not read ${site.failed.join(', ')} on the site.` : 'Could not read the live site, so suggestions may repeat what it says.');
+  const site = await readSite(id);
+  if (site) notes.push(site);
   return { candidates, note: notes.join(' ') };
+}
+
+/** The live pages as text into the run's site/ folder. Returns a note when some could not be read. */
+async function readSite(id: string): Promise<string> {
+  const config = await readConfig();
+  const site = await fetchSite(config?.site ?? 'richadesign.in', path.join(runDir(id), 'site'), portfolioDeps.fetch, (url) => browser().pageText(url)).catch(() => ({ read: 0, failed: SITE_PAGES.map((p) => p.path) }));
+  if (!site.failed.length) return '';
+  return site.read ? `Could not read ${site.failed.join(', ')} on the site.` : 'Could not read the live site, so suggestions may repeat what it says.';
 }
 
 const projectNames = (c: Candidate[]): Array<{ name: string; kind: FlagKind }> => [...new Set(c.map((x) => x.project.name))].map((name) => ({ name, kind: 'product' as const }));
 
 /** Claude's raw suggestions, cleaned, with names hidden for "Cleared, hide names" projects. */
-export function finishSuggestions(raw: unknown, candidates: Candidate[]): Suggestion[] {
+export function finishSuggestions(raw: unknown, candidates: Candidate[], note = false): Suggestion[] {
   const names = projectNames(candidates);
-  const list = cleanSuggestions(raw, candidates.map((c) => ({ key: c.key, screens: c.screens.map((s) => s.id).filter((x): x is string => !!x) })), names);
+  const known = candidates.map((c) => ({ key: c.key, screens: c.screens.map((s) => s.id).filter((x): x is string => !!x) }));
+  const list = cleanSuggestions(raw, note ? [...known, { key: NOTE_BLOCK, screens: [] }] : known, names, note ? NOTE_BLOCK : undefined);
   const cleared = new Set(candidates.filter((c) => c.clearance === 'cleared').map((c) => c.key));
   return list.map((s) => {
     if (!s.sources.some((x) => cleared.has(x.block))) return s;
@@ -304,30 +312,40 @@ export function finishSuggestions(raw: unknown, candidates: Candidate[]): Sugges
   });
 }
 
-async function pipeline(id: string, found: Found[] | null) {
+/**
+ * Gather (when there are blocks), then suggest. found: the blocks to read; an empty list is a run on her note
+ * alone, which reads no project and no Figma, only the live site. null: suggest again from the saved candidates.
+ */
+async function pipeline(id: string, found: Found[] | null, note = false) {
   const abort = new AbortController();
   active.set(id, abort);
   try {
     let candidates: Candidate[];
-    if (found) {
+    if (found?.length) {
       const g = await gather(id, found, abort.signal);
       if (!g) return;
       candidates = g.candidates;
       await updateRun(id, { state: 'suggesting', progress: undefined, note: g.note || undefined });
+    } else if (found) {
+      candidates = [];
+      await writeJson(path.join(runDir(id), 'candidates.json'), candidates);
+      const site = await readSite(id);
+      if (abort.signal.aborted) return;
+      await updateRun(id, { state: 'suggesting', progress: undefined, note: site || undefined });
     } else {
       candidates = await readJson<Candidate[]>(path.join(runDir(id), 'candidates.json'), []);
       await updateRun(id, { state: 'suggesting', error: undefined });
     }
     let raw: unknown[];
     try {
-      raw = (await suggest(runDir(id), candidates.length, portfolioDeps.chat, abort.signal)).raw;
+      raw = (await suggest(runDir(id), candidates.length, portfolioDeps.chat, abort.signal, note)).raw;
     } catch (e) {
       if (abort.signal.aborted) return;
       await updateRun(id, { state: 'suggest-failed', error: `Claude could not suggest updates: ${e instanceof Error ? e.message : String(e)}` });
       return;
     }
     if (abort.signal.aborted) return;
-    const list = finishSuggestions(raw, candidates);
+    const list = finishSuggestions(raw, candidates, note);
     await writeJson(path.join(runDir(id), 'suggestions.json'), list);
     await updateRun(id, { state: 'picking' });
   } catch (e) {
@@ -338,36 +356,42 @@ async function pipeline(id: string, found: Found[] | null) {
   }
 }
 
-/** Starts a run on the ticked blocks. Returns at once; the run moves on in the background and the view polls. */
-export async function startRun(keys: string[]): Promise<Run> {
+/**
+ * Starts a run on the ticked blocks and her note (what should change), either or both. A note alone skips reading
+ * projects and Figma. Returns at once; the run moves on in the background and the view polls.
+ */
+export async function startRun(keys: string[], input?: unknown): Promise<Run> {
   const config = await readConfig();
   if (!config) throw new PortfolioError('Connect your portfolio first');
-  const { blocks } = await findBlocks(await readPortfolio());
-  const found = blocks.filter((b) => keys.includes(b.key));
-  if (!found.length) throw new PortfolioError('Tick at least one block of finished work');
+  const note = cleanNote(input);
+  const found = keys.length ? (await findBlocks(await readPortfolio())).blocks.filter((b) => keys.includes(b.key)) : [];
+  if (!found.length && !note) throw new PortfolioError(keys.length ? 'Tick at least one block of finished work' : 'Write what should change, or freeze an iteration to add finished work');
   if ([...active.keys()].length) throw new PortfolioError('A run is already going. Stop it or wait for it to finish', 409);
   const id = runId(now());
-  const run: Run = { id, state: 'gathering', startedAt: now().getTime(), blocks: found.map((b) => b.key), mode: config.mode };
+  const run: Run = { id, state: found.length ? 'gathering' : 'suggesting', startedAt: now().getTime(), blocks: found.map((b) => b.key), mode: config.mode, ...(note ? { hasNote: true } : {}) };
   await mkdir(runDir(id), { recursive: true });
+  if (note) await writeFile(noteFile(id), `${note}\n`);
   await writeJson(runFile(id), run);
-  void pipeline(id, found);
+  void pipeline(id, found, !!note);
   return run;
 }
+
+const noteFile = (id: string) => path.join(runDir(id), 'note.md');
 
 export async function retryRun(id: string): Promise<Run> {
   const run = await readRun(id);
   if (run.state === 'suggest-failed') {
     await updateRun(id, { state: 'suggesting', error: undefined });
-    void pipeline(id, null);
+    void pipeline(id, null, !!run.hasNote);
     return { ...run, state: 'suggesting', error: undefined };
   }
   if (run.state === 'gather-failed' || run.state === 'stopped') {
-    const { blocks } = await findBlocks(await readPortfolio());
-    const found = blocks.filter((b) => run.blocks.includes(b.key));
-    if (!found.length) throw new PortfolioError('This work was used or skipped in another run');
-    await updateRun(id, { state: 'gathering', error: undefined, note: undefined });
-    void pipeline(id, found);
-    return { ...run, state: 'gathering', error: undefined };
+    const found = run.blocks.length ? (await findBlocks(await readPortfolio())).blocks.filter((b) => run.blocks.includes(b.key)) : [];
+    if (!found.length && !run.hasNote) throw new PortfolioError('This work was used or skipped in another run');
+    const state: RunState = found.length ? 'gathering' : 'suggesting';
+    await updateRun(id, { state, error: undefined, note: undefined, blocks: found.map((b) => b.key) });
+    void pipeline(id, found, !!run.hasNote);
+    return { ...run, state, error: undefined };
   }
   if (run.state === 'plan-failed') return makePlan(id);
   throw new PortfolioError('This run has nothing to try again', 409);
@@ -713,6 +737,13 @@ export async function removeKey(): Promise<FramerConfig | null> {
   const next: FramerConfig = { site: config.site, project: config.project, mode: config.mode === 'copy' ? 'copy' : 'chrome' };
   await writeJson(configFile(), next);
   return next;
+}
+
+/** For the header: is the API key still in the Keychain? Reads the item's attributes only, never the key, and never calls Framer. */
+export async function keyStatus(): Promise<{ saved: boolean }> {
+  const config = await readConfig();
+  const id = config?.mode === 'api' && config.hasKey ? projectId(config.project) : null;
+  return { saved: !!id && (await hasKey(id, keyDeps()).catch(() => false)) };
 }
 
 /** "Framer in your Chrome: Signed in", or why not. Reads tab addresses only. */

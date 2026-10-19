@@ -172,6 +172,14 @@ const DASHES = /\s*[\u2014\u2013]\s*/g;
 /** Em and en dashes become commas: her copy never has them. */
 export const stripDashes = (s: string) => String(s ?? '').replace(DASHES, ', ').replace(/,\s*,/g, ',').replace(/^\s*,\s*/, '');
 
+/** Her note to Claude (what should change on the site) is capped at this many characters. */
+export const NOTE_MAX = 2000;
+/** The source key of a suggestion that rests on her note instead of a block of finished work. */
+export const NOTE_BLOCK = 'note';
+
+/** Her note as Claude reads it: dashes gone line by line, trimmed, capped. */
+export const cleanNote = (s: unknown) => String(s ?? '').replace(/\r\n/g, '\n').split('\n').map((l) => stripDashes(l).trimEnd()).join('\n').trim().slice(0, NOTE_MAX);
+
 /** The error under a draft, or '' when it can be used. */
 export function draftError(text: string): string {
   if (/[\u2014]/.test(text)) return 'Remove the em dash';
@@ -266,7 +274,7 @@ const str = (v: unknown, max: number) => stripDashes(String(v ?? '')).replace(/\
  * Claude's suggestions, checked: known blocks and screens only, dashes stripped, the server's own flags added to
  * Claude's, at most MAX_SUGGESTIONS, ids s1..sN in Claude's order (most useful first).
  */
-export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; screens: string[] }>, names: Array<{ name: string; kind: FlagKind }>): Suggestion[] {
+export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; screens: string[] }>, names: Array<{ name: string; kind: FlagKind }>, fallback?: string): Suggestion[] {
   const list = Array.isArray(raw) ? raw : isObj(raw) && Array.isArray(raw.suggestions) ? raw.suggestions : [];
   const known = new Map(blocks.map((b) => [b.key, new Set(b.screens)]));
   const out: Suggestion[] = [];
@@ -277,6 +285,8 @@ export function cleanSuggestions(raw: unknown, blocks: Array<{ key: string; scre
     const sources = (Array.isArray(r.sources) ? r.sources : [])
       .filter((s: any) => isObj(s) && known.has(String(s.block)))
       .map((s: any) => ({ block: String(s.block), quotes: (Array.isArray(s.quotes) ? s.quotes : []).map((q: unknown) => str(q, 240)).filter(Boolean).slice(0, 5) }));
+    // With her note in the run, a suggestion that names no known block rests on the note.
+    if (!sources.length && fallback) sources.push({ block: fallback, quotes: [] });
     if (!sources.length) continue;
     const screens = new Set(sources.flatMap((s: { block: string }) => [...(known.get(s.block) ?? [])]));
     const draft = String(r.draft ?? '').split('\n').map((l) => stripDashes(l)).join('\n').trim().slice(0, 4000);
@@ -421,6 +431,8 @@ export type Run = {
   screens?: number;
   /** The Figma part that did not work, kept as a note when the run went on without it. */
   note?: string;
+  /** She wrote what should change (note.md in the run folder). */
+  hasNote?: boolean;
   /** Paths the edits changed, and others Framer lists as unpublished. */
   changed?: string[];
   outside?: string[];
@@ -509,6 +521,7 @@ export function runBlock(run: Run, list: Suggestion[], picks: Picks, blocks: Arr
     '',
     '### From',
     ...blocks.map((b) => `- ${b.label}`),
+    ...(run.hasNote ? ['- Your note'] : []),
     '',
   ];
   return lines.join('\n');

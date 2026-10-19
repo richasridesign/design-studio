@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import {
-  PortfolioError, applyRun, backToPicks, checkKey, chromeCheck, finishRun, makePlan, portfolioView, readShot, removeKey, retryRun, runView, savePicks, setup, skipBlocks,
+  PortfolioError, applyRun, backToPicks, checkKey, chromeCheck, finishRun, keyStatus, makePlan, portfolioView, readShot, removeKey, retryRun, runView, savePicks, setup, skipBlocks,
   startRun, stopRun, toCopy, undoRun, updateSettings,
 } from './portfolio.js';
 
@@ -47,6 +47,7 @@ export async function portfolioRoute(req: http.IncomingMessage, res: http.Server
       const b = await body(req);
       return json(await checkKey({ project: b.project, key: typeof b.key === 'string' ? b.key : undefined })), true;
     }
+    if (p === '/api/portfolio/key/status' && !post) return json(await keyStatus()), true;
     if (p === '/api/portfolio/key/remove' && post) {
       await removeKey();
       return json(await portfolioView()), true;
@@ -62,7 +63,7 @@ export async function portfolioRoute(req: http.IncomingMessage, res: http.Server
     }
     if (p === '/api/portfolio/runs' && post) {
       const b = await body(req);
-      return json(await startRun(Array.isArray(b.blocks) ? b.blocks.map(String) : [])), true;
+      return json(await startRun(Array.isArray(b.blocks) ? b.blocks.map(String) : [], typeof b.note === 'string' ? b.note : undefined)), true;
     }
     const m = RUN.exec(p);
     if (m) {
