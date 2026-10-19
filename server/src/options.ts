@@ -42,7 +42,8 @@ export const DECISION_INPUT = z.object({
   what: z.string().max(400).describe('The decision in a few words, like "Connector status: Ready replaces Ready to turn on".'),
   over: z.string().max(400).optional().describe('What it replaced, or the option not chosen.'),
   why: z.string().max(800).optional().describe('The reason, one short sentence.'),
-  by: z.enum(['you', 'claude']).describe('you: the designer asked for it. claude: you chose it.'),
+  // "designer" is accepted too, so a slip in the word never fails the status update.
+  by: z.enum(['you', 'claude', 'designer']).describe('you: the designer asked for it. claude: you chose it.'),
   screen: z.string().max(200).optional().describe('The screen or flow it applies to, when there is one.'),
 });
 

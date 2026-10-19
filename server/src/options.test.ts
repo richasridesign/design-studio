@@ -42,7 +42,8 @@ describe('set_status decisions', () => {
   it('takes what and by, with over, why and screen optional', () => {
     expect(DECISION_INPUT.parse({ what: 'Ready replaces Ready to turn on', by: 'you' })).toEqual({ what: 'Ready replaces Ready to turn on', by: 'you' });
     expect(DECISION_INPUT.safeParse({ what: 'A', over: 'B', why: 'C', by: 'claude', screen: 'Connectors' }).success).toBe(true);
-    expect(DECISION_INPUT.safeParse({ what: 'A', by: 'designer' }).success).toBe(false);
+    expect(DECISION_INPUT.safeParse({ what: 'A', by: 'designer' }).success).toBe(true);
+    expect(DECISION_INPUT.safeParse({ what: 'A', by: 'someone' }).success).toBe(false);
     expect(DECISION_INPUT.safeParse({ by: 'you' }).success).toBe(false);
   });
 });
