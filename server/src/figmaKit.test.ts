@@ -127,7 +127,7 @@ describe('DS.decisions', () => {
     } };
     const set: any = { type: 'COMPONENT_SET', name: 'Decision', children: [variant], defaultVariant: variant };
     variant.parent = set;
-    const figma = { currentPage: page, root: { findAllWithCriteria: () => [] }, loadAllPagesAsync: async () => {}, loadFontAsync: async () => {}, getNodeByIdAsync: async (id: string) => [section, screen, ...section.children].find((n: any) => n.id === id) ?? null };
+    const figma = { currentPage: page, root: { children: [page], findAllWithCriteria: () => [] }, loadFontAsync: async () => {}, getNodeByIdAsync: async (id: string) => [section, screen, ...section.children].find((n: any) => n.id === id) ?? null };
     return { figma, section, screen };
   }
   const three = [
@@ -164,6 +164,11 @@ describe('DS.decisions', () => {
     expect(section.children.filter((k: any) => k.type === 'INSTANCE')).toHaveLength(3);
   });
 
+  it('never calls loadAllPagesAsync', async () => {
+    const { FIGMA_KIT } = await import('./figmaKit.js');
+    expect(FIGMA_KIT).not.toMatch(/loadAllPagesAsync/);
+  });
+
   it('refuses stickies of another iteration, more than 5, and a file with no Decision component', async () => {
     const a = world();
     let DS = await kit(a.figma);
@@ -172,7 +177,11 @@ describe('DS.decisions', () => {
     await expect(DS.decisions(a.screen, [...three, ...three], {})).rejects.toThrow(/at most 5/);
     const b = world({ comp: false });
     DS = await kit(b.figma);
+    // Other pages are loaded one at a time: loadAllPagesAsync is not available through the MCP.
+    const other = { name: 'Components', loaded: false, findAllWithCriteria: () => [], loadAsync: async () => { other.loaded = true; } };
+    b.figma.root.children.push(other as any);
     await expect(DS.decisions(b.screen, three)).rejects.toThrow('No Decision sticky component: make one first');
+    expect(other.loaded).toBe(true);
     expect((await DS.check([b.screen.id])).fewStickies).toEqual([['2:1', 'Connectors', 0]]);
   });
 });
