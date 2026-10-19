@@ -17,6 +17,7 @@ import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFi
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
 import { Tasks, type ChatHandle } from './tasks.js';
+import { removeProject, renameToConvention } from './projectAdmin.js';
 import { TASK_CAP } from '../../shared/tasks.js';
 import { MODELS } from '../../shared/design.js';
 import { notifyAway } from './notify.js';
@@ -185,6 +186,19 @@ async function closeByUser(chat: AgentSession) {
   if (lastViewed === chat) lastViewed = next;
   for (const c of clients) if (c.view === chat) view(c, next);
   closeChat(chat);
+}
+
+/** Remove project: closes every live chat inside the folder. Whoever views one moves to a chat outside it, or a new one. */
+async function closeChatsIn(root: string): Promise<number> {
+  const inside = (c: AgentSession) => { const d = path.resolve(c.cwd); return d === root || d.startsWith(root + path.sep); };
+  const all = [...live.values()].map((l) => l.chat);
+  const doomed = all.filter(inside);
+  if (!doomed.length) return 0;
+  const next = all.filter((c) => !inside(c)).sort((a, b) => summary(b).lastActive - summary(a).lastActive)[0] ?? (await freshChatFolder().then(createChat));
+  if (doomed.includes(lastViewed)) lastViewed = next;
+  for (const c of clients) if (doomed.includes(c.view)) view(c, next);
+  for (const c of doomed) closeChat(c);
+  return doomed.length;
 }
 
 const idle = (chat: AgentSession) => !chat.state.session.running && chat.state.pending.length === 0 && viewers(chat) === 0 && chat !== lastViewed;
@@ -453,6 +467,22 @@ const server = http.createServer(async (req, res) => {
         const r = await addFlowToIteration(dir, figmaKey, String(body?.id ?? ''), String(body?.slug ?? ''));
         broadcastLive();
         return json(r);
+      }
+      // Remove project moves the folder to .trash (nothing deleted, Figma untouched); rename fixes the working sections' names.
+      if (url.pathname === '/api/projects/remove' && req.method === 'POST') {
+        if (!asked || !file || file.key === SAMPLE_KEY) return json({ error: 'Only a project folder with a Figma file can be removed' }, 400);
+        const stopTasks = async (root: string) => {
+          const open = (await tasks.list(root)).filter((t) => t.state === 'running' || t.state === 'paused');
+          for (const t of open) await tasks.stop(t.id);
+          return open.length;
+        };
+        const r = await removeProject(dir, { stopTasks, closeChats: closeChatsIn });
+        broadcastLive();
+        return json(r);
+      }
+      if (url.pathname === '/api/projects/rename' && req.method === 'POST') {
+        if (!figmaKey) return json({ error: 'This folder has no Figma file' }, 400);
+        return json(await renameToConvention(dir, figmaKey));
       }
     }
     if (url.pathname === '/api/figma/folders') return json(await Promise.all((await chatFolders()).filter((f) => f.figma).map(async (f) => ({ cwd: f.dir, ...f.figma, stage: await folderLabel(f.dir) }))));

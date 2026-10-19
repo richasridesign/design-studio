@@ -10,6 +10,7 @@ import { cachedMap, ensureMapSoon, taggedSections, type FileMap } from './fileMa
 import { pluginScript, type ReadDeps } from './pluginRead.js';
 import { withWrite } from './figmaLock.js';
 import { folderLabel } from './stages.js';
+import { renamePlan } from '../../shared/projectNames.js';
 
 // A project is one Figma file: a folder with figma.json (its root) and, once adopted, project.json with its flows
 // and iterations. A chat on a flow in an iteration runs in <root>/flows/<nn-slug>/iterations/<id>, so every
@@ -141,16 +142,18 @@ export async function listProjects(): Promise<ProjectView[]> {
     const saved = await readProject(f.dir);
     let project = saved;
     let doubles: ProjectView['doubles'];
+    let renames = 0;
     if (saved) {
       const map = await cachedMap(f.dir, f.figma.key);
       if (map) {
         const r = reconcileNodes(saved, taggedSections(map).map((s) => ({ id: s.id, tag: s.tag })), mapIds(map));
         project = r.project;
         doubles = r.doubles.length ? r.doubles : undefined;
+        renames = renamePlan(project, taggedSections(map)).length;
         if (JSON.stringify(project) !== JSON.stringify(saved)) void writeProject(f.dir, project).catch(() => {});
       }
     }
-    out.push({ cwd: f.dir, key: f.figma.key, name: f.figma.name, url: f.figma.url, stage: await folderLabel(f.dir).catch(() => null), project, ...(doubles ? { doubles } : {}) });
+    out.push({ cwd: f.dir, key: f.figma.key, name: f.figma.name, url: f.figma.url, stage: await folderLabel(f.dir).catch(() => null), project, ...(doubles ? { doubles } : {}), ...(renames ? { renames } : {}) });
   }
   return out;
 }

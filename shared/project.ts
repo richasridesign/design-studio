@@ -306,6 +306,8 @@ export type ProjectSummary = {
   project: Project | null;
   /** Two sections carry one tag (a copy was left behind): the newest id is used, the rest listed here. */
   doubles?: Array<{ tag: Tag; ids: string[] }>;
+  /** Working iteration sections whose Figma name drifted from the convention (shared/projectNames.ts). */
+  renames?: number;
 };
 
 // ---------- Node ids against the latest map ----------
