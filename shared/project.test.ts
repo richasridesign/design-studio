@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adoptFromMap, bumpMajor, compareIds, flowDirName, flowSectionName, iterationLabel, iterationName, latestOf, nextMinor, packTag, parseIterationId, parseSectionDate, parseSectionName, projectInstructions, sortIds, unpackTag, weekdayDate, workingIteration, type MapPages, type MapRow, type Project } from './project.js';
+import { adoptFromMap, bumpMajor, compareIds, flowDirName, flowSectionName, iterationLabel, iterationName, latestOf, nextMinor, packTag, parseIterationId, parseSectionDate, parseSectionName, projectInstructions, reconcileNodes, sortIds, unpackTag, weekdayDate, workingIteration, type MapPages, type MapRow, type Project } from './project.js';
 
 describe('iteration ids', () => {
   it('parses with or without the V and a minor', () => {
@@ -145,5 +145,37 @@ describe('derived views and prompt', () => {
     const task = projectInstructions({ scope: 'project', project });
     expect(task).toContain('Working iterations you may edit: 1.19 · Readiness (section 120:1)');
     expect(projectInstructions({ scope: 'project', project: { ...project, iterations: project.iterations.slice(0, 2) } })).toContain('no working iteration yet');
+  });
+});
+
+describe('reconcileNodes', () => {
+  const base: Project = {
+    key: 'K',
+    flows: [{ n: 1, slug: 'home', name: 'Home', entry: [] }, { n: 2, slug: 'connectors', name: 'Connectors', entry: [] }],
+    iterations: [{ id: '1.19', node: '50:1', state: 'working', flows: {} }],
+  };
+
+  it('adds a flow subsection that was tagged in Figma after the iteration was made', () => {
+    const tagged = [
+      { id: '50:1', tag: { kind: 'iteration' as const, iteration: '1.19' } },
+      { id: '51:1', tag: { kind: 'flow' as const, iteration: '1.19', flow: 'connectors' } },
+      { id: '52:1', tag: { kind: 'states' as const, iteration: '1.19', flow: 'connectors' } },
+      { id: '53:1', tag: { kind: 'flow' as const, iteration: '1.19', flow: 'not-a-flow' } },
+      { id: '54:1', tag: { kind: 'flow' as const, iteration: '1.18', flow: 'home' } },
+    ];
+    const { project } = reconcileNodes(base, tagged, new Set(['50:1', '51:1', '52:1', '53:1', '54:1']));
+    expect(project.iterations[0].flows).toEqual({ connectors: { node: '51:1', states: '52:1' } });
+  });
+
+  it('adds a states subsection to a flow that had none, and keeps the newest of two tagged copies', () => {
+    const p: Project = { ...base, iterations: [{ id: '1.19', node: '50:1', state: 'working', flows: { home: { node: '60:1' } } }] };
+    const tagged = [
+      { id: '61:1', tag: { kind: 'states' as const, iteration: '1.19', flow: 'home' } },
+      { id: '70:1', tag: { kind: 'flow' as const, iteration: '1.19', flow: 'connectors' } },
+      { id: '80:1', tag: { kind: 'flow' as const, iteration: '1.19', flow: 'connectors' } },
+    ];
+    const { project, doubles } = reconcileNodes(p, tagged, new Set(['50:1', '60:1', '61:1', '70:1', '80:1']));
+    expect(project.iterations[0].flows).toEqual({ home: { node: '60:1', states: '61:1' }, connectors: { node: '80:1' } });
+    expect(doubles).toHaveLength(1);
   });
 });
