@@ -32,7 +32,7 @@ export function PortfolioGroup() {
       <div className="row session pf-site-row" title={`Update portfolio: ${site}`} onClick={() => openPortfolio()} {...press(() => openPortfolio())}>
         <span className="twistie"><Icon name="globe" small /></span>
         <span className="name">{site}</span>
-        {n > 0 && <span className="meta"><span className="badge" aria-label={`${n} new`}>{n} new</span></span>}
+        {n > 0 && <span className="meta"><span className="badge" title={`${n} new to add`} aria-label={`${n} new`}>{n}</span></span>}
       </div>
       {view?.runs.slice(0, SHOWN_RUNS).map((r) => (
         <div key={r.id} className="row session recent pf-run-row" title={runTitle(r)} onClick={() => openPortfolio(r.id)} {...press(() => openPortfolio(r.id))}>
