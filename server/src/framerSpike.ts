@@ -1,20 +1,25 @@
 // Phase 0 spike for the portfolio workflow. Read only: it never sets text, creates a branch, publishes or deploys.
 // Run it yourself, on a duplicate of your Framer project if you like:
 //
-//   cd server && npx tsx src/framerSpike.ts https://framer.com/projects/<id> [site]
+//   cd server && npx tsx src/framerSpike.ts https://framer.com/projects/<id>
 //
-// The key comes from the Keychain (saved by Design Studio's Connect form for that site) or from the
+// The key comes from the Keychain (saved by Portfolio setup's "Framer API key" route for that project) or from the
 // FRAMER_SPIKE_KEY variable for this one command. It is never printed. The report says which methods exist,
 // whether case studies are pages or CMS items, which pages are drafts, the branches, and the unpublished changes.
+//
+// Phase 0 also confirms the browser tool for the Chrome route (portfolioChrome.ts, CHROME_EDITS_READY): which tool
+// drives her signed-in Chrome (Claude in Chrome or the Chrome DevTools MCP), that it can focus a Framer text box,
+// type, and read the Publish panel. Until then edits end in the copy pack.
 
 import { readKey } from './framerKey.js';
+import { projectId } from './portfolioChrome.js';
 
-const [project, site = 'richadesign.in'] = process.argv.slice(2);
+const [project] = process.argv.slice(2);
 
 async function main() {
   if (!project) throw new Error('Pass the Framer project link: npx tsx src/framerSpike.ts https://framer.com/projects/<id>');
-  const key = process.env.FRAMER_SPIKE_KEY || (await readKey(site));
-  if (!key) throw new Error(`No key for ${site}. Connect it in Design Studio first, or set FRAMER_SPIKE_KEY for this command.`);
+  const key = process.env.FRAMER_SPIKE_KEY || (await readKey(projectId(project) ?? ''));
+  if (!key) throw new Error('No key for this project. Add it in Portfolio setup (Framer API key) first, or set FRAMER_SPIKE_KEY for this command.');
   const api = await import('framer-api');
   const framer: any = await api.connect(project, key);
   const line = (k: string, v: unknown) => console.log(`${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`);
