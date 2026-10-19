@@ -4,6 +4,7 @@ import { nextIterationId, slugify, todayIso, workingIteration, type Flow, type I
 import { ensureIterationFolders, flowDir, updateProject } from './project.js';
 import { makeSectionsFor, type FigmaOutcome } from './iterations.js';
 import { projectRoot } from './roots.js';
+import { workflowEvent } from './workflow.js';
 
 // New flow, from the project row menu: the start of From scratch. It adds the flow to project.json (n = last + 1),
 // or makes project.json with this flow when the file has none yet (an empty file works too), and a working
@@ -52,6 +53,8 @@ export async function createFlow(dir: string, key: string | null, input: NewFlow
   const meta = path.join(fdir, 'flow.json');
   if (!(await readFile(meta, 'utf8').then(() => true, () => false))) await writeFile(meta, JSON.stringify({ n: flow.n, slug: flow.slug, name: flow.name, entry: [] }, null, 2));
   const cwd = await ensureIterationFolders(root, flow.slug, iteration.id, now);
+  // A new flow has no screens: its chats start From scratch at Explore, even before the file map is read.
+  await workflowEvent(cwd, { type: 'switch', workflow: 'scratch', at: now }).catch((err: Error) => console.error(`workflow: ${err.message}`));
   const sections = deps.sections ?? ((r, k, id, slugs) => makeSectionsFor(r, k, id, slugs));
   const figma: FigmaOutcome = key ? await sections(root, key, iteration.id, [flow.slug]).catch((err: Error) => ({ ok: false as const, error: err.message })) : { ok: false, error: 'This folder has no Figma file' };
   return { flow, iteration, cwd, figma };
