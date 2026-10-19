@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { postJson } from '../store';
 import { Icon } from '../Icon';
 import { Shell } from './ProjectDialogs';
-import { iterationLabel, workingIteration, type Project } from '../../../shared/project';
+import { iterationLabel, vId, workingIteration, type Project } from '../../../shared/project';
 import { DEFAULT_TASK_MODEL, TASK_MODELS, mentionsComponents, type Task } from '../../../shared/tasks';
 import { tasksChanged, weeklyLine } from './taskStore';
 import '../tasks.css';
@@ -107,7 +107,7 @@ export function RunAcrossFlowsDialog({ cwd, name, project, weeklyPct, cap, paral
             <label key={f.slug} className="project-check">
               <input type="checkbox" checked={flows.includes(f.slug)} onChange={() => toggle(f.slug)} />
               <span className="tk-flow">{f.n} · {f.name}</span>
-              {it && !inIt.has(f.slug) && <span className="muted small">Adds it to {it.id}</span>}
+              {it && !inIt.has(f.slug) && <span className="muted small">Adds it to {vId(it.id)}</span>}
             </label>
           ))}
           {flowsErr && <span id="tk-flows-err" className="error-text small">{flowsErr}</span>}

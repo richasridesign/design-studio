@@ -1,7 +1,7 @@
 import { useReducer } from 'react';
 import { postJson } from '../store';
 import { PROJECTS_CHANGED, Shell } from './ProjectDialogs';
-import { iterationLabel, weekdayDate, type Iteration, type Project } from '../../../shared/project';
+import { iterationLabel, vId, weekdayDate, type Iteration, type Project } from '../../../shared/project';
 import { busy as isBusy, initial, isValid, payload, reduce, sectionPreview, shown, startFrom, type Event as DialogEvent, type FigmaOutcome, type State } from './newIterationState';
 import '../newIteration.css';
 
@@ -66,11 +66,11 @@ export function NewIterationDialog({ cwd, name, project, onClose, onCreated }: {
       <Shell title={`New iteration on ${name}`} onClose={onClose} busy={busy}>
         <div className="project-dialog-body">
           {ph.kind === 'failed' ? (
-            <p className="project-dialog-note error-text" role="alert">Iteration {ph.it.id} is saved, but its Figma section was not made: {ph.error}</p>
+            <p className="project-dialog-note error-text" role="alert">Iteration {vId(ph.it.id)} is saved, but its Figma section was not made: {ph.error}</p>
           ) : (
             <p className="project-dialog-note ni-wait" role="status"><span className="ni-spin" aria-hidden="true" />{WAIT}</p>
           )}
-          <p className="muted small ni-line">Retry makes only the section. If you close this, the first chat in {ph.it.id} makes it.</p>
+          <p className="muted small ni-line">Retry makes only the section. If you close this, the first chat in {vId(ph.it.id)} makes it.</p>
           <div className="dialog-actions">
             <button type="button" onClick={onClose} disabled={busy}>Close</button>
             <button type="button" className="primary" autoFocus disabled={busy} onClick={() => void retry(ph.it)}>{busy ? 'Retrying…' : 'Retry'}</button>

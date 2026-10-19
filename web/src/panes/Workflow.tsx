@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { WORKFLOW_INFO, type CardAction, type StepCard, type StepId, type StepView, type WorkflowState } from '../../../shared/workflow';
-import type { Project } from '../../../shared/project';
+import { vId, type Project } from '../../../shared/project';
 import { focusComposer, insertPrompt } from './composerEvents';
 import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import { PickCard } from './PickCard';
@@ -70,7 +70,7 @@ export function WorkflowStrip({ view, onStep, onSwitch, disabled }: { view: Flow
   const round = view.state.round;
   return (
     <nav className="wf-strip" aria-label={`Workflow: ${WORKFLOW_INFO[view.state.workflow].name}`}>
-      {onSwitch ? <WorkflowMenu state={view.state} flowName={view.flow.name} iteration={view.iteration.id} post={onSwitch} disabled={disabled} /> : <span className="wf-name">{WORKFLOW_INFO[view.state.workflow].name}</span>}
+      {onSwitch ? <WorkflowMenu state={view.state} flowName={view.flow.name} iteration={vId(view.iteration.id)} post={onSwitch} disabled={disabled} /> : <span className="wf-name">{WORKFLOW_INFO[view.state.workflow].name}</span>}
       <ol className="wf-steps">
         {view.steps.map((s, i) => (
           <li key={s.id} className={`wf-step ${s.state}`}>
@@ -212,9 +212,9 @@ function FreezeDialog({ view, onClose }: { view: FlowView; onClose: () => void }
     }
   };
   return (
-    <Shell title={`Freeze ${id}?`} onClose={onClose} busy={busy}>
+    <Shell title={`Freeze ${vId(id)}?`} onClose={onClose} busy={busy}>
       <div className="project-dialog-body">
-        <p>Every flow in {id} becomes read only. Chats can still read {id} but not change it.</p>
+        <p>Every flow in {vId(id)} becomes read only. Chats can still read {vId(id)} but not change it.</p>
         {phase.kind === 'error' && <p className="project-dialog-note error-text" role="alert">Could not freeze: {phase.text}</p>}
         <div className="dialog-actions">
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>

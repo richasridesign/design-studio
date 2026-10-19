@@ -4,7 +4,7 @@ import { Icon } from '../Icon';
 import { ATTACH, openAttach } from '../AttachFile';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
-import { compareIds, iterationLabel, type Iteration, type ProjectSummary } from '../../../shared/project';
+import { compareIds, iterationLabel, vId, type Iteration, type ProjectSummary } from '../../../shared/project';
 import { replyLine } from '../../../shared/edits';
 import '../chats.css';
 import { press } from '../press';
@@ -104,14 +104,14 @@ export function Chats() {
   const chatIn = (p: TreeProject, f: TreeFlow, it: Iteration) => {
     if (it.flows?.[f.flow.slug]) return send({ type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: it.id });
     setAsk({
-      title: `Add ${f.flow.name} to ${it.id}?`, detail: `This copies its entry screens into a new ${f.flow.name} subsection of ${it.id}, then starts the chat there.`, action: 'Add and start chat', icon: 'add', safe: true,
+      title: `Add ${f.flow.name} to ${vId(it.id)}?`, detail: `This copies its entry screens into a new ${f.flow.name} subsection of ${vId(it.id)}, then starts the chat there.`, action: 'Add and start chat', icon: 'add', safe: true,
       run: async () => {
-        setNote({ text: `Adding ${f.flow.name} to ${it.id} in Figma, about 20 seconds.` });
+        setNote({ text: `Adding ${f.flow.name} to ${vId(it.id)} in Figma, about 20 seconds.` });
         try {
           const warn = await startFlowChat(p.cwd, f.flow, it);
           setNote(warn ? { text: warn, error: true } : null);
         } catch (e) {
-          setNote({ text: `${f.flow.name} was not added to ${it.id}: ${(e as Error).message}`, error: true });
+          setNote({ text: `${f.flow.name} was not added to ${vId(it.id)}: ${(e as Error).message}`, error: true });
         }
       },
     });
@@ -124,14 +124,14 @@ export function Chats() {
       window.dispatchEvent(new Event(PROJECTS_CHANGED));
       setNote(null);
     } catch (e) {
-      setNote({ text: `${it.id} was not ${state === 'frozen' ? 'frozen' : 'reopened'}: ${(e as Error).message}`, error: true });
+      setNote({ text: `${vId(it.id)} was not ${state === 'frozen' ? 'frozen' : 'reopened'}: ${(e as Error).message}`, error: true });
     }
   };
-  const freeze = (p: TreeProject, it: Iteration) => setAsk({ title: `Freeze ${it.id}?`, detail: `Every flow in ${it.id} becomes read only: chats can copy from it but not edit it. You can reopen it here.`, action: 'Freeze', icon: 'lock', safe: true, run: setState(p, it, 'frozen') });
+  const freeze = (p: TreeProject, it: Iteration) => setAsk({ title: `Freeze ${vId(it.id)}?`, detail: `Every flow in ${vId(it.id)} becomes read only: chats can copy from it but not edit it. You can reopen it here.`, action: 'Freeze', icon: 'lock', safe: true, run: setState(p, it, 'frozen') });
   const reopen = (p: TreeProject, it: Iteration, all: Iteration[]) => {
     const newer = all.filter((x) => x.state === 'working' && compareIds(x.id, it.id) > 0).map((x) => x.id);
     setAsk({
-      title: `Reopen ${it.id}?`, detail: `Chats can edit every flow in ${it.id} again.`, action: 'Reopen', icon: 'unlock', safe: true,
+      title: `Reopen ${vId(it.id)}?`, detail: `Chats can edit every flow in ${vId(it.id)} again.`, action: 'Reopen', icon: 'unlock', safe: true,
       warning: newer.length ? `${newer.join(' and ')} ${newer.length > 1 ? 'are' : 'is'} also working. New chats on a flow still go to ${newer.at(-1)}.` : undefined,
       run: setState(p, it, 'working'),
     });
@@ -202,20 +202,20 @@ export function Chats() {
     const icon = <span className={`state-dot ${working ? 'working' : 'frozen'}`} aria-hidden />;
     const tag = working ? <span className="state-tag working">Working</span> : <span className="sr-only">Frozen</span>;
     const all = f.iterations.map((x) => x.iteration);
-    const menu = <RowMenu label={`More for ${i.iteration.id}`} items={[working
-      ? { label: `Freeze ${i.iteration.id}`, hint: 'Every flow becomes read only', run: () => freeze(p, i.iteration) }
-      : { label: `Reopen ${i.iteration.id}`, hint: 'Chats can edit it again', run: () => reopen(p, i.iteration, all) }]} />;
-    const acts = <>{working && newChat(`New chat on ${f.flow.name} in ${i.iteration.id}`, () => chatIn(p, f, i.iteration))}{menu}</>;
+    const menu = <RowMenu label={`More for ${vId(i.iteration.id)}`} items={[working
+      ? { label: `Freeze ${vId(i.iteration.id)}`, hint: 'Every flow becomes read only', run: () => freeze(p, i.iteration) }
+      : { label: `Reopen ${vId(i.iteration.id)}`, hint: 'Chats can edit it again', run: () => reopen(p, i.iteration, all) }]} />;
+    const acts = <>{working && newChat(`New chat on ${f.flow.name} in ${vId(i.iteration.id)}`, () => chatIn(p, f, i.iteration))}{menu}</>;
     const title = `${i.label}: ${working ? 'working, chats can edit it' : 'frozen, chats only read it'}${i.iteration.node ? `. Figma section ${i.iteration.node}` : '. No Figma section yet'}`;
-    const name = <><span className="it-id">{i.iteration.id} · </span><span className="it-topic">{i.label.slice(i.iteration.id.length + 3)}</span></>;
+    const name = <><span className="it-id">{vId(i.iteration.id)} · </span><span className="it-topic">{i.label.slice(vId(i.iteration.id).length + 3)}</span></>;
     const me: Selection = { kind: 'iteration', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, iteration: itSel(i.iteration, i.label, f.flow.slug) };
     return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title, { label: `${f.flow.name} in ${i.label}`, selected: same(sel, me), run: () => select(me) });
   };
 
   const flowRow = (p: TreeProject, f: TreeFlow) => {
     const w = p.working;
-    const acts = w ? newChat(`New chat on ${f.flow.name} in ${w.id}`, () => chatIn(p, f, w)) : null;
-    const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? w.id, f.flow.slug) } : {}) };
+    const acts = w ? newChat(`New chat on ${f.flow.name} in ${vId(w.id)}`, () => chatIn(p, f, w)) : null;
+    const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? iterationLabel(w), f.flow.slug) } : {}) };
     // A flow adoption found before but not the last time stays, with its folders and chats, and says so.
     // At the 160px default the name needs the room, so the icon and grey name carry it; the tag shows when wider.
     const tag = f.flow.missing ? <span className="state-tag missing"><span className="missing-text">Not in Figma</span></span> : null;
@@ -244,7 +244,7 @@ export function Chats() {
     ) : (
       <RowMenu label={`More for ${p.name}`} items={[
         { label: p.adopted ? 'Adopt this file again' : 'Adopt this file', hint: 'Sections become flows and iterations', run: () => setDialog({ kind: 'adopt', p }) },
-        ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${p.working.id} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
+        ...(p.adopted ? [{ label: 'New iteration', hint: p.working ? `${vId(p.working.id)} is still working` : `After ${p.flows.length} flows`, run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'iteration', p, project }); } }] : []),
         { label: 'New flow', hint: 'Starts From scratch', run: () => setDialog({ kind: 'flow', p }) },
         ...(p.adopted ? [{ label: 'Run across flows', hint: 'One prompt, one chat per flow', run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'run', p, project }); } }] : []),
         ...(sum?.renames ? [{ label: renameLabel(sum.renames), hint: 'Working iteration only', run: () => setDialog({ kind: 'rename', p, count: sum.renames! }) }] : []),
