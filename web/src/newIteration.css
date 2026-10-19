@@ -1,0 +1,10 @@
+/* New iteration dialog (web/src/panes/NewIteration.tsx). Builds on the project dialog rules in chats.css. */
+.ni-fields { margin: 0; padding: 16px 0 0; border: 0; min-width: 0; }
+.ni-label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ni-label-row label { font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+.ni-label-row .link { min-height: 24px; font-size: var(--text-sm); font-weight: 400; }
+.ni-line { margin: 0 0 12px; line-height: 20px; }
+.project-dialog-body > .ni-wait { display: flex; align-items: center; gap: 8px; padding: 0 0 12px; color: var(--fg); }
+.ni-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ni-spin { animation: none; border-top-color: var(--border-strong); } }
+.project-dialog-body > .project-dialog-note + .ni-fields { padding-top: 0; }

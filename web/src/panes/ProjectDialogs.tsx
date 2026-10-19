@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { useDialogFocus } from '../useDialog';
 import { getJson, postJson } from '../store';
-import { cleanId, iterationLabel, nextIterationId, weekdayDate, todayIso, type AdoptProposal, type Flow, type Iteration, type Project } from '../../../shared/project';
+import { iterationLabel, weekdayDate, type AdoptProposal, type Project } from '../../../shared/project';
 
 // Adopting a Figma file (its sections become flows and iterations) and starting a new iteration. Both run from the
 // chat list's project menu on any project folder, so each call names the folder with ?cwd=.
@@ -137,69 +137,5 @@ export function AdoptDialog({ cwd, name, onClose }: { cwd: string; name: string;
   );
 }
 
-type NewPhase = { kind: 'form' } | { kind: 'submitting' } | { kind: 'error'; text: string } | { kind: 'done'; it: Iteration };
-
-/** A new working iteration: its id, topic and the flows it covers. Folders are made now, the Figma section with the first chat. */
-export function NewIterationDialog({ cwd, name, project, onClose }: { cwd: string; name: string; project: Project; onClose: () => void }) {
-  const [id, setId] = useState(nextIterationId(project));
-  const [topic, setTopic] = useState('');
-  const [flows, setFlows] = useState<string[]>(project.flows.map((f) => f.slug));
-  const [touched, setTouched] = useState(false);
-  const [phase, setPhase] = useState<NewPhase>({ kind: 'form' });
-  const idErr = !cleanId(id) ? 'Use major.minor, like 1.19' : project.iterations.some((it) => it.id === cleanId(id)) ? `Iteration ${cleanId(id)} exists already` : '';
-  const topicErr = topic.trim() ? '' : 'Give the iteration a topic';
-  const flowsErr = flows.length ? '' : 'Pick at least one flow';
-  const valid = !idErr && !topicErr && !flowsErr;
-  const busy = phase.kind === 'submitting';
-  const date = todayIso();
-  const toggle = (f: Flow) => setFlows((prev) => (prev.includes(f.slug) ? prev.filter((s) => s !== f.slug) : [...prev, f.slug]));
-  const submit = async () => {
-    setTouched(true);
-    if (!valid) return;
-    setPhase({ kind: 'submitting' });
-    try {
-      const it = await postJson<Iteration>(withCwd('/api/projects/iteration', cwd), { id: cleanId(id), topic: topic.trim(), date, flows });
-      changed();
-      setPhase({ kind: 'done', it });
-    } catch (err) {
-      setPhase({ kind: 'error', text: (err as Error).message });
-    }
-  };
-  return (
-    <Shell title={`New iteration on ${name}`} onClose={onClose} busy={busy}>
-      {phase.kind === 'done' && (
-        <>
-          <p className="project-dialog-note" role="status">Iteration {iterationLabel(phase.it)} is ready. Its Figma section is made when its first chat starts, 800px above the newest one.</p>
-          <div className="dialog-actions"><button className="primary" onClick={onClose}>Done</button></div>
-        </>
-      )}
-      {phase.kind !== 'done' && (
-        <form className="project-dialog-body" onSubmit={(e) => { e.preventDefault(); void submit(); }} noValidate>
-          {phase.kind === 'error' && <p className="project-dialog-note error-text" role="alert">{phase.text}</p>}
-          <label className="field">
-            <span>Id *</span>
-            <input value={id} inputMode="decimal" maxLength={9} aria-invalid={touched && idErr ? true : undefined} aria-describedby="it-id-help" onChange={(e) => setId(e.target.value)} />
-            <span id="it-id-help" className={touched && idErr ? 'error-text small' : 'muted small'}>{(touched && idErr) || `Section name: V${cleanId(id) ?? id} · ${topic.trim() || 'Topic'} · ${weekdayDate(date)}`}</span>
-          </label>
-          <label className="field">
-            <span>Topic *</span>
-            <input value={topic} maxLength={80} aria-invalid={touched && topicErr ? true : undefined} aria-describedby={touched && topicErr ? 'it-topic-err' : undefined} onChange={(e) => setTopic(e.target.value)} />
-            {touched && topicErr && <span id="it-topic-err" className="error-text small">{topicErr}</span>}
-          </label>
-          <fieldset className="project-fields" aria-describedby={touched && flowsErr ? 'it-flows-err' : undefined}>
-            <legend>Flows in this iteration *</legend>
-            {project.flows.map((f) => (
-              <label key={f.slug} className="project-check"><input type="checkbox" checked={flows.includes(f.slug)} onChange={() => toggle(f)} /> {f.n} · {f.name}</label>
-            ))}
-            {touched && flowsErr && <span id="it-flows-err" className="error-text small">{flowsErr}</span>}
-          </fieldset>
-          <p className="muted small">* Required</p>
-          <div className="dialog-actions">
-            <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-            <button type="submit" className="primary" disabled={busy}>{busy ? 'Creating…' : 'Create iteration'}</button>
-          </div>
-        </form>
-      )}
-    </Shell>
-  );
-}
+// The New iteration dialog lives in NewIteration.tsx (its states in newIterationState.ts).
+export { NewIterationDialog } from './NewIteration';
