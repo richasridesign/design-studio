@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Iteration, Project } from '../../../shared/project';
-import { busy, errors, initial, isValid, payload, reduce, sectionPreview, shown, startFrom, type Event, type State } from './newIteration';
+import { busy, errors, initial, isValid, payload, reduce, sectionPreview, shown, startFrom, type Event, type State } from './newIterationState';
 
 const project: Project = {
   key: 'K',
@@ -84,7 +84,7 @@ describe('New iteration dialog', () => {
   });
 
   it('Start from groups flows by the iteration they come from', () => {
-    expect(startFrom(project, ['discover', 'connectors', 'agents'])).toBe('V1.18: Discover. V1: Connectors. No screens yet: Agents');
-    expect(startFrom(project, ['connectors'])).toBe('V1: Connectors');
+    expect(startFrom(project, ['discover', 'connectors', 'agents'])).toBe('V1.18: Discover. Baseline: Connectors. No screens yet: Agents');
+    expect(startFrom(project, ['connectors'])).toBe('Baseline: Connectors');
   });
 });

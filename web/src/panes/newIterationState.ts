@@ -1,4 +1,4 @@
-import { bumpMajor, cleanId, iterationName, latestOf, nextIterationId, todayIso, type Iteration, type Project } from '../../../shared/project';
+import { bumpMajor, cleanId, isLatestName, iterationName, latestOf, nextIterationId, todayIso, type Iteration, type Project } from '../../../shared/project';
 
 // The New iteration dialog as a pure state machine, so every state is tested without a browser:
 // form (empty, typing, filled, invalid), creating, done, and failed (the iteration is saved but its Figma section
@@ -116,7 +116,8 @@ export function startFrom(project: Project, slugs: string[]): string {
   for (const f of project.flows) {
     if (!slugs.includes(f.slug)) continue;
     const it = latestOf(project, f.slug);
-    const from = it ? `V${it.id}` : f.entry.length ? 'Baseline' : 'No screens yet';
+    // The adopted LATEST container is the baseline, like a flow with entry screens and no iteration yet.
+    const from = it && !isLatestName(it.name ?? '') ? `V${it.id}` : it || f.entry.length ? 'Baseline' : 'No screens yet';
     groups.set(from, [...(groups.get(from) ?? []), f.name]);
   }
   return [...groups].map(([from, names]) => `${from}: ${names.join(', ')}`).join('. ');
