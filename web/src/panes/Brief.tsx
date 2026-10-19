@@ -10,6 +10,7 @@ import { ReadAloud } from './Voice';
 import { touch, useNarrow } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
+import { ScopeSwitch } from './ScopeSwitch';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
 import { StepsButton, StepsPanel, StepsSheet, useStages, useStepsOpen } from './Stages';
@@ -90,6 +91,7 @@ export function Brief() {
             <div className="seg chat-view" role="group" aria-label="Chat view">
               {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
             </div>
+            <ScopeSwitch />
             {stages.view && <StepsButton view={stages.view} open={steps.open} onToggle={steps.toggle} />}
           </div>
         )}

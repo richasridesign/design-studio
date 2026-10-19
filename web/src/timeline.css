@@ -153,3 +153,7 @@
   .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; }
   .tl-li.reply.open .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
 }
+/* Allow edits anywhere (ScopeSwitch.tsx): an icon toggle right of the view switch, before Steps. */
+.chat-head .scope-switch { margin-left: auto; flex: none; width: 32px; height: 32px; }
+.chat-head .scope-switch.on { color: var(--accent); background: var(--bg-hover); }
+.chat-head .scope-switch + .steps-btn { margin-left: 0; }
