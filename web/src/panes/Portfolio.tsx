@@ -273,7 +273,7 @@ type Conn = { on: boolean; why?: string } | null;
  * Header status. API key: the Keychain still holds it (attributes only, the key never reaches the page). Chrome:
  * the saved project is open there, signed in. Copy and paste connects nothing, so it shows no status.
  */
-function useConnection(config: PortfolioView['config']): Conn {
+function useConnection(config: PortfolioView['config'], checked: number): Conn {
   const [conn, setConn] = useState<Conn>(null);
   const mode = config?.mode;
   const project = config?.project ?? '';
@@ -294,7 +294,7 @@ function useConnection(config: PortfolioView['config']): Conn {
         .catch((e) => set({ on: false, why: (e as Error).message }));
     }
     return () => { live = false; };
-  }, [mode, project, hasKey]);
+  }, [mode, project, hasKey, checked]);
   return conn;
 }
 
@@ -650,7 +650,9 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
 
   const config = view?.config ?? null;
   const site = config?.site ?? SITE_DEFAULT;
-  const conn = useConnection(config);
+  // Bumped when the connection dialog saves or removes a key, so the status is checked again.
+  const [checked, setChecked] = useState(0);
+  const conn = useConnection(config, checked);
   const list = rv?.suggestions ?? [];
   const sum = pickSummary(list, picks);
   const used = list.filter((s) => pickOf(picks, s).choice === 'use');
@@ -895,7 +897,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
           )}
         </div>
       </div>
-      {setup && <SetupDialog initial={config} onClose={() => setSetup(false)} onView={setView} onDone={(v) => { setView(v); setSetup(false); }} />}
+      {setup && <SetupDialog initial={config} onClose={() => setSetup(false)} onView={(v) => { setView(v); setChecked((n) => n + 1); }} onDone={(v) => { setView(v); setSetup(false); setChecked((n) => n + 1); }} />}
       {confirmUndo && <UndoDialog onClose={() => setConfirmUndo(false)} onUndo={() => { setConfirmUndo(false); void act('undo'); }} />}
     </div>
   );
