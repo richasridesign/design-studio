@@ -484,12 +484,7 @@ const server = http.createServer(async (req, res) => {
       // Remove project moves the folder to .trash (nothing deleted, Figma untouched); rename fixes the working sections' names.
       if (url.pathname === '/api/projects/remove' && req.method === 'POST') {
         if (!asked || !file || file.key === SAMPLE_KEY) return json({ error: 'Only a project folder with a Figma file can be removed' }, 400);
-        const stopTasks = async (root: string) => {
-          const open = (await tasks.list(root)).filter((t) => t.state === 'running' || t.state === 'paused');
-          for (const t of open) await tasks.stop(t.id);
-          return open.length;
-        };
-        const r = await removeProject(dir, { stopTasks, closeChats: closeChatsIn });
+        const r = await removeProject(dir, { stopTasks: (root) => tasks.forget(root), closeChats: closeChatsIn });
         broadcastLive();
         return json(r);
       }
