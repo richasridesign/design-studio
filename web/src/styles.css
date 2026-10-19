@@ -574,7 +574,9 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 .read-aloud.on { color: var(--claude); }
 
 .tabs .spacer { flex: 1; }
-.tabs .focus-btn { align-self: center; flex: none; margin-right: 6px; }
+.tabs .chat-toggle, .tabs .focus-btn { align-self: center; flex: none; }
+.tabs .chat-toggle { margin-right: 4px; }
+.tabs .focus-btn { margin-right: 6px; }
 .editor-group { position: relative; }
 .focus-pill { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-raised); font-size: var(--text-sm); color: var(--fg-muted); }
 .focus-pill .sep { opacity: 0.5; }
