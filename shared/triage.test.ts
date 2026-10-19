@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { changeTriage, cleanTriage, closedTally, openIssues, openRun, resolvedRules, ruleKey, splitRun, triagedRules, triageKey, type Triage } from './triage.js';
-import { stages } from './stages.js';
 import { rulesLine, rulesSummary } from './rules.js';
 import { reviewChecklist } from './design.js';
 import type { AreaResult, Finding, ReviewRun } from './design.js';
@@ -68,11 +67,8 @@ describe('house rule triage', () => {
     expect(ruleKey(r, 'x'.repeat(400)).length).toBe(300);
   });
 
-  it('counts a resolved rule as met in the House rules check, and only a failed rule can be resolved', () => {
+  it('counts a resolved rule as resolved, and only a failed rule can be resolved', () => {
     const t = changeTriage({}, { action: 'close', key: ruleKey(r, rules[0].rule), state: 'fixed' }, 3);
-    const check = (triage: Triage) => stages({ brief: null, figma: false, sketch: null, design: null, review: { runs: [r] }, triage }, { marks: {} }, 'new').find((s) => s.id === 'validate')!.checks.find((c) => c.label === 'House rules followed');
-    expect(check({})).toMatchObject({ state: 'open', detail: '1 of 2 failed' });
-    expect(check(t)).toMatchObject({ state: 'met', detail: '1 of 2 followed, 1 resolved by hand' });
     expect(rulesSummary(openRun(r, t).rules!)).toMatchObject({ passed: 1, failed: 0, resolved: 1 });
     expect(rulesLine(openRun(r, t).rules!)).toBe('1 of 2 passed, 1 resolved by hand');
     // A passed rule with a stray key stays passed.

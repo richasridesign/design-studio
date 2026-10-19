@@ -428,3 +428,6 @@ export const WORKFLOW_RULES = [
   'Every new or changed screen gets 3 to 5 Decision stickies right below it, written with DS.decisions(screen, [{ decision, why }], { iteration }). Decision 1 is this iteration\'s change. Entry copies get none.',
   'When you finish a step, pass stepDone with that step\'s id (update, hifi, system) in set_status.',
 ].join('\n');
+
+/** The fix request the Review tab puts in the message box ("Fix the issues"). */
+export const FIX_ASK = "Fix the blocking and major issues and the failed house rules from the last review. Skip the findings and rules I closed by hand (fixed, won't fix or parked). Leave the findings that wait for my decision. Plan the fixes first and wait for my approval.";

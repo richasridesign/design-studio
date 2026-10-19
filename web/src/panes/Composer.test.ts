@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accept, insertInto, dropLink, figmaLinkIn, nodeLinksIn, splitFrameLinks, withFrameLinks, nextMode, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
+import { accept, insertInto, dropLink, figmaLinkIn, nodeLinksIn, splitFrameLinks, withFrameLinks, buildHistory, contextPercent, filesEdited, ghostFor, rankCommands, rankFiles, rankFrames, recentFirst, recentFrameIds, recipeSlug, remember, triggerAt, withRecipes } from './Composer';
 import { RECIPES, toRecipe } from '../../../shared/recipes';
 import type { ChatEvent } from '../../../shared/protocol';
 
@@ -151,14 +151,6 @@ describe('contextPercent', () => {
     expect(contextPercent(null)).toBeNull();
     expect(contextPercent(100_000)).toBe(50);
     expect(contextPercent(287_000)).toBe(100);
-  });
-});
-
-describe('nextMode', () => {
-  it('cycles chat, design, review, chat', () => {
-    expect(nextMode('chat')).toBe('design');
-    expect(nextMode('design')).toBe('review');
-    expect(nextMode('review')).toBe('chat');
   });
 });
 

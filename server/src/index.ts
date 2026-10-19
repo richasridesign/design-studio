@@ -49,9 +49,7 @@ import { readDesign, readReview } from './review.js';
 import { readAwaiting, updateAwaiting } from './awaiting.js';
 import { readProfile } from './profile.js';
 import { changeDesignSystem, designSystemView } from './dsSources.js';
-import { briefLede, buildReport, reportSlug } from './report.js';
-import { changeStage, readApprovals, readStages } from './stages.js';
-import { approvalReply, planApprovedOnCard } from '../../shared/stages.js';
+import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
@@ -403,21 +401,6 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') await workflowEvent(chat.cwd, eventFromBody(await readJsonBody(), chat.id));
       const f = chat.state.session.flow;
       return json(await workflowView(chat.cwd, { preset: f.preset, areas: f.areas, reviewing: (f.reviewers ?? []).some((r) => r.state === 'running') }));
-    }
-    if (url.pathname === '/api/stages') {
-      // Steps are kept per chat, by Claude's session id, which survives a resume. The first message guesses the kind.
-      const sid = chat.state.session.sessionId;
-      const said = chat.state.events.flatMap((e) => (e.kind === 'user' ? [e.text] : []));
-      const first = said[0] ?? null;
-      // Her last short "go" after the first message: the plan approval she gives in the chat.
-      const approvedInChat = said.slice(1).map(approvalReply).filter(Boolean).at(-1) ?? null;
-      const [sketch, design, review] = await Promise.all([readSketch(chat.cwd).catch(() => null), readDesign(chat.cwd), readReview(chat.cwd)]);
-      if (req.method === 'POST') await changeStage(chat.cwd, sid, await readJsonBody(), { first, seenRound: review.runs.at(-1)?.round ?? 1 });
-      // The written brief (plan.md) wins over the first message, so the steps and the report agree.
-      const plan = await readFile(path.join(chat.cwd, 'plan.md'), 'utf8').catch(() => '');
-      const brief = (plan && briefLede(plan)) || first;
-      const view = await readStages(chat.cwd, sid, first, { brief, approvedInChat, planApproved: planApprovedOnCard(chat.state.events), figma: !!figma, scope: await readScope(chat.cwd), research: await readFile(path.join(chat.cwd, 'research.md'), 'utf8').catch(() => null), plan, flowcheck: (await readFlowChecks(chat.cwd)).filter((r) => r.fileKey === figma?.key).at(-1) ?? null, sketch, design, review, triage: await readTriage(chat.cwd) });
-      return json({ ...view, approvals: await readApprovals(chat.cwd) });
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
     if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));

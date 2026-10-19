@@ -35,11 +35,7 @@
 .cp-pill:hover { background: var(--bg-hover); color: var(--fg); }
 .cp-pill > span { overflow: hidden; text-overflow: ellipsis; }
 .cp-pill .codicon.icon.small { font-size: 13px; }
-.cp-mode { position: relative; min-width: 0; }
-.cp-modebtn { color: var(--fg); font-weight: 600; }
-.cp[data-mode='design'] .cp-modebtn { color: var(--accent); }
-.cp[data-mode='review'] .cp-modebtn { color: var(--fg); }
-/* Mode and model menus sit above the whole message card, 4px clear of it (usePopAbove sets the lift), never over the text. */
+/* The model menu sits above the whole message card, 4px clear of it (usePopAbove sets the lift), never over the text. */
 .cp-modepop {
   position: absolute; z-index: 20; left: 0; bottom: calc(100% + 4px); width: min(340px, calc(100vw - 32px)); padding: 4px;
   background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius, 8px); box-shadow: var(--shadow-md);

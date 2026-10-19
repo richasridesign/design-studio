@@ -6,7 +6,7 @@ const ids = (rows: ReturnType<typeof rankCommands>) => rows.map((r) => r.cmd.id)
 
 describe('buildCommands', () => {
   it('lists views, center tabs and design commands', () => {
-    expect(ids(rankCommands(cmds, '', [], 100))).toEqual(expect.arrayContaining(['view:chats', 'view:system', 'page:sketch', 'page:review', 'page:settings', 'repo', 'design', 'review', 'audit', 'system', 'compact', 'stop', 'notify', 'phone', 'shortcuts', 'focus', 'recipe:brief', 'recipe:handoff']));
+    expect(ids(rankCommands(cmds, '', [], 100))).toEqual(expect.arrayContaining(['view:chats', 'view:system', 'page:sketch', 'page:review', 'page:settings', 'repo', 'review', 'audit', 'system', 'compact', 'stop', 'notify', 'phone', 'shortcuts', 'focus', 'recipe:brief', 'recipe:handoff']));
     expect(cmds.map((c) => c.label)).toContain('Recipe: Design from a brief');
   });
 });

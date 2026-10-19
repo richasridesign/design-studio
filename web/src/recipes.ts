@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getJson, getState, postJson, send } from './store';
+import { getJson, getState, postJson } from './store';
 import { insertPrompt } from './panes/composerEvents';
 import { RECIPES, recipePrompt, toRecipe, type CustomRecipe, type Recipe } from '../../shared/recipes';
 import { figmaNodeUrl } from '../../shared/design';
@@ -16,7 +16,6 @@ async function selectedFrames() {
 
 export async function recipeText(recipe: Recipe) {
   const frames = recipe.needsFrames ? await selectedFrames() : null;
-  if (recipe.id === 'brief') send({ type: 'set_flow', patch: { mode: 'design' } });
   return recipePrompt(recipe, frames).trimEnd();
 }
 
