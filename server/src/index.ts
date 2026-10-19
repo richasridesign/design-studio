@@ -34,12 +34,12 @@ import { HistoryError, historyView, onHistoryWrite, syncDecisions } from './hist
 import { buildMap, cachedMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
-import { adoptProposal, chatContext, confirmAdopt, ensureIterationFolders, listProjects, projectIterationDir, readProject, updateProject } from './project.js';
+import { adoptProposal, autoAdopt, chatContext, confirmAdopt, ensureIterationFolders, listProjects, projectIterationDir, readProject, updateProject } from './project.js';
 import { iterationReviews, selectionNode, selectionView } from './selection.js';
 import { cleanId } from '../../shared/project.js';
 import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectionsFor, reopenIteration } from './iterations.js';
 import { createFlow } from './newFlow.js';
-import { createFileFor, createProject, linkFile, ProjectError, shownRoot } from './newProject.js';
+import { createFileFor, createProject, linkFile, ProjectError, renameProject, shownRoot } from './newProject.js';
 import { figmaTeams } from './figmaCreate.js';
 import { commitProject } from './projectGit.js';
 import { figmaProjectId } from '../../shared/newProject.js';
@@ -493,6 +493,14 @@ const server = http.createServer(async (req, res) => {
         broadcastLive();
         return json(r);
       }
+      // After a file is linked (Add Figma file, a file she has, a pasted link or a new file): adoption with no dialog.
+      if (url.pathname === '/api/projects/autofill' && req.method === 'POST') {
+        if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
+        const r = await autoAdopt(dir, file.key);
+        if (r.flows) void commitProject(dir, `Adopt ${file.name}: ${r.flows} flows, ${r.iterations} iterations`);
+        broadcastLive();
+        return json({ flows: r.flows, iterations: r.iterations, file: file.name });
+      }
       if (url.pathname === '/api/projects/adopt') {
         if (!file || file.key === SAMPLE_KEY) return json({ error: 'This folder has no Figma file' }, 400);
         return json(await adoptProposal(dir, file.key));
@@ -554,6 +562,14 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/projects/remove' && req.method === 'POST') {
         if (!asked || file?.key === SAMPLE_KEY || (!file && !(await readProject(dir)))) return json({ error: 'Only a project folder can be removed' }, 400);
         const r = await removeProject(dir, { stopTasks: (root) => tasks.forget(root), closeChats: closeChatsIn });
+        broadcastLive();
+        return json(r);
+      }
+      // Rename project changes only the name in project.json; the folder keeps its name. (/rename is the sections.)
+      if (url.pathname === '/api/projects/name' && req.method === 'POST') {
+        if (!asked) return json({ error: 'Name the project' }, 400);
+        const r = await renameProject(dir, (await readJsonBody())?.name);
+        void commitProject(dir, `Rename project ${r.from} to ${r.name}`);
         broadcastLive();
         return json(r);
       }

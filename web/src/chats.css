@@ -84,6 +84,7 @@
 .project-dialog-body .field input:focus { outline: 0; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
 .project-dialog-body .field input[aria-invalid='true'] { border-color: var(--err); }
 .project-dialog-body .error-text { margin: 0; }
+.rp-body { padding-top: 16px; }
 .project-fields { margin: 0 0 12px; padding: 0; border: 0; min-width: 0; }
 .project-fields legend { padding: 0; margin-bottom: 8px; font-size: var(--text-sm); font-weight: 600; line-height: 20px; color: var(--fg); }
 .project-list { list-style: none; margin: 0; padding: 0; }

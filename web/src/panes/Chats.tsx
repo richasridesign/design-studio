@@ -14,7 +14,8 @@ import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED } from './ProjectDial
 import { RunAcrossFlowsDialog } from './RunAcrossFlows';
 import { TaskCard, TaskRows } from './TaskCard';
 import { useTasks } from './taskStore';
-import { RemoveProjectDialog, RenameDialog } from './ProjectActions';
+import { RemoveProjectDialog, RenameDialog, RenameProjectDialog } from './ProjectActions';
+import { autofill, useAutofill } from './autofill';
 import { NewFlowDialog } from './NewFlow';
 import { PortfolioGroup } from './PortfolioGroup';
 import { NewChatPicker } from './NewChatPicker';
@@ -33,7 +34,7 @@ export async function openSample() {
   setTimeout(() => window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'page:figma' } })), 400);
 }
 
-type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number } | { kind: 'flow'; p: TreeProject } | { kind: 'chat'; p: TreeProject };
+type Dialog = { kind: 'adopt'; p: TreeProject } | { kind: 'iteration'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'run'; p: TreeProject; project: NonNullable<ProjectSummary['project']> } | { kind: 'task'; id: string } | { kind: 'remove'; p: TreeProject; chats: number; tasks: number } | { kind: 'rename'; p: TreeProject; count: number } | { kind: 'flow'; p: TreeProject } | { kind: 'chat'; p: TreeProject } | { kind: 'name'; p: TreeProject };
 
 export function Chats() {
   const viewing = useStore((s) => s.session.id);
@@ -46,6 +47,7 @@ export function Chats() {
   const [ask, setAsk] = useState<ConfirmRequest | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const taskList = useTasks();
+  const filling = useAutofill();
   const [opening, setOpening] = useState<string | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleError, setSampleError] = useState('');
@@ -236,9 +238,18 @@ export function Chats() {
       const more = document.querySelector<HTMLElement>(`.row.project button.icon-btn[aria-label="${CSS.escape(`More for ${p.name}`)}"]`);
       openAttach(more, { cwd: p.cwd, name: p.name }, more);
     };
+    const rename = () => setDialog({ kind: 'name', p });
+    // Right after a file is linked its flows are read from Figma: the row says so, or why not, with Try again.
+    const fill = filling.get(p.cwd);
+    const fillLine = fill?.kind === 'reading'
+      ? <div className="hint adopt-hint autofill-hint" role="status"><Icon name="loading" spin small /> Reading flows from Figma…</div>
+      : fill?.kind === 'error'
+      ? <div className="hint error-text adopt-hint autofill-hint" role="alert">Flows were not read from {fill.file}: {fill.text} <button className="link" onClick={() => autofill(p.cwd, fill.file)}>Try again</button></div>
+      : null;
     const menu = p.noFile ? (
       <RowMenu label={`More for ${p.name}`} items={[
         { label: 'Add Figma file', hint: 'A new file, or one you have', run: addFile },
+        { label: 'Rename project', hint: 'The folder keeps its name', run: rename },
         { label: 'Remove project', hint: 'Moves the folder to .trash', run: remove },
       ]} />
     ) : (
@@ -249,6 +260,7 @@ export function Chats() {
         ...(p.adopted ? [{ label: 'Run across flows', hint: 'One prompt, one chat per flow', run: () => { const project = projects.find((x) => x.cwd === p.cwd)?.project; if (project) setDialog({ kind: 'run', p, project }); } }] : []),
         ...(sum?.renames ? [{ label: renameLabel(sum.renames), hint: 'Working iteration only', run: () => setDialog({ kind: 'rename', p, count: sum.renames! }) }] : []),
         { label: 'Open in Figma', hint: 'In a new tab', run: () => window.open(p.url, '_blank', 'noopener') },
+        { label: 'Rename project', hint: 'The folder keeps its name', run: rename },
         { label: 'Remove project', hint: 'Moves the folder to .trash', run: remove },
       ]} />
     );
@@ -279,6 +291,7 @@ export function Chats() {
       : p.adopted
       ? (
         <>
+          {fillLine}
           <TaskRows tasks={taskList.tasks.filter((t) => t.root === p.cwd)} onOpen={(id) => setDialog({ kind: 'task', id })} />
           {p.flows.map((f) => flowRow(p, f))}
           {plain(p, 'tasks', 'Project tasks', p.tasks)}
@@ -287,7 +300,7 @@ export function Chats() {
       )
       : (
         <>
-          <div className="hint adopt-hint">Not adopted yet. <button className="link" onClick={() => setDialog({ kind: 'adopt', p })}>Adopt this file</button></div>
+          {fillLine ?? <div className="hint adopt-hint">Not adopted yet. <button className="link" onClick={() => setDialog({ kind: 'adopt', p })}>Adopt this file</button></div>}
           {plain(p, 'before', 'Before flows', p.before)}
         </>
       );
@@ -339,6 +352,7 @@ export function Chats() {
       })()}
       {dialog?.kind === 'run' && <RunAcrossFlowsDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} weeklyPct={taskList.weeklyPct} cap={taskList.cap} parallel={taskList.parallel} onClose={() => setDialog(null)} onOpenTask={(id) => setDialog({ kind: 'task', id })} />}
       {dialog?.kind === 'remove' && <RemoveProjectDialog cwd={dialog.p.cwd} name={dialog.p.name} chats={dialog.chats} tasks={dialog.tasks} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'name' && <RenameProjectDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} onRenamed={(name) => { if (sel?.cwd === dialog.p.cwd) setUi({ selection: { ...sel, name } }); }} />}
       {dialog?.kind === 'rename' && <RenameDialog cwd={dialog.p.cwd} name={dialog.p.name} count={dialog.count} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'task' && (() => { const t = taskList.tasks.find((x) => x.id === dialog.id); return t ? <TaskCard task={t} onClose={() => setDialog(null)} /> : null; })()}
     </div>

@@ -70,3 +70,6 @@
 .sessions .tree .row .dup-tag { display: inline-flex; align-items: center; flex: none; color: var(--warn); margin-left: 4px; }
 .sessions.chats .tree .hint.adopt-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding: 4px 12px 4px 32px; font-size: var(--text-xs); line-height: 16px; }
 .sessions .tree .hint.adopt-hint button.link { min-height: 24px; font-size: var(--text-xs); }
+.sessions.chats .tree .hint.autofill-hint { display: block; }
+.sessions.chats .tree .hint.autofill-hint .icon { display: inline-block; vertical-align: -3px; margin-right: 4px; }
+.sessions.chats .tree .hint.autofill-hint button.link { display: inline-flex; align-items: center; margin-left: 4px; }

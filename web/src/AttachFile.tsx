@@ -6,6 +6,7 @@ import { useDialogFocus } from './useDialog';
 import { parseFigmaUrl, type FigmaFile } from '../../shared/design';
 import { figmaProjectId, projectNameProblem, projectSlug, type FigmaTeam } from '../../shared/newProject';
 import type { LiveChat } from '../../shared/protocol';
+import { autofill, TOAST, type ToastDetail } from './panes/autofill';
 import './attach.css';
 
 export function recentFiles(live: LiveChat[], currentUrl?: string, max = 5) {
@@ -142,8 +143,17 @@ export function AttachHost() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Toasts from the sidebar's auto-fill (flows read from the linked file) show here too.
+  useEffect(() => {
+    const show = (e: Event) => setToast((e as CustomEvent<ToastDetail>).detail);
+    window.addEventListener(TOAST, show);
+    return () => window.removeEventListener(TOAST, show);
+  }, []);
+
   const finished = (p: Proj, f: FigmaFile, text: string) => {
     changed();
+    // The file's flows, iterations and section links go into the project right away, with no Adopt dialog.
+    autofill(p.cwd, f.name);
     if (openRef.current && 'p' in stepRef.current && stepRef.current.p?.cwd === p.cwd) {
       close();
       openFile(f);

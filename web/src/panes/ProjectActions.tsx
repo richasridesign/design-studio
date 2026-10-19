@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { postJson } from '../store';
 import { Icon } from '../Icon';
 import { PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import { tasksChanged } from './taskStore';
 import { renameLabel } from '../../../shared/projectNames';
+import { cleanProjectName, projectNameProblem } from '../../../shared/newProject';
 import '../tasks.css';
 
-// Two project chores from the sidebar menu. Remove project moves the folder to .trash (nothing is deleted, Figma is
-// not touched). Rename to the convention renames the working iteration's sections in Figma.
+// Project chores from the sidebar menu. Remove project moves the folder to .trash (nothing is deleted, Figma is
+// not touched). Rename project changes only the name Design Studio shows. Rename to the convention renames the
+// working iteration's sections in Figma.
 
 const changed = () => window.dispatchEvent(new Event(PROJECTS_CHANGED));
 const withCwd = (p: string, cwd: string) => `${p}?cwd=${encodeURIComponent(cwd)}`;
@@ -93,6 +95,53 @@ export function RenameDialog({ cwd, name, count, onClose }: { cwd: string; name:
           <button className="primary" autoFocus onClick={() => void go()} disabled={busy}>{busy ? 'Renaming…' : phase.kind === 'error' ? 'Try again' : `Rename ${plural(count, 'section')}`}</button>
         </div>
       </div>
+    </Shell>
+  );
+}
+
+/** Rename project: the name in project.json only. The folder keeps its name, since saved chats are tied to it. */
+export function RenameProjectDialog({ cwd, name, onClose, onRenamed }: { cwd: string; name: string; onClose: () => void; onRenamed?: (name: string) => void }) {
+  const [value, setValue] = useState(name);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => field.current?.select(), []);
+  const folder = cwd.split('/').filter(Boolean).at(-1) ?? cwd;
+  const clean = cleanProjectName(value);
+  // Same rules as Add project. An empty name says so only on the button, not as an error.
+  const live = clean ? projectNameProblem(value) : '';
+  const shown = error || live;
+  const why = !clean ? 'Type a project name first' : clean === name ? 'Change the name first' : live || undefined;
+  const save = async () => {
+    if (why || busy) return;
+    setBusy(true);
+    try {
+      const r = await postJson<{ name: string }>(withCwd('/api/projects/name', cwd), { name: clean });
+      changed();
+      onRenamed?.(r.name);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Shell title="Rename project" onClose={onClose} busy={busy}>
+      <form className="project-dialog-body rp-body" noValidate onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <div className="field">
+          <label htmlFor="rp-name">Project name <span aria-hidden="true">*</span></label>
+          <input id="rp-name" ref={field} autoFocus required autoComplete="off" spellCheck={false} maxLength={80} value={value} readOnly={busy}
+            aria-invalid={shown ? true : undefined} aria-describedby={shown ? 'rp-error rp-folder' : 'rp-folder'}
+            onChange={(e) => { setValue(e.target.value); setError(''); }} />
+          {shown && <span id="rp-error" className="error-text small"><Icon name="error" small /> {shown}</span>}
+          <span id="rp-folder" className="muted small">The folder stays {folder}.</span>
+        </div>
+        <p className="muted small">* Required</p>
+        <div className="dialog-actions">
+          <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className="primary" disabled={Boolean(why) || busy} title={why}>{busy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
     </Shell>
   );
 }
