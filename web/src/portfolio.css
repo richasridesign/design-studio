@@ -6,6 +6,15 @@
 .pf-head h1 { margin: 0; font-size: var(--text-lg); line-height: 24px; font-weight: 600; }
 .pf-head .icon-btn { width: 32px; height: 32px; }
 .pf-head-link { min-height: 32px; font-size: var(--text-sm); }
+.pf-head-conn { display: flex; align-items: center; gap: 12px; }
+.pf-conn { display: inline-flex; align-items: center; font-size: var(--text-sm); line-height: 20px; white-space: nowrap; }
+.pf-conn.on { color: var(--ok); }
+.pf-conn.off { color: var(--warn); }
+.pf-conn-mark { flex: none; margin-right: 8px; }
+@media (max-width: 560px) {
+  .pf-head { flex-wrap: wrap; row-gap: 4px; }
+  .pf-head-conn { order: 3; flex-basis: 100%; padding-left: 32px; }
+}
 .pf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 48px; display: flex; flex-direction: column; gap: 16px; }
 .pf-host .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
