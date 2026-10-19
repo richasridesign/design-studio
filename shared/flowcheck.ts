@@ -70,6 +70,8 @@ export type FlowCheckRun = {
   truncated?: boolean;
   // Flows named in Scope that match no section in the file. Older runs have none.
   missing?: string[];
+  // A run scoped to one iteration lists only its sections (an adopted file).
+  iteration?: string;
 };
 
 export const flowIssues = (f: FlowResult) => Object.values(f.counts).reduce((n, c) => n + (c ?? 0), 0);

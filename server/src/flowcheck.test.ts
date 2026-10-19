@@ -566,6 +566,22 @@ describe('runFlowCheck', () => {
     const run = await runFlowCheck({ dir, fileKey: 'abc', load, scope: scope(['Home']) });
     expect(run).not.toHaveProperty('missing');
   });
+  it('scoped to an iteration, walks only its section and keeps only its flows', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
+    await writeFile(path.join(dir, 'project.json'), JSON.stringify({ key: 'abc', flows: [{ n: 1, slug: 'a', name: 'A', entry: [] }], iterations: [{ id: '1', node: '1:1', state: 'frozen', flows: { a: { node: '1:2' } } }, { id: '1.19', node: '9:1', state: 'working', flows: { a: { node: '9:2' } } }] }));
+    const asked: unknown[] = [];
+    const flow = (id: string, iteration?: string) => ({ id, name: id, path: [], page: 'P', ...(iteration ? { iteration } : {}), screens: 1, state: 'pass' as const, counts: {}, unchecked: [], findings: [], more: 0 });
+    const read = async (_k: string, _s: unknown, opts: { walk?: unknown }) => { asked.push(opts.walk); return { flows: [flow('1:2', '1'), flow('9:2', '1.19'), flow('5:1')], unchecked: [], missing: ['Checkout'] }; };
+    const run = await runFlowCheck({ dir, fileKey: 'abc', read, scope: scope([]), iteration: '1.19' });
+    expect(asked).toEqual([{ only: ['9:1'] }]);
+    expect(run.flows.map((f) => f.id)).toEqual(['9:2']);
+    expect(run).toMatchObject({ iteration: '1.19' });
+    expect(run).not.toHaveProperty('missing');
+    const whole = await runFlowCheck({ dir, fileKey: 'abc', read, scope: scope([]) });
+    expect(asked[1]).toBeUndefined();
+    expect(whole.flows).toHaveLength(3);
+    expect(whole).not.toHaveProperty('iteration');
+  });
   it('returns no flows for the sample file without calling Figma', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
     const run = await runFlowCheck({ dir, fileKey: 'sample', load: async () => { throw new Error('no'); } });

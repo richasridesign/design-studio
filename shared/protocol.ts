@@ -164,6 +164,8 @@ export type ClientMessage =
   | { type: 'new_chat'; url?: string }
   | { type: 'set_figma'; url: string }
   | { type: 'set_edits_anywhere'; on: boolean }
+  // A project, flow or iteration row selected in the sidebar: the Figma tab in Chrome follows it.
+  | { type: 'selection'; cwd: string; flow?: string; iteration?: string }
   | { type: 'mcp_status' }
   | { type: 'mcp_reconnect'; name: string; quiet?: boolean }
   | { type: 'mcp_toggle'; name: string; enabled: boolean };

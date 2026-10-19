@@ -29,10 +29,12 @@ import { loadSample, samplePath } from './sample.js';
 import { addDaily, today } from './spend.js';
 import { onReadCost } from './pluginRead.js';
 import { HistoryError, historyView, onHistoryWrite, syncDecisions } from './history.js';
-import { buildMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
+import { buildMap, cachedMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
-import { adoptProposal, confirmAdopt, ensureIterationFolders, listProjects, readProject, updateProject } from './project.js';
+import { adoptProposal, chatContext, confirmAdopt, ensureIterationFolders, listProjects, projectIterationDir, readProject, updateProject } from './project.js';
+import { iterationReviews, selectionNode, selectionView } from './selection.js';
+import { cleanId } from '../../shared/project.js';
 import { addFlowToIteration, createIterationInFigma, freezeIteration, makeSectionsFor, reopenIteration } from './iterations.js';
 import { addFigmaToClaude, figmaMcp } from './lean.js';
 import { cancelFigmaLogin, figmaLoginState, startFigmaLogin } from './figmaLogin.js';
@@ -113,6 +115,16 @@ function broadcastLive() {
     const chats = [...live.values()].map((l) => summary(l.chat)).sort((a, b) => b.lastActive - a.lastActive);
     clients.forEach((c) => c.send({ type: 'live', chats }));
   }, 100);
+}
+
+// A flow or iteration selected in the sidebar: the Figma tab in Chrome moves to its section when that file is already
+// open there. It never opens a tab or navigates, and does nothing without Chrome.
+async function focusSelection(msg: { cwd: string; flow?: string; iteration?: string }) {
+  const dir = path.resolve(String(msg.cwd ?? ''));
+  if (!isChatFolder(dir)) return;
+  const [file, project] = await Promise.all([readFigma(dir), readProject(dir)]);
+  const node = file && file.key !== SAMPLE_KEY && project ? selectionNode(project, { flow: msg.flow, iteration: msg.iteration }) : null;
+  if (node) await focusFigma(file!.key, node, false).catch(() => null);
 }
 
 async function createChat(cwd: string, resume?: string, title = '') {
@@ -473,6 +485,26 @@ const server = http.createServer(async (req, res) => {
         broadcastLive();
         return json(r);
       }
+      // A project, flow or iteration selected in the sidebar with no chat for it: its screens from the cached map, the
+      // review runs of an iteration's flow folders, and a flow check scoped to the iteration (kept in <root>/iterations/<id>).
+      const sel = { flow: url.searchParams.get('flow') || undefined, iteration: cleanId(url.searchParams.get('iteration') ?? '') ?? undefined };
+      if (url.pathname === '/api/projects/view') {
+        const project = await readProject(dir);
+        if (!project || !figmaKey) return json({ groups: [], readAt: null });
+        const map = await cachedMap(projectRoot(dir), figmaKey).catch(() => null);
+        return json({ groups: selectionView(project, map, sel), readAt: map?.readAt ?? null });
+      }
+      if (url.pathname === '/api/projects/reviews') {
+        const project = await readProject(dir);
+        return json({ flows: project && sel.iteration ? await iterationReviews(projectRoot(dir), project, sel.iteration) : [] });
+      }
+      if (url.pathname === '/api/projects/flowcheck') {
+        if (!sel.iteration) return json({ error: 'Name an iteration' }, 400);
+        const at = projectIterationDir(projectRoot(dir), sel.iteration);
+        if (req.method !== 'POST') return json({ runs: await readFlowChecks(at) });
+        if (!figmaKey) return json({ error: 'This folder has no Figma file' }, 400);
+        return json({ run: await runFlowCheck({ dir: at, fileKey: figmaKey, iteration: sel.iteration }) });
+      }
       // Remove project moves the folder to .trash (nothing deleted, Figma untouched); rename fixes the working sections' names.
       if (url.pathname === '/api/projects/remove' && req.method === 'POST') {
         if (!asked || !file || file.key === SAMPLE_KEY) return json({ error: 'Only a project folder with a Figma file can be removed' }, 400);
@@ -515,7 +547,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/sketch/board') return json(await readBoard(chat.cwd));
     if (url.pathname === '/api/sketch') return json(await readSketch(chat.cwd).catch((err) => ({ error: (err as Error).message })));
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
-    if (url.pathname === '/api/flowcheck' && req.method === 'POST') return json({ run: await runFlowCheck({ dir: chat.cwd, fileKey: needFigma().key }) });
+    if (url.pathname === '/api/flowcheck' && req.method === 'POST') {
+      // A flow chat checks its own iteration's section; other chats check the whole file.
+      const ctx = await chatContext(chat.cwd).catch(() => null);
+      return json({ run: await runFlowCheck({ dir: chat.cwd, fileKey: needFigma().key, ...(ctx?.scope === 'flow' && ctx.iteration ? { iteration: ctx.iteration.id } : {}) }) });
+    }
     if (url.pathname === '/api/flowcheck') return json({ runs: await readFlowChecks(chat.cwd) });
     if (url.pathname === '/api/crit') return json({ runs: await readCrit(chat.cwd) });
     if (url.pathname === '/api/copy/apply' && req.method === 'POST') {
@@ -640,6 +676,9 @@ wss.on('connection', (ws: WebSocket, req) => {
         break;
       case 'set_edits_anywhere':
         chat.setEditsAnywhere(Boolean(msg.on));
+        break;
+      case 'selection':
+        void focusSelection(msg);
         break;
       case 'set_flow':
         chat.updateFlow(msg.patch ?? {});
