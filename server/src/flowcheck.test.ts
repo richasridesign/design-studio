@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { checkFlows, hasClick, hasHover, reactionsOf, readFlowChecks, runFlowCheck } from './flowcheck.js';
+import { checkFlows, hasClick, hasHover, reactionsOf, readFlowChecks, runFlowCheck, stickyRule } from './flowcheck.js';
 import { hoverDrift, screenFindings } from './flowRules.js';
 import { flowFixPrompt, flowLabel, wiringIssues } from '../../shared/flowcheck.js';
 
@@ -226,6 +226,36 @@ describe('checkFlows', () => {
   it('does not match a sticky for a longer screen name to a shorter one', () => {
     const r = checkFlows(doc([section('1:1', 'F', [screen('s1', 'Home', []), sticky(1, 'Home filled'), sticky(2, 'Home filled')])]), maps);
     expect(rules(r)).toEqual(['no-stickies']);
+  });
+
+  it('in an adopted file, needs 3 to 5 stickies only in working flow subsections, and skips entry copies', () => {
+    const three = (name: string) => [1, 2, 3].map((n) => sticky(n, name));
+    const page = [
+      section('9:1', 'V1.19 · Readiness', [
+        section('9:2', 'V1.19 · Flow 1 · Connectors', [
+          screen('a', 'Connectors', []), ...three('Connectors'),
+          screen('b', 'Connected', [], 0, 1200), sticky(1, 'Connected'),
+          screen('c', 'Home (Entry, unchanged)', [], 2000, 0),
+          screen('d', 'Busy', [], 0, 2400), ...[1, 2, 3, 4, 5, 6].map((n) => sticky(n, 'Busy')),
+        ], 0, 0, 6000, 4000),
+      ], 0, 0, 7000, 5000),
+      section('8:1', 'V1.18 · Trust', [screen('e', 'Old', [])], 0, 6000, 2000, 1200),
+    ];
+    const r = checkFlows(doc(page), maps, undefined, { working: ['9:2'] });
+    const all = r.flows.flatMap((f) => f.findings.filter((x) => x.rule === 'no-stickies').map((x) => x.message));
+    expect(all).toEqual(['"Connected" has 1 Decision sticky: it needs 3 to 5.', '"Busy" has 6 Decision stickies, 5 at most.']);
+    expect(r.unchecked).toEqual([]);
+    // An adopted file with no working iteration checks no stickies, and never asks for Decision 1 and 2.
+    const none = checkFlows(doc(page), maps, undefined, { working: [] });
+    expect(none.flows.flatMap((f) => f.findings).filter((x) => x.rule === 'no-stickies')).toEqual([]);
+  });
+
+  it('lists the working flow subsections of an adopted file for the sticky rule', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'flowcheck-'));
+    expect(await stickyRule(dir, 'KEY')).toEqual({});
+    await writeFile(path.join(dir, 'project.json'), JSON.stringify({ key: 'KEY', flows: [{ n: 1, slug: 'a', name: 'A', entry: [] }], iterations: [{ id: '1.18', state: 'frozen', flows: { a: { node: '8:2' } } }, { id: '1.19', state: 'working', flows: { a: { node: '9:2', states: '9:3' } } }] }));
+    expect(await stickyRule(dir, 'KEY')).toEqual({ working: ['9:2', '9:3'] });
+    expect(await stickyRule(dir, 'OTHER')).toEqual({});
   });
 
   it('marks stickies as not checked when the file has no Decision nodes', () => {

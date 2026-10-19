@@ -415,7 +415,7 @@ const intersects = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.widt
 const contains = (outer: Box, inner: Box) => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 
 // parked: inside a section named Parked, so no rule runs on it. feature: the parked feature this section is named after.
-type Flow = { ref: FlowRef; path: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null; version: string };
+type Flow = { ref: FlowRef; path: string[]; ancestors: string[]; page: string; node: any; screens: any[]; leaf: boolean; section: boolean; parked: boolean; feature: string | null; version: string };
 type Item = { id: string; name: string; box: Box; section: boolean; ancestors: string[]; flow: FlowRef; parent: string | null };
 
 // Flow and section notes: text in a section outside its screens, Decision stickies and the changelog. A note over
@@ -443,7 +443,17 @@ export const isParkedSection = (name: string, path: string[]) => [...path, name]
 /** True when the read stopped inside this section's own layers (sub-sections are flows of their own). */
 const cutShort = (n: any): boolean => !!n.cut || kids(n).some((c) => c.type !== 'SECTION' && cutShort(c));
 
-export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
+/**
+ * Sticky rule for an adopted file: `working` lists the flow and states subsections of its working iterations. Only
+ * screens in those need Decision stickies, 3 to 5 each; frozen iterations, the baseline and entry copies are history.
+ * Without it (a file with no project.json) every screen needs Decision 1 and 2, once the file has any sticky.
+ */
+export type StickyRule = { working?: string[] };
+
+const ENTRY_COPY = /\(entry, unchanged\)/i;
+
+export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_SCOPE, sticky: StickyRule = {}): { flows: FlowResult[]; unchecked: FlowRule[]; missing: string[] } {
+  const working = sticky.working ? new Set(sticky.working) : null;
   const flows: Flow[] = [];
   const screens = new Map<string, ScreenInfo>();
   // Every layer directly inside a section, screens or not, so links to small overlays are traced too.
@@ -469,7 +479,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       const own = kids(s).filter(isScreen);
       const subs = kids(s).filter((c) => c.type === 'SECTION');
       const full = [...path, ref.name].join(' / ');
-      const flow: Flow = { ref, path, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null, version };
+      const flow: Flow = { ref, path, ancestors, page: page.name, node: s, screens: own, leaf: !subs.length, section: true, parked: isParkedSection(ref.name, path), feature: parkedNames.find((p) => namedLike(full, p)) ?? null, version };
       flows.push(flow);
       for (const c of kids(s)) if (c.type !== 'SECTION') owner.set(c.id, flow);
       if (s.absoluteBoundingBox) items.push({ id: s.id, name: ref.name, box: s.absoluteBoundingBox, section: true, ancestors, flow: ref, parent: ancestors[ancestors.length - 1] ?? null });
@@ -483,7 +493,7 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     const loose = tops.filter((t) => t.type !== 'SECTION' && isScreen(t));
     if (loose.length) {
       const ref = { id: page.id, name: `Not in a section (${page.name})` };
-      flows.push({ ref, path: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null, version: `loose:${page.id}` });
+      flows.push({ ref, path: [], ancestors: [], page: page.name, node: { ...page, children: loose }, screens: loose, leaf: true, section: false, parked: false, feature: null, version: `loose:${page.id}` });
       // Only frames that are part of a prototype: a thumbnail, a style guide or a main component can sit on the canvas.
       for (const sc of loose) if (sc.type === 'FRAME') looseScreens.push({ flow: ref, node: sc });
       for (const sc of loose) {
@@ -550,7 +560,14 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
       const flagged = new Set<string>();
       linkFindings(sc, f.ref, f.version, screenAt, scanParked ? parkedAt : () => null, add, flagged);
       if (scanParked) parkedNameFindings(sc, parkedNames, add, flagged);
-      if (decisions) {
+      if (working) {
+        const inWorking = working.has(f.ref.id) || f.ancestors.some((a) => working.has(a));
+        if (inWorking && !ENTRY_COPY.test(screen.name)) {
+          const count = new Set(decisionNames.map((d) => DECISION.exec(d)!).filter((m) => stickyMatch(m[2], screen.name)).map((m) => m[1])).size;
+          if (count < 3) add(sc, 'no-stickies', `${quote(screen.name)} has ${count === 0 ? 'no' : count} Decision ${count === 1 ? 'sticky' : 'stickies'}: it needs 3 to 5.`, `Add ${3 - count} more right below the screen, each one bold decision line and one Why line about what is shown and why.`);
+          else if (count > 5) add(sc, 'no-stickies', `${quote(screen.name)} has ${count} Decision stickies, 5 at most.`, 'Keep the 5 most important decisions for this screen and remove the rest.');
+        }
+      } else if (decisions) {
         const have = new Set(decisionNames.map((d) => DECISION.exec(d)!).filter((m) => stickyMatch(m[2], screen.name)).map((m) => m[1]));
         const missing = ['1', '2'].filter((n) => !have.has(n));
         if (missing.length) add(sc, 'no-stickies', `${quote(screen.name)} is missing ${missing.map((n) => `Decision ${n}`).join(' and ')}.`, `Add ${missing.map((n) => `"Decision ${n} · ${screen.name}"`).join(' and ')} under the screen: one bold decision line and one Why line.`);
@@ -619,12 +636,12 @@ export function checkFlows(document: any, maps: Maps = {}, scope: Scope = EMPTY_
     const state = list.length ? 'fail' : f.screens.length ? 'pass' : 'unchecked';
     const order = (x: FlowFinding) => f.screens.findIndex((s) => s.id === x.screen?.id);
     const sorted = [...list].sort((x, y) => order(x) - order(y) || FLOW_RULES.indexOf(x.rule) - FLOW_RULES.indexOf(y.rule));
-    results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state, counts, unchecked: decisions ? [] : ['no-stickies'], findings: sorted.slice(0, MAX_PER_FLOW), more: Math.max(0, sorted.length - MAX_PER_FLOW) });
+    results.push({ id: f.ref.id, name: f.ref.name, path: f.path, page: f.page, screens: f.screens.length, state, counts, unchecked: decisions || working ? [] : ['no-stickies'], findings: sorted.slice(0, MAX_PER_FLOW), more: Math.max(0, sorted.length - MAX_PER_FLOW) });
   }
   // Flows named in Scope need a section in the file. Parked sections and loose screens do not count.
   const live = flows.filter((f) => f.section && !f.parked).map((f) => [...f.path, f.ref.name].join(' '));
   const missing = scope.flows.filter((name) => !live.some((s) => flowMatches(name, s)));
-  return { flows: results, unchecked: decisions ? [] : ['no-stickies'], missing };
+  return { flows: results, unchecked: decisions || working ? [] : ['no-stickies'], missing };
 }
 
 type Compact = { i: string; n: string; t: string; h?: 1; b?: number[]; r?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; p?: string[]; x?: string; L?: number; u?: 0 | 1; k?: 1; c?: Compact[] };
@@ -650,7 +667,7 @@ export function expandNode(c: Compact): any {
 
 
 /** Runs inside the plugin: the walker's compact tree in, the Flow check result out. */
-export function runPayload(payload: PluginPayload, scope: Scope = EMPTY_SCOPE) {
-  const result = checkFlows(expandNode(payload.document), { components: payload.components ?? {}, componentSets: payload.componentSets ?? {}, outside: payload.outside ?? {} }, scope);
+export function runPayload(payload: PluginPayload, scope: Scope = EMPTY_SCOPE, sticky: StickyRule = {}) {
+  const result = checkFlows(expandNode(payload.document), { components: payload.components ?? {}, componentSets: payload.componentSets ?? {}, outside: payload.outside ?? {} }, scope, sticky);
   return { ...result, truncated: !!payload.truncated, nodes: payload.nodes };
 }

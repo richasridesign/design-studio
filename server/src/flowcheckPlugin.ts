@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { FlowCheckRun } from '../../shared/flowcheck.js';
 import { EMPTY_SCOPE, type Scope } from '../../shared/scope.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
+import type { StickyRule } from './flowRules.js';
 
 // Flow check through the Figma plugin. A real file is megabytes of layers, far over the 20480-byte use_figma return
 // limit (a 240,000-layer test file gave 1.5 MB at the 20,000-layer cap), so the check itself runs inside Figma:
@@ -264,14 +265,14 @@ export function rulesBundle(): Promise<string> {
 }
 
 /** The whole use_figma body: rules, walker, then the check. Only reads. */
-export async function flowCheckBody(scope: Scope = EMPTY_SCOPE, opts: WalkOpts = {}) {
-  return `${await rulesBundle()}\n${flowWalk({ first: scope.flows, ...opts })}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)});`;
+export async function flowCheckBody(scope: Scope = EMPTY_SCOPE, opts: WalkOpts = {}, sticky: StickyRule = {}) {
+  return `${await rulesBundle()}\n${flowWalk({ first: scope.flows, ...opts })}\nreturn __fc.runPayload(__payload, ${JSON.stringify(scope)}, ${JSON.stringify(sticky)});`;
 }
 
 export type PluginCheck = { flows: FlowCheckRun['flows']; unchecked: FlowCheckRun['unchecked']; missing: string[]; truncated: boolean; nodes: number; costUsd: number; ms: number };
 
 /** Runs the Flow check inside Figma through the plugin. */
-export async function pluginFlowCheck(fileKey: string, scope: Scope, opts: { dir: string; signal?: AbortSignal; walk?: WalkOpts } & ReadDeps): Promise<PluginCheck> {
-  const r = await pluginScript<Omit<PluginCheck, 'costUsd' | 'ms'>>(fileKey, await flowCheckBody(scope, opts.walk), 'Check prototype links for Flow check (read only)', opts);
+export async function pluginFlowCheck(fileKey: string, scope: Scope, opts: { dir: string; signal?: AbortSignal; walk?: WalkOpts; sticky?: StickyRule } & ReadDeps): Promise<PluginCheck> {
+  const r = await pluginScript<Omit<PluginCheck, 'costUsd' | 'ms'>>(fileKey, await flowCheckBody(scope, opts.walk, opts.sticky), 'Check prototype links for Flow check (read only)', opts);
   return { ...r.value, costUsd: r.costUsd, ms: r.ms };
 }
