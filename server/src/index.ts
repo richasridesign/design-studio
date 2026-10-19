@@ -3,6 +3,7 @@ import { AttachError, MAX_IMAGE_BYTES, saveImage } from './attach.js';
 import { readRules, writeRules } from './rules.js';
 import { readScope, updateScope } from './scope.js';
 import { readTriage, updateTriage } from './triage.js';
+import { eventFromBody, workflowEvent, workflowView } from './workflow.js';
 import { readRecipes, writeRecipes } from './recipes.js';
 import http from 'node:http';
 import os from 'node:os';
@@ -394,6 +395,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/scope') return json(req.method === 'POST' ? await updateScope(chat.cwd, await readJsonBody()) : await readScope(chat.cwd));
     if (url.pathname === '/api/awaiting') return json(req.method === 'POST' ? await updateAwaiting(await readJsonBody()) : await readAwaiting());
     if (url.pathname === '/api/triage') return json(req.method === 'POST' ? await updateTriage(chat.cwd, await readJsonBody()) : await readTriage(chat.cwd));
+    // The flow's workflow in this iteration (workflow.json): the strip and the step card.
+    if (url.pathname === '/api/workflow') {
+      if (req.method === 'POST') await workflowEvent(chat.cwd, eventFromBody(await readJsonBody(), chat.id));
+      const f = chat.state.session.flow;
+      return json(await workflowView(chat.cwd, { preset: f.preset, areas: f.areas, reviewing: (f.reviewers ?? []).some((r) => r.state === 'running') }));
+    }
     if (url.pathname === '/api/stages') {
       // Steps are kept per chat, by Claude's session id, which survives a resume. The first message guesses the kind.
       const sid = chat.state.session.sessionId;
