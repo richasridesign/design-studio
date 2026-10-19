@@ -4,6 +4,20 @@ import { flowOff } from '../../shared/design';
 import { notify } from './notify';
 import { REASON_TEXT, isActive } from '../../shared/longRun';
 
+/**
+ * A project, flow or iteration row picked in the sidebar. The Figma and Review tabs then show it instead of the viewed
+ * chat. Viewing a chat clears it. A project selection carries its working iteration, which Review and Flow check use.
+ */
+export type Selection = {
+  kind: 'project' | 'flow' | 'iteration';
+  cwd: string;
+  name: string;
+  key: string;
+  url: string;
+  flow?: { slug: string; n: number; name: string };
+  iteration?: { id: string; label: string; state: 'working' | 'frozen'; node?: string };
+};
+
 type UiState = {
   connected: boolean;
   openFile: string | null;
@@ -11,6 +25,7 @@ type UiState = {
   switcherOpen: boolean;
   revs: Record<string, number>;
   focus: string | null;
+  selection: Selection | null;
 };
 
 export type State = ServerState & { live: LiveChat[]; ui: UiState };
@@ -22,7 +37,7 @@ let state: State = {
   pending: [],
   recentFiles: [],
   live: [],
-  ui: { connected: false, openFile: null, follow: false, switcherOpen: false, revs: {}, focus: null },
+  ui: { connected: false, openFile: null, follow: false, switcherOpen: false, revs: {}, focus: null, selection: null },
 };
 
 const listeners = new Set<() => void>();
@@ -93,7 +108,9 @@ function handle(m: ServerMessage) {
           return o && JSON.stringify(o) === JSON.stringify(e) ? o : e;
         });
         const keep = same && events.length === s.events.length && events.every((e, i) => e === s.events[i]);
-        return { ...m.state, events: keep ? s.events : events, ui: s.session.cwd && s.session.cwd !== m.state.session.cwd ? { ...s.ui, openFile: null } : s.ui };
+        // Viewing another chat drops a sidebar selection, so the tabs follow the chat again.
+        const ui = same ? s.ui : { ...s.ui, selection: null };
+        return { ...m.state, events: keep ? s.events : events, ui: s.session.cwd && s.session.cwd !== m.state.session.cwd ? { ...ui, openFile: null } : ui };
       });
       break;
     case 'error':

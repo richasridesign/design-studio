@@ -90,3 +90,10 @@
 .project-dialog .dialog-actions { margin-top: 8px; padding: 0 16px 16px; }
 .project-dialog-body .dialog-actions { padding: 0; }
 @media (max-width: 900px) { .dialog.project-dialog { max-height: calc(100vh - 32px); } .project-dialog-body .field input:not([type='checkbox']) { height: 44px; } }
+
+/* Project, flow and iteration rows select on click; the chevron alone folds them (a 24px target). */
+.sessions.chats .tree .row.project.picks { gap: 0; }
+.sessions.chats .tree .row.project .fold-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px; margin-right: 4px; border-radius: var(--radius-sm); cursor: pointer; }
+.sessions.chats .tree .row.project .fold-btn:hover { background: var(--bg-hover); }
+.sessions.chats .tree .row.project .fold-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.sessions.chats .tree .row.project .fold-btn .twistie.chevron { width: auto; }

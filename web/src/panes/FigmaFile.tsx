@@ -4,6 +4,7 @@ import { api, getJson, useRev, useStore } from '../store';
 import { useThumbs } from '../useThumbs';
 import { Icon } from '../Icon';
 import { Empty, BrowserArt } from './Empty';
+import { SelectionFigma } from './SelectionFigma';
 import '../figmafile.css';
 
 const SAMPLE = 'sample';
@@ -21,6 +22,7 @@ export function FigmaFile({ chrome }: { chrome: ReactNode }) {
   const chat = useStore((s) => s.session.id);
   const rev = useRev('design.json');
   const [doc, setDoc] = useState<DesignDoc | null | undefined>(undefined);
+  const sel = useStore((s) => s.ui.selection);
 
   useEffect(() => {
     if (!figma) return;
@@ -30,6 +32,7 @@ export function FigmaFile({ chrome }: { chrome: ReactNode }) {
     return () => { live = false; };
   }, [chat, figma?.key, rev]);
 
+  if (sel) return <SelectionFigma sel={sel} chrome={chrome} />;
   if (!figma) {
     return (
       <div className="browser-pane ff-pane">
