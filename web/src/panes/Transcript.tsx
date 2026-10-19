@@ -324,7 +324,7 @@ function PromptLine({ text, stopping }: { text: string; stopping: boolean }) {
     moved.current = false;
   }, [open, long, settle, recheck]);
   const toggle = (v: boolean) => { moved.current = true; setOpen(v); };
-  const spin = stopping && <span className="tl-prompt-stop" aria-label="Stopping"><Icon name="loading" small spin /></span>;
+  const spin = stopping && <span className="tl-prompt-stop" role="img" aria-label="Stopping"><Icon name="loading" small spin /></span>;
   if (open) {
     return (
       <div className="tl-prompt open">
