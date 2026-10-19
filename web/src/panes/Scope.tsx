@@ -3,6 +3,7 @@ import { getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Confirm } from '../Confirm';
 import { scopeSummary, type Scope, type ScopeChange } from '../../../shared/scope';
+import '../scope.css';
 
 const day = (at: number) => new Date(at).toLocaleDateString([], { day: 'numeric', month: 'short' });
 

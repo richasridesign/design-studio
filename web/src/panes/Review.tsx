@@ -19,6 +19,9 @@ import { ago } from '../ago';
 import { rulesLine, type RuleResult } from '../../../shared/rules';
 import { openRun, resolvedRules, ruleKey, splitFindings, splitRun, triageKey, type Triage, type TriageChange, type TriageState } from '../../../shared/triage';
 import { ClosedGroup, CloseForm, useNodeLabel, useTriage } from './Triage';
+import { ScopeBox } from './Scope';
+import { StateBox } from './StateMap';
+import { useWorkflow } from './Workflow';
 import '../review.css';
 import '../marks';
 
@@ -47,6 +50,9 @@ export function Review({ dev = false }: { dev?: boolean }) {
   useEffect(() => { getJson<{ frames?: unknown[] } | null>('/api/design').then((d) => setDesignFrames(d?.frames?.length ?? 0), () => setDesignFrames(0)); }, [chat, designRev]);
   const { triage, change } = useTriage();
   const [awaiting, setAwaiting] = useAwaitingList();
+  // On a flow chat the review covers the flow's screens, and the step card above the chat holds the primary Start review.
+  const wf = useWorkflow().view;
+  const flow = wf?.scope === 'flow' ? wf : null;
 
   useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, reviewRev]);
   useEffect(() => { getJson<{ runs: CritRun[] }>('/api/crit').then((d) => setCrit(d.runs)).catch(() => {}); }, [chat, critRev]);
@@ -69,17 +75,19 @@ export function Review({ dev = false }: { dev?: boolean }) {
   const rows = mergeRuns(doc.runs, crit, copy);
   // Review runs straight away on the frames of the last Design run. Without them it puts /review in the message box
   // for her frame links, and says so.
-  const canRun = hasFigma && designFrames > 0;
+  const frames = flow ? flow.screens.frames.length : designFrames;
+  const canRun = hasFigma && frames > 0;
+  const runTitle = flow ? `Review the ${frames} ${frames === 1 ? 'screen' : 'screens'} of Flow ${flow.flow.n} · ${flow.flow.name}` : `Review the ${frames} ${frames === 1 ? 'frame' : 'frames'} from the last Design run`;
 
   return (
     <div className="review-page">
       <div className="review-bar">
         {canRun ? (
-          <span className="review-run" title={running ? 'Wait for Claude to finish this turn' : `Review the ${designFrames} ${designFrames === 1 ? 'frame' : 'frames'} from the last Design run, ${PRESET_INFO[preset].label}`}>
-            <button className="primary" disabled={running} onClick={() => send({ type: 'prompt', text: `/review ${preset}` })}><Icon name="play" small /> Review</button>
+          <span className="review-run" title={running ? 'Wait for Claude to finish this turn' : `${runTitle}, ${PRESET_INFO[preset].label}`}>
+            <button className={flow ? undefined : 'primary'} disabled={running} onClick={() => send({ type: 'prompt', text: `/review ${preset}` })}><Icon name="play" small /> Review</button>
           </span>
         ) : (
-          <button className="primary" title="Puts /review in the message box. Paste frame links after it." onClick={() => insertPrompt('/review ')}>Review frames…</button>
+          <button className={flow ? undefined : 'primary'} title="Puts /review in the message box. Paste frame links after it." onClick={() => insertPrompt('/review ')}>Review frames…</button>
         )}
         <DepthSeg />
         <span className="spacer" />
@@ -87,6 +95,11 @@ export function Review({ dev = false }: { dev?: boolean }) {
         <a className="ghost report-download" href={api('/api/report?download=1')} download aria-label="Download handoff report" title="Download handoff report"><Icon name="cloud-download" /></a>
       </div>
       <ReviewAreas />
+      {/* What the work must keep (flows in scope, parked features) and which states the plan lists. */}
+      <div className="review-boxes">
+        <ScopeBox onChange={() => {}} />
+        <StateBox />
+      </div>
       {awaiting && <Awaiting items={awaiting} onItems={setAwaiting} />}
       <FlowCheck />
       {!rows.length && (hasFigma

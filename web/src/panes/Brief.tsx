@@ -7,13 +7,13 @@ import { Pending } from './Pending';
 import { Composer } from './Chat';
 import { RunCard } from './RunCard';
 import { ReadAloud } from './Voice';
-import { touch, useNarrow } from '../touch';
+import { touch } from '../touch';
 import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { ScopeSwitch } from './ScopeSwitch';
 import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
-import { StepsButton, StepsPanel, StepsSheet, useStages, useStepsOpen } from './Stages';
+import { WorkflowPanel } from './Workflow';
 import { stepLabel } from './steps';
 import { insertPrompt } from './composerEvents';
 import { quickReplies, replyToAnswer } from './quickReplies';
@@ -65,9 +65,6 @@ export function Brief() {
   // The foot's details (quick replies, Up next) fold away so the conversation gets the room; the status line stays.
   const [footOpen, setFootOpen] = useState(() => load(FOOT_KEY) !== '0');
   const toggleFoot = () => { setFootOpen(!footOpen); save(FOOT_KEY, footOpen ? '0' : '1'); };
-  const stages = useStages();
-  const steps = useStepsOpen();
-  const narrow = useNarrow();
   // Up next, Claude's own list of what it does after this turn: shown when it has items, hidden when empty (Add to Up next lives with the items).
   const hasSteps = next.length > 0 || adding;
   const answerTo = useMemo(() => replyToAnswer(events), [events]);
@@ -85,19 +82,16 @@ export function Brief() {
   return (
     <div className="brief">
       <div className="brief-status">
-        {/* Steps wait for the first message: it says what kind of work the chat is. */}
         {events.length > 0 && (
           <div className="chat-head">
             <div className="seg chat-view" role="group" aria-label="Chat view">
               {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
             </div>
             <ScopeSwitch />
-            {stages.view && <StepsButton view={stages.view} open={steps.open} onToggle={steps.toggle} />}
           </div>
         )}
-        {events.length > 0 && steps.open && stages.view && (narrow
-          ? <StepsSheet onClose={steps.close}><StepsPanel {...stages} view={stages.view} sheet /></StepsSheet>
-          : <StepsPanel {...stages} view={stages.view} />)}
+        {/* A flow chat's workflow: shown from the start, before the first message. */}
+        <WorkflowPanel />
         <Transcript view={view}>
           <RunCard />
           {(events.length > 0 || running) && <div className="tl-foot">
