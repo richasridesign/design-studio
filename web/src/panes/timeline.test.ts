@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTranscript, recentTurns, timelineTurns } from './steps';
+import { buildTranscript, recentTurns, replySummary, timelineTurns } from './steps';
 import type { ChatEvent } from '../../../shared/protocol';
 
 let n = 0;
@@ -70,5 +70,43 @@ describe('long run report', () => {
       { id: 't', kind: 'system', text: 'Long run stopped: time reached · 3 turns', at: 3 },
     ]));
     expect(turns[0].blocks.map((b) => b.id)).toEqual(['u', 't']);
+  });
+});
+
+describe('replySummary', () => {
+  it('keeps the first sentence and says there is more', () => {
+    expect(replySummary('Flow 2 is done: 3 dialogs have a close icon. Want me to carry on with Flows 3 to 8?')).toEqual({ text: 'Flow 2 is done: 3 dialogs have a close icon.', more: true });
+  });
+  it('shows a one sentence reply whole, with nothing more', () => {
+    expect(replySummary('Done.')).toEqual({ text: 'Done.', more: false });
+    expect(replySummary('Done')).toEqual({ text: 'Done', more: false });
+  });
+  it('reads a heading or a list item as plain text', () => {
+    expect(replySummary('## Plan: close icon on every dialog\n- **Screens:** 14 dialogs')).toEqual({ text: 'Plan: close icon on every dialog', more: true });
+    expect(replySummary('- **A:** set both cards to *Fill*\n- B: fixed height').text).toBe('A: set both cards to Fill');
+  });
+  it('turns links into words and names Figma frames', () => {
+    const frame = (url: string) => (url.includes('node-id=210-31') ? 'Connect app dialog' : null);
+    expect(replySummary('See [the guide](https://example.com/a) and https://www.figma.com/design/K/F?node-id=210-31.', frame).text).toBe('See the guide and Connect app dialog.');
+    expect(replySummary('Read https://www.example.com/long/path today.').text).toBe('Read example.com today.');
+  });
+  it('skips code blocks and keeps inline code as text', () => {
+    expect(replySummary('```ts\nconst a = 1;\n```\nRun `npm test` first. Then push.')).toEqual({ text: 'Run npm test first.', more: true });
+    expect(replySummary('```\nonly code\n```')).toEqual({ text: '', more: true });
+  });
+  it('does not stop at e.g. or a decimal', () => {
+    expect(replySummary('Use a token, e.g. text/secondary, at 1.5 weight. Then check.').text).toBe('Use a token, e.g. text/secondary, at 1.5 weight.');
+  });
+  it('cuts a long sentence at a word, about 140 characters', () => {
+    const s = replySummary(`${'word '.repeat(60)}end.`).text;
+    expect(s.length).toBeLessThanOrEqual(140);
+    expect(s.endsWith('word…')).toBe(true);
+  });
+  it('reads a reply that is still streaming, with open emphasis', () => {
+    expect(replySummary('Checking the **Dialog set and')).toEqual({ text: 'Checking the Dialog set and', more: false });
+  });
+  it('keeps snake_case names and is empty for an empty reply', () => {
+    expect(replySummary('Called set_status twice.').text).toBe('Called set_status twice.');
+    expect(replySummary('  \n ')).toEqual({ text: '', more: false });
   });
 });

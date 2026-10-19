@@ -75,7 +75,11 @@
 .tl-foot .tl-now .text .when { font-size: inherit; color: var(--fg-muted); font-variant-numeric: normal; }
 
 /* Idle line: the mark shares the 16px icon column of the rows above, text on the 24px edge. */
-.brief .tl-foot { padding: 4px 0 12px; }
+.brief .tl-foot { padding: 4px 12px 12px; }
+/* On the foot's darker surface the quick reply chips keep their edge (strong border) and the main chip sits on white. */
+.tl-foot .quick-replies .qr { border-color: var(--border-strong); }
+.tl-foot .quick-replies .qr.qr-main { border-color: var(--border-strong); background: var(--bg-elevated); }
+.tl-foot .quick-replies .qr.qr-main:hover { border-color: var(--border-strong); background: var(--btn-hover); }
 .tl-foot .tl-now { grid-template-columns: 16px minmax(0, 1fr) auto auto; line-height: 20px; }
 .tl-foot .tl-now .mark { width: 16px; height: 20px; }
 .tl-foot .steps { padding-left: 0; }
@@ -105,3 +109,47 @@
 /* The running line names the last step in words (Worked in Figma: Swap dialogs); only paths and commands keep the code font. */
 .tl-foot .tl-now .tool { font-family: inherit; }
 .tl-foot .tl-now .tool.mono { font-family: var(--mono); }
+
+/* Timeline view: per prompt, her prompt as one quiet line, then a short bullet list of what came of it. */
+.tr.timeline > .tl-turn + .tl-turn { margin-top: 32px; }
+.tl-turn { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tl-turn > .tr-phase { margin: 0; }
+.tl-turn > .tr-review, .tl-turn > .tr-assistant { margin-block: 4px; }
+
+.tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.tl-prompt-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-prompt-open {
+  flex: 1 1 auto; min-width: 0; min-height: 24px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0;
+  border-radius: var(--radius-sm); background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.tl-prompt-open > .codicon { flex: none; color: var(--fg-muted); }
+.tl-prompt-open:hover { background: transparent; color: var(--fg); }
+.tl-prompt-open:hover > .codicon { color: var(--fg); }
+.tl-prompt .frame-chip { min-height: 0; color: var(--fg); font-size: var(--text-sm); line-height: 18px; vertical-align: baseline; }
+.tl-prompt.open { flex-direction: column; align-items: flex-start; gap: 4px; }
+.tl-prompt-full { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-prompt-stop { flex: none; display: flex; align-items: center; color: var(--fg-muted); }
+
+.tl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tl-li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.tl-mark { display: flex; align-items: center; justify-content: center; width: 16px; height: 20px; color: var(--fg-muted); }
+.tl-mark .codicon.icon.small { font-size: 12px; }
+.tl-li.done .tl-mark { color: var(--ok); }
+.tl-li.note .tl-mark { color: var(--warn); }
+.tl-bullet { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.tl-say { min-width: 0; overflow-wrap: anywhere; }
+.tl-li.system .tl-say, .tl-li.phase .tl-say { color: var(--fg-muted); }
+.tl-li .tl-thumbs { grid-column: 2; }
+/* Show reply and Show less: a 24px target that keeps the 20px line. */
+.tl-more { display: block; margin: 0 0 -4px; padding: 2px 0; min-height: 24px; font-size: var(--text-sm); line-height: 20px; text-align: left; }
+.tl-prompt.open .tl-more, .tl-li.reply.open .tl-more { margin-top: 4px; }
+.tl-li.reply.open .tr-assistant .md { font-size: var(--text-sm); line-height: 20px; }
+.tl-li.reply.open .tr-assistant .md p, .tl-li.reply.open .tr-assistant .md ul, .tl-li.reply.open .tr-assistant .md ol { margin-bottom: 8px; }
+
+@media (max-width: 900px) {
+  .tl-prompt, .tl-li, .tl-more, .tl-prompt .frame-chip { font-size: var(--text-md); line-height: 24px; }
+  .tl-mark { height: 24px; }
+  .tl-prompt-open { min-height: 36px; }
+  .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; }
+  .tl-li.reply.open .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
+}

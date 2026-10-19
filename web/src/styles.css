@@ -487,7 +487,22 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .tl-thumbs:empty { display: none; }
 .tl-thumbs button { padding: 0; height: 64px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); overflow: hidden; cursor: pointer; }
 .tl-thumbs img { display: block; height: 100%; width: auto; max-width: 120px; object-fit: contain; }
-.tl-foot { position: sticky; bottom: 0; z-index: 2; background: var(--brief-bg); padding: 2px 0 10px; }
+/* The foot over the conversation has its own surface, one step darker than the chat column, so replies scroll behind it
+   with a clear edge. --brief-bg is reset here so the status mark and anything else that masks with it match the foot. */
+.tl-foot {
+  --brief-bg: var(--bg-sunken);
+  position: sticky; bottom: 0; z-index: 2; background: var(--brief-bg);
+  border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: 4px 12px 12px;
+}
+.tl-now-acts { display: flex; align-items: center; gap: 4px; }
+.tl-now-acts .badge { margin-left: 4px; }
+.tl-now-acts .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tl-foot-details[hidden] { display: none; }
+/* A short conversation still puts the foot on the bottom of the column, never as a half card in the middle. The item
+   before it carries the 12px gap, since the auto margin drops to 0 once the chat scrolls. */
+.brief .tr:has(> .tl-foot) { display: flex; flex-direction: column; }
+.brief .tr:has(> .tl-foot) > .tl-foot { margin-top: auto; }
+.brief .tr:has(> .tl-foot) > :nth-last-child(2) { margin-bottom: 12px; }
 .tl-now {
   position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; column-gap: 8px; align-items: center;
   padding: 4px 0; font-size: var(--text-sm); line-height: 18px; color: var(--fg);

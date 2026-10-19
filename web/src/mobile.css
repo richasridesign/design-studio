@@ -25,6 +25,8 @@
   .step input { height: 36px; font-size: var(--text-lg); }
   .step.add .link { min-height: 36px; }
   .tl-now { font-size: var(--text-md); line-height: 20px; }
+  /* Phones put the chat on --bg, so the foot steps down to --bg-raised. */
+  .brief .tl-foot { --brief-bg: var(--bg-raised); }
   .folder-switch { height: 44px; }
   .tabs, .tab { height: 44px; }
   .tab.active, .tab.active:hover { margin-bottom: -1px; }

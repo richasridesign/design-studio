@@ -201,3 +201,63 @@ export function recentTurns(turns: Turn[], keep = 3) {
   const starts = turns.flatMap((t, i) => (t.blocks[0]?.kind === 'user' ? [i] : []));
   return starts.length > keep ? { from: starts[starts.length - keep], hidden: starts.length - keep } : { from: 0, hidden: 0 };
 }
+
+const ABBR = /\b(e\.g|i\.e|etc|vs|approx|incl)\.$/i;
+const URL_RE = /<?https?:\/\/[^\s<>]+/g;
+
+function hostOf(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
+/** One markdown line as plain text: no heading, list or quote marks, no emphasis, links as their words. */
+function plainLine(raw: string, frame: (url: string) => string | null) {
+  let s = raw.trim();
+  if (/^\|.*\|$/.test(s) || /^([-*_]\s*){3,}$/.test(s)) return '';
+  s = s.replace(/^#{1,6}\s+/, '').replace(/^(>\s?)+/, '').replace(/^([-*+]|\d+[.)])\s+/, '').replace(/^\[[ xX]\]\s+/, '');
+  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]*)[^)]*\)/g, (_, words: string, url: string) => frame(url) ?? words);
+  s = s.replace(URL_RE, (m) => {
+    const url = m.replace(/^</, '').replace(/>$/, '');
+    const clean = url.replace(/[.,;:!?)]+$/, '');
+    return (frame(clean) ?? hostOf(clean)) + url.slice(clean.length);
+  });
+  s = s.replace(/`+([^`]*)`+/g, '$1').replace(/`/g, '');
+  s = s.replace(/\*\*|__|~~/g, '');
+  s = s.replace(/(^|[^\w*])\*(\S[^*]*?)\*(?!\w)/g, '$1$2').replace(/(^|\s)\*(?=\S)/g, '$1');
+  s = s.replace(/(^|[^\w])_(\S[^_]*?)_(?!\w)/g, '$1$2');
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function firstSentence(s: string) {
+  const end = /[.!?]+["')\]]*(?=\s|$)/g;
+  for (let m = end.exec(s); m; m = end.exec(s)) {
+    const head = s.slice(0, m.index + m[0].length);
+    if (!ABBR.test(head)) return head;
+  }
+  return s;
+}
+
+function clip(s: string, max: number) {
+  if (s.length <= max) return s;
+  const cut = s.lastIndexOf(' ', max - 1);
+  return `${s.slice(0, cut > max / 2 ? cut : max - 1).replace(/[\s,;:.]+$/, '')}…`;
+}
+
+/**
+ * Claude's reply in one plain line for the timeline: the first sentence of its first line of text, at most `max`
+ * characters. `more` says the full reply has more to show. `frame` names a Figma frame link, so no raw URL shows.
+ */
+export function replySummary(text: string, frame: (url: string) => string | null = () => null, max = 140): { text: string; more: boolean } {
+  const lines: string[] = [];
+  let fence = false;
+  let code = false;
+  for (const raw of text.split('\n')) {
+    if (/^\s*(```|~~~)/.test(raw)) { fence = !fence; code = true; continue; }
+    if (fence) continue;
+    const line = plainLine(raw, frame);
+    if (line) lines.push(line);
+  }
+  if (!lines.length) return { text: '', more: code };
+  const line = clip(firstSentence(lines[0]), max);
+  return { text: line, more: code || line !== lines.join(' ') };
+}
