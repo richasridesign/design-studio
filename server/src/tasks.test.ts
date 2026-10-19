@@ -294,6 +294,6 @@ describe('task helpers', () => {
     expect(mentionsComponents('Shorten the subtitle')).toBe(false);
   });
   it('builds the flow prompt', () => {
-    expect(taskFlowPrompt(' Fix it ', { n: 2, name: 'Home' }, 1, '1.2')).toContain('across 1 flow in iteration 1.2. Do only Flow 2 · Home');
+    expect(taskFlowPrompt(' Fix it ', { n: 2, name: 'Home' }, 1, '1.2')).toContain('across 1 flow in iteration V1.2. Do only Flow 2 · Home');
   });
 });

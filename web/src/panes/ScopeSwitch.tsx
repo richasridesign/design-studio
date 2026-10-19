@@ -1,4 +1,5 @@
 import { send, useStore } from '../store';
+import { vId } from '../../../shared/project';
 import { Icon } from '../Icon';
 import { IconButton } from '../Tip';
 
@@ -17,7 +18,7 @@ export function ScopeSwitch() {
   const at = flowChatOf(cwd);
   if (!at) return null;
   // An icon toggle, since the chat head is narrow: a lock while the guard is on, an open lock when edits go anywhere.
-  const tip = on ? 'Allow edits anywhere: On. This chat can edit other flows and iterations.' : `Allow edits anywhere: Off. This chat edits only its own flow in ${at.iteration}.`;
+  const tip = on ? 'Allow edits anywhere: On. This chat can edit other flows and iterations.' : `Allow edits anywhere: Off. This chat edits only its own flow in ${vId(at.iteration)}.`;
   return (
     <IconButton label="Allow edits anywhere" tip={tip} aria-pressed={on} className={`icon-btn scope-switch${on ? ' on' : ''}`} onClick={() => send({ type: 'set_edits_anywhere', on: !on })}>
       <Icon name={on ? 'unlock' : 'lock'} small />

@@ -106,7 +106,7 @@ export type BlockRef = {
 };
 
 /** "Atlas · 1.19 · Flow 3 · Connectors" */
-export const blockLabel = (b: Pick<BlockRef, 'project' | 'iteration' | 'flow'>) => `${b.project.name} · ${b.iteration.id} · Flow ${b.flow.n} · ${b.flow.name}`;
+export const blockLabel = (b: Pick<BlockRef, 'project' | 'iteration' | 'flow'>) => `${b.project.name} · V${b.iteration.id} · Flow ${b.flow.n} · ${b.flow.name}`;
 
 export type ScreenNote = { id?: string; name: string; link?: string; decisions: Array<{ decision: string; why?: string }> };
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getJson, postJson, send, useStore } from '../store';
-import { compareIds, flowDirName, type Flow, type Iteration, type Project, type ProjectSummary } from '../../../shared/project';
+import { compareIds, flowDirName, vId, type Flow, type Iteration, type Project, type ProjectSummary } from '../../../shared/project';
 import type { SavedSession } from '../../../shared/protocol';
 import { PROJECTS_CHANGED } from './ProjectDialogs';
 import { locateChat } from './projectTree';
@@ -9,7 +9,7 @@ import { locateChat } from './projectTree';
 // the new chat picker on the project row and the chip above the chat, so all three take the same path.
 
 /** "1.19" -> "V1.19", the way Figma names the iteration. */
-export const vId = (id: string) => `V${id}`;
+export { vId };
 
 /** The chip and picker text for a flow in an iteration: "2 · Activate · V1.18". */
 export const placeLabel = (flow: Pick<Flow, 'n' | 'name'>, it: Pick<Iteration, 'id'>) => `${flow.n} · ${flow.name} · ${vId(it.id)}`;

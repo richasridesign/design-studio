@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { vId } from '../../../shared/project';
 import { getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { FLOW_RULES, FLOW_RULE_LABEL, flowFixPrompt, flowIssues, flowLabel, type FlowCheckRun, type FlowFinding, type FlowResult } from '../../../shared/flowcheck';
@@ -146,7 +147,7 @@ export function FlowCheck({ scope }: { scope?: { cwd: string; iteration: string;
       {run && !busy && (
         <div className="fc-meta" role="status">
           <span>Checked {ago(run.at)} · {run.flows.length} {run.flows.length === 1 ? 'flow' : 'flows'} · {issues ? `${issues} ${issues === 1 ? 'issue' : 'issues'} in ${failed.length} ${failed.length === 1 ? 'flow' : 'flows'}` : 'no issues'}</span>
-          {run.iteration && <span className="fc-note">{only ? `This flow in iteration ${run.iteration} only.` : `Iteration ${run.iteration} only.`} Links into frozen iterations count as old versions.</span>}
+          {run.iteration && <span className="fc-note">{only ? `This flow in iteration ${vId(run.iteration)} only.` : `Iteration ${vId(run.iteration)} only.`} Links into frozen iterations count as old versions.</span>}
           {run.truncated && <span className="fc-note">Large file: the check stopped at 20,000 layers. It reads LATEST and Parked first, and skips sections it could not finish.</span>}
           {run.unchecked.includes('no-stickies') && <span className="fc-note">Stickies not checked: this file has no Decision stickies.</span>}
           {issues > 0 && !scope && <button className="fc-ask" onClick={ask}>{asked ? 'Added to the message box' : 'Fix the issues'}</button>}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReviewRun } from '../../../shared/design';
+import { vId } from '../../../shared/project';
 import { getJson, useStore, type Selection } from '../store';
 import { ago } from '../ago';
 import { FlowCheck } from './FlowCheck';
@@ -38,7 +39,7 @@ export function SelectionReview({ sel }: { sel: Selection }) {
             <FlowCheck scope={{ cwd: sel.cwd, iteration: it.id, key: sel.key, ...(sel.flow && it.flowNodes ? { nodes: it.flowNodes } : {}) }} />
             {flows === null && <p className="ff-line" role="status">Loading reviews…</p>}
             {flows === 'error' && <p className="ff-line error-text" role="alert">The reviews could not be read. Select the row again to retry.</p>}
-            {flows && flows !== 'error' && !shown.length && <p className="ff-line">No flows in {it.id} yet.</p>}
+            {flows && flows !== 'error' && !shown.length && <p className="ff-line">No flows in {vId(it.id)} yet.</p>}
             {shown.map((f) => (
               <section key={f.flow.slug} className="sel-group" aria-label={`Flow ${f.flow.n} · ${f.flow.name}`}>
                 <h3 className="sel-group-title">

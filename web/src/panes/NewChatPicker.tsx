@@ -78,7 +78,7 @@ export function NewChatPicker({ cwd, name, project, onClose, onNewFlow, onNote }
             {its.map((x) => (
               <label key={x.id} className="ncp-opt">
                 <input type="radio" name="ncp-it" checked={it?.id === x.id} onChange={() => setPicked({ ...picked, [slug]: x.id })} />
-                <span className="ncp-name">V{iterationLabel(x)}</span>
+                <span className="ncp-name">{iterationLabel(x)}</span>
                 <span className={`ncp-state ${x.state}`}><span className={`state-dot ${x.state}`} aria-hidden />{x.state === 'working' ? 'Working' : 'Frozen, read only'}</span>
               </label>
             ))}

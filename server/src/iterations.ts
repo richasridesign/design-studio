@@ -183,13 +183,13 @@ export async function makeIterationSections(dir: string, key: string, id: string
   const root = projectRoot(dir);
   const project = await readProject(root);
   const it = project?.iterations.find((i) => i.id === id);
-  if (!project || !it) throw new Error(`No iteration ${id}`);
-  if (it.state === 'frozen') throw new Error(`Iteration ${id} is frozen`);
+  if (!project || !it) throw new Error(`No iteration V${id}`);
+  if (it.state === 'frozen') throw new Error(`Iteration V${id} is frozen`);
   const wanted = (slugs ?? Object.keys(it.flows ?? {})).filter((s) => !it.flows?.[s]?.node);
   const flows = sectionFlows(project, wanted);
   if (it.node && !flows.length) return { node: it.node, flows: {}, missing: [], note: null };
   const spec: SectionSpec = { key, pageId: project.page?.id ?? null, id, section: it.node ?? null, name: it.name ?? iterationName(id, it.topic ?? '', it.date ?? ''), flows, madeAt: new Date(now).toISOString() };
-  const r = await withWrite(key, () => pluginScript<SectionResult>(key, sectionScript(spec), `Make the Figma section for iteration ${id}`, { ...deps, dir: root }));
+  const r = await withWrite(key, () => pluginScript<SectionResult>(key, sectionScript(spec), `Make the Figma section for V${id}`, { ...deps, dir: root }));
   const made = r.value;
   if (!made?.node) throw new Error('Figma returned no section id');
   await updateProject(root, (p) => {
@@ -240,7 +240,7 @@ export const makeSectionsFor = (dir: string, key: string, id: string, slugs: str
 /** Adds a flow to a working iteration: its folder, then its subsection with the entry copies, under the others. */
 export async function addFlowToIteration(dir: string, key: string, id: string, slug: string, deps: ReadDeps = {}): Promise<{ cwd: string; figma: FigmaOutcome }> {
   const it = (await readProject(dir))?.iterations.find((x) => x.id === id);
-  if (it?.state === 'frozen') throw new Error(`Iteration ${id} is frozen. Reopen it first.`);
+  if (it?.state === 'frozen') throw new Error(`Iteration V${id} is frozen. Reopen it first.`);
   const cwd = await ensureIterationFolders(dir, slug, id);
   if (it?.flows?.[slug]?.node) return { cwd, figma: { ok: true, node: it.node ?? '', missing: [] } };
   return { cwd, figma: await outcome(() => makeIterationSections(dir, key, id, [slug], deps)) };
@@ -307,13 +307,13 @@ export async function restack(dir: string, key: string, id: string, deps: ReadDe
   if (!project || !it?.node || it.state === 'frozen') return { moved: 0, changed: false };
   const node = it.node;
   return withWrite(key, async () => {
-    const read = await pluginScript<ReadOut>(key, READ_SCRIPT(node), `Read the layout of iteration ${id}`, { ...deps, dir: root });
+    const read = await pluginScript<ReadOut>(key, READ_SCRIPT(node), `Read the layout of V${id}`, { ...deps, dir: root });
     const got = read.value;
     if (!got) return { moved: 0, changed: false };
     const plan = restackPlan(flowOrder(got.kids, project.flows), got.section, got.below, got.above ?? null);
     if (plan.cramped) console.error(`restack: iteration ${id} has less than 800px of room above it, so it still sits close to the section below`);
     if (!plan.changed) return { moved: 0, changed: false };
-    const r = await pluginScript<{ moved: number }>(key, APPLY_SCRIPT(node, plan), `Restack the flows of iteration ${id} (800px apart)`, { ...deps, dir: root });
+    const r = await pluginScript<{ moved: number }>(key, APPLY_SCRIPT(node, plan), `Restack the flows of V${id} (800px apart)`, { ...deps, dir: root });
     refreshMapSoon(root, key, deps);
     return { moved: r.value?.moved ?? 0, changed: true };
   });

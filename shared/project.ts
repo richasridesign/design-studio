@@ -161,11 +161,14 @@ export const decisionsNoteName = (id: string) => `V${id}${SEP}Decisions`;
 /** "03-connectors": the flow's folder name under <project>/flows. */
 export const flowDirName = (flow: Pick<Flow, 'n' | 'slug'>) => `${String(flow.n).padStart(2, '0')}-${flow.slug}`;
 
-/** What the sidebar shows for an iteration: "1.19 · Readiness", or "1 · baseline" for the adopted LATEST. */
+/** An iteration id as people see it, the same as its Figma section name: "V1.18". project.json and tags keep "1.18". */
+export const vId = (id: string) => `V${id}`;
+
+/** What the sidebar shows for an iteration: "V1.19 · Readiness", or "V1 · baseline" for the adopted LATEST. */
 export function iterationLabel(it: Pick<Iteration, 'id' | 'topic' | 'name'>): string {
-  if (it.topic) return `${it.id}${SEP}${it.topic}`;
-  if (it.name && /^latest$/i.test(it.name.trim())) return `${it.id}${SEP}baseline`;
-  return it.id;
+  if (it.topic) return `${vId(it.id)}${SEP}${it.topic}`;
+  if (it.name && /^latest$/i.test(it.name.trim())) return `${vId(it.id)}${SEP}baseline`;
+  return vId(it.id);
 }
 
 export type ParsedSectionName = { id: string; topic: string; date: string | null };
@@ -398,11 +401,11 @@ export function projectInstructions(ctx: ChatContext): string {
     return [
       `This chat works on Flow ${ctx.flow.n}${SEP}${ctx.flow.name} in iteration ${iterationLabel(it)} (${it.state}) of this project. Iteration section: ${it.node ?? 'not in Figma yet'}${it.name ? ` "${it.name}"` : ''}.`,
       makeSection,
-      inIt ? `Your flow subsection: ${inIt.node} "${flowSectionName(it.id, ctx.flow)}".${inIt.states ? ` Supporting states subsection: ${inIt.states}.` : ` Supporting states (voice, attach, error) go in a sibling subsection "${statesSectionName(it.id, ctx.flow)}" beside it, 400px below when they do not fit beside.`}` : it.node ? `This flow has no subsection in ${it.id} yet: create one named "${flowSectionName(it.id, ctx.flow)}" inside the iteration section ${it.node}, below the other flow subsections with 800px between, tag it (shared plugin data "${TAG_NS}": kind "flow", iteration "${it.id}", flow "${ctx.flow.slug}", project "${ctx.project.key}") and tell the designer its node id.` : '',
+      inIt ? `Your flow subsection: ${inIt.node} "${flowSectionName(it.id, ctx.flow)}".${inIt.states ? ` Supporting states subsection: ${inIt.states}.` : ` Supporting states (voice, attach, error) go in a sibling subsection "${statesSectionName(it.id, ctx.flow)}" beside it, 400px below when they do not fit beside.`}` : it.node ? `This flow has no subsection in ${vId(it.id)} yet: create one named "${flowSectionName(it.id, ctx.flow)}" inside the iteration section ${it.node}, below the other flow subsections with 800px between, tag it (shared plugin data "${TAG_NS}": kind "flow", iteration "${it.id}", flow "${ctx.flow.slug}", project "${ctx.project.key}") and tell the designer its node id.` : '',
       ctx.flow.entry.length ? `Entry screens of this flow: ${ctx.flow.entry.join(', ')}. Copies of them in your subsection are named "<name> (Entry, unchanged)" and stay unchanged; wire links from them into your new screens.` : '',
       ctx.flow.baseline ? `The flow's baseline (frozen, read it for reference): section ${ctx.flow.baseline}.` : '',
       `Edit only inside your flow subsection${inIt?.states ? ' and its states subsection' : ''}: put every new or changed screen there and end each edit with DS.fit on your subsection. Never move or resize other subsections${others.length ? ` (${others.join(', ')})` : ''} or the iteration section itself; Design Studio restacks them. ${never}`,
-      it.state === 'frozen' ? `Iteration ${it.id} is frozen. Do not edit it; ask the designer to reopen it or to create a new iteration from the sidebar.` : '',
+      it.state === 'frozen' ? `Iteration ${vId(it.id)} is frozen. Do not edit it; ask the designer to reopen it or to create a new iteration from the sidebar.` : '',
       'Under each new screen put 3 to 5 Decision stickies right below it, and the flow notes as short bullets, as the designer\'s rules say.',
     ].filter(Boolean).join('\n');
   }

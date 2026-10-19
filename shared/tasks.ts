@@ -136,14 +136,14 @@ const ASK = 'Do not ask me questions and do not wait for me: other flows run at 
 export function taskFlowPrompt(prompt: string, flow: Pick<TaskFlow, 'n' | 'name'>, total: number, iteration: string): string {
   return `${prompt.trim()}
 
-This is part of a project task across ${total} flow${total === 1 ? '' : 's'} in iteration ${iteration}. Do only Flow ${flow.n} · ${flow.name}, inside your own flow subsection. Other chats do the other flows. ${ASK} End with a short summary of what changed.`;
+This is part of a project task across ${total} flow${total === 1 ? '' : 's'} in iteration V${iteration}. Do only Flow ${flow.n} · ${flow.name}, inside your own flow subsection. Other chats do the other flows. ${ASK} End with a short summary of what changed.`;
 }
 
 /** The serial step before the fan-out: shared components only. */
 export function componentsPrompt(prompt: string, flows: Array<Pick<TaskFlow, 'n' | 'name'>>, iteration: string): string {
   return `${prompt.trim()}
 
-This is the shared component step of a project task in iteration ${iteration}. Change only the shared main components this needs, as new variants (old variants stay as they are). Do not edit flow screens: after you, one chat per flow (${flows.map((f) => `${f.n} · ${f.name}`).join(', ')}) applies the change in its own flow. ${ASK} End with the list of components and variants you changed, so the flow chats can use them.`;
+This is the shared component step of a project task in iteration V${iteration}. Change only the shared main components this needs, as new variants (old variants stay as they are). Do not edit flow screens: after you, one chat per flow (${flows.map((f) => `${f.n} · ${f.name}`).join(', ')}) applies the change in its own flow. ${ASK} End with the list of components and variants you changed, so the flow chats can use them.`;
 }
 
 /** Time-sortable id: 20261019-143012-ab12. */

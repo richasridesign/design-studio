@@ -60,12 +60,12 @@ describe('scope guard, Flow 1 chat in 1.19', () => {
   ])('allows %s', (_, id) => expect(check(ctx, [id]).allow).toBe(true));
 
   it.each([
-    ['another flow in the same iteration', '2:5', '2:5 is in Flow 2 · 1.19, which belongs to the Flow 2 chat. Ask there, or run this as a project task.'],
-    ['an untagged subsection project.json knows', '40:2', '40:2 is in Flow 3 · 1.19, which belongs to the Flow 3 chat.'],
-    ['the iteration section itself', '2:1', '2:1 is the section of iteration 1.19.'],
-    ['another flow in frozen LATEST', '1:5', '1:5 is in Flow 2 · 1, which is frozen: chats only read it. It belongs to Flow 2.'],
-    ['the LATEST container itself', '1:1', '1:1 is in iteration 1, which is frozen'],
-    ['its own flow in another working iteration', '3:3', '3:3 is in Flow 1 · 1.20, another working iteration, which belongs to the Flow 1 chat in 1.20.'],
+    ['another flow in the same iteration', '2:5', '2:5 is in Flow 2 · V1.19, which belongs to the Flow 2 chat. Ask there, or run this as a project task.'],
+    ['an untagged subsection project.json knows', '40:2', '40:2 is in Flow 3 · V1.19, which belongs to the Flow 3 chat.'],
+    ['the iteration section itself', '2:1', '2:1 is the section of iteration V1.19.'],
+    ['another flow in frozen LATEST', '1:5', '1:5 is in Flow 2 · V1, which is frozen: chats only read it. It belongs to Flow 2.'],
+    ['the LATEST container itself', '1:1', '1:1 is in iteration V1, which is frozen'],
+    ['its own flow in another working iteration', '3:3', '3:3 is in Flow 1 · V1.20, another working iteration, which belongs to the Flow 1 chat in V1.20.'],
     ['the Parked section', '4:2', '4:2 is in the Parked section.'],
   ])('denies %s', (_, id, text) => {
     const v = check(ctx, [id]);

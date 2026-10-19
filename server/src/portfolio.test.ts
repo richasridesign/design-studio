@@ -220,7 +220,7 @@ describe('a copy pack run', () => {
     expect(flowMd).toMatch(/· Used on the portfolio: \/helpdesk-dashboard, Results$/m);
     const own = await readFile(path.join(P.portfolioDir(), 'history.md'), 'utf8');
     expect(own).toContain(`<!-- ds:run ${run.id} -->`);
-    expect(own).toContain('Atlas · 1.19 · Flow 1 · Connectors');
+    expect(own).toContain('Atlas · V1.19 · Flow 1 · Connectors');
     // Used work is not offered again.
     expect((await P.findBlocks(await P.readPortfolio())).blocks.some((b) => b.key === a.block)).toBe(false);
   });

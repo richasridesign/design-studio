@@ -161,7 +161,7 @@ export class Tasks {
     if (!project) throw new Error('This file has no flows yet. Adopt it first from the sidebar.');
     const it = input.iteration ? project.iterations.find((x) => x.id === cleanId(input.iteration!)) : workingIteration(project);
     if (!it) throw new Error('There is no working iteration. Create one first (New iteration).');
-    if (it.state !== 'working') throw new Error(`Iteration ${it.id} is frozen. Reopen it or create a new iteration.`);
+    if (it.state !== 'working') throw new Error(`Iteration V${it.id} is frozen. Reopen it or create a new iteration.`);
     const slugs = new Set(input.flows ?? []);
     const flows = project.flows.filter((f) => slugs.has(f.slug));
     if (!flows.length) throw new Error('Pick at least one flow');

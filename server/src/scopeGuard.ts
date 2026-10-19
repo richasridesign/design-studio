@@ -1,4 +1,4 @@
-import type { ChatContext, Project, Tag } from '../../shared/project.js';
+import { vId, type ChatContext, type Project, type Tag } from '../../shared/project.js';
 import { tagOf, type FileMap } from './fileMap.js';
 
 // The scope guard: a flow chat edits only its own flow subsection in its own iteration. It runs in beforeFigma on
@@ -24,7 +24,7 @@ export function frozenChat(ctx: ChatContext | null, project: Project | null): st
   const id = ctx.iteration.id;
   const state = (project ?? ctx.project).iterations.find((it) => it.id === id)?.state ?? ctx.iteration.state;
   if (state !== 'frozen') return null;
-  return `This chat is on ${id}, which is frozen, so it only reads Figma and cannot change it. Reopen ${id} from the sidebar to edit it, or start a chat on the working iteration.`;
+  return `This chat is on ${vId(id)}, which is frozen, so it only reads Figma and cannot change it. Reopen ${vId(id)} from the sidebar to edit it, or start a chat on the working iteration.`;
 }
 
 type Where = { page: string; tags: Array<{ id: string; tag: Tag }> };
@@ -96,19 +96,19 @@ function verdict(id: string, w: Where, own: { it?: string; flow?: string } | nul
   const self = w.tags.at(-1)!;
   const frozen = stateOf(itId) === 'frozen';
   // A project chat: every working iteration, never a frozen one.
-  if (!own) return frozen ? `${id} is in iteration ${itId}, which is frozen: chats only read it. Reopen ${itId} from the sidebar first.` : null;
+  if (!own) return frozen ? `${id} is in iteration ${vId(itId)}, which is frozen: chats only read it. Reopen ${vId(itId)} from the sidebar first.` : null;
   if (itId === own.it) {
     if (self.id === id && self.tag.kind === 'iteration') {
       // Its own flow has no subsection yet: the chat makes it inside the iteration section.
       if (own.flow && !p.iterations.find((it) => it.id === itId)?.flows?.[own.flow]?.node) return null;
-      return `${id} is the section of iteration ${itId}. Design Studio keeps its layout (800px between flows), so edit inside your own flow subsection instead.`;
+      return `${id} is the section of iteration ${vId(itId)}. Design Studio keeps its layout (800px between flows), so edit inside your own flow subsection instead.`;
     }
     if (!flow || flow === own.flow) return null;
-    return `${id} is in ${flowLabel(p, flow)} · ${itId}, which belongs to the ${flowLabel(p, flow)} chat. Ask there, or run this as a project task.`;
+    return `${id} is in ${flowLabel(p, flow)} · ${vId(itId)}, which belongs to the ${flowLabel(p, flow)} chat. Ask there, or run this as a project task.`;
   }
   if (frozen) {
     if (flow && flow === own.flow && !(self.id === id && self.tag.kind === 'iteration')) return null;
-    return `${id} is in ${flow ? `${flowLabel(p, flow)} · ${itId}` : `iteration ${itId}`}, which is frozen: chats only read it.${flow && flow !== own.flow ? ` It belongs to ${flowLabel(p, flow)}.` : ''}`;
+    return `${id} is in ${flow ? `${flowLabel(p, flow)} · ${vId(itId)}` : `iteration ${vId(itId)}`}, which is frozen: chats only read it.${flow && flow !== own.flow ? ` It belongs to ${flowLabel(p, flow)}.` : ''}`;
   }
-  return `${id} is in ${flow ? `${flowLabel(p, flow)} · ${itId}` : `iteration ${itId}`}, another working iteration${flow ? `, which belongs to the ${flowLabel(p, flow)} chat in ${itId}` : ''}. Ask there, or run this as a project task.`;
+  return `${id} is in ${flow ? `${flowLabel(p, flow)} · ${vId(itId)}` : `iteration ${vId(itId)}`}, another working iteration${flow ? `, which belongs to the ${flowLabel(p, flow)} chat in ${vId(itId)}` : ''}. Ask there, or run this as a project task.`;
 }

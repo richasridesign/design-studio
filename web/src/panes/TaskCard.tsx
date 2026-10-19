@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { vId } from '../../../shared/project';
 import { postJson, send, useStore } from '../store';
 import { press } from '../press';
 import { Icon } from '../Icon';
@@ -82,7 +83,7 @@ export function TaskCard({ task, onClose }: { task: Task; onClose: () => void })
     <Shell title={`Task: ${taskTitle(task)}`} onClose={onClose} busy={busy !== null}>
       <div className="project-dialog-body tk-card">
         <dl className="tk-facts">
-          <div><dt>Iteration</dt><dd>{task.iteration}</dd></div>
+          <div><dt>Iteration</dt><dd>{vId(task.iteration)}</dd></div>
           <div><dt>State</dt><dd>{TASK_STATE_TEXT[task.state]}</dd></div>
           <div><dt>Progress</dt><dd aria-live="polite">{r.line}</dd></div>
           <div><dt>Model</dt><dd>{models.join(', ')}</dd></div>

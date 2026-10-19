@@ -107,7 +107,7 @@ export async function ensureIterationFolders(dir: string, slug: string, id: stri
   const flow = project.flows.find((f) => f.slug === slug);
   if (!flow) throw new Error(`No flow "${slug}" in this project`);
   const it = project.iterations.find((x) => x.id === cleanId(id));
-  if (!it) throw new Error(`No iteration ${id} in this project`);
+  if (!it) throw new Error(`No iteration V${cleanId(id)} in this project`);
   const fdir = flowDir(root, flow);
   const idir = iterationDir(root, flow, it.id);
   await mkdir(idir, { recursive: true });
@@ -338,7 +338,7 @@ export async function createIteration(dir: string, input: NewIterationInput, now
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? '')) ? String(input.date) : todayIso(new Date(now));
   const next = await updateProject(root, (p) => {
     if (!p) throw new Error('This file has no flows yet. Adopt it first from the sidebar.');
-    if (p.iterations.some((it) => it.id === id)) throw new Error(`Iteration ${id} already exists`);
+    if (p.iterations.some((it) => it.id === id)) throw new Error(`Iteration V${id} already exists`);
     const it: Iteration = { id, topic, date, state: 'working', createdAt: now, flows: {} };
     return { ...p, iterations: [...p.iterations, it] };
   });
@@ -352,7 +352,7 @@ export async function setIterationState(dir: string, id: string, state: 'working
   const clean = cleanId(id);
   const next = await updateProject(dir, (p) => {
     if (!p) throw new Error('No project');
-    if (!p.iterations.some((it) => it.id === clean)) throw new Error(`No iteration ${id}`);
+    if (!p.iterations.some((it) => it.id === clean)) throw new Error(`No iteration V${clean}`);
     return { ...p, iterations: p.iterations.map((it) => (it.id === clean ? { ...it, state, ...(state === 'frozen' ? { frozenAt: now } : {}) } : it)) };
   });
   return next!;

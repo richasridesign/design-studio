@@ -51,9 +51,9 @@ describe('names and dates', () => {
   });
 
   it('labels iterations for the sidebar', () => {
-    expect(iterationLabel({ id: '1.19', topic: 'Readiness' })).toBe('1.19 · Readiness');
-    expect(iterationLabel({ id: '1', name: 'LATEST' })).toBe('1 · baseline');
-    expect(iterationLabel({ id: '1.17' })).toBe('1.17');
+    expect(iterationLabel({ id: '1.19', topic: 'Readiness' })).toBe('V1.19 · Readiness');
+    expect(iterationLabel({ id: '1', name: 'LATEST' })).toBe('V1 · baseline');
+    expect(iterationLabel({ id: '1.17' })).toBe('V1.17');
   });
 
   it('packs and unpacks tags', () => {
@@ -131,7 +131,7 @@ describe('derived views and prompt', () => {
 
   it('scopes a flow chat to its subsection and names what it must not touch', () => {
     const text = projectInstructions({ scope: 'flow', project, flow: project.flows[0], iteration: project.iterations[2] });
-    expect(text).toContain('Flow 1 · Activate in iteration 1.19 · Readiness (working)');
+    expect(text).toContain('Flow 1 · Activate in iteration V1.19 · Readiness (working)');
     expect(text).toContain('Your flow subsection: 120:2 "V1.19 · Flow 1 · Activate"');
     expect(text).toContain('states subsection: 120:9');
     expect(text).toContain('frozen iteration (1, 1.18)');
@@ -141,9 +141,9 @@ describe('derived views and prompt', () => {
 
   it('tells a flow with no subsection yet to make one, and a project task which iterations are open', () => {
     const text = projectInstructions({ scope: 'flow', project, flow: project.flows[1], iteration: project.iterations[2] });
-    expect(text).toContain('no subsection in 1.19 yet: create one named "V1.19 · Flow 3 · Connectors"');
+    expect(text).toContain('no subsection in V1.19 yet: create one named "V1.19 · Flow 3 · Connectors"');
     const task = projectInstructions({ scope: 'project', project });
-    expect(task).toContain('Working iterations you may edit: 1.19 · Readiness (section 120:1)');
+    expect(task).toContain('Working iterations you may edit: V1.19 · Readiness (section 120:1)');
     expect(projectInstructions({ scope: 'project', project: { ...project, iterations: project.iterations.slice(0, 2) } })).toContain('no working iteration yet');
   });
 });

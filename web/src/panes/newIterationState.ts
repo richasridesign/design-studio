@@ -43,7 +43,7 @@ export type Errors = { id: string; topic: string; flows: string; date: string };
 export function errors(f: Fields, project: Project): Errors {
   const clean = cleanId(f.id);
   return {
-    id: !f.id.trim() ? 'Give the iteration an id, like 1.19' : !clean ? 'Use major.minor, like 1.19' : project.iterations.some((it) => it.id === clean) ? `Iteration ${clean} exists already` : '',
+    id: !f.id.trim() ? 'Give the iteration an id, like 1.19' : !clean ? 'Use major.minor, like 1.19' : project.iterations.some((it) => it.id === clean) ? `Iteration V${clean} exists already` : '',
     topic: f.topic.trim() ? '' : 'Give the iteration a topic',
     flows: f.flows.length ? '' : 'Pick at least one flow',
     date: /^\d{4}-\d{2}-\d{2}$/.test(f.date) ? '' : 'Pick a date',
