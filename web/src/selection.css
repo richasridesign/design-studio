@@ -1,0 +1,33 @@
+/* Figma and Review tabs for a project, flow or iteration selected in the sidebar. */
+.sel-head { display: flex; flex-direction: column; gap: 4px; }
+.sel-head .sel-back { min-height: 24px; font-size: var(--text-sm); line-height: 20px; }
+.sel-lines { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.sel-lines > span { display: inline-flex; align-items: center; gap: 8px; }
+/* Working is a filled dot, Frozen a hollow ring: shape as well as colour. */
+.sel-dot, .sel-ring { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.sel-dot { background: var(--accent); }
+.sel-ring { border: 1.5px solid var(--fg-muted); }
+
+.sel-group { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
+.sel-group-title { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: var(--text-md); line-height: 24px; font-weight: 600; color: var(--fg); }
+.sel-state, .sel-count { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); line-height: 20px; font-weight: 400; color: var(--fg-muted); }
+.sel-group.frozen .sel-group-title > span:first-child, .sel-group.frozen .sel-item-name { color: var(--fg-muted); }
+.sel-items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.sel-item { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); text-decoration: none; }
+.sel-item:hover { border-color: var(--border-strong); background: var(--bg-raised); }
+.sel-item:hover .sel-item-name { text-decoration: underline; text-underline-offset: 2px; }
+.sel-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sel-item .icon { flex: none; color: var(--fg-muted); }
+.sel-item-name { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-group.frozen .sel-item { background: var(--bg-sunken); }
+@media (max-width: 899px) {
+  .sel-items { grid-template-columns: minmax(0, 1fr); }
+  .sel-item, .sel-head .sel-back { min-height: 44px; }
+}
+
+/* Review for an iteration: one group per flow, its runs newest first. */
+.sel-review { display: flex; flex-direction: column; gap: 16px; padding: 0 0 24px; }
+.sel-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sel-run { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 36px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.sel-run:last-child { border-bottom: 0; }
+.sel-run .muted { color: var(--fg-muted); }

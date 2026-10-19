@@ -7,6 +7,7 @@ import { Empty, ReviewArt } from './Empty';
 import { CopyDetail, CritDetail } from './Crit';
 import { BuildCheck } from './BuildCheck';
 import { FlowCheck } from './FlowCheck';
+import { SelectionReview } from './SelectionReview';
 import { Awaiting, useAwaitingList } from './Awaiting';
 import { AWAIT_LABEL, awaitState, type AwaitItem, type AwaitState } from '../../../shared/awaiting';
 import { FigmaErrorText } from '../FigmaLogin';
@@ -63,6 +64,8 @@ export function Review({ dev = false }: { dev?: boolean }) {
     return () => window.removeEventListener('designstudio:review-focus', take);
   }, []);
 
+  const sel = useStore((s) => s.ui.selection);
+  if (sel) return <SelectionReview sel={sel} />;
   const rows = mergeRuns(doc.runs, crit, copy);
   // Review runs straight away on the frames of the last Design run. Without them it puts /review in the message box
   // for her frame links, and says so.

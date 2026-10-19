@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { getJson, postJson, send, useStore } from '../store';
+import { getJson, postJson, send, setUi, useStore, type Selection } from '../store';
 import { Icon } from '../Icon';
 import { ATTACH, openAttach } from '../AttachFile';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
-import { type ProjectSummary } from '../../../shared/project';
+import { compareIds, iterationLabel, type Iteration, type ProjectSummary } from '../../../shared/project';
 import { replyLine } from '../../../shared/edits';
 import '../chats.css';
 import { press } from '../press';
@@ -35,6 +35,8 @@ export function Chats() {
   const viewing = useStore((s) => s.session.id);
   const current = useStore((s) => s.session.sessionId);
   const live = useStore((s) => s.live);
+  const sel = useStore((s) => s.ui.selection);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
   const [ask, setAsk] = useState<ConfirmRequest | null>(null);
@@ -78,7 +80,56 @@ export function Chats() {
     c.running || c.pending
       ? setAsk({ title: 'Close this chat?', detail: c.title, warning: 'Claude is still working on it and will stop. The transcript is kept.', action: 'Close', run: async () => send({ type: 'close', id: c.id }) })
       : send({ type: 'close', id: c.id });
-  const open = (s: SavedSession) => { setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); };
+  const open = (s: SavedSession) => { setUi({ selection: null }); setOpening(s.sessionId); send({ type: 'open_session', sessionId: s.sessionId }); };
+
+  // A project, flow or iteration row selects it: the Figma and Review tabs show it, and the Figma tab in Chrome moves
+  // to its section when the file is open there. The chevron alone folds the row.
+  const select = (next: Selection) => {
+    setUi({ selection: next });
+    send({ type: 'selection', cwd: next.cwd, flow: next.flow?.slug, iteration: next.kind === 'project' ? undefined : next.iteration?.id });
+  };
+  const same = (a: Selection | null, b: Selection) => !!a && a.kind === b.kind && a.cwd === b.cwd && a.flow?.slug === b.flow?.slug && a.iteration?.id === b.iteration?.id;
+  const base = (p: TreeProject) => ({ cwd: p.cwd, name: p.name, key: p.key, url: p.url });
+  const itSel = (it: Iteration, label: string) => ({ id: it.id, label, state: it.state, ...(it.node ? { node: it.node } : {}) });
+
+  // A flow that is not in the working iteration yet gets its subsection (entry screens copied) before the chat starts.
+  const chatIn = (p: TreeProject, f: TreeFlow, it: Iteration) => {
+    if (it.flows?.[f.flow.slug]) return send({ type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: it.id });
+    setAsk({
+      title: `Add ${f.flow.name} to ${it.id}?`, detail: `This copies its entry screens into a new ${f.flow.name} subsection of ${it.id}, then starts the chat there.`, action: 'Add and start chat', icon: 'add', safe: true,
+      run: async () => {
+        setNote({ text: `Adding ${f.flow.name} to ${it.id} in Figma, about 20 seconds.` });
+        try {
+          const r = await postJson<{ figma: { ok: boolean; error?: string } }>(`/api/projects/iteration/flow?cwd=${encodeURIComponent(p.cwd)}`, { id: it.id, slug: f.flow.slug });
+          window.dispatchEvent(new Event(PROJECTS_CHANGED));
+          setNote(r.figma.ok ? null : { text: `${f.flow.name} is in ${it.id}, but its Figma subsection was not made: ${r.figma.error ?? 'unknown error'}. The chat makes it.`, error: true });
+          send({ type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: it.id });
+        } catch (e) {
+          setNote({ text: `${f.flow.name} was not added to ${it.id}: ${(e as Error).message}`, error: true });
+        }
+      },
+    });
+  };
+
+  // Freeze and Reopen act on the whole iteration, every flow in it.
+  const setState = (p: TreeProject, it: Iteration, state: 'working' | 'frozen') => async () => {
+    try {
+      await postJson(`/api/projects/iteration?cwd=${encodeURIComponent(p.cwd)}`, { id: it.id, state });
+      window.dispatchEvent(new Event(PROJECTS_CHANGED));
+      setNote(null);
+    } catch (e) {
+      setNote({ text: `${it.id} was not ${state === 'frozen' ? 'frozen' : 'reopened'}: ${(e as Error).message}`, error: true });
+    }
+  };
+  const freeze = (p: TreeProject, it: Iteration) => setAsk({ title: `Freeze ${it.id}?`, detail: `Every flow in ${it.id} becomes read only: chats can copy from it but not edit it. You can reopen it here.`, action: 'Freeze', icon: 'lock', safe: true, run: setState(p, it, 'frozen') });
+  const reopen = (p: TreeProject, it: Iteration, all: Iteration[]) => {
+    const newer = all.filter((x) => x.state === 'working' && compareIds(x.id, it.id) > 0).map((x) => x.id);
+    setAsk({
+      title: `Reopen ${it.id}?`, detail: `Chats can edit every flow in ${it.id} again.`, action: 'Reopen', icon: 'unlock', safe: true,
+      warning: newer.length ? `${newer.join(' and ')} ${newer.length > 1 ? 'are' : 'is'} also working. New chats on a flow still go to ${newer.at(-1)}.` : undefined,
+      run: setState(p, it, 'working'),
+    });
+  };
 
   const runSample = async () => {
     setSampleBusy(true);
@@ -93,7 +144,7 @@ export function Chats() {
 
   const chats = (s: ChatSet, depth: number) => (
     <>
-      {s.open.map((c) => <LiveRow key={c.id} c={c} depth={depth} selected={c.id === viewing} onClose={() => close(c)} />)}
+      {s.open.map((c) => <LiveRow key={c.id} c={c} depth={depth} selected={c.id === viewing && !sel} onClose={() => close(c)} />)}
       {(query ? s.recent : s.recent.slice(0, RECENT)).map((r) => (
         <div key={r.sessionId} className={`row session recent d${depth}`} title={r.title} onClick={() => open(r)} {...press(() => open(r))}>
           <span className="name">{opening === r.sessionId ? 'Opening… ' : ''}{r.title}</span>
@@ -103,16 +154,28 @@ export function Chats() {
     </>
   );
 
-  const group = (key: string, depth: number, icon: ReactNode, name: ReactNode, count: number, tag: ReactNode, acts: ReactNode, body: ReactNode, title?: string) => {
+  const group = (key: string, depth: number, icon: ReactNode, name: ReactNode, count: number, tag: ReactNode, acts: ReactNode, body: ReactNode, title?: string, pick?: { label: string; selected: boolean; run: () => void }) => {
     const shown = isOpen(key);
+    const toggle = () => query || fold(key);
+    const chevron = <span className="twistie chevron"><Icon name={shown ? 'chevron-down' : 'chevron-right'} small /></span>;
+    const face = (
+      <>
+        <span className="twistie">{typeof icon === 'string' ? <Icon name={icon} small /> : icon}</span>
+        <span className="name">{name}</span>
+      </>
+    );
     return (
       <div key={key} className={`branch d${depth}`}>
-        <div className={`row project d${depth}`} title={title} onClick={() => query || fold(key)}>
-          <span className="fold" aria-expanded={shown} title={shown ? 'Collapse' : 'Expand'} {...press(() => query || fold(key))}>
-            <span className="twistie chevron"><Icon name={shown ? 'chevron-down' : 'chevron-right'} small /></span>
-            <span className="twistie">{typeof icon === 'string' ? <Icon name={icon} small /> : icon}</span>
-            <span className="name">{name}</span>
-          </span>
+        <div className={`row project d${depth} ${pick ? 'picks' : ''} ${pick?.selected ? 'selected' : ''}`} title={title} onClick={pick ? pick.run : toggle}>
+          {pick ? (
+            <>
+              {/* Selectable rows fold on the chevron only; the rest of the row selects. */}
+              <span className="fold-btn" aria-expanded={shown} aria-label={`${shown ? 'Collapse' : 'Expand'} ${pick.label}`} title={shown ? 'Collapse' : 'Expand'} onClick={(e) => { e.stopPropagation(); toggle(); }} {...press(toggle)}>{chevron}</span>
+              <span className="fold" aria-current={pick.selected || undefined} {...press(pick.run)}>{face}</span>
+            </>
+          ) : (
+            <span className="fold" aria-expanded={shown} title={shown ? 'Collapse' : 'Expand'} {...press(toggle)}>{chevron}{face}</span>
+          )}
           {!shown && <span className="count" title={`${count} chats`}>{count}</span>}
           {tag}
           <span className="acts">{acts}</span>
@@ -122,8 +185,8 @@ export function Chats() {
     );
   };
 
-  const newChat = (label: string, msg: Parameters<typeof send>[0]) => (
-    <button className="icon-btn" title={label} aria-label={label} onClick={(e) => { e.stopPropagation(); send(msg); }}><Icon name="add" small /></button>
+  const newChat = (label: string, msg: Parameters<typeof send>[0] | (() => void)) => (
+    <button className="icon-btn" title={label} aria-label={label} onClick={(e) => { e.stopPropagation(); if (typeof msg === 'function') msg(); else send(msg); }}><Icon name="add" small /></button>
   );
 
   const iterationRow = (p: TreeProject, f: TreeFlow, i: TreeIteration) => {
@@ -132,15 +195,22 @@ export function Chats() {
     // only the working iteration, where new chats go, carries its label; Frozen is read by screen readers and the tooltip.
     const icon = <span className={`state-dot ${working ? 'working' : 'frozen'}`} aria-hidden />;
     const tag = working ? <span className="state-tag working">Working</span> : <span className="sr-only">Frozen</span>;
-    const acts = working ? newChat(`New chat on ${f.flow.name} in ${i.iteration.id}`, { type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: i.iteration.id }) : null;
+    const all = f.iterations.map((x) => x.iteration);
+    const menu = <RowMenu label={`More for ${i.iteration.id}`} items={[working
+      ? { label: `Freeze ${i.iteration.id}`, hint: 'Every flow becomes read only', run: () => freeze(p, i.iteration) }
+      : { label: `Reopen ${i.iteration.id}`, hint: 'Chats can edit it again', run: () => reopen(p, i.iteration, all) }]} />;
+    const acts = <>{working && newChat(`New chat on ${f.flow.name} in ${i.iteration.id}`, () => chatIn(p, f, i.iteration))}{menu}</>;
     const title = `${i.label}: ${working ? 'working, chats can edit it' : 'frozen, chats only read it'}${i.iteration.node ? `. Figma section ${i.iteration.node}` : '. No Figma section yet'}`;
     const name = <><span className="it-id">{i.iteration.id} · </span><span className="it-topic">{i.label.slice(i.iteration.id.length + 3)}</span></>;
-    return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title);
+    const me: Selection = { kind: 'iteration', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, iteration: itSel(i.iteration, i.label) };
+    return group(`${p.cwd}#${f.flow.slug}#${i.iteration.id}`, 2, icon, name, chatCount(i), tag, acts, chats(i, 3), title, { label: `${f.flow.name} in ${i.label}`, selected: same(sel, me), run: () => select(me) });
   };
 
   const flowRow = (p: TreeProject, f: TreeFlow) => {
-    const acts = p.working ? newChat(`New chat on ${f.flow.name} in ${p.working.id}`, { type: 'new_session', cwd: p.cwd, flow: f.flow.slug, iteration: p.working.id }) : null;
-    return group(`${p.cwd}#${f.flow.slug}`, 1, 'git-branch', `${f.flow.n} · ${f.flow.name}`, f.count, null, acts, f.iterations.map((i) => iterationRow(p, f, i)));
+    const w = p.working;
+    const acts = w ? newChat(`New chat on ${f.flow.name} in ${w.id}`, () => chatIn(p, f, w)) : null;
+    const me: Selection = { kind: 'flow', ...base(p), flow: { slug: f.flow.slug, n: f.flow.n, name: f.flow.name }, ...(w ? { iteration: itSel(w, f.iterations.find((x) => x.iteration.id === w.id)?.label ?? w.id) } : {}) };
+    return group(`${p.cwd}#${f.flow.slug}`, 1, 'git-branch', `${f.flow.n} · ${f.flow.name}`, f.count, null, acts, f.iterations.map((i) => iterationRow(p, f, i)), undefined, { label: f.flow.name, selected: same(sel, me), run: () => select(me) });
   };
 
   const plain = (p: TreeProject, key: string, name: string, s: ChatSet, extra?: ReactNode) =>
@@ -188,7 +258,8 @@ export function Chats() {
           {plain(p, 'before', 'Before flows', p.before)}
         </>
       );
-    return group(p.cwd, 0, 'file-media', p.name, p.count, tag, acts, body, p.cwd);
+    const me: Selection = { kind: 'project', ...base(p), ...(p.working ? { iteration: itSel(p.working, p.flows[0]?.iterations.find((x) => x.iteration.id === p.working!.id)?.label ?? p.working.id) } : {}) };
+    return group(p.cwd, 0, 'file-media', p.name, p.count, tag, acts, body, p.cwd, { label: p.name, selected: same(sel, me), run: () => select(me) });
   };
 
   const noFile = chatCount(tree.noFile)
@@ -211,13 +282,17 @@ export function Chats() {
           <span className="name">Sample tour</span>
         </div>
         {sampleError && <div className="hint error-text">{sampleError}</div>}
+        {note && <div className={`hint ${note.error ? 'error-text' : ''}`} role={note.error ? 'alert' : 'status'}>{note.text}</div>}
         {tree.projects.map(projectRow)}
         {noFile}
         {!tree.projects.length && !noFile && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
       </div>
       {ask && <Confirm {...ask} onClose={() => setAsk(null)} />}
       {dialog?.kind === 'adopt' && <AdoptDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} />}
-      {dialog?.kind === 'iteration' && <NewIterationDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'iteration' && (() => {
+        const p = dialog.p;
+        return <NewIterationDialog cwd={p.cwd} name={p.name} project={dialog.project} onClose={() => setDialog(null)} onCreated={(it) => select({ kind: 'iteration', ...base(p), iteration: itSel(it, iterationLabel(it)) })} />;
+      })()}
       {dialog?.kind === 'run' && <RunAcrossFlowsDialog cwd={dialog.p.cwd} name={dialog.p.name} project={dialog.project} weeklyPct={taskList.weeklyPct} cap={taskList.cap} parallel={taskList.parallel} onClose={() => setDialog(null)} onOpenTask={(id) => setDialog({ kind: 'task', id })} />}
       {dialog?.kind === 'remove' && <RemoveProjectDialog cwd={dialog.p.cwd} name={dialog.p.name} chats={dialog.chats} tasks={dialog.tasks} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'rename' && <RenameDialog cwd={dialog.p.cwd} name={dialog.p.name} count={dialog.count} onClose={() => setDialog(null)} />}
@@ -276,13 +351,19 @@ function line(c: LiveChat, events: ChatEvent[] | null) {
   return c.pending ? 'Needs you' : c.running ? runningText(c.status) : c.last ?? (events ? replyLine(events) : '') ?? '';
 }
 
+// Viewing a chat drops a project, flow or iteration selection, so the tabs follow the chat again.
+const pick = (c: LiveChat, selected: boolean) => {
+  setUi({ selection: null });
+  if (!selected) send({ type: 'view', id: c.id });
+};
+
 function LiveRow({ c, depth, selected, onClose }: { c: LiveChat; depth: number; selected: boolean; onClose: () => void }) {
   const events = useStore((s) => (s.session.id === c.id ? s.events : null));
   const text = line(c, events);
   return (
-    <div className={`row session live d${depth} ${text ? 'two' : ''} ${selected ? 'selected' : ''}`} title={c.title} onClick={() => selected || send({ type: 'view', id: c.id })}>
+    <div className={`row session live d${depth} ${text ? 'two' : ''} ${selected ? 'selected' : ''}`} title={c.title} onClick={() => pick(c, selected)}>
       <span className={`dot ${c.pending ? 'waiting' : c.running ? 'running' : 'idle'}`} />
-      <span className="lines" aria-current={selected || undefined} {...press(() => selected || send({ type: 'view', id: c.id }))}>
+      <span className="lines" aria-current={selected || undefined} {...press(() => pick(c, selected))}>
         <span className="l1">
           <span className="name">{c.title}</span>
           <span className="when">{c.pending || c.running ? '' : ago(c.lastActive)}</span>
