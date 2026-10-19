@@ -2,7 +2,7 @@
 
 A web UI for designing in Figma with Claude, built on the Claude Agent SDK.
 
-You chat with Claude by default. Attach a Figma file and Claude can read and edit it, using your design system.
+You chat with Claude by default. Add a project (a Figma file) and Claude can read and edit it, using your design system.
 Switch the composer to Design mode for a full plan, sketch, design and review run, or to Review mode to check frames.
 
 ## Run
@@ -54,9 +54,9 @@ The pill at the left of the composer sets the mode. Option+M cycles Chat, Design
 Design mode adds options to the pill menu: "Stop after sketch" waits for you to pick a direction, and "Review depth"
 is Quick or Full. The composer gets a dark outline in Design mode and a grey one in Review mode.
 
-## Attach a Figma file
+## Add a project
 
-A chat does not need a Figma file to start. Attach one when you need it:
+A project is a Figma file. A chat does not need one to start. Add one when you need it:
 
 - Click "Add project" in the sidebar, next to New chat (or press Cmd+O), paste a link or pick a recent file.
 - Or paste a figma.com link in the composer and click Attach on the chip that appears.
