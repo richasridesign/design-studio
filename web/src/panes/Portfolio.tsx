@@ -269,6 +269,9 @@ export function SetupDialog({ initial, onClose, onDone, onView }: { initial: Por
 
 type Conn = { on: boolean; why?: string } | null;
 
+/** The header line keeps to one short sentence; Change connection sits right beside it. */
+const firstSentence = (s: string) => /^.*?\.(?=\s|$)/.exec(s.trim())?.[0] ?? s;
+
 /**
  * Header status. API key: the Keychain still holds it (attributes only, the key never reaches the page). Chrome:
  * the saved project is open there, signed in. Copy and paste connects nothing, so it shows no status.
@@ -284,13 +287,13 @@ function useConnection(config: PortfolioView['config'], checked: number): Conn {
     let live = true;
     const set = (c: Conn) => { if (live) setConn(c); };
     if (mode === 'api') {
-      if (!hasKey) set({ on: false, why: 'No API key is saved. Change connection to paste one.' });
+      if (!hasKey) set({ on: false, why: 'no API key is saved.' });
       else getJson<{ saved: boolean }>('/api/portfolio/key/status')
-        .then((r) => set(r.saved ? { on: true } : { on: false, why: 'The API key is not in your Keychain any more. Change connection to paste it again.' }))
+        .then((r) => set(r.saved ? { on: true } : { on: false, why: 'the API key was removed from the Keychain.' }))
         .catch((e) => set({ on: false, why: (e as Error).message }));
     } else {
       postJson<{ ok: boolean; reason?: string }>('/api/portfolio/check', { project })
-        .then((r) => set(r.ok ? { on: true } : { on: false, why: r.reason ?? 'Chrome is not showing this Framer project. Open it there, signed in.' }))
+        .then((r) => set(r.ok ? { on: true } : { on: false, why: firstSentence(r.reason ?? 'Chrome is not showing this Framer project.') }))
         .catch((e) => set({ on: false, why: (e as Error).message }));
     }
     return () => { live = false; };
@@ -298,16 +301,15 @@ function useConnection(config: PortfolioView['config'], checked: number): Conn {
   return conn;
 }
 
-/** Shape plus label: a filled circle when connected, a hollow triangle (attention, not an error) when not. */
+/** Shape plus label: a filled circle when connected, a hollow triangle (attention, not an error) when not. The why is a visible line under the header subline. */
 function ConnStatus({ conn }: { conn: Conn }) {
   if (!conn) return null;
   return (
-    <span className={`pf-conn ${conn.on ? 'on' : 'off'}`} title={conn.why}>
+    <span className={`pf-conn ${conn.on ? 'on' : 'off'}`}>
       {conn.on
         ? <span className="pf-shape circle filled" aria-hidden="true" />
         : <svg className="pf-conn-mark" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 11 10.5H1Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>}
       {conn.on ? 'Connected' : 'Not connected'}
-      {conn.why && <span className="sr-only">: {conn.why}</span>}
     </span>
   );
 }
@@ -829,6 +831,7 @@ export function PortfolioPage({ onClose, initialRun = null }: { onClose: () => v
           <div className="pf-head-text">
             <h1 id={titleId}>Update portfolio</h1>
             <span className="muted small">{site}{config ? ` · ${config.mode === 'copy' ? 'Copy and paste' : config.mode === 'api' ? 'Framer API key' : 'Framer in your Chrome'}` : ''}</span>
+            {conn && !conn.on && conn.why && <span className="muted small">Not connected: {conn.why}</span>}
           </div>
           <span className="spacer" />
           {config && (
