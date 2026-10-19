@@ -2,7 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { parseFigmaUrl, type FigmaFile } from '../../shared/design.js';
-import { CHATS_ROOT } from './settings.js';
+import { CHATS_ROOT, projectsRoot } from './settings.js';
+import { insideRoots, projectRoot, roots } from './roots.js';
 
 const SKILLS = fileURLToPath(new URL('../../skills', import.meta.url));
 
@@ -14,19 +15,25 @@ export const SAMPLE_KEY = 'sample';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'file';
 
-export const isChatFolder = (dir: string) => path.resolve(dir).startsWith(path.resolve(CHATS_ROOT) + path.sep);
+/** A folder Design Studio may run a chat in: anything under the chats root or the projects root. */
+export const isChatFolder = (dir: string) => insideRoots(dir);
 
+/** The file of a chat folder, read from its project root (a flow iteration folder sits inside the project). */
 export async function readFigma(dir: string): Promise<FigmaFile | null> {
-  return readFile(path.join(dir, 'figma.json'), 'utf8').then(JSON.parse).catch(() => null);
+  return readFile(path.join(projectRoot(dir), 'figma.json'), 'utf8').then(JSON.parse).catch(() => null);
 }
 
+/** The folders directly inside the two roots. Never lists anything above them. */
 export async function chatFolders() {
-  const names = await readdir(CHATS_ROOT).catch(() => [] as string[]);
   const out: Array<{ dir: string; figma: FigmaFile | null }> = [];
-  for (const n of names) {
-    const dir = path.join(CHATS_ROOT, n);
-    if (!(await stat(dir).then((s) => s.isDirectory()).catch(() => false))) continue;
-    out.push({ dir, figma: await readFigma(dir) });
+  for (const root of roots()) {
+    const names = await readdir(root).catch(() => [] as string[]);
+    for (const n of names) {
+      if (n.startsWith('.')) continue;
+      const dir = path.join(root, n);
+      if (!(await stat(dir).then((s) => s.isDirectory()).catch(() => false))) continue;
+      out.push({ dir, figma: await readFile(path.join(dir, 'figma.json'), 'utf8').then(JSON.parse).catch(() => null) });
+    }
   }
   return out;
 }
@@ -68,7 +75,8 @@ export async function folderFor(url: string) {
     return existing.dir;
   }
   const name = nameFromUrl(url, parsed.key);
-  const dir = path.join(CHATS_ROOT, `${slug(name)}-${parsed.key.slice(0, 6)}`);
+  // New projects go in the projects root; older ones under the chats root are found above and kept where they are.
+  const dir = path.join(projectsRoot(), `${slug(name)}-${parsed.key.slice(0, 6)}`);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, 'figma.json'), JSON.stringify(figmaFile(parsed.key, name), null, 2));
   await installSkills(dir);

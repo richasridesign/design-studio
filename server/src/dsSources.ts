@@ -8,6 +8,7 @@ import {
 } from '../../shared/dsProfiles.js';
 import { pluginScript, type ReadDeps } from './pluginRead.js';
 import { PROFILE_FILE, PROFILE_OFF_FILE, profileMarkdown, readProfile } from './profile.js';
+import { projectRoot } from './roots.js';
 
 // Where a profile's items come from: a starter, the Figma file (read through the plugin), a tokens file in code,
 // and her rule files. The rule files are only listed here; reviewers read them live.
@@ -112,7 +113,8 @@ export async function skillRulesFor(ds: DesignSystem | null, areas: Area[]): Pro
 }
 
 /** Every saved profile goes through here, so adding one in any way lifts "removed on purpose". */
-export async function writeProfile(dir: string, ds: DesignSystem) {
+export async function writeProfile(chatDir: string, ds: DesignSystem) {
+  const dir = projectRoot(chatDir);
   await writeFile(path.join(dir, PROFILE_FILE), JSON.stringify(ds, null, 2));
   await writeFile(path.join(dir, 'design-system.md'), profileMarkdown(ds));
   await rm(path.join(dir, PROFILE_OFF_FILE), { force: true });
@@ -171,7 +173,8 @@ export function switchStarter(current: DesignSystem | null, id: StarterId, now =
 }
 
 /** One change to the chat's profile. Figma and code sources read their source now; nothing else costs anything. */
-export async function changeDesignSystem(dir: string, figma: FigmaFile | null, body: unknown, deps: ReadDeps = {}) {
+export async function changeDesignSystem(chatDir: string, figma: FigmaFile | null, body: unknown, deps: ReadDeps = {}) {
+  const dir = projectRoot(chatDir);
   const b = (body ?? {}) as Record<string, unknown>;
   const now = Date.now();
   const current = await readProfile(dir);
