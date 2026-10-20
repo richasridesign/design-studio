@@ -307,6 +307,7 @@ function FollowButton({ on, paused, onClick }: { on: boolean; paused: boolean; o
       <button type="button" className={`follow-btn${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick} {...tip.props}>
         <span className="follow-dot" aria-hidden="true" />
         <span className="follow-label">{label}</span>
+        <span className="follow-short" aria-hidden="true">{!on ? 'Follow' : paused ? 'Paused' : 'Following'}</span>
       </button>
       {tip.tip}
     </>

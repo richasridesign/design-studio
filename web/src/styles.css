@@ -395,6 +395,7 @@ select { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(-
 .follow-btn:hover { background: var(--bg-hover); }
 .follow-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; border: 1.5px solid var(--fg-muted); box-sizing: border-box; }
 .follow-btn.on .follow-dot { background: var(--fg); border-color: var(--fg); }
+.follow-short { display: none; }
 .chrome-setup ol { margin: 4px 0 8px; padding-left: 18px; text-align: left; line-height: 1.7; }
 .chrome-setup code { padding: 1px 4px; border-radius: var(--radius-sm); background: var(--bg-sunken); }
 .chrome-setup .link { margin-left: 6px; }
