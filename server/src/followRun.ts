@@ -51,7 +51,7 @@ export function followState() {
   const on = loadedSettings().followClaude;
   const paused = [...follows].filter(([, f]) => f.paused).map(([k]) => k);
   // Following only when the setting is on and she has not paused it in that file.
-  const plugins = pluginFiles().map((p) => ({ key: p.key, name: p.name, page: p.page, following: on && !!p.key && !paused.includes(p.key), stalled: p.stalled }));
+  const plugins = pluginFiles().map((p) => ({ key: p.key, name: p.name, page: p.page, following: on && !!p.key && !paused.includes(p.key), stalled: p.stalled, ...(p.embed ? { embed: true } : {}) }));
   return { t: 'follow', on, paused, plugins };
 }
 

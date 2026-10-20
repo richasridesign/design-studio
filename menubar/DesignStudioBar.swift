@@ -124,9 +124,210 @@ func freePorts(_ ports: [Int]) {
   }
 }
 
-final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+// figma.com inside the Design Studio window, laid over the web app's Figma stage, so she can zoom, pan, click and edit
+// without the Figma app. It has its own website data, kept across launches and apart from Safari and Chrome, so her
+// Figma sign-in stays. The web app says where the stage is, when it shows and which file (dsFigmaStage). The page runs
+// figma-plugin/embed.js, which acts as the Design Studio plugin; this class holds its socket to the server, so Follow
+// Claude moves this view the way it moves the Figma app.
+final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+  static let storeId = UUID(uuidString: "6F1C9A4E-2B7D-4E0A-9C3F-D5E8A1B2C3D4")!
+  let view: WKWebView
+  var fileKey: String?
+  var loaded = false
+  var shown = false
+  var socket: URLSessionWebSocketTask?
+  /** The page's agent said hello, so the socket is wanted (opened again after a drop). */
+  var wanted = false
+  var popups: [NSWindow] = []
+
+  override init() {
+    let config = WKWebViewConfiguration()
+    if #available(macOS 14.0, *) { config.websiteDataStore = WKWebsiteDataStore(forIdentifier: FigmaEmbed.storeId) } else { config.websiteDataStore = .default() }
+    // Figma checks for a browser it supports: this view says it is Safari.
+    config.applicationNameForUserAgent = "Version/18.0 Safari/605.1.15"
+    let agentPath = "\(repo)/figma-plugin/embed.js"
+    if let js = try? String(contentsOfFile: agentPath, encoding: .utf8) {
+      config.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+    } else {
+      log("figma view: no \(agentPath), Follow Claude will not reach it")
+    }
+    view = WKWebView(frame: .zero, configuration: config)
+    super.init()
+    config.userContentController.add(self, name: "dsFigma")
+    view.navigationDelegate = self
+    view.uiDelegate = self
+    view.allowsBackForwardNavigationGestures = false
+    view.allowsMagnification = false
+    view.isHidden = true
+    if #available(macOS 13.3, *) { view.isInspectable = true }
+  }
+
+  var focused: Bool { (view.window?.firstResponder as? NSView)?.isDescendant(of: view) ?? false }
+
+  /** The web app's stage: CSS pixels in the app view, shown or not, and the chat's file. */
+  func stage(_ m: [String: Any], in web: WKWebView) {
+    let show = m["show"] as? Bool ?? false
+    if show {
+      let z = web.pageZoom
+      let num = { (k: String) in CGFloat((m[k] as? NSNumber)?.doubleValue ?? 0) * z }
+      let x = num("x"), y = num("y"), w = num("w"), h = num("h")
+      let r = NSRect(x: x, y: web.isFlipped ? y : web.bounds.height - y - h, width: w, height: h)
+      if let parent = view.superview { view.frame = web.convert(r, to: parent) }
+      let key = (m["key"] as? String).flatMap { $0.range(of: "^[A-Za-z0-9]{10,64}$", options: .regularExpression) != nil ? $0 : nil }
+      if key != fileKey || !loaded {
+        if let key { open(URL(string: "https://www.figma.com/design/\(key)")!, key) } else if !loaded { open(URL(string: "https://www.figma.com/files")!, nil) }
+      }
+    }
+    setShown(show)
+  }
+
+  func open(_ url: URL, _ key: String?) {
+    fileKey = key
+    loaded = true
+    log("figma view: opening \(key ?? "files")")
+    view.load(URLRequest(url: url))
+  }
+
+  func setShown(_ on: Bool) {
+    if view.isHidden == !on { return }
+    view.isHidden = !on
+    if !on && focused { view.window?.makeFirstResponder(nil) }
+    shown = on
+    send(["t": "shown", "on": on])
+  }
+
+  // The page's agent: its messages go to the server as they are; a hello opens the socket.
+  func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.host == "www.figma.com", let text = message.body as? String else { return }
+    if text.contains("\"t\":\"hello\"") {
+      wanted = true
+      if socket == nil { connect() }
+      sendText(text)
+      send(["t": "shown", "on": shown])
+      return
+    }
+    sendText(text)
+  }
+
+  func connect() {
+    var req = URLRequest(url: URL(string: "ws://localhost:7778/ws?figma-plugin")!)
+    req.setValue("https://www.figma.com", forHTTPHeaderField: "Origin")
+    let task = URLSession.shared.webSocketTask(with: req)
+    socket = task
+    task.resume()
+    receive(task)
+  }
+
+  func receive(_ task: URLSessionWebSocketTask) {
+    task.receive { [weak self] result in
+      DispatchQueue.main.async {
+        guard let self, self.socket === task else { return }
+        switch result {
+        case .success(let msg):
+          if case .string(let text) = msg {
+            self.view.evaluateJavaScript("window.__dsEmbed && window.__dsEmbed.recv(\(text))", completionHandler: nil)
+          }
+          self.receive(task)
+        case .failure:
+          self.socket = nil
+          guard self.wanted else { return }
+          // The server restarted or went away: again in 2 s, and the agent says hello again once it is back.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            guard self.wanted, self.socket == nil else { return }
+            self.connect()
+            self.view.evaluateJavaScript("window.__dsEmbed && window.__dsEmbed.ready()", completionHandler: nil)
+          }
+        }
+      }
+    }
+  }
+
+  func send(_ m: [String: Any]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: m), let text = String(data: data, encoding: .utf8) else { return }
+    sendText(text)
+  }
+
+  func sendText(_ text: String) {
+    socket?.send(.string(text)) { _ in }
+  }
+
+  func closeSocket() {
+    wanted = false
+    socket?.cancel(with: .goingAway, reason: nil)
+    socket = nil
+  }
+
+  // A new page in the view (another file, a reload) starts a new agent, which says hello again.
+  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    if webView === view { closeSocket() }
+  }
+
+  func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    let scheme = action.request.url?.scheme ?? ""
+    if scheme == "figma" {
+      // "Open in the desktop app" links go to the Figma app, never to a browser.
+      log("figma view: to the Figma app")
+      if let url = action.request.url { NSWorkspace.shared.open(url) }
+      return decisionHandler(.cancel)
+    }
+    if action.shouldPerformDownload || !["https", "http", "about", "blob", "data"].contains(scheme) { return decisionHandler(.cancel) }
+    decisionHandler(.allow)
+  }
+
+  // Sign-in and other windows Figma opens stay in this app, in a small window that shares this view's data, so the
+  // sign-in lands here. Nothing goes to her browser.
+  func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+    let child = WKWebView(frame: NSRect(x: 0, y: 0, width: 520, height: 680), configuration: configuration)
+    child.navigationDelegate = self
+    child.uiDelegate = self
+    let w = NSWindow(contentRect: child.frame, styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+    w.isReleasedWhenClosed = false
+    w.title = "Figma"
+    w.contentView = child
+    w.center()
+    w.makeKeyAndOrderFront(nil)
+    popups.append(w)
+    log("figma view: window \(action.request.url?.host ?? "")")
+    return child
+  }
+
+  func webViewDidClose(_ webView: WKWebView) {
+    popups.removeAll { w in
+      guard w.contentView === webView else { return false }
+      w.close()
+      return true
+    }
+  }
+
+  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    guard webView === view else { return }
+    log("figma view: page ended, loading again")
+    closeSocket()
+    webView.reload()
+  }
+
+  @available(macOS 12.0, *)
+  func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+    decisionHandler(.deny)
+  }
+
+  /** Test aid (defaults DSFigmaProbe): what the page offers Follow Claude, written to the logs folder. */
+  func probe() {
+    let js = "return JSON.stringify({path: location.pathname.slice(0, 40), figma: typeof figma, api: typeof figma !== 'undefined' && !!figma.getNodeByIdAsync, agent: !!window.__dsEmbed, page: (typeof figma !== 'undefined' && figma.currentPage) ? figma.currentPage.name : null, zoom: (typeof figma !== 'undefined' && figma.viewport) ? figma.viewport.zoom : null})"
+    view.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { r in
+      var s = ""
+      switch r { case .success(let v): s = "\(v)"; case .failure(let e): s = "error \(e.localizedDescription)" }
+      try? s.write(to: logs.appendingPathComponent("figma-probe.json"), atomically: true, encoding: .utf8)
+      log("figma view probe: \(s)")
+    }
+  }
+}
+
+final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
   let window: NSWindow
   let web: WKWebView
+  /** figma.com over the Figma tab's stage, made the first time the tab shows. */
+  var figma: FigmaEmbed?
   let cover = NSView()
   let label = NSTextField(labelWithString: "Starting Design Studio\u{2026}")
   let spinner = NSProgressIndicator()
@@ -141,6 +342,7 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
     web = WKWebView(frame: .zero, configuration: config)
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
     super.init()
+    config.userContentController.add(self, name: "dsFigmaStage")
     window.title = "Design Studio"
     window.appearance = NSAppearance(named: .aqua)
     window.isReleasedWhenClosed = false
@@ -184,6 +386,32 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
       label.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
     ])
     showWaiting("Starting Design Studio\u{2026}")
+    if UserDefaults.standard.bool(forKey: "DSFigmaProbe") {
+      let f = makeFigma()
+      f.open(URL(string: "https://www.figma.com/design/TvLPhIfNRDowLKbeL4R7EM")!, "TvLPhIfNRDowLKbeL4R7EM")
+      DispatchQueue.main.asyncAfter(deadline: .now() + 30) { f.probe() }
+    }
+  }
+
+  func makeFigma() -> FigmaEmbed {
+    if let figma { return figma }
+    let f = FigmaEmbed()
+    window.contentView?.addSubview(f.view, positioned: .below, relativeTo: cover)
+    figma = f
+    return f
+  }
+
+  // The web app's Figma stage: where it is, whether figma.com shows there, and which file. Only from the app itself.
+  func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard message.name == "dsFigmaStage", isHome(message.frameInfo.request.url) || ["localhost", "127.0.0.1"].contains(message.frameInfo.securityOrigin.host),
+      let m = message.body as? [String: Any] else { return }
+    if (m["show"] as? Bool ?? false) == false && figma == nil { return }
+    makeFigma().stage(m, in: web)
+  }
+
+  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    // The app reloads: its stage is gone until it says where it is again.
+    figma?.setShown(false)
   }
 
   func show() {
@@ -238,12 +466,14 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
     if !polling { poll() }
   }
 
+  // While she works in the Figma view, these keys belong to Figma (its own zoom, no reload of Design Studio).
   @objc func reloadOrStart() {
+    if figma?.focused == true { return }
     if loaded && cover.isHidden { web.reload() } else { reloadPage() }
   }
-  @objc func zoomIn() { web.pageZoom = min(web.pageZoom + 0.1, 3) }
-  @objc func zoomOut() { web.pageZoom = max(web.pageZoom - 0.1, 0.5) }
-  @objc func actualSize() { web.pageZoom = 1 }
+  @objc func zoomIn() { if figma?.focused != true { web.pageZoom = min(web.pageZoom + 0.1, 3) } }
+  @objc func zoomOut() { if figma?.focused != true { web.pageZoom = max(web.pageZoom - 0.1, 0.5) } }
+  @objc func actualSize() { if figma?.focused != true { web.pageZoom = 1 } }
 
   // Navigation: the app stays in the window, everything else goes to the browser.
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -321,6 +551,7 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    figma?.setShown(false)
     log("web content process ended, reloading")
     reloadPage()
   }

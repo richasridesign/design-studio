@@ -39,6 +39,10 @@ type Conn = {
   stalled: boolean;
   /** What the plugin was last told: send the changes landing in the file (Claude edits it) or not. */
   editing: boolean;
+  /** figma.com inside the Design Studio Mac window (figma-plugin/embed.ts), not the plugin in the Figma app. */
+  embed: boolean;
+  /** For the embed: its view is on screen (the Figma tab is shown in the Mac window). */
+  shown: boolean;
 };
 
 const conns = new Set<Conn>();
@@ -50,7 +54,7 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
   // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
   // the way a protocol ping is), so only a plugin that can still run counts as alive.
@@ -83,13 +87,17 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.page = str(m.pageId, 64);
       conn.pageName = str(m.pageName);
       conn.followKey = null;
+      conn.embed = m.embed === true;
+      conn.shown = conn.embed && m.shown === true;
       conns.add(conn);
-      console.log(`figma plugin: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
+      console.log(`figma ${conn.embed ? 'in the Design Studio window' : 'plugin'}: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
       hooks.changed();
     } else if (m.t === 'page' && conns.has(conn)) {
       conn.page = str(m.pageId, 64);
       conn.pageName = str(m.pageName);
       hooks.page?.();
+    } else if (m.t === 'shown' && conn.embed) {
+      conn.shown = m.on === true;
     } else if (m.t === 'result' && typeof m.id === 'number') {
       const done = conn.pending.get(m.id);
       conn.pending.delete(m.id);
@@ -127,10 +135,12 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 /**
  * The plugin running in this file: by the file's key when Figma gave it to the plugin, else by the file's name.
- * The newest connection wins, since she may have reopened the plugin.
+ * The newest connection wins, since she may have reopened the plugin. Figma in the Design Studio window comes first
+ * while it is on screen, then the Figma app's plugin, then that window while it is hidden behind another tab.
  */
 export function pluginFor(fileKey: string, name?: string): Conn | null {
-  const live = [...conns].filter((c) => c.ws.readyState === OPEN).reverse();
+  const rank = (c: Conn) => (c.embed ? (c.shown ? 0 : 2) : 1);
+  const live = [...conns].filter((c) => c.ws.readyState === OPEN).reverse().sort((a, b) => rank(a) - rank(b));
   const byKey = live.find((c) => c.key === fileKey);
   if (byKey) return byKey;
   const byName = name && norm(name) ? live.find((c) => !c.key && norm(c.name) === norm(name)) : undefined;
@@ -139,7 +149,7 @@ export function pluginFor(fileKey: string, name?: string): Conn | null {
   return byName;
 }
 
-export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled }));
+export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled, embed: c.embed }));
 
 /** Remembers whether Figma answers this plugin's follows; true when that changed, so the Figma tab can be told. */
 export function markStalled(conn: Conn, stalled: boolean) {
