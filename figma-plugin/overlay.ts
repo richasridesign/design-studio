@@ -106,7 +106,12 @@ export function overlay(figma: any) {
     lastMove = Date.now();
   }
 
+  let lastFlash = { key: '', at: 0 };
   async function flash(ids: string[]) {
+    // The same change can arrive twice (seen landing, then named by the script's end): it flashes once.
+    const key = [...ids].sort().join(',');
+    if (key === lastFlash.key && Date.now() - lastFlash.at < 2000) return;
+    lastFlash = { key, at: Date.now() };
     const nodes = deepest(await boxes(ids)).slice(0, MAX_FLASH);
     if (!nodes.length) return;
     mount();

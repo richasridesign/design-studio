@@ -35,7 +35,8 @@ async function screenName(figma: any, targets?: string) {
     a = agent(figma, post, fileKey, { embed: true }, {
       followed: (ids, start, result) => {
         if (result.status !== 'ok' && result.status !== 'shown') return;
-        void show.followed(ids);
+        // A follow at the start names what Claude is about to edit; a later one names what his script changed.
+        void (start ? show.followed(ids) : show.changed(ids));
         void screenName(figma, result.view?.targets).then((name) => { if (name) post({ t: 'screen', name }); });
       },
       changed: (ids) => void show.changed(ids),
