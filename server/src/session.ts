@@ -29,7 +29,7 @@ import { chatContext, readProject } from './project.js';
 import { checkScope, frozenChat } from './scopeGuard.js';
 import { markTurn, scheduleRestack } from './iterations.js';
 import { projectInstructions, type ChatContext } from '../../shared/project.js';
-import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
+import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, LONG_RUN_STEER, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
 import { awaitQuestions } from './awaiting.js';
 import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
@@ -915,6 +915,9 @@ export class AgentSession {
     const images = Array.isArray(refs) && refs.length ? await loadImages(this.cwd, refs) : { refs: [], blocks: [] };
     text = withRefs(text, images.refs);
     const running = this.state.session.running;
+    // During a long run the "keep going" nudge after each turn would override what she just said: the message
+    // carries a note, so Claude ends the run (with its report) when she asks to stop, and otherwise works it in.
+    const note = isActive(this.state.session.longRun) ? `\n\n${LONG_RUN_STEER}` : '';
     const ev: Extract<ChatEvent, { kind: 'user' }> = { id, kind: 'user', text, at: Date.now(), stopping: running };
     this.pushEvent(ev);
     if (running) {
@@ -924,7 +927,7 @@ export class AgentSession {
       ev.stopping = false;
       this.emit({ type: 'event', event: ev });
     }
-    this.enqueue(text, images.blocks);
+    this.enqueue(text + note, images.blocks);
   }
 
   changePlan(next: string[]) {

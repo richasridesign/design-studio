@@ -58,6 +58,10 @@ export const ASK_DENIED =
 export const CONTINUE_TEXT =
   'Keep going with the long run task. Work through what is left, check your work, and say which round you are on ("Round 2 of 3"). Do not wait for me. When the rounds are done or you are blocked on my decisions, reply with the long run report.';
 
+/** Under a message she sends during a long run, so the run's "keep going" nudges never override it. */
+export const LONG_RUN_STEER =
+  '(Sent while you are in the long run. If this asks you to stop, pause or wait, stop now: do not start new edits, and reply with the long run report, with "- None" under empty headings. Otherwise do what it says, keep going with the run, and say which round you are on.)';
+
 export function reportAsk(reason: LongRunReason) {
   const why = reason === 'cap' ? '5-hour plan usage reached the cap for this long run.' : reason === 'weekly' ? 'Weekly plan usage reached the cap for this long run.' : 'The time for this long run is up.';
   return `${why} Stop working now. Do not start new edits. Reply with the long run report in the format I gave you.`;
