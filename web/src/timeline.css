@@ -21,12 +21,15 @@
     padding-left: max(0px, calc((100% - 720px) / 2)); padding-right: calc(max(0px, (100% - 720px) / 2) + 12px);
   }
 }
-.seg.chat-view { padding: 3px; gap: 4px; border-radius: var(--radius-sm); }
+/* The chat views are quiet text tabs, as in Notion: no box around them, a 6px rounded fill on hover, and the open view
+   on a warm fill in full ink and semibold. 32px, like the place chip and the icon buttons in the head. */
+.seg.chat-view { padding: 0; gap: 4px; border: 0; border-radius: 0; background: transparent; }
 .seg.chat-view button {
-  min-height: 24px; padding: 0 12px; border-radius: calc(var(--radius-sm) - 4px);
-  font-size: var(--text-sm); line-height: 16px;
+  min-height: 32px; padding: 0 12px; border-radius: var(--radius-row);
+  font-size: var(--text-sm); line-height: 20px;
 }
-.seg.chat-view button:not(.on):hover { background: transparent; color: var(--fg); }
+.seg.chat-view button:not(.on):hover { background: var(--bg-hover); color: var(--fg); }
+.seg.chat-view button.on { background: var(--bg-sunken); }
 
 /* A new prompt starts a new turn in both views: 32px above it. */
 .tr > .tr-user-wrap:not(:first-child), .tr > .tr-phase:not(:first-child) { margin-top: 32px; }

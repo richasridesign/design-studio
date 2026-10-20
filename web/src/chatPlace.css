@@ -5,9 +5,10 @@
 .place-chip .state-dot.frozen, .place-pick .state-dot.frozen, .ncp .state-dot.frozen { border: 1.5px solid var(--fg-muted); }
 
 /* Same height as the Timeline and Transcript switch beside it. */
+/* A quiet button, as in a Notion breadcrumb: no box at rest, a 6px rounded fill on hover, the chevron says it opens. */
 .place-chip {
   flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--fg);
+  border: 1px solid transparent; border-radius: var(--radius-row); background: transparent; color: var(--fg);
   font-size: var(--text-sm); line-height: 20px; font-weight: 600; white-space: nowrap;
 }
 .place-chip:hover { background: var(--bg-hover); }

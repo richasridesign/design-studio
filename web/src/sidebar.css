@@ -14,7 +14,7 @@
 /* Hover and the open chat sit on a rounded pill inset 8px from the sidebar edges; the open chat's pill is lavender, as on the portfolio cards. */
 .sessions .tree .row { position: relative; isolation: isolate; }
 .sessions .tree .row:hover, .sessions .tree .row.selected { background: transparent; }
-.sessions .tree .row:is(:hover, .selected)::before { content: ''; position: absolute; inset: 0 8px; z-index: -1; border-radius: var(--radius-sm); background: var(--bg-hover); }
+.sessions .tree .row:is(:hover, .selected)::before { content: ''; position: absolute; inset: 0 8px; z-index: -1; border-radius: var(--radius-row); background: var(--bg-hover); }
 .sessions .tree .row.selected::before { background: var(--tint-lavender); }
 .sessions .tree .row.selected:hover::before { background: color-mix(in srgb, var(--tint-lavender) 92%, var(--ink-lavender)); }
 /* Sample tour: its compass sits on a small peach disc. */
@@ -42,9 +42,10 @@
 .sessions .tree .row.removing .when { display: none; }
 .sessions .tree .row .busy { display: inline-flex; margin: 0 10px 0 auto; }
 .sessions .tree .row .dirty { flex: none; font-size: var(--text-xs); color: var(--warn); margin-left: 6px; }
+/* Section labels: small, muted, sentence case, with room above them so the sections read as groups without lines. */
 .sessions .tree .group {
-  height: 22px; line-height: 22px; padding: 0 12px 0 8px; margin-top: 4px;
-  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted);
+  height: 24px; line-height: 24px; padding: 0 12px 0 8px; margin-top: 12px;
+  font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted);
 }
 .sessions .tree .row.live { padding-left: 8px; gap: 6px; }
 .sessions .tree .row.live .state { display: inline-flex; width: 16px; justify-content: center; color: var(--fg-muted); flex: none; }
@@ -84,7 +85,7 @@
 .sessions .tree .row .badges .dirty { width: 14px; margin: 0; text-align: center; }
 .sessions .tree .row .badges .count { width: 24px; margin: 0; padding: 0; }
 .sessions .tree .row.project:hover .badges { display: none; }
-.sessions .tree .row.group-row { margin-top: 6px; font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+.sessions .tree .row.group-row { margin-top: 12px; font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted); }
 .sessions.chats .tree .row.recent { padding-left: 42px; }
 .sessions .side-switch .seg-count { margin-left: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
 .sessions .side-switch button { height: 24px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
@@ -135,10 +136,14 @@
 @media (max-width: 900px) { .sidebar > .side-switch { flex-wrap: wrap; overflow: visible; padding: 12px 12px 8px; } .sidebar > .side-switch > button { flex: 1 0 auto; } }
 .sessions.chats .sessions-bar input:focus { box-shadow: 0 0 0 1px var(--focus); }
 .sessions.chats .tree .row.project { padding-left: 8px; }
-.sessions.chats .tree .row.project .fold { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; height: 100%; border-radius: var(--radius-sm); }
+.sessions.chats .tree .row.project .fold { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; height: 100%; border-radius: var(--radius-row); }
 .sessions.chats .tree .row.project .fold .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sessions.chats .tree .row.project .fold:focus-visible { outline-offset: -2px; }
+/* Toggle triangle: a muted chevron that turns from right to down as the row opens. */
 .sessions.chats .tree .row.project .twistie.chevron { color: var(--fg-muted); }
+.sessions .tree .twistie.chevron > .icon { transition: transform 0.15s ease; }
+.sessions .tree [aria-expanded='true'] > .twistie.chevron > .icon { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .sessions .tree .twistie.chevron > .icon { transition: none; } }
 .sessions.chats .tree .row.project:hover .twistie.chevron { color: var(--fg); }
 .sessions.chats .tree .row.session.sample { padding-left: 26px; gap: 4px; }
 .sessions.chats .tree .row.live, .sessions.chats .tree .row.live.two { padding-left: 32px; gap: 8px; }
