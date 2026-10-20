@@ -1,6 +1,7 @@
 /** Where a follow left her Figma view: the page, the screens it fitted and the center and zoom Figma reported back. */
 export type FollowView = { page: string; targets: string; cx: number; cy: number; zoom: number };
-export type FollowResult = { status: 'ok' | 'shown' | 'moved' | 'nonode' | 'noapi'; view?: FollowView };
+/** `stalled`: the plugin got the follow but Figma did not answer its node lookups in time (the file is not the front tab). */
+export type FollowResult = { status: 'ok' | 'shown' | 'moved' | 'nonode' | 'noapi' | 'stalled'; view?: FollowView };
 
 // The few parts of the Figma Plugin API the follow uses. The same functions run in a Chrome tab (sent over CDP as
 // source) and inside the Design Studio plugin in the Figma app (bundled), so they must not use anything outside

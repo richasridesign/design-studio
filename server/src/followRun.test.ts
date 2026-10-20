@@ -47,7 +47,7 @@ describe('follow transport', () => {
     const ws = fakePlugin({ fileKey: null, fileName: 'Checkout flows' }, shown);
     await followFigma('KeyCCCCCCCCC', ['2:1'], false, ' checkout Flows');
     expect(cdp).not.toHaveBeenCalled();
-    expect(followState().plugins).toContainEqual({ key: 'KeyCCCCCCCCC', name: 'Checkout flows', page: '', following: true });
+    expect(followState().plugins).toContainEqual({ key: 'KeyCCCCCCCCC', name: 'Checkout flows', page: '', following: true, stalled: false });
     ws.emit('message', JSON.stringify({ t: 'moved' }));
     expect(followState().paused).toContain('KeyCCCCCCCCC');
     const before = ws.sent.length;
@@ -67,7 +67,7 @@ describe('follow transport', () => {
       cdp.mockClear();
       const ws = fakePlugin({ fileKey: 'KeyDDDDDDDDD', fileName: 'Silent' }, null);
       const run = followFigma('KeyDDDDDDDDD', ['3:1']);
-      await vi.advanceTimersByTimeAsync(8000);
+      await vi.advanceTimersByTimeAsync(9000);
       await run;
       expect(followState().paused).not.toContain('KeyDDDDDDDDD');
       expect(cdp).not.toHaveBeenCalled();
@@ -86,9 +86,26 @@ describe('follow transport', () => {
     expect(ws.sent.at(-1)).toMatchObject({ t: 'focus', nodeId: '4:9' });
     // A page change is not a new file: the next follow still compares against the view it left.
     ws.emit('message', JSON.stringify({ t: 'page', pageId: '0:2', pageName: 'Hi fi' }));
-    expect(followState().plugins).toContainEqual({ key: 'KeyEEEEEEEEE', name: 'Pages', page: 'Hi fi', following: true });
+    expect(followState().plugins).toContainEqual({ key: 'KeyEEEEEEEEE', name: 'Pages', page: 'Hi fi', following: true, stalled: false });
     await followFigma('KeyEEEEEEEEE', ['4:2']);
     expect(ws.sent.at(-1)).toMatchObject({ t: 'follow', last: { targets: '4:1' } });
     ws.emit('close');
+  });
+  it('lets a burst of edits settle, then moves once to the newest', async () => {
+    vi.useFakeTimers();
+    try {
+      const ws = fakePlugin({ fileKey: 'KeyFFFFFFFFF', fileName: 'Burst' }, shown);
+      const first = followFigma('KeyFFFFFFFFF', ['5:1']);
+      await vi.advanceTimersByTimeAsync(100);
+      const second = followFigma('KeyFFFFFFFFF', ['5:2']);
+      await vi.advanceTimersByTimeAsync(5000);
+      await Promise.all([first, second]);
+      const follows = ws.sent.filter((m) => m.t === 'follow');
+      expect(follows).toHaveLength(1);
+      expect(follows[0].ids).toEqual(['5:2']);
+      ws.emit('close');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -566,7 +566,7 @@ async function followOnce(fileKey: string, ids: string[], last: FollowView | nul
   }
 }
 
-useChromeFollow(followOnce, broadcast);
+useChromeFollow(followOnce, broadcast, () => viewers.size > 0);
 
 const MAX_SHOT_HEIGHT = 16000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
