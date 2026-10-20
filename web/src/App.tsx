@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { connect, getJson, useStore } from './store';
 import { Brief } from './panes/Brief';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -70,6 +70,29 @@ function stored(key: string, fallback: number) {
   } catch {
     return fallback;
   }
+}
+
+// The chat's reading place: the first row of the conversation in view and its distance from the top. Widening the chat
+// rewraps every line, so scrollTop alone would land somewhere else.
+type ReadPlace = { index: number; offset: number } | 'end' | null;
+const chatScroller = () => document.querySelector<HTMLElement>('.brief .tr');
+function readPlace(): ReadPlace {
+  const el = chatScroller();
+  if (!el) return null;
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) return 'end';
+  const top = el.getBoundingClientRect().top;
+  // The first row that starts in view: a row half scrolled past may shrink below the top once its lines rewrap.
+  const rows = Array.from(el.children) as HTMLElement[];
+  const starts = rows.findIndex((r) => r.getBoundingClientRect().top >= top);
+  const index = starts >= 0 ? starts : rows.findIndex((r) => r.getBoundingClientRect().bottom > top);
+  return index < 0 ? null : { index, offset: rows[index].getBoundingClientRect().top - top };
+}
+function keepPlace(place: ReadPlace) {
+  const el = chatScroller();
+  if (!el || !place) return;
+  if (place === 'end') { el.scrollTop = el.scrollHeight; return; }
+  const row = el.children[place.index] as HTMLElement | undefined;
+  if (row) el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - place.offset;
 }
 
 function Offline() {
@@ -149,6 +172,30 @@ export function App() {
     }
   });
   const toggleFocus = () => setFocusMode((v) => !v);
+  // Expand chat: the chat covers the whole window, its conversation in a 720px column. Desktop only; a phone already
+  // shows the chat full screen. The panels stay laid out underneath, so the Figma mirror keeps its size.
+  const [chatWide, setChatWide] = useState(() => {
+    try {
+      return localStorage.getItem('designstudio.chatExpanded') === '1';
+    } catch {
+      return false;
+    }
+  });
+  // A phone or a narrow window shows one part at a time, so nothing is covered there.
+  const [small, setSmall] = useState(narrow);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)');
+    const on = () => setSmall(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const wideToggle = useRef<HTMLButtonElement>(null);
+  const wideNow = useRef(false);
+  const place = useRef<ReadPlace>(null);
+  const setWide = (next: boolean) => {
+    place.current = readPlace();
+    setChatWide(next);
+  };
   const notifying = useNotify();
 
   const loadDev = () => getJson<{ devTools: boolean }>('/api/settings').then((s) => setDev(s.devTools)).catch(() => {});
@@ -189,6 +236,7 @@ export function App() {
   };
   const open = (c: Center) => {
     setCenter(c);
+    setChatWide(false);
     if (narrow()) setTab(isMobileCenter(c) ? c : 'more');
   };
 
@@ -215,6 +263,17 @@ export function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('designstudio.chatExpanded', chatWide ? '1' : '0');
+    } catch {}
+  }, [chatWide]);
+
+  // Hiding the chat or entering focus mode gives the window back to the panels, so the chat comes back at its width.
+  useEffect(() => {
+    if (!chatOpen || focusMode) setChatWide(false);
+  }, [chatOpen, focusMode]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('designstudio.chatW', String(chatW));
       localStorage.setItem('designstudio.termH', String(termH));
       localStorage.setItem('designstudio.sideW', String(sideW));
@@ -229,7 +288,8 @@ export function App() {
       if (k === 'o') { e.preventDefault(); window.dispatchEvent(new Event('designstudio:attach')); }
       if (k === '.' && !narrow()) { e.preventDefault(); toggleFocus(); }
       if (e.code === 'KeyB' && e.altKey && !narrow()) { e.preventDefault(); setChatOpen((v) => !v); }
-      else if (k === 'b') { e.preventDefault(); setSidebar((v) => !v); }
+      // The sidebar sits under the expanded chat, so ⌘B there brings the panels back with the sidebar shown.
+      else if (k === 'b') { e.preventDefault(); if (wideNow.current) { setWide(false); setSidebar(true); } else setSidebar((v) => !v); }
       if (k === 'j' && dev) { e.preventDefault(); setTerminal((v) => !v); }
     };
     window.addEventListener('keydown', onKey);
@@ -240,6 +300,7 @@ export function App() {
     const onCommand = (e: Event) => {
       const [kind, arg] = (e as CustomEvent<{ id: string }>).detail.id.split(':');
       if (kind === 'view') {
+        setChatWide(false);
         if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
@@ -258,6 +319,7 @@ export function App() {
     const onSection = (e: Event) => {
       const next = (e as CustomEvent<{ view?: unknown }>).detail?.view;
       if (!isView(next)) return;
+      setChatWide(false);
       setView(next);
       setSidebar(true);
       if (narrow()) setTab('more');
@@ -276,6 +338,40 @@ export function App() {
   const centers = CENTER.filter((c) => !c.dev || dev);
   const collapsed = centers.length === 0;
   const views = VIEWS.filter((v) => !v.dev || dev);
+  const wide = chatWide && chatOpen && !focusMode && !collapsed && !small;
+  wideNow.current = wide;
+  // Same chat, same reading place: the row that was at the top of the conversation stays there.
+  // Long replies re-measure their Show more link after the rewrap, so for half a second every row that changes size
+  // sets the place again, unless she scrolls herself.
+  useLayoutEffect(() => {
+    const at = place.current;
+    place.current = null;
+    const el = chatScroller();
+    if (!at || !el) return;
+    keepPlace(at);
+    const ro = new ResizeObserver(() => keepPlace(at));
+    for (const row of Array.from(el.children)) ro.observe(row);
+    const end = () => ro.disconnect();
+    const stop = setTimeout(end, 500);
+    el.addEventListener('wheel', end, { once: true, passive: true });
+    el.addEventListener('touchstart', end, { once: true, passive: true });
+    return () => { clearTimeout(stop); end(); el.removeEventListener('wheel', end); el.removeEventListener('touchstart', end); };
+  }, [wide]);
+  // Esc collapses, unless it belongs to something open (a menu, dialog, the composer's suggestions or a field that
+  // cancels its own edit). Focus goes back to the Expand chat button.
+  useEffect(() => {
+    if (!wide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || narrow()) return;
+      const at = e.target instanceof Element ? e.target : null;
+      if (at?.closest('[role=dialog], [role=alertdialog], [role=menu], [role=listbox]') || document.querySelector('[aria-modal=true]')) return;
+      if (at?.closest('input, select, [contenteditable=true]') || (at?.matches('textarea') && !at.closest('.cp-text'))) return;
+      setWide(false);
+      wideToggle.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [wide]);
   const wanted = narrow() && isMobileCenter(tab) ? tab : center;
   const shownCenter = centers.some((c) => c.id === wanted) ? wanted : centers[0]?.id;
   const [rove, setRove] = useState<string | null>(null);
@@ -291,7 +387,7 @@ export function App() {
   };
 
   return (
-    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} style={{ '--chat-w': `${chatW}px`, '--side-w': `${sideW}px` } as React.CSSProperties}>
+    <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} data-chat-expanded={wide} style={{ '--chat-w': `${chatW}px`, '--side-w': `${sideW}px` } as React.CSSProperties}>
       <Offline />
       <header className="topbar">
         <h1 style={HIDDEN}>Design Studio</h1>
@@ -307,7 +403,7 @@ export function App() {
         {!connected && <span className="error-text">Disconnected</span>}
       </header>
       <div className="body">
-        <nav className="activitybar desktop-only" aria-label="Views">
+        <nav className="activitybar desktop-only" aria-label="Views" inert={wide}>
           {views.map((v) => {
             const badge = v.id === 'chats' && elsewhere > 0;
             return (
@@ -321,7 +417,7 @@ export function App() {
         </nav>
 
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
-        <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
+        <section className="sidebar pane side" inert={wide} role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
           <div className="sidebar-title">
             {(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}
             <span className="spacer" />
@@ -338,11 +434,11 @@ export function App() {
           </ErrorBoundary>
         </section>
         {/* Drag to widen the sidebar, double-click for the default width. Arrow keys move it by 16px. */}
-        <div className="side-sash desktop-only" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={sideW}
+        <div className="side-sash desktop-only" inert={wide} role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={sideW}
           tabIndex={0} title="Drag to resize, double-click to reset" onPointerDown={startSideResize} onDoubleClick={() => setSideW(SIDE_MIN)} onKeyDown={sideKeys} />
 
         {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}
-        <section className="editor-group pane code" role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() ? 'Panel area' : isMobileCenter(tab) ? 'Panels' : undefined}>
+        <section className="editor-group pane code" inert={wide} role={narrow() && isMobileCenter(tab) ? 'main' : undefined} aria-label={!narrow() ? 'Panel area' : isMobileCenter(tab) ? 'Panels' : undefined}>
           <div className="tabs">
             {/* Tabs for screen readers: arrows move between tabs, Enter or Space opens one. */}
             <div role="tablist" aria-label="Panels" style={{ display: 'contents' }} onKeyDown={tabKeys}>
@@ -385,11 +481,11 @@ export function App() {
           )}
         </section>
 
-        <div className="sash desktop-only" onPointerDown={startResize} />
+        <div className="sash desktop-only" inert={wide} onPointerDown={startResize} />
 
         <main className="main pane center" aria-label="Chat">
           <ErrorBoundary label="chat">
-            <Brief />
+            <Brief expanded={wide} canExpand={!collapsed} toggleRef={wideToggle} onExpand={() => setWide(!wide)} />
           </ErrorBoundary>
         </main>
       </div>

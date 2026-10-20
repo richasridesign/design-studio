@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { ago } from '../ago';
@@ -45,7 +45,19 @@ const VIEWS: Array<{ id: ChatView; label: string; title: string }> = [
   { id: 'transcript', label: 'Transcript', title: 'Every step Claude took' },
 ];
 
-export function Brief() {
+type Expand = { expanded: boolean; canExpand: boolean; toggleRef: RefObject<HTMLButtonElement | null>; onExpand: () => void };
+
+/** Expand chat: the chat covers the window (desktop only, a phone already shows it full screen). */
+function ExpandButton({ expanded, toggleRef, onExpand }: Expand) {
+  const label = expanded ? 'Collapse chat' : 'Expand chat';
+  return (
+    <IconButton ref={toggleRef} label={label} tip={expanded ? 'Collapse chat (Esc)' : label} aria-keyshortcuts={expanded ? 'Escape' : undefined} aria-pressed={expanded} className="icon-btn chat-expand desktop-only" onClick={onExpand}>
+      <Icon name={expanded ? 'minimize-2' : 'maximize-2'} small />
+    </IconButton>
+  );
+}
+
+export function Brief(expand: Expand) {
   const events = useStore((s) => s.events);
   const status = useStore((s) => s.status);
   const running = useStore((s) => s.session.running);
@@ -87,6 +99,8 @@ export function Brief() {
         {/* Where the chat works shows from the start; the views once there is something to show. */}
         {/* With nothing to show yet, the switcher still listens for ⌘K and the palette. */}
         {events.length === 0 && !where.place && <ChatPlace {...where} />}
+        {/* Before the first message the head has only the Expand chat button. */}
+        {events.length === 0 && !where.place && expand.canExpand && <div className="chat-head bare desktop-only"><ExpandButton {...expand} /></div>}
         {(events.length > 0 || where.place) && (
           <div className="chat-head">
             <ChatPlace {...where} />
@@ -95,6 +109,7 @@ export function Brief() {
             </div>}
             {/* A frozen chat only reads Figma, so there is no scope to widen. */}
             {!frozen && <ScopeSwitch />}
+            {expand.canExpand && <ExpandButton {...expand} />}
           </div>
         )}
         {/* A flow chat's workflow: shown from the start, before the first message. */}
