@@ -400,14 +400,17 @@ async function input(m: any, ws: WebSocket) {
     case 'nav': {
       if (typeof m.url !== 'string' || !m.url.trim()) return;
       const url = /^[a-z][a-z0-9+.-]*:/i.test(m.url) ? m.url : `https://${m.url}`;
+      forgetView();
       return call('Page.navigate', { url }, s);
     }
     case 'reload':
+      forgetView();
       return call('Page.reload', {}, s);
     case 'back':
     case 'forward': {
       const { currentIndex, entries } = await call('Page.getNavigationHistory', {}, s);
       const entry = entries[currentIndex + (m.t === 'back' ? -1 : 1)];
+      forgetView();
       return entry && call('Page.navigateToHistoryEntry', { entryId: entry.id }, s);
     }
     case 'mouse':
@@ -503,6 +506,7 @@ export async function openUrl(url: string) {
 }
 
 export async function showFigma(fileKey: string, url: string) {
+  forgetView(fileKey);
   const tab = cdp ? figmaTab(fileKey) : null;
   if (!tab) return openUrl(url);
   pinned = tab.id;
@@ -513,6 +517,7 @@ export async function showFigma(fileKey: string, url: string) {
 
 export async function focusFigma(fileKey: string, nodeId: string, navigate: boolean) {
   if (!cdp) return 'nochrome';
+  forgetView(fileKey);
   const tab = figmaTab(fileKey);
   const url = `https://www.figma.com/design/${fileKey}?node-id=${nodeId.replace(':', '-')}`;
   if (!tab) return navigate ? (await openUrl(url), 'opened') : 'notab';
@@ -541,6 +546,8 @@ const followOf = (fileKey: string) => {
   if (!f) follows.set(fileKey, (f = { paused: false, last: null, ids: [] }));
   return f;
 };
+/** Design Studio moved or reloaded her Figma tab itself: the next follow must not read the new view as her move. */
+const forgetView = (fileKey?: string) => follows.forEach((f, k) => { if (!fileKey || k === fileKey) f.last = null; });
 let following = false;
 let nextFollow: { fileKey: string; ids: string[]; start: boolean } | null = null;
 /** At most one move per this many ms, so each screen stays long enough to see. */
