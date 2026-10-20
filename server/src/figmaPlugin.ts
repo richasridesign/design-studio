@@ -97,6 +97,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
     } else if (m.t === 'changed' && Array.isArray(m.ids)) {
       const key = conn.key ?? conn.followKey;
       const ids = m.ids.filter((id: unknown) => typeof id === 'string' && id.length > 0 && id.length <= 200).slice(0, 50);
+      console.log(`DEBUG figma plugin: ${ids.length} changed node(s) in "${conn.name}", editing ${conn.editing ? 'on' : 'off'}`);
       if (key && conn.editing && ids.length) hooks.edited?.(key, ids);
     } else if (m.t === 'moved') {
       const key = conn.key ?? conn.followKey;
@@ -181,6 +182,7 @@ function ask(conn: Conn, msg: object, ms: number): Promise<FollowResult | string
 export function pluginEditing(conn: Conn, on: boolean) {
   if (conn.editing === on) return;
   conn.editing = on;
+  console.log(`DEBUG figma plugin: editing ${on ? 'on' : 'off'} in "${conn.name}"`);
   try {
     conn.ws.send(JSON.stringify({ t: 'editing', on }));
   } catch {}

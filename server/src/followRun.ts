@@ -139,6 +139,7 @@ export async function followFigma(fileKey: string, ids: string[], start = false,
       const jf = followOf(job.fileKey);
       if (jf.paused) continue;
       const result = await followOnce(job.fileKey, job.ids, jf.last, job.start, jf.name);
+      console.log(`DEBUG follow: ${job.ids.length} id(s) [${job.ids.slice(0, 4).join(' ')}] start ${job.start} -> ${typeof result === 'string' ? result : result.status}${typeof result !== 'string' && result.view ? ` zoom ${result.view.zoom.toFixed(2)}` : ''}`);
       note(job.fileKey, typeof result === 'string' ? result : result.status === 'moved' ? 'paused, she moved the view' : result.status === 'stalled' ? 'stalled: the plugin runs but Figma does not answer it, the file is not the front tab in Figma' : `${result.status} through the plugin`);
       if (typeof result === 'string') continue;
       if (result.status === 'moved') pauseFollow(job.fileKey);
