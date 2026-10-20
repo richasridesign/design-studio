@@ -116,6 +116,8 @@ export type ReviewRun = {
   round: number;
   preset: ReviewPreset;
   frames: string[];
+  /** Per frame id, the screen it sits in and its section, e.g. "Activate · Empty state". Missing on older runs. */
+  names?: Record<string, string>;
   check: Finding[];
   checkError?: string;
   results: AreaResult[];

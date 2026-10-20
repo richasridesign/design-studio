@@ -179,6 +179,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewRun> {
     const read = await readFrames(fileKey, frames, { dir, signal: input.signal, shots: reviewers.length ? { dir: path.join('review', 'shots'), maxDimension: SHOT_MAX } : undefined });
     docs = read.docs;
     shots = read.shots;
+    if (read.names && Object.keys(read.names).length) run.names = read.names;
     readCost = read.costUsd;
     run.check = checkFrames(docs, ds);
   } catch (err) {
