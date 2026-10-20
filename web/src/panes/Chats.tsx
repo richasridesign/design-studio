@@ -165,7 +165,7 @@ export function Chats() {
   const group = (key: string, depth: number, icon: ReactNode, name: ReactNode, count: number, tag: ReactNode, acts: ReactNode, body: ReactNode, title?: string, pick?: { label: string; selected: boolean; run: () => void }) => {
     const shown = isOpen(key);
     const toggle = () => query || fold(key);
-    const chevron = <span className="twistie chevron"><Icon name={shown ? 'chevron-down' : 'chevron-right'} small /></span>;
+    const chevron = <span className="twistie chevron"><Icon name="chevron-right" small /></span>;
     const face = (
       <>
         <span className="twistie">{typeof icon === 'string' ? <Icon name={icon} small /> : icon}</span>

@@ -58,11 +58,11 @@
 .sessions .tree .row .row-menu { position: relative; display: inline-flex; }
 .sessions .tree .row .row-menu-pop {
   position: fixed; z-index: 3; width: 200px; padding: 4px;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
 }
 .sessions .tree .row .row-menu-pop button {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0; width: 100%; min-height: 36px; padding: 6px 12px;
-  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg); font-weight: 400; text-align: left; white-space: normal;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0; width: 100%; min-height: 32px; padding: 6px 8px;
+  border: 0; border-radius: var(--radius-row); background: transparent; color: var(--fg); font-weight: 400; text-align: left; white-space: normal;
 }
 .sessions .tree .row .row-menu-pop button:hover, .sessions .tree .row .row-menu-pop button:focus-visible { background: var(--bg-hover); }
 .sessions .tree .row .row-menu-pop button .t { font-size: var(--text-sm); line-height: 20px; }
@@ -72,11 +72,11 @@
 
 /* Adopt and New iteration dialogs: a header with a close icon, fields on the 4px grid, actions at the end. */
 .dialog.project-dialog { display: block; width: min(480px, 100%); padding: 0; max-height: calc(100vh - 32px); overflow-y: auto; }
-.project-dialog-head { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
-.project-dialog-head h2 { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--fg); }
-.project-dialog-note { margin: 0; padding: 16px; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
+.project-dialog-head { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 8px 16px 0 24px; }
+.project-dialog-head h2 { margin: 0; font-size: var(--text-lg); line-height: 24px; font-weight: 600; color: var(--fg); }
+.project-dialog-note { margin: 0; padding: 16px 24px; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
 .project-dialog-note.error-text { color: var(--err); }
-.project-dialog-body { padding: 0 16px 16px; }
+.project-dialog-body { padding: 0 24px 24px; }
 .project-dialog-body > .project-dialog-note { padding: 16px 0; }
 .project-dialog-body .field { gap: 4px; margin-bottom: 12px; }
 .project-dialog-body .field > span:first-child { font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
@@ -95,13 +95,13 @@
 .project-list li .state-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--fg-muted); }
 .project-check { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: var(--text-sm); }
 .project-check input[type='checkbox'] { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
-.project-dialog .dialog-actions { margin-top: 8px; padding: 0 16px 16px; }
+.project-dialog .dialog-actions { margin-top: 8px; padding: 0 24px 24px; }
 .project-dialog-body .dialog-actions { padding: 0; }
 @media (max-width: 900px) { .dialog.project-dialog { max-height: calc(100vh - 32px); } .project-dialog-body .field input:not([type='checkbox']) { height: 44px; } }
 
 /* Project, flow and iteration rows select on click; the chevron alone folds them (a 24px target). */
 .sessions.chats .tree .row.project.picks { gap: 0; }
-.sessions.chats .tree .row.project .fold-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px; margin-right: 4px; border-radius: var(--radius-sm); cursor: pointer; }
+.sessions.chats .tree .row.project .fold-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px; margin-right: 4px; border-radius: var(--radius-row); cursor: pointer; }
 .sessions.chats .tree .row.project .fold-btn:hover { background: var(--bg-hover); }
 .sessions.chats .tree .row.project .fold-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .sessions.chats .tree .row.project .fold-btn .twistie.chevron { width: auto; }
