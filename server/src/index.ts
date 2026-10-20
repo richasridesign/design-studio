@@ -320,13 +320,16 @@ async function openSaved(sessionId: string) {
   return createChat(info.cwd, sessionId, info.summary);
 }
 
-async function newChat(cwd: string, from: AgentSession, flow?: string, iteration?: string) {
+async function newChat(cwd: string, from: AgentSession, flow?: string, iteration?: string, brainstorm = false) {
   let dir = path.resolve(cwd);
   if (dir !== from.cwd && dir !== PROJECT && !isChatFolder(dir)) throw new Error(`Not a Design Studio folder: ${dir}`);
   if (!(await isDir(dir))) throw new Error(`Folder no longer exists: ${dir}`);
   // A chat on a flow in an iteration runs in that iteration's folder of the project (made on first use).
   if (flow && iteration) dir = await ensureIterationFolders(dir, String(flow), String(iteration));
-  return createChat(dir);
+  const chat = await createChat(dir);
+  // A chat for a new flow or a new iteration starts in Brainstorm mode: talk first, build when she clicks Build this.
+  if (brainstorm) chat.setBrainstorm(true, true);
+  return chat;
 }
 
 let remembered = '';
@@ -775,6 +778,12 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'set_edits_anywhere':
         chat.setEditsAnywhere(Boolean(msg.on));
         break;
+      case 'set_brainstorm':
+        chat.setBrainstorm(Boolean(msg.on));
+        break;
+      case 'brainstorm_build':
+        chat.buildOption(Number(msg.round), Number(msg.option)).catch(fail);
+        break;
       case 'selection':
         void focusSelection(msg);
         break;
@@ -833,7 +842,7 @@ wss.on('connection', (ws: WebSocket, req) => {
         void chat.toggleMcp(String(msg.name), Boolean(msg.enabled));
         break;
       case 'new_session':
-        newChat(msg.cwd ?? chat.cwd, chat, msg.flow, msg.iteration).then((c) => view(client, c), fail);
+        newChat(msg.cwd ?? chat.cwd, chat, msg.flow, msg.iteration, msg.brainstorm === true).then((c) => view(client, c), fail);
         break;
     }
   });

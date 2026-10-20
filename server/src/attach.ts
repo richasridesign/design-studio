@@ -18,7 +18,10 @@ export function withRefs(text: string, refs: string[]) {
   return refs.length ? `${text}\n\n${refsLine(refs)}` : text;
 }
 
-export function userContent(text: string, blocks: ImageBlockParam[]) {
+/** A text block before her message: a note for Claude that the history leaves out of her bubble (it starts with "<"). */
+type NoteBlockParam = { type: 'text'; text: string };
+
+export function userContent(text: string, blocks: Array<ImageBlockParam | NoteBlockParam>) {
   return blocks.length ? [...blocks, { type: 'text' as const, text }] : text;
 }
 

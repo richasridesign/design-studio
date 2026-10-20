@@ -224,7 +224,7 @@ export function WorkflowPanel() {
           name={fileName}
           project={v.project}
           onClose={() => setDialog(null)}
-          onCreated={(it) => send({ type: 'new_session', cwd: v.root, flow: v.flow.slug, iteration: it.id })}
+          onCreated={(it) => send({ type: 'new_session', cwd: v.root, flow: v.flow.slug, iteration: it.id, brainstorm: true })}
         />
       )}
     </div>

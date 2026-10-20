@@ -37,6 +37,7 @@ let state: State = {
   events: [],
   pending: [],
   recentFiles: [],
+  brainstorm: [],
   live: [],
   ui: { connected: false, openFile: null, follow: false, switcherOpen: false, revs: {}, focus: null, selection: null },
 };
@@ -155,6 +156,9 @@ function handle(m: ServerMessage) {
         notify(r.state === 'done' ? 'Long run finished' : 'Long run stopped', r.state === 'done' ? 'The report is in the chat' : REASON_TEXT[r.reason ?? 'user'], focus(state.session.id));
       }
       set({ session: m.session });
+      break;
+    case 'brainstorm':
+      set({ brainstorm: m.rounds });
       break;
     case 'live':
       notifyBackground(m.chats);

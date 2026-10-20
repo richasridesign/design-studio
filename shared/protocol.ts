@@ -1,5 +1,6 @@
 import type { FigmaFile, FlowState } from './design.js';
 import type { LongRun } from './longRun.js';
+import type { BrainstormRound } from './brainstorm.js';
 
 export type PendingQuestion = {
   id: string;
@@ -63,6 +64,8 @@ export type SessionInfo = {
   longRun?: LongRun | null;
   /** The scope guard is off for this chat: its edit scripts may touch other flows and iterations. */
   editsAnywhere?: boolean;
+  /** Brainstorm mode: Claude reads Figma but every write is denied until she builds. */
+  brainstorm?: boolean;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };
@@ -95,6 +98,8 @@ export type ServerState = {
   events: ChatEvent[];
   pending: PendingRequest[];
   recentFiles: string[];
+  /** This chat's brainstorm rounds, oldest first. */
+  brainstorm?: BrainstormRound[];
 };
 
 export type ServerMessage =
@@ -107,6 +112,7 @@ export type ServerMessage =
   | { type: 'focus'; nodeId: string }
   | { type: 'session'; session: SessionInfo }
   | { type: 'live'; chats: LiveChat[] }
+  | { type: 'brainstorm'; rounds: BrainstormRound[] }
   | { type: 'error'; text: string };
 
 export type LiveChat = {
@@ -158,10 +164,14 @@ export type ClientMessage =
   | { type: 'close'; id: string }
   | { type: 'open_session'; sessionId: string }
   /** With flow and iteration, the chat runs in that flow's iteration folder of the project at cwd (made if new). */
-  | { type: 'new_session'; cwd?: string; flow?: string; iteration?: string }
+  | { type: 'new_session'; cwd?: string; flow?: string; iteration?: string; brainstorm?: boolean }
   | { type: 'new_chat'; url?: string }
   | { type: 'set_figma'; url: string }
   | { type: 'set_edits_anywhere'; on: boolean }
+  /** Brainstorm mode on or off (Start building). */
+  | { type: 'set_brainstorm'; on: boolean }
+  /** Build this: leaves Brainstorm mode, records the option in the round and sends its brief. */
+  | { type: 'brainstorm_build'; round: number; option: number }
   // A project, flow or iteration row selected in the sidebar: the Figma tab in Chrome follows it.
   | { type: 'selection'; cwd: string; flow?: string; iteration?: string }
   | { type: 'mcp_status' }

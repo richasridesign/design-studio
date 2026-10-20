@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type RefObject } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { ago } from '../ago';
@@ -17,6 +17,7 @@ import { WorkflowPanel } from './Workflow';
 import { stepLabel } from './steps';
 import { insertPrompt } from './composerEvents';
 import { quickReplies, replyToAnswer } from './quickReplies';
+import { Brainstorm, BrainstormLine } from './Brainstorm';
 
 export function nextSteps(events: ChatEvent[]) {
   let next: string[] = [];
@@ -41,9 +42,14 @@ function save(key: string, value: string) {
 }
 
 const VIEWS: Array<{ id: ChatView; label: string; title: string }> = [
+  { id: 'brainstorm', label: 'Brainstorm', title: 'Options, rough sketches and questions before building' },
   { id: 'timeline', label: 'Timeline', title: 'Your prompts, finished work and the latest replies' },
   { id: 'transcript', label: 'Transcript', title: 'Every step Claude took' },
 ];
+
+/** The view each chat was last on in this window. Brainstorm is never the saved default for other chats. */
+const viewByChat = new Map<string, ChatView>();
+const savedView = (): ChatView => (load(VIEW_KEY) === 'transcript' ? 'transcript' : 'timeline');
 
 type Expand = { expanded: boolean; canExpand: boolean; toggleRef: RefObject<HTMLButtonElement | null>; onExpand: () => void };
 
@@ -70,9 +76,21 @@ export function Brief(expand: Expand) {
   const lastTool = useMemo(() => [...events].reverse().find((e) => e.kind === 'tool_use' && !e.name.endsWith('__set_status')), [events]);
   const lastReply = useMemo(() => [...events].reverse().find((e) => e.kind === 'assistant' && e.text.trim()), [events]);
   const [adding, setAdding] = useState(false);
-  const [view, setView] = useState<ChatView>(() => (load(VIEW_KEY) === 'transcript' ? 'transcript' : 'timeline'));
+  const chatId = useStore((s) => s.session.id);
+  const brainstorm = useStore((s) => Boolean(s.session.brainstorm));
+  const rounds = useStore((s) => s.brainstorm?.length ?? 0);
+  const [view, setView] = useState<ChatView>(savedView);
+  // A chat opens on the view it was last on here; a brainstorming chat (a new flow or iteration) on Brainstorm.
+  useLayoutEffect(() => {
+    if (chatId) setView(viewByChat.get(chatId) ?? (brainstorm ? 'brainstorm' : savedView()));
+  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [stepsOpen, setStepsOpen] = useState(() => load(STEPS_KEY) !== '0');
-  const pick = (v: ChatView) => { setView(v); save(VIEW_KEY, v); };
+  const pick = (v: ChatView) => {
+    setView(v);
+    viewByChat.set(chatId, v);
+    if (v !== 'brainstorm') save(VIEW_KEY, v);
+  };
+  const showViews = events.length > 0 || brainstorm || rounds > 0;
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
   // The foot's details (quick replies, Up next) fold away so the conversation gets the room; the status line stays.
   const [footOpen, setFootOpen] = useState(() => load(FOOT_KEY) !== '0');
@@ -98,13 +116,13 @@ export function Brief(expand: Expand) {
       <div className="brief-status">
         {/* Where the chat works shows from the start; the views once there is something to show. */}
         {/* With nothing to show yet, the switcher still listens for ⌘K and the palette. */}
-        {events.length === 0 && !where.place && <ChatPlace {...where} />}
+        {!showViews && !where.place && <ChatPlace {...where} />}
         {/* Before the first message the head has only the Expand chat button. */}
-        {events.length === 0 && !where.place && expand.canExpand && <div className="chat-head bare desktop-only"><ExpandButton {...expand} /></div>}
-        {(events.length > 0 || where.place) && (
+        {!showViews && !where.place && expand.canExpand && <div className="chat-head bare desktop-only"><ExpandButton {...expand} /></div>}
+        {(showViews || where.place) && (
           <div className="chat-head">
             <ChatPlace {...where} />
-            {events.length > 0 && <div className="seg chat-view" role="group" aria-label="Chat view">
+            {showViews && <div className="seg chat-view" role="group" aria-label="Chat view">
               {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-pressed={view === v.id} title={v.title} onClick={() => pick(v.id)}>{v.label}</button>)}
             </div>}
             {/* A frozen chat only reads Figma, so there is no scope to widen. */}
@@ -114,7 +132,7 @@ export function Brief(expand: Expand) {
         )}
         {/* A flow chat's workflow: shown from the start, before the first message. */}
         <WorkflowPanel />
-        <Transcript view={view}>
+        {view === 'brainstorm' ? <Brainstorm onBuilt={() => pick('timeline')} /> : <Transcript view={view}>
           {(events.length > 0 || running) && <div className="tl-foot">
             <div className={`tl-now ${state}`}>
               <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
@@ -165,11 +183,12 @@ export function Brief(expand: Expand) {
             )}
             </div>
           </div>}
-        </Transcript>
+        </Transcript>}
       </div>
       {waiting && <div className="brief-cards"><Pending /></div>}
       <div className="brief-input">
         <LongRunLine />
+        <BrainstormLine />
         <Composer />
         {compacting ? (
           <div className="ctx-line"><Icon name="loading" small spin /> Compacting the conversation…</div>

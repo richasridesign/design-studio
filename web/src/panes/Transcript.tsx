@@ -30,7 +30,7 @@ import '../transcript.css';
 import '../timeline.css';
 import { runningText } from '../StatusBar';
 
-export type ChatView = 'timeline' | 'transcript';
+export type ChatView = 'brainstorm' | 'timeline' | 'transcript';
 
 const Settle = createContext({ settle: () => {}, recheck: () => {} });
 // The run time of the last review card in this chat: that card stays open, older ones fold to their title line.

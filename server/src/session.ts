@@ -33,6 +33,8 @@ import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_
 import { keepAwake } from './awake.js';
 import { awaitQuestions } from './awaiting.js';
 import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
+import { BRAINSTORM_NOTE, BUILD_NOTE, brainstormDeny, chooseOption, listRounds, parseRound, readMode, saveMode, saveRound } from './brainstorm.js';
+import { buildPrompt } from '../../shared/brainstorm.js';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
@@ -106,6 +108,7 @@ export class AgentSession {
       events: [],
       pending: [],
       recentFiles: [],
+      brainstorm: [],
     };
     this.approvals = new Approvals(this.state, (m) => this.emit(m));
   }
@@ -198,6 +201,11 @@ export class AgentSession {
     this.defaultAreas = s.areas;
     this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
+    // A resumed chat keeps its Brainstorm mode, so a restart never lifts the write lock, and shows its rounds.
+    if (this.resume) {
+      this.state.session.brainstorm = await readMode(this.cwd, this.resume).catch(() => false);
+      this.state.brainstorm = await listRounds(this.cwd, this.resume).catch(() => []);
+    }
     // The Figma plugin loads from the user's Claude settings, like in the Claude CLI
     const { servers, via } = await figmaMcp();
     this.figmaServers = servers;
@@ -260,6 +268,7 @@ export class AgentSession {
         // The path is fixed per file, so Claude gets it even when the background read has not finished yet.
         mapFile: this.figma && this.figma.key !== SAMPLE_KEY ? mapFiles(this.cwd, this.figma.key).md : null,
         refreshMap: () => this.readMapNow(),
+        onBrainstorm: (input) => this.postRound(input),
       }),
     });
     void this.consume();
@@ -330,6 +339,9 @@ export class AgentSession {
     if (input.hook_event_name !== 'PreToolUse') return {};
     const call = (input.tool_input ?? {}) as FigmaCall;
     const script = /use_figma$/.test(input.tool_name);
+    // A brainstorming chat only reads Figma, in any chat (with or without a project), until she builds.
+    const thinking = brainstormDeny(Boolean(this.state.session.brainstorm), input.tool_name, call as Record<string, unknown>);
+    if (thinking) return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: thinking } };
     // A chat on a frozen iteration is read only: no edit script and no other Figma write tool, checked before the
     // scope guard and "Allow edits anywhere", on a fresh project.json.
     if (this.projectCtx && FIGMA_WRITE.test(input.tool_name) && (!script || (typeof call.code === 'string' && figmaEdits(call.code)))) {
@@ -357,6 +369,44 @@ export class AgentSession {
     }
     const next = prepareFigmaCall(call);
     return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
+  }
+
+  /** Brainstorm mode on or off. Leaving it tells Claude once, with her next message, that it may build. */
+  setBrainstorm(on: boolean, quiet = false) {
+    if (Boolean(this.state.session.brainstorm) === on) return;
+    this.setSession({ brainstorm: on });
+    this.buildNote = on ? '' : BUILD_NOTE;
+    const sid = this.state.session.sessionId;
+    if (sid) void saveMode(this.cwd, sid, on).catch((err) => console.error(`brainstorm: ${String(err)}`));
+    if (!quiet) this.system(on ? 'Brainstorm: on. Claude reads Figma but does not change it.' : 'Building: Claude can change Figma again.');
+  }
+
+  private buildNote = '';
+
+  /** The brainstorm_update tool: checks the round, saves it in the chat's folder and shows it on the Brainstorm tab. */
+  private async postRound(input: unknown) {
+    const parsed = parseRound(input);
+    if (!parsed.ok) return { text: parsed.error, isError: true };
+    const chat = this.state.session.sessionId ?? this.id;
+    const round = await saveRound(this.cwd, chat, parsed.round);
+    await this.sendRounds(chat);
+    return { text: `Round ${round.n} is on the Brainstorm tab. Keep your chat reply to one or two lines.` };
+  }
+
+  private async sendRounds(chat = this.state.session.sessionId ?? this.id) {
+    this.state.brainstorm = await listRounds(this.cwd, chat);
+    this.emit({ type: 'brainstorm', rounds: this.state.brainstorm });
+  }
+
+  /** Build this: leaves Brainstorm mode, records the option in its round, then sends the option's brief as her message. */
+  async buildOption(n: number, option: number) {
+    if (this.sampleBlocked()) return;
+    if (this.state.session.running) return this.system('Wait for this turn to finish, then click Build this again.');
+    const chat = this.state.session.sessionId ?? this.id;
+    const round = await chooseOption(this.cwd, chat, n, option);
+    await this.sendRounds(chat);
+    this.setBrainstorm(false, true);
+    await this.prompt(buildPrompt(round, option));
   }
 
   private unlock(toolUseId?: string) {
@@ -494,6 +544,11 @@ export class AgentSession {
       text = `${this.projectNote}\n\n${text}`;
       this.projectNote = '';
     }
+    // The mode note goes in its own block on every brainstorm turn (a compaction can drop a one-time note), and the
+    // history leaves it out of her bubble.
+    const mode = this.state.session.brainstorm ? BRAINSTORM_NOTE : this.buildNote;
+    this.buildNote = '';
+    if (mode) blocks = [...blocks, { type: 'text', text: `<design-studio-mode>\n${mode}\n</design-studio-mode>` }];
     this.inputQueue.push(userMessage(text, blocks));
     this.wake?.();
   }
@@ -1008,6 +1063,7 @@ export class AgentSession {
         if (msg.subtype === 'init') {
           const changed = msg.model !== this.state.session.model;
           this.setSession({ sessionId: msg.session_id, model: msg.model, permissionMode: msg.permissionMode, apiKeySource: msg.apiKeySource, mcp: mcpFrom(msg.mcp_servers, msg.tools) });
+          if (this.state.session.brainstorm) void saveMode(this.cwd, msg.session_id, true).catch((err) => console.error(`brainstorm: ${String(err)}`));
           if (changed) this.system(`Session started with ${msg.model}`);
           if (this.resume && msg.permissionMode !== 'auto' && !this.resumedAuto) {
             this.resumedAuto = true;

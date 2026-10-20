@@ -1,0 +1,89 @@
+/* Brainstorm view (Brainstorm.tsx): rounds newest first. Body text 16/24, diagram labels 14 (flow) and 12 (sketch). */
+.tr.brainstorm > * + * { margin-top: 12px; }
+.bs-reply { color: var(--fg); }
+.bs-reply .md p { margin: 0 0 8px; }
+.bs-reply .md > :last-child { margin-bottom: 0; }
+.bs-note { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.bs-note .link { font-size: var(--text-sm); line-height: 20px; }
+.bs-empty-acts { padding-top: 8px; }
+
+/* Secondary weight: the filled grey button. The composer's Send stays the one primary. */
+button.bs-secondary { min-height: 36px; padding: 0 16px; background: var(--btn); color: var(--fg); font-size: var(--text-sm); font-weight: 600; line-height: 20px; }
+button.bs-secondary:hover { background: var(--btn-hover); }
+button.bs-secondary[aria-disabled='true'] { opacity: 0.5; cursor: default; }
+button.bs-secondary[aria-disabled='true']:hover { background: var(--btn); }
+
+.bs-round { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+.bs-round-head { display: flex; align-items: center; gap: 8px; margin: -4px -4px 0 0; }
+.bs-round-head h3 { margin: 0; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.bs-when { font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.bs-round-head .fold-btn { margin-left: auto; }
+.bs-body { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.bs-k { font-weight: 600; }
+.bs-problem { margin: 0; }
+.bs-part h4 { margin: 0 0 8px; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg-muted); }
+
+.bs-assume { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bs-assume li { display: flex; align-items: flex-start; gap: 8px; }
+.bs-assume li::before { content: ''; flex: none; width: 6px; height: 6px; margin: 9px 2px 0 4px; border-radius: 50%; background: var(--fg-muted); }
+.bs-assume-text { flex: 0 1 auto; min-width: 0; }
+.icon-btn.bs-correct { flex: none; width: 28px; height: 28px; margin: -2px 0; }
+
+.bs-options { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.bs-option { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-elevated); }
+.bs-option.chosen { border-color: var(--ok); }
+.bs-option p { margin: 0; }
+.bs-option-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.bs-option h5 { margin: 0; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.bs-letter { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 4px; border-radius: 50%; background: var(--bg-sunken); font-size: var(--text-xs); line-height: 16px; vertical-align: top; }
+.bs-chosen { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 24px; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--ok); }
+.bs-build { align-self: flex-start; margin-top: auto; }
+
+/* The sketch: grey boxes with their labels, no styling. Phone and panel frames are narrower than desktop. */
+.bs-sketch { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); }
+.bs-sketch.phone { width: min(100%, 160px); align-self: center; }
+.bs-sketch.panel { width: min(100%, 200px); align-self: center; }
+.bs-row { display: flex; gap: 4px; }
+.bs-box { flex: 1 1 0; min-width: 0; min-height: 24px; display: flex; align-items: center; padding: 2px 8px; border-radius: 4px; background: var(--bg-sunken); }
+.bs-box > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.bs-box.header, .bs-box.nav { background: var(--border-strong); }
+.bs-box.header > span { color: var(--fg); font-weight: 600; }
+.bs-box.tabs { background: transparent; border-radius: 0; border-bottom: 2px solid var(--border-strong); }
+.bs-box.text { background: transparent; padding-inline: 0; }
+.bs-box.input { background: var(--bg-elevated); border: 1px solid var(--input-border); }
+.bs-box.button { flex: 0 0 auto; justify-content: center; border-radius: var(--radius-pill); background: var(--border-strong); }
+.bs-box.button > span { color: var(--fg); }
+.bs-box.list { min-height: 48px; align-items: flex-start; padding-top: 4px; background: repeating-linear-gradient(to bottom, var(--bg-sunken) 0 20px, var(--border-strong) 20px 21px, var(--bg-sunken) 21px 24px); }
+.bs-box.card { min-height: 44px; align-items: flex-start; padding-top: 4px; background: var(--bg-elevated); border: 1px solid var(--border-strong); }
+.bs-box.image { min-height: 48px; justify-content: center; background: linear-gradient(to top right, transparent calc(50% - 0.5px), var(--border-strong) 50%, transparent calc(50% + 0.5px)), linear-gradient(to top left, transparent calc(50% - 0.5px), var(--border-strong) 50%, transparent calc(50% + 0.5px)), var(--bg-sunken); }
+.bs-box.image > span { padding: 0 4px; border-radius: 4px; background: var(--bg-sunken); }
+
+/* The flow: boxes in reading order, arrows between them, wrapping onto the next line. */
+.bs-flow { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: flex-start; row-gap: 8px; }
+.bs-flow > li { display: flex; align-items: center; }
+.bs-step { max-width: 200px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-elevated); font-size: var(--text-sm); line-height: 20px; }
+.bs-arrow { display: inline-grid; place-items: center; width: 24px; height: 24px; color: var(--fg-muted); }
+.bs-branches { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.bs-branches li { padding: 4px 12px; border: 1px dashed var(--input-border); border-radius: var(--radius-sm); font-size: var(--text-sm); line-height: 20px; }
+
+.bs-questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.bs-q { margin: 0 0 8px; }
+.bs-answers { display: flex; flex-wrap: wrap; gap: 8px; }
+.bs-answer {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 16px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--fg); font-size: var(--text-sm); line-height: 20px;
+}
+.bs-answer:hover { background: var(--btn-hover); }
+.bs-answer.sent { background: var(--btn); font-weight: 600; }
+.bs-answer.sent:hover { background: var(--btn-hover); }
+
+/* Above the composer while the chat brainstorms. */
+.bs-mode { display: flex; align-items: center; gap: 8px; padding: 0 2px; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.bs-mode .codicon { color: var(--fg); }
+.bs-mode .link { margin-left: auto; min-height: 24px; font-size: var(--text-sm); line-height: 24px; }
+
+@media (max-width: 900px) {
+  .bs-answer, button.bs-secondary { min-height: 44px; font-size: var(--text-md); line-height: 24px; }
+  .icon-btn.bs-correct { width: 44px; height: 44px; margin: -10px -8px -10px 0; }
+  .bs-mode .link { min-height: 44px; line-height: 44px; }
+}
