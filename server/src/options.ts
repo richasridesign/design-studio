@@ -9,6 +9,7 @@ import { figmaEdits } from './touched.js';
 import { FIGMA_WRITE_MATCHER } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
+import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -68,7 +69,10 @@ const OPTION_INPUT = z.object({
   node: z.string().max(40).describe('The option subsection\'s node id.'),
 });
 
-function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, cwd?: string) {
+/** The brainstorm_update tool's handler: saves the round and returns what Claude is told (an error when it was not saved). */
+export type OnBrainstorm = (input: unknown) => Promise<{ text: string; isError?: boolean }>;
+
+function statusServer(onStatus: (text: string, nodes: string[]) => void, refreshMap?: () => Promise<string>, cwd?: string, onBrainstorm?: OnBrainstorm) {
   return createSdkMcpServer({
     name: 'designstudio',
     alwaysLoad: true,
@@ -100,6 +104,14 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           return { content: [{ type: 'text', text: 'ok' }] };
         },
       ),
+      ...(onBrainstorm
+        ? [
+            tool('brainstorm_update', BRAINSTORM_TOOL, BRAINSTORM_INPUT, async (input) => {
+              const r = await onBrainstorm(input).catch((err: Error) => ({ text: `The round was not saved: ${err.message}`, isError: true }));
+              return { content: [{ type: 'text', text: r.text }], ...(r.isError ? { isError: true } : {}) };
+            }),
+          ]
+        : []),
       ...(refreshMap
         ? [
             tool(
@@ -160,6 +172,7 @@ export function agentOptions(o: {
   /** The flow and iteration block for a chat on an adopted file. */
   project?: string | null;
   refreshMap?: () => Promise<string>;
+  onBrainstorm?: OnBrainstorm;
 }): Options {
   return {
     cwd: o.cwd,
@@ -168,11 +181,11 @@ export function agentOptions(o: {
     systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd)) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,
-    allowedTools: ['mcp__designstudio__set_status', 'mcp__designstudio__refresh_file_map'],
+    allowedTools: ['mcp__designstudio__set_status', 'mcp__designstudio__refresh_file_map', 'mcp__designstudio__brainstorm_update'],
     disallowedTools: ['mcp__playwright'],
     extraArgs: { chrome: null },
     permissionMode: 'auto',
-    mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap, o.cwd), ...o.figmaServers },
+    mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap, o.cwd, o.onBrainstorm), ...o.figmaServers },
     strictMcpConfig: o.strictMcp,
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,

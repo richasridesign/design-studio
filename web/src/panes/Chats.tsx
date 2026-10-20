@@ -342,7 +342,7 @@ export function Chats() {
       })()}
       {dialog?.kind === 'flow' && (() => {
         const p = dialog.p;
-        return <NewFlowDialog cwd={p.cwd} name={p.name} project={projects.find((x) => x.cwd === p.cwd)?.project ?? null} onClose={() => setDialog(null)} onCreated={(made) => send({ type: 'new_session', cwd: p.cwd, flow: made.flow.slug, iteration: made.iteration.id })} />;
+        return <NewFlowDialog cwd={p.cwd} name={p.name} project={projects.find((x) => x.cwd === p.cwd)?.project ?? null} onClose={() => setDialog(null)} onCreated={(made) => send({ type: 'new_session', cwd: p.cwd, flow: made.flow.slug, iteration: made.iteration.id, brainstorm: true })} />;
       })()}
       {dialog?.kind === 'chat' && (() => {
         const p = dialog.p;
