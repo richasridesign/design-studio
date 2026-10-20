@@ -1,13 +1,13 @@
 import { createElement } from 'react';
 import type { IconNode } from 'lucide';
 import {
-  AppWindow, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bell, BellDot, BellOff, BookOpen, Braces, Check, ChevronDown, ChevronRight,
+  AppWindow, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bell, BellDot, BellOff, BookOpen, Bookmark, Braces, Check, ChevronDown, ChevronRight,
   ChevronUp, ChevronsDownUp, Circle, CircleCheck, CircleSlash, CircleX, Clock, CloudDownload, CodeXml, Compass, Copy, CreditCard, Database,
   Diff, Ellipsis, EllipsisVertical, Eraser, ExternalLink, Eye, EyeOff, File, FileArchive, FileCode, FileImage, FilePlus, FileText, Files,
-  Folder, FolderOpen, FoldVertical, GitBranch, GitCommitHorizontal, Globe, History, Info, Lightbulb, ListChecks, LoaderCircle, Lock,
+  Folder, FolderOpen, FoldVertical, GitBranch, GitCommitHorizontal, Globe, History, Info, Layers, Lightbulb, ListChecks, LoaderCircle, Lock,
   LockOpen, Maximize, Maximize2, MessageSquare, MessagesSquare, Mic, Minimize, Minimize2, Minus, Package, Palette, PanelLeft, PanelRight,
   PanelRightDashed, Paperclip, Pause, Pencil, Play, Plug, Plus, RefreshCw, RotateCcw, RotateCw, Scale, Search, Settings, Settings2,
-  Smartphone, Sparkles, Square, SquareCode, SquareDashed, Target, Terminal, TextWrap, Timer, TriangleAlert, User, Volume2, VolumeX, Wrench,
+  Smartphone, Sparkles, Square, SquareCode, SquareDashed, Target, Terminal, TextWrap, Timer, Type, TriangleAlert, User, Volume2, VolumeX, Wrench,
   X, Zap,
 } from 'lucide';
 import './icon.css';
@@ -25,6 +25,7 @@ const ICONS: Record<string, IconNode> = {
   'bell-slash': BellOff,
   blank: [],
   book: BookOpen,
+  bookmark: Bookmark,
   browser: AppWindow,
   check: Check,
   checklist: ListChecks,
@@ -75,6 +76,7 @@ const ICONS: Record<string, IconNode> = {
   json: Braces,
   'kebab-vertical': EllipsisVertical,
   law: Scale,
+  layers: Layers,
   'layout-sidebar-left': PanelLeft,
   'layout-sidebar-right': PanelRight,
   'layout-sidebar-right-off': PanelRightDashed,
@@ -103,6 +105,7 @@ const ICONS: Record<string, IconNode> = {
   sparkle: Sparkles,
   'symbol-color': Palette,
   'symbol-method': Wrench,
+  'symbol-string': Type,
   sync: RefreshCw,
   target: Target,
   terminal: Terminal,
