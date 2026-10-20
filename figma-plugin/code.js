@@ -105,7 +105,7 @@
       return null;
     }
   };
-  var hello = () => figma.ui.postMessage({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id });
+  var hello = () => figma.ui.postMessage({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id, pageName: figma.currentPage.name });
   figma.ui.onmessage = async (m) => {
     if (!m || typeof m !== "object") return;
     if (m.t === "ready") hello();
@@ -123,6 +123,23 @@
         result = null;
       }
       figma.ui.postMessage({ t: "result", id: m.id, result });
+    } else if (m.t === "focus" && typeof m.id === "number" && typeof m.nodeId === "string") {
+      let status = "nonode";
+      try {
+        status = await watch.run(async () => {
+          const n = await figma.getNodeByIdAsync(m.nodeId);
+          if (!n || n.type === "DOCUMENT") return "nonode";
+          let p = n;
+          while (p && p.type !== "PAGE") p = p.parent;
+          if (p && figma.currentPage !== p) await figma.setCurrentPageAsync(p);
+          if (n.type !== "PAGE") figma.viewport.scrollAndZoomIntoView([n]);
+          return "ok";
+        });
+      } catch (e) {
+        status = "nonode";
+      }
+      watch.left(null);
+      figma.ui.postMessage({ t: "result", id: m.id, result: { status } });
     } else if (m.t === "forget") watch.left(null);
     else if (m.t === "small") {
       const s = m.on ? SMALL : SIZE;
@@ -130,5 +147,8 @@
     }
   };
   setInterval(() => watch.check(), 400);
-  figma.on("currentpagechange", () => watch.check());
+  figma.on("currentpagechange", () => {
+    watch.check();
+    figma.ui.postMessage({ t: "page", pageId: figma.currentPage.id, pageName: figma.currentPage.name });
+  });
 })();

@@ -16,7 +16,7 @@ const watch = viewWatch(api, () => figma.ui.postMessage({ t: 'moved' }));
 // Figma gives the file's key only to private plugins, and may throw instead of answering; Design Studio then finds
 // the file by its name.
 const fileKey = () => { try { return typeof figma.fileKey === 'string' ? figma.fileKey : null; } catch { return null; } };
-const hello = () => figma.ui.postMessage({ t: 'hello', fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id });
+const hello = () => figma.ui.postMessage({ t: 'hello', fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id, pageName: figma.currentPage.name });
 
 figma.ui.onmessage = async (m: any) => {
   if (!m || typeof m !== 'object') return;
@@ -32,6 +32,25 @@ figma.ui.onmessage = async (m: any) => {
       result = null;
     }
     figma.ui.postMessage({ t: 'result', id: m.id, result });
+  } else if (m.t === 'focus' && typeof m.id === 'number' && typeof m.nodeId === 'string') {
+    // A flow picked in Design Studio's sidebar or a frame link in the chat: go to it. This is not her move, so the
+    // watch forgets its view and following does not pause.
+    let status: FollowResult['status'] = 'nonode';
+    try {
+      status = await watch.run(async () => {
+        const n = await figma.getNodeByIdAsync(m.nodeId);
+        if (!n || n.type === 'DOCUMENT') return 'nonode';
+        let p = n;
+        while (p && p.type !== 'PAGE') p = p.parent;
+        if (p && figma.currentPage !== p) await figma.setCurrentPageAsync(p);
+        if (n.type !== 'PAGE') figma.viewport.scrollAndZoomIntoView([n]);
+        return 'ok';
+      });
+    } catch {
+      status = 'nonode';
+    }
+    watch.left(null);
+    figma.ui.postMessage({ t: 'result', id: m.id, result: { status } });
   } else if (m.t === 'forget') watch.left(null);
   else if (m.t === 'small') {
     const s = m.on ? SMALL : SIZE;
@@ -41,4 +60,7 @@ figma.ui.onmessage = async (m: any) => {
 
 // No viewport event exists, so her own moves are found by looking a few times a second.
 setInterval(() => watch.check(), 400);
-figma.on('currentpagechange', () => watch.check());
+figma.on('currentpagechange', () => {
+  watch.check();
+  figma.ui.postMessage({ t: 'page', pageId: figma.currentPage.id, pageName: figma.currentPage.name });
+});

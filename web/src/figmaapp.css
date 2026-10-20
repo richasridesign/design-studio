@@ -1,0 +1,51 @@
+/* The Figma tab: her Figma app window, view only, the strip about the plugin and the states before a window shows. */
+.fa-where { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fa-page { color: var(--fg-muted); }
+
+.fa-strip {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 4px 12px;
+  font-size: var(--text-xs); line-height: 16px; color: var(--fg); background: var(--tint-blue); border-bottom: 1px solid var(--border);
+}
+.fa-strip > span { padding: 4px 0; }
+.fa-strip button.link { min-height: 24px; font-size: var(--text-xs); line-height: 16px; text-underline-offset: 2px; }
+
+.fa-view {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer;
+}
+.fa-view[hidden] { display: none; }
+.fa-view:hover { background: transparent; }
+.fa-view:focus-visible { outline-offset: -2px; }
+.fa-view img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; pointer-events: none; }
+body.resizing .fa-view, body.resizing-v .fa-view { pointer-events: none; }
+.fa-hint {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 4px 8px; white-space: nowrap;
+  font-size: var(--text-xs); line-height: 16px; color: var(--on-accent); background: var(--fg); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); opacity: 0; pointer-events: none;
+}
+.fa-view:hover .fa-hint, .fa-view:focus-visible .fa-hint { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .fa-hint { transition: opacity 0.12s ease-out; }
+}
+@media (hover: none) {
+  .fa-hint { display: none; }
+}
+
+.fa-state { margin: auto; max-width: 360px; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.fa-state-text { margin: 0; font-size: var(--text-md); line-height: 24px; color: var(--fg); }
+.fa-state-note { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+.fa-state button.primary { height: 36px; }
+
+.fa-pop-scrim { position: fixed; inset: 0; z-index: 40; }
+.fa-pop {
+  position: fixed; z-index: 41; width: min(360px, calc(100vw - 32px)); padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  font-size: var(--text-sm); line-height: 20px; color: var(--fg); background: var(--bg-elevated);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md); box-sizing: border-box;
+}
+.fa-pop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px -4px 0 0; }
+.fa-pop h2 { margin: 0; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
+.fa-pop p { margin: 0; color: var(--fg-muted); }
+.fa-pop ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.fa-path { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.fa-path code { flex: 1; min-width: 0; padding: 4px 8px; font-family: var(--mono); font-size: var(--text-xs); line-height: 16px; background: var(--bg-sunken); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.fa-path button { flex: none; height: 28px; padding: 0 12px; font-size: var(--text-xs); border: 1px solid var(--border-strong); }

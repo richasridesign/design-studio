@@ -37,12 +37,14 @@ export const FOLLOW_GAP = 1500;
 
 /**
  * What the Figma tab header shows: whether the setting is on, the files she paused following in, and the files the
- * Design Studio plugin is running in (key is null when Figma does not give the plugin the file's key).
+ * Design Studio plugin is running in, with the page it shows (key is null until the file is matched by its name).
  */
 export function followState() {
+  const on = loadedSettings().followClaude;
   const paused = [...follows].filter(([, f]) => f.paused).map(([k]) => k);
-  const plugins = pluginFiles().map((p) => ({ key: p.key, name: p.name, following: !!p.key && !paused.includes(p.key) }));
-  return { t: 'follow', on: loadedSettings().followClaude, paused, plugins };
+  // Following only when the setting is on and she has not paused it in that file.
+  const plugins = pluginFiles().map((p) => ({ key: p.key, name: p.name, page: p.page, following: on && !!p.key && !paused.includes(p.key) }));
+  return { t: 'follow', on, paused, plugins };
 }
 
 export const sendFollowState = () => broadcast(followState());

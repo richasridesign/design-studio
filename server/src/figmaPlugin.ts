@@ -16,6 +16,8 @@ export type PluginHooks = {
   moved: (fileKey: string) => void;
   /** A plugin came, went or changed file: views are forgotten and the state is sent again. */
   changed: () => void;
+  /** She went to another page in the file: only the state is sent again, views stay. */
+  page?: () => void;
 };
 
 type Conn = {
@@ -24,6 +26,8 @@ type Conn = {
   key: string | null;
   name: string;
   page: string;
+  /** The page's name, shown in the Figma tab header. */
+  pageName: string;
   /** The chat file this plugin was last matched to by name, so her move pauses the right file. */
   followKey: string | null;
   pending: Map<number, (r: FollowResult | string) => void>;
@@ -36,7 +40,7 @@ const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) 
 const KEY = /^[A-Za-z0-9]{10,64}$/;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', followKey: null, pending: new Map() };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map() };
   ws.on('message', (raw) => {
     let m: any;
     try {
@@ -50,9 +54,14 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.key = KEY.test(key) ? key : null;
       conn.name = str(m.fileName);
       conn.page = str(m.pageId, 64);
+      conn.pageName = str(m.pageName);
       conn.followKey = null;
       conns.add(conn);
       hooks.changed();
+    } else if (m.t === 'page' && conns.has(conn)) {
+      conn.page = str(m.pageId, 64);
+      conn.pageName = str(m.pageName);
+      hooks.page?.();
     } else if (m.t === 'result' && typeof m.id === 'number') {
       const done = conn.pending.get(m.id);
       conn.pending.delete(m.id);
@@ -95,10 +104,19 @@ export function pluginFor(fileKey: string, name?: string): Conn | null {
   return byName;
 }
 
-export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name }));
+export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName }));
 
 /** Asks the plugin to show these nodes. A plugin that does not answer in `ms` counts as failed, not as a move. */
 export function pluginFollow(conn: Conn, ids: string[], last: FollowView | null, start: boolean, ms = 8000): Promise<FollowResult | string> {
+  return ask(conn, { t: 'follow', ids, last, start }, ms);
+}
+
+/** Asks the plugin to go to one node and fit it in view (a flow picked in the sidebar, a frame link in the chat). */
+export function pluginFocus(conn: Conn, nodeId: string, ms = 8000): Promise<FollowResult | string> {
+  return ask(conn, { t: 'focus', nodeId }, ms);
+}
+
+function ask(conn: Conn, msg: object, ms: number): Promise<FollowResult | string> {
   return new Promise((resolve) => {
     const id = nextId++;
     const timer = setTimeout(() => {
@@ -110,7 +128,7 @@ export function pluginFollow(conn: Conn, ids: string[], last: FollowView | null,
       resolve(r);
     });
     try {
-      conn.ws.send(JSON.stringify({ t: 'follow', id, ids, last, start }));
+      conn.ws.send(JSON.stringify({ ...msg, id }));
     } catch (err) {
       conn.pending.get(id)?.(`failed: ${(err as Error).message}`);
       conn.pending.delete(id);

@@ -16,8 +16,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
 import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
 import { followFigma, forgetView, pauseFollow, sendFollowState } from './followRun.js';
-import { openFigmaPlugin } from './figmaPlugin.js';
-import { openFigmaApp } from './figmaApp.js';
+import { openFigmaPlugin, pluginFocus, pluginFor } from './figmaPlugin.js';
+import { ensureHelper, openFigmaApp, showFigmaApp } from './figmaApp.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
 import { Tasks, type ChatHandle } from './tasks.js';
@@ -131,14 +131,26 @@ function broadcastLive() {
   }, 100);
 }
 
-// A flow or iteration selected in the sidebar: the Figma tab in Chrome moves to its section when that file is already
-// open there. It never opens a tab or navigates, and does nothing without Chrome.
+/**
+ * Shows one node in her Figma: through the Design Studio plugin when it runs in that file in the Figma app, else in
+ * a Figma tab in Chrome. `navigate`: Chrome may open or reload a tab for it.
+ */
+async function focusNode(file: FigmaFile, nodeId: string, navigate: boolean) {
+  const plugin = pluginFor(file.key, file.name);
+  if (!plugin) return focusFigma(file.key, nodeId, navigate);
+  forgetView(file.key);
+  const r = await pluginFocus(plugin, nodeId);
+  return typeof r === 'string' ? r : r.status;
+}
+
+// A flow or iteration selected in the sidebar: her Figma moves to its section when that file is already open, through
+// the plugin or a Figma tab in Chrome. It never opens a tab or navigates.
 async function focusSelection(msg: { cwd: string; flow?: string; iteration?: string }) {
   const dir = path.resolve(String(msg.cwd ?? ''));
   if (!isChatFolder(dir)) return;
   const [file, project] = await Promise.all([readFigma(dir), readProject(dir)]);
   const node = file && file.key !== SAMPLE_KEY && project ? selectionNode(project, { flow: msg.flow, iteration: msg.iteration }) : null;
-  if (node) await focusFigma(file!.key, node, false).catch(() => null);
+  if (node) await focusNode(file!, node, false).catch(() => null);
 }
 
 async function createChat(cwd: string, resume?: string, title = '') {
@@ -608,11 +620,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/figma/show' && req.method === 'POST') {
       const f = needFigma();
+      // The plugin runs in the file, so it is open in the Figma app: that window comes forward.
+      if (pluginFor(f.key, f.name)) {
+        showFigmaApp();
+        return json({ app: true });
+      }
       return json({ tab: await showFigma(f.key, f.url) });
     }
     if (url.pathname === '/api/figma/focus' && req.method === 'POST') {
       const { nodeId } = await readJsonBody();
-      return json({ result: await focusFigma(needFigma().key, String(nodeId), true) });
+      return json({ result: await focusNode(needFigma(), String(nodeId), true) });
     }
     if (url.pathname === '/api/buildcheck') return json({ runs: await readBuildChecks(chat.cwd) });
     if (url.pathname === '/api/flowcheck' && req.method === 'POST') {
@@ -717,7 +734,7 @@ wss.on('connection', (ws: WebSocket, req) => {
   const term = params.get('term');
   if (term !== null) return attachTerminal(ws, term);
   if (params.has('chrome')) return openChrome(ws, req.headers.origin);
-  if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); } });
+  if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState });
   if (params.has('figma-app')) return openFigmaApp(ws);
   const client: Client = { send: (m) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m)), view: lastViewed };
   clients.add(client);
@@ -828,4 +845,6 @@ wss.on('connection', (ws: WebSocket, req) => {
 server.listen(PORT, () => {
   console.log(`designstudio on http://localhost:${PORT}, chats in ${path.dirname(PROJECT)}`);
   void connectChrome();
+  // The Figma window helper is built here when it is missing or older than its source, so a restart is enough.
+  void ensureHelper();
 });
