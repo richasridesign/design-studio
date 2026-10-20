@@ -98,13 +98,14 @@
   figma.showUI(__html__, { width: SIZE.w, height: SIZE.h, title: "Design Studio", themeColors: true });
   var api = figma;
   var watch = viewWatch(api, () => figma.ui.postMessage({ t: "moved" }));
-  var hello = () => figma.ui.postMessage({
-    t: "hello",
-    // Figma gives the file's key only to private plugins; Design Studio then finds the file by its name.
-    fileKey: typeof figma.fileKey === "string" ? figma.fileKey : null,
-    fileName: figma.root.name,
-    pageId: figma.currentPage.id
-  });
+  var fileKey = () => {
+    try {
+      return typeof figma.fileKey === "string" ? figma.fileKey : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  var hello = () => figma.ui.postMessage({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id });
   figma.ui.onmessage = async (m) => {
     if (!m || typeof m !== "object") return;
     if (m.t === "ready") hello();
