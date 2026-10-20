@@ -1,12 +1,12 @@
 .palette {
-  width: min(600px, calc(100vw - 16px)); max-height: min(60vh, 440px);
-  background: var(--bg-raised); border: 1px solid var(--border-strong);
-  border-radius: var(--radius, 8px); box-shadow: var(--shadow-md);
+  width: min(600px, calc(100vw - 16px)); max-height: min(70vh, 560px);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .palette-input {
-  display: flex; align-items: center; gap: 6px; flex: none; margin: 8px; height: 28px; padding: 0 8px;
-  background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm, 4px);
+  display: flex; align-items: center; gap: 8px; flex: none; margin: 8px; height: 36px; padding: 0 12px;
+  background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm);
 }
 .palette-input:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
 .palette-prefix { color: var(--fg-muted); font-family: var(--mono, Menlo, monospace); font-size: var(--text-md); }
@@ -15,8 +15,8 @@
 .palette-input input::placeholder { color: var(--fg-faint); }
 .palette ul { list-style: none; margin: 0; padding: 0 8px 8px; overflow: auto; }
 .palette li {
-  display: flex; align-items: center; gap: 10px; height: 26px; padding: 0 8px;
-  border-radius: var(--radius-sm, 4px); cursor: pointer; white-space: nowrap; font-size: var(--text-md); color: var(--fg);
+  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px;
+  border-radius: var(--radius-row); cursor: pointer; white-space: nowrap; font-size: var(--text-md); color: var(--fg);
 }
 .palette li:hover { background: var(--bg-hover); }
 .palette li.active { background: var(--accent-soft); }

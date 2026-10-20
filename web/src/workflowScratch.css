@@ -9,10 +9,10 @@
 .wf-menu-btn:disabled { cursor: default; color: var(--fg-muted); }
 .wf-menu-pop {
   position: absolute; z-index: 30; left: -8px; top: calc(100% + 4px); width: min(320px, calc(100vw - 32px)); padding: 4px;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
 }
 .wf-menu-pop > button {
-  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 0; border-radius: var(--radius-sm);
+  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 0; border-radius: var(--radius-row);
   background: transparent; color: var(--fg); text-align: left; font-size: var(--text-sm); line-height: 20px;
 }
 .wf-menu-pop > button:hover { background: var(--bg-hover); }

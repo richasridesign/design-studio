@@ -38,10 +38,10 @@
 /* The model menu sits above the whole message card, 4px clear of it (usePopAbove sets the lift), never over the text. */
 .cp-modepop {
   position: absolute; z-index: 20; left: 0; bottom: calc(100% + 4px); width: min(340px, calc(100vw - 32px)); padding: 4px;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius, 8px); box-shadow: var(--shadow-md);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
 }
 .cp-modepop > button {
-  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 0; border-radius: var(--radius-sm, 4px);
+  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 0; border-radius: var(--radius-row);
   background: transparent; color: var(--fg); text-align: left; font-size: var(--text-md);
 }
 .cp-modepop > button:hover { background: var(--bg-hover); }
@@ -82,11 +82,11 @@
 
 .cp-pop {
   position: fixed; z-index: 20; margin: 0; padding: 4px; list-style: none;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius, 8px);
-  box-shadow: var(--shadow-md); max-height: 232px; overflow: auto;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop); max-height: 232px; overflow: auto;
 }
 .cp-pop li {
-  height: 26px; padding: 0 8px; display: flex; align-items: center; gap: 8px; border-radius: var(--radius-sm, 4px);
+  height: 32px; padding: 0 8px; display: flex; align-items: center; gap: 8px; border-radius: var(--radius-row);
   cursor: pointer; font-size: var(--text-md); color: var(--fg); white-space: nowrap;
 }
 .cp-pop li:hover { background: var(--bg-hover); }

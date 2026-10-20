@@ -40,7 +40,7 @@ body.resizing .fa-view, body.resizing-v .fa-view { pointer-events: none; }
 .fa-pop {
   position: fixed; z-index: 41; width: min(360px, calc(100vw - 32px)); padding: 16px; display: flex; flex-direction: column; gap: 8px;
   font-size: var(--text-sm); line-height: 20px; color: var(--fg); background: var(--bg-elevated);
-  border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md); box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop); box-sizing: border-box;
 }
 .fa-pop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px -4px 0 0; }
 .fa-pop h2 { margin: 0; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
