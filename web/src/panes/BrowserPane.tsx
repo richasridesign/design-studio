@@ -14,9 +14,9 @@ type CaptureState = 'on' | 'noperm' | 'nofigma' | 'nowindow' | 'error' | 'nohelp
 /** `offline`: the socket to Design Studio's server is closed and reconnecting. */
 type Capture = { state: CaptureState | 'offline'; detail?: string; plain?: boolean };
 /** A Design Studio plugin running in a file in the Figma app. `key` is null until the file is matched by its name. */
-type Plugin = { key: string | null; name: string; page: string; following: boolean; stalled: boolean };
-/** Follow Claude in Figma: whether the setting is on, the files where she paused it, and where the plugin runs. */
-type Follow = { on: boolean; paused: string[]; plugins: Plugin[] };
+type Plugin = { key: string | null; name: string; page: string; following: boolean; stalled: boolean; screen: string };
+/** Follow Claude in Figma: whether the setting is on, the files where she paused it, where the plugin runs, and the files Claude edits now. */
+type Follow = { on: boolean; paused: string[]; plugins: Plugin[]; editing: string[] };
 
 const SAMPLE = 'sample';
 const SWITCH = 'Click to switch to Figma';
@@ -35,7 +35,7 @@ export function BrowserPane() {
   const size = useRef<{ w: number; h: number } | null>(null);
   const [capture, setCapture] = useState<Capture>({ state: 'starting' });
   const [hasFrame, setHasFrame] = useState(false);
-  const [follow, setFollow] = useState<Follow>({ on: true, paused: [], plugins: [] });
+  const [follow, setFollow] = useState<Follow>({ on: true, paused: [], plugins: [], editing: [] });
   const [manifest, setManifest] = useState('');
   const figma = useStore((s) => s.session.figma);
 
@@ -84,7 +84,8 @@ export function BrowserPane() {
           setFollow({
             on: m.on !== false,
             paused: Array.isArray(m.paused) ? m.paused : [],
-            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true, stalled: p.stalled === true })) : [],
+            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true, stalled: p.stalled === true, screen: typeof p.screen === 'string' ? p.screen : '' })) : [],
+            editing: Array.isArray(m.editing) ? m.editing.filter((k: unknown) => typeof k === 'string') : [],
           });
         } else if (m.t === 'plugin' && typeof m.manifest === 'string') setManifest(m.manifest);
       };
@@ -172,6 +173,12 @@ export function BrowserPane() {
           </IconButton>
         )}
       </div>
+      {EMBED && chatFile && follow.editing.includes(chatFile.key) && (
+        <div className="fa-strip fa-working" role="status">
+          <Icon name="loading" small spin />
+          <span>Claude is editing: {mine?.screen || chatFile.name}</span>
+        </div>
+      )}
       {strip === 'none' && <PluginStrip manifest={manifest} />}
       {strip === 'stalled' && chatFile && (
         <div className="fa-strip" role="status">

@@ -132,7 +132,7 @@
   var STALL_MS = 6e3;
   var GATHER_MS = 200;
   var MAX_IDS = 40;
-  function agent(figma2, post, fileKey2, extra = {}) {
+  function agent(figma2, post, fileKey2, extra = {}, hooks = {}) {
     const api = figma2;
     const within = (p, ms) => new Promise((r) => {
       const t = setTimeout(() => r("stalled"), ms);
@@ -157,10 +157,14 @@
       if (!sendTimer && changes.length) sendTimer = setTimeout(sendChanges, GATHER_MS);
     };
     function sendChanges() {
+      var _a;
       sendTimer = null;
       const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
       changes = [];
-      if (ids.length) post({ t: "changed", ids });
+      if (ids.length) {
+        post({ t: "changed", ids });
+        (_a = hooks.changed) == null ? void 0 : _a.call(hooks, ids);
+      }
     }
     let listened = null;
     function listen() {
@@ -180,6 +184,7 @@
       listened = null;
     }
     async function onmessage(m) {
+      var _a, _b;
       if (!m || typeof m !== "object") return;
       if (m.t === "ready") hello();
       else if (m.t === "ping") post({ t: "pong" });
@@ -188,12 +193,13 @@
         try {
           const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
           const r = await watch.run(() => {
-            var _a;
-            return within(followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true), STALL_MS);
+            var _a2;
+            return within(followIn(api, ids, (_a2 = m.last) != null ? _a2 : null, m.start === true), STALL_MS);
           });
           result = r === "stalled" ? { status: "stalled" } : r;
           if (result.view) watch.left(result.view);
           else if (result.status === "moved") watch.left(null);
+          (_a = hooks.followed) == null ? void 0 : _a.call(hooks, ids, m.start === true, result);
         } catch (e) {
           result = null;
         }
@@ -219,6 +225,7 @@
         editing = m.on === true;
         if (editing) listen();
         else unlisten();
+        (_b = hooks.editing) == null ? void 0 : _b.call(hooks, editing);
       } else if (m.t === "forget") watch.left(null);
     }
     setInterval(() => watch.check(), 400);

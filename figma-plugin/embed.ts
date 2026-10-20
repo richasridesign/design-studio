@@ -3,8 +3,21 @@
 // the socket: messages from Design Studio come in through window.__dsEmbed.recv, answers go out through the app's
 // message handler. Figma's Plugin API global exists on figma.com only once a file is open for editing, so this waits.
 import { agent } from './agent';
+import { overlay } from './overlay';
 
 declare const window: any;
+
+/** The name of the first screen a follow showed, for the Figma tab's "Claude is editing" line. */
+async function screenName(figma: any, targets?: string) {
+  const id = targets?.split(',')[0];
+  if (!id) return '';
+  try {
+    const n = await figma.getNodeByIdAsync(id);
+    return n && typeof n.name === 'string' ? n.name.slice(0, 120) : '';
+  } catch {
+    return '';
+  }
+}
 
 (() => {
   if (window.__dsEmbed) return;
@@ -18,7 +31,16 @@ declare const window: any;
   const start = () => {
     const figma = window.figma;
     if (!figma || !figma.getNodeByIdAsync || !figma.root || !figma.currentPage || !fileKey()) return false;
-    a = agent(figma, post, fileKey, { embed: true });
+    const show = overlay(figma);
+    a = agent(figma, post, fileKey, { embed: true }, {
+      followed: (ids, start, result) => {
+        if (result.status !== 'ok' && result.status !== 'shown') return;
+        void show.followed(ids);
+        void screenName(figma, result.view?.targets).then((name) => { if (name) post({ t: 'screen', name }); });
+      },
+      changed: (ids) => void show.changed(ids),
+      editing: (on) => show.editing(on),
+    });
     a.hello();
     return true;
   };

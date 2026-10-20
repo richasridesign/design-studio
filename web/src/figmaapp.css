@@ -51,3 +51,7 @@ body.resizing .fa-view, body.resizing-v .fa-view { pointer-events: none; }
 .fa-path button { flex: none; height: 28px; padding: 0 12px; font-size: var(--text-xs); border: 1px solid var(--border-strong); }
 /* A white inner ring keeps focus visible over Figma's dark interface. */
 .fa-view:focus-visible::after { content: ''; position: absolute; inset: 2px; border: 2px solid var(--bg-elevated); pointer-events: none; }
+
+/* While Claude edits the file shown in the Figma view (Mac window): one slim line, a spinner and the screen's name. */
+.fa-working { flex-wrap: nowrap; gap: 8px; }
+.fa-working > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

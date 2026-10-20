@@ -132,7 +132,7 @@
   var STALL_MS = 6e3;
   var GATHER_MS = 200;
   var MAX_IDS = 40;
-  function agent(figma, post, fileKey, extra = {}) {
+  function agent(figma, post, fileKey, extra = {}, hooks = {}) {
     const api = figma;
     const within = (p, ms) => new Promise((r) => {
       const t = setTimeout(() => r("stalled"), ms);
@@ -157,10 +157,14 @@
       if (!sendTimer && changes.length) sendTimer = setTimeout(sendChanges, GATHER_MS);
     };
     function sendChanges() {
+      var _a;
       sendTimer = null;
       const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
       changes = [];
-      if (ids.length) post({ t: "changed", ids });
+      if (ids.length) {
+        post({ t: "changed", ids });
+        (_a = hooks.changed) == null ? void 0 : _a.call(hooks, ids);
+      }
     }
     let listened = null;
     function listen() {
@@ -180,6 +184,7 @@
       listened = null;
     }
     async function onmessage(m) {
+      var _a, _b;
       if (!m || typeof m !== "object") return;
       if (m.t === "ready") hello();
       else if (m.t === "ping") post({ t: "pong" });
@@ -188,12 +193,13 @@
         try {
           const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
           const r = await watch.run(() => {
-            var _a;
-            return within(followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true), STALL_MS);
+            var _a2;
+            return within(followIn(api, ids, (_a2 = m.last) != null ? _a2 : null, m.start === true), STALL_MS);
           });
           result = r === "stalled" ? { status: "stalled" } : r;
           if (result.view) watch.left(result.view);
           else if (result.status === "moved") watch.left(null);
+          (_a = hooks.followed) == null ? void 0 : _a.call(hooks, ids, m.start === true, result);
         } catch (e) {
           result = null;
         }
@@ -219,6 +225,7 @@
         editing = m.on === true;
         if (editing) listen();
         else unlisten();
+        (_b = hooks.editing) == null ? void 0 : _b.call(hooks, editing);
       } else if (m.t === "forget") watch.left(null);
     }
     setInterval(() => watch.check(), 400);
@@ -233,7 +240,162 @@
     return { onmessage, hello };
   }
 
+  // figma-plugin/overlay.ts
+  var PINK = "#D65C89";
+  var INK = "#141414";
+  var LINGER_MS = 3e3;
+  var FLASH_MS = 1e3;
+  var IDLE_MS = 8e3;
+  var MAX_FLASH = 12;
+  function overlay(figma) {
+    const reduce = () => {
+      try {
+        return matchMedia("(prefers-reduced-motion: reduce)").matches;
+      } catch (e) {
+        return false;
+      }
+    };
+    const root = document.createElement("div");
+    root.setAttribute("aria-hidden", "true");
+    root.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden;";
+    const cursor = document.createElement("div");
+    cursor.style.cssText = "position:absolute;left:0;top:0;opacity:0;transition:opacity 200ms ease;will-change:transform;";
+    cursor.innerHTML = `<svg width="20" height="22" viewBox="0 0 20 22" style="display:block"><path d="M2 1.5 L2 18 L6.4 13.9 L9.3 20.4 L12.3 19.1 L9.5 12.7 L15.6 12.7 Z" fill="${INK}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><span style="position:absolute;left:16px;top:18px;padding:2px 8px;border-radius:999px;background:${PINK};color:#fff;font:500 12px/16px Inter,-apple-system,system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2)">Claude</span>`;
+    root.appendChild(cursor);
+    const mount = () => {
+      if (!root.isConnected && document.body) document.body.appendChild(root);
+    };
+    let at = null;
+    let editing = false;
+    let lastMove = 0;
+    let hideAt = 0;
+    let glide = false;
+    const flashes = [];
+    const canvas = () => {
+      let best = null;
+      let area = 0;
+      document.querySelectorAll("canvas").forEach((c) => {
+        const r = c.getBoundingClientRect();
+        if (r.width * r.height > area) {
+          area = r.width * r.height;
+          best = c;
+        }
+      });
+      return best;
+    };
+    const toScreen = () => {
+      var _a;
+      const c = canvas();
+      const b = (_a = figma.viewport) == null ? void 0 : _a.bounds;
+      if (!c || !b || !b.width || !b.height) return null;
+      const r = c.getBoundingClientRect();
+      const sx = r.width / b.width;
+      const sy = r.height / b.height;
+      return { pt: (x, y) => ({ x: r.left + (x - b.x) * sx, y: r.top + (y - b.y) * sy }), sx, sy, r };
+    };
+    const tick = () => {
+      requestAnimationFrame(tick);
+      const now = Date.now();
+      const visible = !!at && (editing || now < hideAt || now - lastMove < IDLE_MS);
+      if (!visible && !flashes.length) {
+        if (cursor.style.opacity !== "0") cursor.style.opacity = "0";
+        return;
+      }
+      const map = toScreen();
+      if (!map) return;
+      if (at) {
+        const p = map.pt(at.x, at.y);
+        cursor.style.transition = `opacity 200ms ease${glide && !reduce() ? ", transform 400ms ease" : ""}`;
+        cursor.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+        glide = false;
+        cursor.style.opacity = visible ? "1" : "0";
+      }
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        const f = flashes[i];
+        if (now > f.until + 400) {
+          f.el.remove();
+          flashes.splice(i, 1);
+          continue;
+        }
+        const p = map.pt(f.box.x, f.box.y);
+        f.el.style.transform = `translate(${Math.round(p.x) - 2}px, ${Math.round(p.y) - 2}px)`;
+        f.el.style.width = `${Math.max(4, Math.round(f.box.width * map.sx) + 4)}px`;
+        f.el.style.height = `${Math.max(4, Math.round(f.box.height * map.sy) + 4)}px`;
+        if (now > f.until) f.el.style.opacity = "0";
+      }
+    };
+    requestAnimationFrame(tick);
+    const boxes = async (ids) => {
+      const page = figma.currentPage;
+      const nodes = await Promise.all(ids.slice(0, 40).map((id) => figma.getNodeByIdAsync(id).catch(() => null)));
+      const onPage = (n) => {
+        for (let p = n; p; p = p.parent) if (p === page) return true;
+        return false;
+      };
+      return nodes.filter((n) => n && !n.removed && n.type !== "PAGE" && n.type !== "DOCUMENT" && n.absoluteBoundingBox && onPage(n));
+    };
+    const deepest = (nodes) => nodes.filter((n) => !nodes.some((m) => m !== n && (() => {
+      for (let p = m.parent; p; p = p.parent) if (p === n) return true;
+      return false;
+    })()));
+    async function moveTo(ids) {
+      var _a;
+      const nodes = deepest(await boxes(ids));
+      if (!nodes.length) return;
+      const b = nodes[0].absoluteBoundingBox;
+      const z = ((_a = figma.viewport) == null ? void 0 : _a.zoom) || 1;
+      const inset = 16 / z;
+      mount();
+      glide = !!at;
+      at = { x: b.x + Math.min(inset, b.width / 2), y: b.y + Math.min(inset, b.height / 2) };
+      lastMove = Date.now();
+    }
+    async function flash(ids) {
+      const nodes = deepest(await boxes(ids)).slice(0, MAX_FLASH);
+      if (!nodes.length) return;
+      mount();
+      const until = Date.now() + FLASH_MS;
+      for (const n of nodes) {
+        const el = document.createElement("div");
+        el.style.cssText = `position:absolute;left:0;top:0;border:2px solid ${PINK};border-radius:2px;box-sizing:border-box;opacity:1;transition:opacity 400ms ease;`;
+        root.appendChild(el);
+        flashes.push({ el, box: __spreadValues({}, n.absoluteBoundingBox), until });
+      }
+    }
+    return {
+      /** A follow moved the view (or found it already there): the cursor goes to what it named. */
+      async followed(ids) {
+        try {
+          await moveTo(ids);
+        } catch (e) {
+        }
+      },
+      /** Changes landed: they flash, and the cursor moves to them. */
+      async changed(ids) {
+        try {
+          await flash(ids);
+          await moveTo(ids);
+        } catch (e) {
+        }
+      },
+      editing(on) {
+        editing = on;
+        if (!on) hideAt = Date.now() + LINGER_MS;
+      }
+    };
+  }
+
   // figma-plugin/embed.ts
+  async function screenName(figma, targets) {
+    const id = targets == null ? void 0 : targets.split(",")[0];
+    if (!id) return "";
+    try {
+      const n = await figma.getNodeByIdAsync(id);
+      return n && typeof n.name === "string" ? n.name.slice(0, 120) : "";
+    } catch (e) {
+      return "";
+    }
+  }
   (() => {
     if (window.__dsEmbed) return;
     const post = (m) => {
@@ -256,7 +418,19 @@
     const start = () => {
       const figma = window.figma;
       if (!figma || !figma.getNodeByIdAsync || !figma.root || !figma.currentPage || !fileKey()) return false;
-      a = agent(figma, post, fileKey, { embed: true });
+      const show = overlay(figma);
+      a = agent(figma, post, fileKey, { embed: true }, {
+        followed: (ids, start2, result) => {
+          var _a;
+          if (result.status !== "ok" && result.status !== "shown") return;
+          void show.followed(ids);
+          void screenName(figma, (_a = result.view) == null ? void 0 : _a.targets).then((name) => {
+            if (name) post({ t: "screen", name });
+          });
+        },
+        changed: (ids) => void show.changed(ids),
+        editing: (on) => show.editing(on)
+      });
       a.hello();
       return true;
     };
