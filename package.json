@@ -14,7 +14,7 @@
     "test": "vitest run",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "capture": "mkdir -p capture/build && swiftc -O -swift-version 5 capture/figma-capture.swift -o capture/build/figma-capture",
-    "plugin": "esbuild figma-plugin/code.ts --bundle --target=es2017 --format=iife --outfile=figma-plugin/code.js"
+    "plugin": "esbuild figma-plugin/code.ts --bundle --target=es2017 --format=iife --outfile=figma-plugin/code.js && esbuild figma-plugin/embed.ts --bundle --target=es2017 --format=iife --outfile=figma-plugin/embed.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

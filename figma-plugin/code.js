@@ -1,4 +1,21 @@
 (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __propIsEnum = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues = (a2, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp.call(b, prop))
+        __defNormalProp(a2, prop, b[prop]);
+    if (__getOwnPropSymbols)
+      for (var prop of __getOwnPropSymbols(b)) {
+        if (__propIsEnum.call(b, prop))
+          __defNormalProp(a2, prop, b[prop]);
+      }
+    return a2;
+  };
+
   // server/src/follow.ts
   function offView(figma2, last) {
     const vp = figma2.viewport;
@@ -41,11 +58,11 @@
     const picked = screens.length ? screens : all;
     const targets = picked.length > 3 ? picked.slice(0, 1) : picked;
     const key = targets.map((t) => t.id).join(",");
-    const within2 = (a, b2) => {
-      for (let p = a.parent; p; p = p.parent) if (p === b2) return true;
+    const within = (a2, b2) => {
+      for (let p = a2.parent; p; p = p.parent) if (p === b2) return true;
       return false;
     };
-    const tips = onPage.filter((n) => !onPage.some((m) => m !== n && within2(m, n)));
+    const tips = onPage.filter((n) => !onPage.some((m) => m !== n && within(m, n)));
     const deepest = tips.slice(0, 20);
     const select = () => {
       try {
@@ -53,7 +70,7 @@
       } catch (e) {
       }
     };
-    const parts = tips.filter((n) => targets.some((t) => t === n || within2(n, t)));
+    const parts = tips.filter((n) => targets.some((t) => t === n || within(n, t)));
     const boxes = (parts.length ? parts : targets).map((t) => t.absoluteBoundingBox);
     const x0 = Math.min(...boxes.map((b2) => b2.x));
     const y0 = Math.min(...boxes.map((b2) => b2.y));
@@ -111,23 +128,115 @@
     };
   }
 
+  // figma-plugin/agent.ts
+  var STALL_MS = 6e3;
+  var GATHER_MS = 200;
+  var MAX_IDS = 40;
+  function agent(figma2, post, fileKey2, extra = {}) {
+    const api = figma2;
+    const within = (p, ms) => new Promise((r) => {
+      const t = setTimeout(() => r("stalled"), ms);
+      p.then((v) => {
+        clearTimeout(t);
+        r(v);
+      }, () => {
+        clearTimeout(t);
+        r("stalled");
+      });
+    });
+    const watch = viewWatch(api, () => post({ t: "moved" }));
+    const hello = () => post(__spreadValues({ t: "hello", fileKey: fileKey2(), fileName: figma2.root.name, pageId: figma2.currentPage.id, pageName: figma2.currentPage.name }, extra));
+    let editing = false;
+    let changes = [];
+    let sendTimer = null;
+    const onNodeChange = (e) => {
+      var _a;
+      if (!editing) return;
+      for (const c of (_a = e == null ? void 0 : e.nodeChanges) != null ? _a : []) if (c && c.type !== "DELETE" && typeof c.id === "string") changes.push(c.id);
+      if (changes.length > 400) changes = changes.slice(-MAX_IDS);
+      if (!sendTimer && changes.length) sendTimer = setTimeout(sendChanges, GATHER_MS);
+    };
+    function sendChanges() {
+      sendTimer = null;
+      const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
+      changes = [];
+      if (ids.length) post({ t: "changed", ids });
+    }
+    let listened = null;
+    function listen() {
+      if (listened === figma2.currentPage) return;
+      unlisten();
+      try {
+        figma2.currentPage.on("nodechange", onNodeChange);
+        listened = figma2.currentPage;
+      } catch (e) {
+      }
+    }
+    function unlisten() {
+      try {
+        listened == null ? void 0 : listened.off("nodechange", onNodeChange);
+      } catch (e) {
+      }
+      listened = null;
+    }
+    async function onmessage(m) {
+      if (!m || typeof m !== "object") return;
+      if (m.t === "ready") hello();
+      else if (m.t === "ping") post({ t: "pong" });
+      else if (m.t === "follow" && typeof m.id === "number" && Array.isArray(m.ids)) {
+        let result = null;
+        try {
+          const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
+          const r = await watch.run(() => {
+            var _a;
+            return within(followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true), STALL_MS);
+          });
+          result = r === "stalled" ? { status: "stalled" } : r;
+          if (result.view) watch.left(result.view);
+          else if (result.status === "moved") watch.left(null);
+        } catch (e) {
+          result = null;
+        }
+        post({ t: "result", id: m.id, result });
+      } else if (m.t === "focus" && typeof m.id === "number" && typeof m.nodeId === "string") {
+        let status = "nonode";
+        try {
+          status = await watch.run(async () => {
+            const n = await figma2.getNodeByIdAsync(m.nodeId);
+            if (!n || n.type === "DOCUMENT") return "nonode";
+            let p = n;
+            while (p && p.type !== "PAGE") p = p.parent;
+            if (p && figma2.currentPage !== p) await figma2.setCurrentPageAsync(p);
+            if (n.type !== "PAGE") figma2.viewport.scrollAndZoomIntoView([n]);
+            return "ok";
+          });
+        } catch (e) {
+          status = "nonode";
+        }
+        watch.left(null);
+        post({ t: "result", id: m.id, result: { status } });
+      } else if (m.t === "editing") {
+        editing = m.on === true;
+        if (editing) listen();
+        else unlisten();
+      } else if (m.t === "forget") watch.left(null);
+    }
+    setInterval(() => watch.check(), 400);
+    try {
+      figma2.on("currentpagechange", () => {
+        watch.check();
+        if (editing) listen();
+        post({ t: "page", pageId: figma2.currentPage.id, pageName: figma2.currentPage.name });
+      });
+    } catch (e) {
+    }
+    return { onmessage, hello };
+  }
+
   // figma-plugin/code.ts
   var SIZE = { w: 280, h: 148 };
   var SMALL = { w: 280, h: 48 };
   figma.showUI(__html__, { width: SIZE.w, height: SIZE.h, title: "Design Studio", themeColors: true });
-  var api = figma;
-  var STALL_MS = 6e3;
-  var within = (p, ms) => new Promise((r) => {
-    const t = setTimeout(() => r("stalled"), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      r(v);
-    }, () => {
-      clearTimeout(t);
-      r("stalled");
-    });
-  });
-  var watch = viewWatch(api, () => figma.ui.postMessage({ t: "moved" }));
   var fileKey = () => {
     try {
       return typeof figma.fileKey === "string" ? figma.fileKey : null;
@@ -135,92 +244,11 @@
       return null;
     }
   };
-  var hello = () => figma.ui.postMessage({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id, pageName: figma.currentPage.name });
-  figma.ui.onmessage = async (m) => {
-    if (!m || typeof m !== "object") return;
-    if (m.t === "ready") hello();
-    else if (m.t === "ping") figma.ui.postMessage({ t: "pong" });
-    else if (m.t === "follow" && typeof m.id === "number" && Array.isArray(m.ids)) {
-      let result = null;
-      try {
-        const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
-        const r = await watch.run(() => {
-          var _a;
-          return within(followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true), STALL_MS);
-        });
-        result = r === "stalled" ? { status: "stalled" } : r;
-        if (result.view) watch.left(result.view);
-        else if (result.status === "moved") watch.left(null);
-      } catch (e) {
-        result = null;
-      }
-      figma.ui.postMessage({ t: "result", id: m.id, result });
-    } else if (m.t === "focus" && typeof m.id === "number" && typeof m.nodeId === "string") {
-      let status = "nonode";
-      try {
-        status = await watch.run(async () => {
-          const n = await figma.getNodeByIdAsync(m.nodeId);
-          if (!n || n.type === "DOCUMENT") return "nonode";
-          let p = n;
-          while (p && p.type !== "PAGE") p = p.parent;
-          if (p && figma.currentPage !== p) await figma.setCurrentPageAsync(p);
-          if (n.type !== "PAGE") figma.viewport.scrollAndZoomIntoView([n]);
-          return "ok";
-        });
-      } catch (e) {
-        status = "nonode";
-      }
-      watch.left(null);
-      figma.ui.postMessage({ t: "result", id: m.id, result: { status } });
-    } else if (m.t === "editing") {
-      editing = m.on === true;
-      if (editing) listen();
-      else unlisten();
-    } else if (m.t === "forget") watch.left(null);
-    else if (m.t === "small") {
+  var a = agent(figma, (m) => figma.ui.postMessage(m), fileKey);
+  figma.ui.onmessage = (m) => {
+    if (m && m.t === "small") {
       const s = m.on ? SMALL : SIZE;
       figma.ui.resize(s.w, s.h);
-    }
+    } else void a.onmessage(m);
   };
-  var editing = false;
-  var changes = [];
-  var sendTimer = null;
-  var GATHER_MS = 200;
-  var MAX_IDS = 40;
-  var onNodeChange = (e) => {
-    var _a;
-    if (!editing) return;
-    for (const c of (_a = e == null ? void 0 : e.nodeChanges) != null ? _a : []) if (c && c.type !== "DELETE" && typeof c.id === "string") changes.push(c.id);
-    if (changes.length > 400) changes = changes.slice(-MAX_IDS);
-    if (!sendTimer && changes.length) sendTimer = setTimeout(sendChanges, GATHER_MS);
-  };
-  function sendChanges() {
-    sendTimer = null;
-    const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
-    changes = [];
-    if (ids.length) figma.ui.postMessage({ t: "changed", ids });
-  }
-  var listened = null;
-  function listen() {
-    if (listened === figma.currentPage) return;
-    unlisten();
-    try {
-      figma.currentPage.on("nodechange", onNodeChange);
-      listened = figma.currentPage;
-    } catch (e) {
-    }
-  }
-  function unlisten() {
-    try {
-      listened == null ? void 0 : listened.off("nodechange", onNodeChange);
-    } catch (e) {
-    }
-    listened = null;
-  }
-  setInterval(() => watch.check(), 400);
-  figma.on("currentpagechange", () => {
-    watch.check();
-    if (editing) listen();
-    figma.ui.postMessage({ t: "page", pageId: figma.currentPage.id, pageName: figma.currentPage.name });
-  });
 })();

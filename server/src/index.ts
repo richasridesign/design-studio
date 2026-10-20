@@ -743,7 +743,7 @@ wss.on('connection', (ws: WebSocket, req) => {
   if (term !== null) return attachTerminal(ws, term);
   if (params.has('chrome')) return openChrome(ws, req.headers.origin);
   if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState, edited: followChanged });
-  if (params.has('figma-app')) return openFigmaApp(ws);
+  if (params.has('figma-app')) return openFigmaApp(ws, params.has('embed'));
   const client: Client = { send: (m) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m)), view: lastViewed };
   clients.add(client);
   view(client, lastViewed);

@@ -7,6 +7,8 @@ import '../figmaapp.css';
 
 // The Figma tab: her Figma app window, view only. The server captures the frontmost Figma window (only while this tab
 // is shown and the page is visible) and sends it here as JPEG frames over /ws?figma-app. A click brings Figma forward.
+// In the Design Studio Mac window the tab is figma.com itself instead: the app lays its own Figma view over the stage
+// (embedStage tells it where, when and which file), so she can zoom, pan, click and edit without the Figma app.
 
 type CaptureState = 'on' | 'noperm' | 'nofigma' | 'nowindow' | 'error' | 'nohelper' | 'stopped' | 'starting';
 /** `offline`: the socket to Design Studio's server is closed and reconnecting. */
@@ -19,6 +21,12 @@ type Follow = { on: boolean; paused: string[]; plugins: Plugin[] };
 const SAMPLE = 'sample';
 const SWITCH = 'Click to switch to Figma';
 const norm = (s: string) => s.trim().toLowerCase();
+
+/** The Mac window's bridge to its Figma view; absent in a plain browser. */
+const stageBridge = (): { postMessage: (m: object) => void } | undefined => (window as any).webkit?.messageHandlers?.dsFigmaStage;
+const EMBED = !!stageBridge();
+/** Web menus and dialogs cannot draw over the native Figma view, so it steps aside while one overlaps the stage. */
+const OVERLAYS = '[role="dialog"], [role="menu"], [role="listbox"], [role="alertdialog"]';
 
 export function BrowserPane() {
   const ws = useRef<WebSocket | null>(null);
@@ -45,12 +53,13 @@ export function BrowserPane() {
     // hides it, an expanded chat takes its place). Back in Design Studio, Screen Recording is checked again.
     let sent: boolean | null = null;
     const report = () => {
-      const on = inSight();
+      // In the Mac window figma.com is shown instead, so her Figma app window is never captured.
+      const on = !EMBED && inSight();
       if (on !== sent) sent = send({ t: 'visible', on }) ? on : null;
     };
     const open = () => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const s = new WebSocket(`${proto}://${location.host}/ws?figma-app`);
+      const s = new WebSocket(`${proto}://${location.host}/ws?figma-app${EMBED ? '&embed' : ''}`);
       ws.current = s;
       s.onopen = () => {
         delay = 1000;
@@ -141,11 +150,13 @@ export function BrowserPane() {
     send({ t: 'follow', key: followKey, pause: !follow.paused.includes(followKey) });
   };
 
+  useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight);
+
   const showing = capture.state === 'on' && hasFrame;
   // No plugin runs in this chat's file: said whenever following is on, whatever the capture shows, since nothing
   // else tells her why Figma does not move. Offline, the plugin list is stale, so nothing is claimed.
   const other = chatFile && !mine ? follow.plugins[0] : undefined;
-  const strip = capture.state === 'offline' || !chatFile || !follow.on ? null : mine ? (mine.stalled ? 'stalled' : null) : other ? 'other' : 'none';
+  const strip = EMBED || capture.state === 'offline' || !chatFile || !follow.on ? null : mine ? (mine.stalled ? 'stalled' : null) : other ? 'other' : 'none';
 
   return (
     <div className="browser-pane">
@@ -154,7 +165,12 @@ export function BrowserPane() {
           {fileName && <span className="fa-file">{fileName}</span>}
           {fileName && page && <span className="fa-page"> · {page}</span>}
         </span>
-        {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} onClick={toggleFollow} />}
+        {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} embed={EMBED} onClick={toggleFollow} />}
+        {EMBED && (
+          <IconButton label="Open in Figma app" className="icon-btn" onClick={() => send({ t: 'front', key: chatFile?.key })}>
+            <Icon name="link-external" small />
+          </IconButton>
+        )}
       </div>
       {strip === 'none' && <PluginStrip manifest={manifest} />}
       {strip === 'stalled' && chatFile && (
@@ -168,11 +184,51 @@ export function BrowserPane() {
         </div>
       )}
       <div className="frame-host" ref={host}>
-        <FrameButton hidden={!showing} img={img} onClick={() => send({ t: 'front' })} />
-        {!showing && <CaptureState capture={capture} send={send} />}
+        {EMBED ? (
+          <StateBlock text="Opening Figma…" status />
+        ) : (
+          <>
+            <FrameButton hidden={!showing} img={img} onClick={() => send({ t: 'front' })} />
+            {!showing && <CaptureState capture={capture} send={send} />}
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * Tells the Mac window where the stage is (CSS pixels), whether its Figma view shows there, and which file it opens.
+ * It shows only while the stage is in sight and no web menu or dialog overlaps it; it hides when the tab goes away.
+ * The stage can move without changing size (the sidebar or chat sash), so its place is read every frame.
+ */
+function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, fileKey: string | null, inSight: () => boolean) {
+  useEffect(() => {
+    const bridge = stageBridge();
+    const el = host?.current;
+    if (!bridge || !el) return;
+    let last = '';
+    let frame = 0;
+    const covered = (r: DOMRect) => [...document.querySelectorAll(OVERLAYS)].some((o) => {
+      const b = o.getBoundingClientRect();
+      return b.width > 0 && b.height > 0 && b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top;
+    });
+    const tick = () => {
+      frame = requestAnimationFrame(tick);
+      const r = el.getBoundingClientRect();
+      const show = inSight() && r.width > 0 && r.height > 0 && !covered(r);
+      const m = { t: 'stage', show, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: fileKey };
+      const sig = JSON.stringify(m);
+      if (sig === last) return;
+      last = sig;
+      try { bridge.postMessage(m); } catch {}
+    };
+    tick();
+    return () => {
+      cancelAnimationFrame(frame);
+      try { bridge.postMessage({ t: 'stage', show: false }); } catch {}
+    };
+  }, [host, fileKey]);
 }
 
 /** Her Figma window, view only: a click or Enter brings the Figma app forward. */
@@ -292,10 +348,11 @@ function SetupPop({ anchor, manifest, onClose }: { anchor: React.RefObject<HTMLB
  * `ready`: the plugin runs in this chat's file, so following can happen; without it the button says it is waiting.
  * `stalled`: it runs, but Figma does not answer it (the file is not the front tab), so the button waits for Figma.
  */
-function FollowButton({ on, paused, ready, stalled, onClick }: { on: boolean; paused: boolean; ready: boolean; stalled: boolean; onClick: () => void }) {
+function FollowButton({ on, paused, ready, stalled, embed, onClick }: { on: boolean; paused: boolean; ready: boolean; stalled: boolean; embed: boolean; onClick: () => void }) {
   const active = on && !paused && ready && !stalled;
-  const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : !ready ? 'Waiting for the plugin' : stalled ? 'Waiting for Figma' : 'Following Claude';
-  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : !ready ? 'Start the Design Studio plugin in Figma to follow Claude. Click to pause following.' : stalled ? 'Click into the file in Figma so it answers the plugin. Click to pause following.' : 'Pause following Claude');
+  // In the Mac window, "not ready" means figma.com has not opened the file for editing yet (still loading, or signed out).
+  const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : !ready ? (embed ? 'Waiting for Figma' : 'Waiting for the plugin') : stalled ? 'Waiting for Figma' : 'Following Claude';
+  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : !ready ? (embed ? 'Figma is opening the file. If it asks, log in to Figma below. Click to pause following.' : 'Start the Design Studio plugin in Figma to follow Claude. Click to pause following.') : stalled ? 'Click into the file in Figma so it answers the plugin. Click to pause following.' : 'Pause following Claude');
   return (
     <>
       <button type="button" className={`follow-btn${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick} {...tip.props}>

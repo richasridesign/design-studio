@@ -221,8 +221,9 @@ function restart(rebuild = false) {
  * {t:'recheck'} starts the helper again when it could not show Figma for a reason she may have fixed, {t:'retry'}
  * does so after an error, and {t:'follow', key, pause} pauses or resumes Follow Claude in a file.
  */
-export function openFigmaApp(ws: WebSocket) {
-  viewers.set(ws, { visible: true, w: 1600, h: 1200 });
+export function openFigmaApp(ws: WebSocket, embed = false) {
+  // `embed`: the Design Studio Mac window shows figma.com in this tab, so her Figma app window is never captured for it.
+  viewers.set(ws, { visible: !embed, w: 1600, h: 1200 });
   ws.send(JSON.stringify({ t: 'capture', ...state }));
   ws.send(JSON.stringify(followState()));
   ws.send(JSON.stringify({ t: 'plugin', manifest: PLUGIN_MANIFEST }));
@@ -240,8 +241,9 @@ export function openFigmaApp(ws: WebSocket) {
     if (m.t === 'size') {
       v.w = Math.round(Math.min(3840, Math.max(200, num(m.w))));
       v.h = Math.round(Math.min(3840, Math.max(200, num(m.h))));
-    } else if (m.t === 'visible') v.visible = m.on !== false;
-    else if (m.t === 'front') return openMac(['-b', FIGMA_APP]);
+    } else if (m.t === 'visible') v.visible = !embed && m.on !== false;
+    // With a file, the Figma app opens that file; without one it only comes forward.
+    else if (m.t === 'front') return openMac(typeof m.key === 'string' && /^[A-Za-z0-9]{10,64}$/.test(m.key) ? ['-b', FIGMA_APP, `https://www.figma.com/design/${m.key}`] : ['-b', FIGMA_APP]);
     else if (m.t === 'settings') return openMac([SCREEN_RECORDING]);
     // Only Screen Recording is checked again on her return: an error waits for Try again, so a failed build never
     // runs again (and asks macOS to install tools) each time she clicks back into Design Studio.
