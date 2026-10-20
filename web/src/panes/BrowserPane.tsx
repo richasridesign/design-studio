@@ -31,12 +31,23 @@ export function BrowserPane() {
   const [manifest, setManifest] = useState('');
   const figma = useStore((s) => s.session.figma);
 
-  const send = (m: object) => ws.current?.readyState === WebSocket.OPEN && ws.current.send(JSON.stringify(m));
+  const send = (m: object) => {
+    if (ws.current?.readyState !== WebSocket.OPEN) return false;
+    ws.current.send(JSON.stringify(m));
+    return true;
+  };
 
   useEffect(() => {
     let alive = true;
     let delay = 1000;
     let timer: ReturnType<typeof setTimeout>;
+    // Frames come only while the pane is in sight: the page is visible, the pane has a size (on a phone the Chat tab
+    // hides it) and no expanded chat covers it. Back in Design Studio, Screen Recording is checked again.
+    let sent: boolean | null = null;
+    const report = () => {
+      const on = inSight();
+      if (on !== sent) sent = send({ t: 'visible', on }) ? on : null;
+    };
     const open = () => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const s = new WebSocket(`${proto}://${location.host}/ws?figma-app`);
@@ -44,7 +55,8 @@ export function BrowserPane() {
       s.onopen = () => {
         delay = 1000;
         if (size.current) s.send(JSON.stringify({ t: 'size', ...size.current }));
-        s.send(JSON.stringify({ t: 'visible', on: document.visibilityState === 'visible' }));
+        sent = null;
+        report();
       };
       s.onmessage = (ev) => {
         let m: any;
@@ -76,34 +88,41 @@ export function BrowserPane() {
       };
     };
     open();
-    // Frames come only while the page is in sight. Back in Design Studio, a reason she may have fixed meanwhile
-    // (Screen Recording turned on) is checked again.
-    const onVisible = () => send({ t: 'visible', on: document.visibilityState === 'visible' });
+    const el = host.current;
     const onFocus = () => send({ t: 'recheck' });
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', report);
     window.addEventListener('focus', onFocus);
+    // The pane's size in device pixels: the window is scaled down to fit it, never up.
+    const ro = new ResizeObserver(() => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (r.width && r.height) {
+        size.current = { w: Math.round(r.width * dpr), h: Math.round(r.height * dpr) };
+        send({ t: 'size', ...size.current });
+      }
+      report();
+    });
+    if (el) ro.observe(el);
+    const covers = el?.closest('.workbench');
+    const mo = new MutationObserver(report);
+    if (covers) mo.observe(covers, { attributes: true, attributeFilter: ['data-chat-expanded'] });
     return () => {
       alive = false;
       clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', report);
       window.removeEventListener('focus', onFocus);
+      ro.disconnect();
+      mo.disconnect();
       ws.current?.close();
     };
   }, []);
 
-  // The pane's size in device pixels: the window is scaled down to fit it, never up.
-  useEffect(() => {
+  const inSight = () => {
     const el = host.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      size.current = { w: Math.round(r.width * dpr), h: Math.round(r.height * dpr) };
-      send({ t: 'size', ...size.current });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    if (document.visibilityState !== 'visible' || !el || !el.offsetWidth || !el.offsetHeight) return false;
+    return !el.closest('.workbench[data-chat-expanded="true"]');
+  };
 
   const chatFile = figma && figma.key !== SAMPLE ? figma : null;
   const mine = chatFile ? follow.plugins.find((p) => p.key === chatFile.key || (!!p.name && norm(p.name) === norm(chatFile.name))) : undefined;

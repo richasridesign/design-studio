@@ -139,8 +139,9 @@ async function focusNode(file: FigmaFile, nodeId: string, navigate: boolean) {
   const plugin = pluginFor(file.key, file.name);
   if (!plugin) return focusFigma(file.key, nodeId, navigate);
   forgetView(file.key);
-  const r = await pluginFocus(plugin, nodeId);
-  return typeof r === 'string' ? r : r.status;
+  // A plugin started before it knew how to go to a node never answers: Chrome is tried then.
+  const r = await pluginFocus(plugin, nodeId, 3000);
+  return typeof r === 'string' ? focusFigma(file.key, nodeId, navigate) : r.status;
 }
 
 // A flow or iteration selected in the sidebar: her Figma moves to its section when that file is already open, through
