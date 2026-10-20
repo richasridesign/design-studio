@@ -75,7 +75,7 @@ export function BrowserPane() {
           setFollow({
             on: m.on !== false,
             paused: Array.isArray(m.paused) ? m.paused : [],
-            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true })) : [],
+            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true, stalled: p.stalled === true })) : [],
           });
         } else if (m.t === 'plugin' && typeof m.manifest === 'string') setManifest(m.manifest);
       };
