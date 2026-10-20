@@ -42,7 +42,7 @@ export function BrowserPane() {
     let delay = 1000;
     let timer: ReturnType<typeof setTimeout>;
     // Frames come only while the pane is in sight: the page is visible, the pane has a size (on a phone the Chat tab
-    // hides it) and no expanded chat covers it. Back in Design Studio, Screen Recording is checked again.
+    // hides it, an expanded chat takes its place). Back in Design Studio, Screen Recording is checked again.
     let sent: boolean | null = null;
     const report = () => {
       const on = inSight();
