@@ -14,7 +14,10 @@ import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
-import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFigma, openChrome, sendFollowState, setup as setupChrome, showFigma } from './chrome.js';
+import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
+import { followFigma, forgetView, pauseFollow, sendFollowState } from './followRun.js';
+import { openFigmaPlugin } from './figmaPlugin.js';
+import { openFigmaApp } from './figmaApp.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
 import { Tasks, type ChatHandle } from './tasks.js';
@@ -146,7 +149,7 @@ async function createChat(cwd: string, resume?: string, title = '') {
   chat.onFocus = (nodeIds, start) => {
     if (!start) clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId: nodeIds[0] }));
     const current = chat.figmaFile;
-    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds, start) : null));
+    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds, start, current.name) : null));
   };
   await chat.loadHistory();
   chat.onMessage((m) => {
@@ -693,10 +696,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// The Design Studio plugin's window in the Figma app has no origin of its own ("null"). It may only open the plugin
+// socket, on this computer, and that socket carries node ids and views, never code.
+function pluginFromFigma(req: http.IncomingMessage) {
+  const origin = req.headers.origin;
+  if (origin !== 'null' && origin !== 'https://www.figma.com') return false;
+  const url = new URL(req.url ?? '', 'http://x');
+  const host = (req.headers.host ?? '').replace(/:\d+$/, '');
+  return url.pathname === '/ws' && url.searchParams.has('figma-plugin') && [...url.searchParams.keys()].length === 1 && ['localhost', '127.0.0.1'].includes(host);
+}
+
 const wss = new WebSocketServer({
   server,
   path: '/ws',
-  verifyClient: ({ req }, done) => (allowedOrigin(req.headers.origin) ? done(true) : done(false, 403, 'Forbidden')),
+  verifyClient: ({ req }, done) => (allowedOrigin(req.headers.origin) || pluginFromFigma(req) ? done(true) : done(false, 403, 'Forbidden')),
 });
 
 wss.on('connection', (ws: WebSocket, req) => {
@@ -704,6 +717,8 @@ wss.on('connection', (ws: WebSocket, req) => {
   const term = params.get('term');
   if (term !== null) return attachTerminal(ws, term);
   if (params.has('chrome')) return openChrome(ws, req.headers.origin);
+  if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); } });
+  if (params.has('figma-app')) return openFigmaApp(ws);
   const client: Client = { send: (m) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m)), view: lastViewed };
   clients.add(client);
   view(client, lastViewed);

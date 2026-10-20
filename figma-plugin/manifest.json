@@ -1,0 +1,15 @@
+{
+  "name": "Design Studio",
+  "id": "design-studio-follow-claude",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "enablePrivatePluginApi": true,
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": ["http://localhost:7778", "ws://localhost:7778"],
+    "reasoning": "Talks to Design Studio on this Mac only, to show the screen Claude is editing."
+  }
+}
