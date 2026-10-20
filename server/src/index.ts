@@ -57,6 +57,12 @@ import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
 
+// Every server log line starts with the local time, so a lost message can be traced to a restart.
+for (const level of ['log', 'warn', 'error'] as const) {
+  const write = console[level].bind(console);
+  console[level] = (...args: unknown[]) => write(new Date().toLocaleString('sv-SE'), ...args);
+}
+
 const PORT = Number(process.env.PORT ?? 7778);
 const PROJECT = path.resolve(process.argv[2] ?? process.env.PROJECT_DIR ?? (await scratchFolder()));
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -284,12 +290,16 @@ async function readBinary(req: http.IncomingMessage) {
 
 const isDir = (dir: string) => stat(dir).then((s) => s.isDirectory()).catch(() => false);
 
+/** Only chats in the chats root, the projects root or this server's own folder are Design Studio chats. Coding and personal sessions never show. */
+const designSession = (cwd: string) => path.resolve(cwd) === PROJECT || isChatFolder(cwd);
+
 async function openSaved(sessionId: string) {
   const open = [...live.values()].find((l) => l.chat.state.session.sessionId === sessionId);
   if (open) return open.chat;
   const info = await getSessionInfo(sessionId);
   if (!info) throw new Error('Session not found');
   if (!info.cwd) throw new Error('This session has no folder recorded, so it cannot be resumed');
+  if (!designSession(info.cwd)) throw new Error('Not a Design Studio chat');
   if (!(await isDir(info.cwd))) throw new Error(`Folder no longer exists: ${info.cwd}`);
   return createChat(info.cwd, sessionId, info.summary);
 }
@@ -652,7 +662,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/mcp/probe') return json(await mcpProbe(chat.cwd, url.searchParams.has('refresh')));
     if (url.pathname === '/api/sessions') {
       const list = await listSessions({ limit: 300 });
-      return json(list.map((x) => ({ sessionId: x.sessionId, title: x.summary, cwd: x.cwd ?? '', gitBranch: x.gitBranch ?? null, lastModified: x.lastModified })));
+      return json(list.filter((x) => x.cwd && designSession(x.cwd)).map((x) => ({ sessionId: x.sessionId, title: x.summary, cwd: x.cwd ?? '', gitBranch: x.gitBranch ?? null, lastModified: x.lastModified })));
     }
     if (url.pathname === '/api/state') return json(chat.state);
     if (url.pathname === '/api/connect') {
