@@ -15,7 +15,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
 import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
-import { followFigma, forgetView, pauseFollow, sendFollowState } from './followRun.js';
+import { followChanged, followFigma, forgetView, pauseFollow, sendFollowState, setEditing } from './followRun.js';
 import { openFigmaPlugin, pluginFocus, pluginFor } from './figmaPlugin.js';
 import { ensureHelper, openFigmaApp, showFigmaApp } from './figmaApp.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
@@ -163,6 +163,10 @@ async function createChat(cwd: string, resume?: string, title = '') {
     if (!start) clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId: nodeIds[0] }));
     const current = chat.figmaFile;
     if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds, start, current.name) : null));
+  };
+  chat.onEditing = (on) => {
+    const current = chat.figmaFile;
+    if (current && current.key !== SAMPLE_KEY) setEditing(current.key, on, current.name);
   };
   await chat.loadHistory();
   chat.onMessage((m) => {
@@ -738,7 +742,7 @@ wss.on('connection', (ws: WebSocket, req) => {
   const term = params.get('term');
   if (term !== null) return attachTerminal(ws, term);
   if (params.has('chrome')) return openChrome(ws, req.headers.origin);
-  if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState });
+  if (params.has('figma-plugin')) return openFigmaPlugin(ws, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState, edited: followChanged });
   if (params.has('figma-app')) return openFigmaApp(ws);
   const client: Client = { send: (m) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m)), view: lastViewed };
   clients.add(client);

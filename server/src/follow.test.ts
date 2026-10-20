@@ -24,10 +24,12 @@ function fakeFigma() {
   add('3:3', 'TEXT', s2, [1800, 200, 100, 20]);
   add('4:1', 'FRAME', p1, [0, 4000, 1440, 900]);
   add('5:1', 'FRAME', p2, [0, 0, 800, 600]);
+  add('6:1', 'FRAME', p1, [0, 6000, 1200, 3000]);
   const gone = add('3:9', 'TEXT', s1, [0, 0, 1, 1]);
   gone.removed = true;
+  // She starts zoomed out over the whole page.
   let center = { x: 0, y: 0 };
-  let zoom = 1;
+  let zoom = 0.1;
   const calls = { center: 0, zoom: 0, page: 0 };
   const figma: any = {
     currentPage: { id: '0:1', selection: [] as N[] },
@@ -52,34 +54,42 @@ const run = (figma: unknown, ids: string[], last: FollowView | null = null, star
 const selected = (figma: any) => figma.currentPage.selection.map((n: N) => n.id);
 
 describe('FOLLOW', () => {
-  it('fits the screen around a deep edit, with a margin, and selects the edited node', async () => {
+  it('zooms to the deep edit at a readable size, never past 200%, and selects it', async () => {
     const { figma } = fakeFigma();
     const r = await run(figma, ['1:1', '3:2']);
     expect(r.status).toBe('ok');
     expect(r.view?.targets).toBe('2:1');
-    expect(figma.viewport.center).toEqual({ x: 820, y: 550 });
-    // 1440 x 900 in 1600 x 1000 pixels fits at 1.111, less the margin.
-    expect(figma.viewport.zoom).toBeCloseTo((1000 / 900) * 0.84, 3);
+    expect(figma.viewport.center).toEqual({ x: 260, y: 220 });
+    expect(figma.viewport.zoom).toBe(2);
     expect(selected(figma)).toEqual(['3:2']);
   });
 
-  it('fits two or three screens together, and only the first of more', async () => {
+  it('fits a whole new screen that reads at that size, and shows the top of one too tall to read whole', async () => {
+    const screen = fakeFigma();
+    await run(screen.figma, ['2:1']);
+    // 1440 x 900 in 1600 x 1000 pixels fits at 1.111, less the margin.
+    expect(screen.figma.viewport.zoom).toBeCloseTo((1000 / 900) * 0.84, 3);
+    expect(screen.figma.viewport.center).toEqual({ x: 820, y: 550 });
+    // 1200 x 3000 would fit only at 28%: it shows at 100%, centred, from its top with a small margin.
+    const tall = fakeFigma();
+    await run(tall.figma, ['6:1']);
+    expect(tall.figma.viewport.zoom).toBe(1);
+    expect(tall.figma.viewport.center).toEqual({ x: 600, y: 6000 - 80 + 500 });
+    // A whole section is never shown below 50%: its top left part shows instead.
+    const sec = fakeFigma();
+    expect((await run(sec.figma, ['1:1'])).view?.targets).toBe('1:1');
+    expect(sec.figma.viewport.zoom).toBe(0.5);
+    expect(sec.figma.viewport.center).toEqual({ x: -160 + 1600, y: -160 + 1000 });
+  });
+
+  it('shows two or three screens together, and only the first of more', async () => {
     const two = fakeFigma();
     expect((await run(two.figma, ['3:2', '3:3'])).view?.targets).toBe('2:1,2:2');
-    expect(two.figma.viewport.center).toEqual({ x: 1620, y: 550 });
     expect(selected(two.figma)).toEqual(['3:2', '3:3']);
     const four = fakeFigma();
     expect((await run(four.figma, ['2:1', '2:2', '2:3', '2:4'])).view?.targets).toBe('2:1');
-  });
-
-  it('fits a section only when no screen is named, and never past 200%', async () => {
-    const sec = fakeFigma();
-    expect((await run(sec.figma, ['1:1'])).view?.targets).toBe('1:1');
-    expect(sec.figma.viewport.zoom).toBeLessThan(0.3);
+    // A section counts only when no screen is named, and not at all when an edit starts.
     expect((await run(fakeFigma().figma, ['1:1'], null, true)).status).toBe('nonode');
-    const small = fakeFigma();
-    await run(small.figma, ['4:1']);
-    expect(small.figma.viewport.zoom).toBeLessThanOrEqual(2);
   });
 
   it('switches to the page of the edit and skips nodes that are gone', async () => {
@@ -92,7 +102,7 @@ describe('FOLLOW', () => {
     expect((await run(fakeFigma().figma, ['9:9', '0:1'])).status).toBe('nonode');
   });
 
-  it('keeps the view when the same screen is already fitted, but shows the new edit', async () => {
+  it('keeps the view when the change is already in view at a readable zoom, but selects it', async () => {
     const { figma, calls } = fakeFigma();
     const first = await run(figma, ['3:2']);
     const moves = calls.center + calls.zoom;

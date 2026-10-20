@@ -20,6 +20,8 @@ export type PluginHooks = {
   changed: () => void;
   /** She went to another page in the file: only the state is sent again, views stay. */
   page?: () => void;
+  /** Nodes that changed in this file while Claude edits it (the plugin sends them only then). */
+  edited?: (fileKey: string, ids: string[]) => void;
 };
 
 type Conn = {
@@ -35,6 +37,8 @@ type Conn = {
   pending: Map<number, (r: FollowResult | string) => void>;
   /** The last follow got no answer from Figma: the plugin runs, but its file is not the front tab in Figma. */
   stalled: boolean;
+  /** What the plugin was last told: send the changes landing in the file (Claude edits it) or not. */
+  editing: boolean;
 };
 
 const conns = new Set<Conn>();
@@ -46,7 +50,7 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
   // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
   // the way a protocol ping is), so only a plugin that can still run counts as alive.
@@ -90,6 +94,10 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       const done = conn.pending.get(m.id);
       conn.pending.delete(m.id);
       done?.(validResult(m.result) ?? 'failed: bad answer from the plugin');
+    } else if (m.t === 'changed' && Array.isArray(m.ids)) {
+      const key = conn.key ?? conn.followKey;
+      const ids = m.ids.filter((id: unknown) => typeof id === 'string' && id.length > 0 && id.length <= 200).slice(0, 50);
+      if (key && conn.editing && ids.length) hooks.edited?.(key, ids);
     } else if (m.t === 'moved') {
       const key = conn.key ?? conn.followKey;
       if (key) hooks.moved(key);
@@ -167,6 +175,15 @@ function ask(conn: Conn, msg: object, ms: number): Promise<FollowResult | string
       conn.pending.delete(id);
     }
   });
+}
+
+/** Tells the plugin to send the changes landing in its file (Claude edits it) or to stop. Sent only on a change. */
+export function pluginEditing(conn: Conn, on: boolean) {
+  if (conn.editing === on) return;
+  conn.editing = on;
+  try {
+    conn.ws.send(JSON.stringify({ t: 'editing', on }));
+  } catch {}
 }
 
 /** Following starts again: the plugin forgets the view it left, so her earlier move is not reported again. */

@@ -81,6 +81,8 @@ export class AgentSession {
    * (`start`), and the nodes it changed or created once it is done.
    */
   onFocus: (nodeIds: string[], start?: boolean) => void = () => {};
+  /** A Figma edit script started (true) or the last running one ended (false): her Figma follows changes live meanwhile. */
+  onEditing: (on: boolean) => void = () => {};
 
   private liveText = new Map<string, string>();
   private edits = new Map<string, string>();
@@ -360,6 +362,7 @@ export class AgentSession {
       }
       try {
         this.locks.set(input.tool_use_id, await acquireWrite(key));
+        this.onEditing(true);
       } catch (err) {
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: (err as Error).message } };
       }
@@ -410,13 +413,15 @@ export class AgentSession {
   }
 
   private unlock(toolUseId?: string) {
+    const had = this.locks.size;
     if (toolUseId === undefined) {
       for (const release of this.locks.values()) release();
       this.locks.clear();
-      return;
+    } else {
+      this.locks.get(toolUseId)?.();
+      this.locks.delete(toolUseId);
     }
-    this.locks.get(toolUseId)?.();
-    this.locks.delete(toolUseId);
+    if (had && !this.locks.size) this.onEditing(false);
   }
 
   /** Subagents do not see the system prompt, so a subagent doing Figma work gets the map and the helpers in its prompt. */

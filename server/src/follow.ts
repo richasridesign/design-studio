@@ -24,17 +24,28 @@ export function offView(figma: FigmaLike, last: FollowView) {
 }
 
 /**
- * Walks her Figma view through Claude's edits, the way a designer shows a file. Each edited node is shown by its
- * screen: the frame on the page or directly inside a section, fitted with a small margin and never past 200%. Two or
- * three screens on one page fit together, more fit the first. A section fits only when no screen is named, since a
- * script names its section just to find the frame it edits. The edited nodes are then selected, the deepest ones
- * only. Nothing in the document changes.
+ * Walks her Figma view through Claude's edits, the way a designer shows a file. Each edited node belongs to its
+ * screen: the frame on the page or directly inside a section. Two or three screens on one page are shown together,
+ * more show the first. A section counts only when no screen is named, since a script names its section just to find
+ * the frame it edits. The view zooms to the part that changed (the deepest edited nodes in those screens) at a size
+ * she can read, and selects those nodes. Nothing in the document changes.
  *
  * `last` is the view the previous follow left. When the view no longer shows it, she moved it herself, so this does
- * nothing and says `moved`. When the same screens are already fitted it only updates the selection.
+ * nothing and says `moved`. When the change is already in view at a readable zoom it only updates the selection.
  * `screensOnly`: skip when only sections are named (an edit starting that will create its frame).
  */
 export async function followIn(figma: FigmaLike, ids: string[], last: FollowView | null, screensOnly: boolean): Promise<FollowResult> {
+  // The constants live in the body: this function travels as source to a Chrome tab.
+  // Never closer than 200%, so a small edit keeps its surroundings.
+  const MAX_ZOOM = 2;
+  // Never farther out than 50%: a change too big to fit there shows its top part instead of all of it tiny.
+  const MIN_ZOOM = 0.5;
+  // A change too big for MIN_ZOOM (a tall screen, a row of screens) shows its top at 100%, or as wide as fits.
+  const TALL_ZOOM = 1;
+  // Share of the view the change may fill, so it never touches the edge.
+  const MARGIN = 0.84;
+  // At this zoom or closer, a change that is already in view is readable as it is: the view stays put.
+  const READABLE = 0.9;
   if (typeof figma === 'undefined' || !figma || !figma.getNodeByIdAsync) return { status: 'noapi' };
   const vp = figma.viewport;
   const read = (targets: string): FollowView => ({ page: figma.currentPage.id, targets, cx: vp.center.x, cy: vp.center.y, zoom: vp.zoom });
@@ -56,21 +67,41 @@ export async function followIn(figma: FigmaLike, ids: string[], last: FollowView
   const targets = picked.length > 3 ? picked.slice(0, 1) : picked;
   const key = targets.map((t) => t.id).join(',');
   const within = (a: FNode, b: FNode) => { for (let p = a.parent; p; p = p.parent) if (p === b) return true; return false; };
-  const deepest = onPage.filter((n) => !onPage.some((m) => m !== n && within(m, n))).slice(0, 20);
+  const tips = onPage.filter((n) => !onPage.some((m) => m !== n && within(m, n)));
+  const deepest = tips.slice(0, 20);
   const select = () => { try { figma.currentPage.selection = deepest; } catch (e) { /* locked or gone */ } };
-  if (last && last.page === page.id && last.targets === key) { select(); return { status: 'shown', view: read(key) }; }
-  // The view's size in screen pixels stays the same across pages, so it is read before switching.
-  const w = vp.bounds.width * vp.zoom;
-  const h = vp.bounds.height * vp.zoom;
-  if (figma.currentPage.id !== page.id) await figma.setCurrentPageAsync(page);
-  const boxes = targets.map((t) => t.absoluteBoundingBox as Box);
+  // The part that changed: the deepest edited nodes inside the screens shown.
+  const parts = tips.filter((n) => targets.some((t) => t === n || within(n, t)));
+  const boxes = (parts.length ? parts : targets).map((t) => t.absoluteBoundingBox as Box);
   const x0 = Math.min(...boxes.map((b) => b.x));
   const y0 = Math.min(...boxes.map((b) => b.y));
   const x1 = Math.max(...boxes.map((b) => b.x + b.width));
   const y1 = Math.max(...boxes.map((b) => b.y + b.height));
-  const fit = Math.min(w / Math.max(1, x1 - x0), h / Math.max(1, y1 - y0));
-  vp.zoom = Math.max(0.02, Math.min(2, fit * 0.84));
-  vp.center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  const bw = Math.max(1, x1 - x0);
+  const bh = Math.max(1, y1 - y0);
+  // The view's size in screen pixels stays the same across pages, so it is read before switching.
+  const w = vp.bounds.width * vp.zoom;
+  const h = vp.bounds.height * vp.zoom;
+  const fit = Math.min(w / bw, h / bh) * MARGIN;
+  let zoom = Math.min(MAX_ZOOM, fit);
+  let center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  if (fit < MIN_ZOOM) {
+    // Too big to read whole: its top part, as wide as fits between 50% and 100%, left edge first when still wider.
+    zoom = Math.max(MIN_ZOOM, Math.min(TALL_ZOOM, (w / bw) * MARGIN));
+    const vw = w / zoom;
+    const vh = h / zoom;
+    const pad = (vh * (1 - MARGIN)) / 2;
+    center = { x: bw * zoom <= w * MARGIN ? center.x : x0 - pad + vw / 2, y: y0 - pad + vh / 2 };
+  }
+  // Already in view at a readable zoom on this page: only the selection changes, so a run of edits does not shake it.
+  const b = vp.bounds;
+  if (figma.currentPage.id === page.id && vp.zoom >= Math.min(zoom, 1) * READABLE && x0 >= b.x && y0 >= b.y && x1 <= b.x + b.width && y1 <= b.y + b.height) {
+    select();
+    return { status: 'shown', view: read(key) };
+  }
+  if (figma.currentPage.id !== page.id) await figma.setCurrentPageAsync(page);
+  vp.zoom = Math.max(0.02, zoom);
+  vp.center = center;
   select();
   return { status: 'ok', view: read(key) };
 }
