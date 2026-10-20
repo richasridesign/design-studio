@@ -14,7 +14,7 @@ import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
 import { attachTerminal, closeTerminal, closeTerminals, createTerminal, listTerminals } from './terminal.js';
-import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFigma, openChrome, setup as setupChrome, showFigma } from './chrome.js';
+import { chromeStatus, connect as connectChrome, figmaTabs, focusFigma, followFigma, openChrome, sendFollowState, setup as setupChrome, showFigma } from './chrome.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
 import { Tasks, type ChatHandle } from './tasks.js';
@@ -137,10 +137,10 @@ async function createChat(cwd: string, resume?: string, title = '') {
   const chat = new AgentSession(cwd, figma, resume);
   chat.title = title;
   await chat.init();
-  chat.onFocus = (nodeIds) => {
-    clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId: nodeIds[0] }));
+  chat.onFocus = (nodeIds, start) => {
+    if (!start) clients.forEach((c) => c.view === chat && c.send({ type: 'focus', nodeId: nodeIds[0] }));
     const current = chat.figmaFile;
-    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds) : null));
+    if (current && current.key !== SAMPLE_KEY) void settings().then((s) => (s.followClaude ? followFigma(current.key, nodeIds, start) : null));
   };
   await chat.loadHistory();
   chat.onMessage((m) => {
@@ -416,7 +416,11 @@ const server = http.createServer(async (req, res) => {
       return json(await workflowView(chat.cwd, { preset: f.preset, areas: f.areas, reviewing: (f.reviewers ?? []).some((r) => r.state === 'running') }));
     }
     if (url.pathname === '/api/spend') return json({ today: await today(), budgetUsd: (await settings()).dailyBudgetUsd });
-    if (url.pathname === '/api/settings' && req.method === 'POST') return json(publicSettings(await saveSettings(await readJsonBody())));
+    if (url.pathname === '/api/settings' && req.method === 'POST') {
+      const saved = await saveSettings(await readJsonBody());
+      sendFollowState();
+      return json(publicSettings(saved));
+    }
     if (url.pathname === '/api/settings') return json(publicSettings(await settings()));
     if (url.pathname === '/api/figma/mcp' && req.method === 'POST') return json({ out: await addFigmaToClaude() });
     if (url.pathname === '/api/figma/login' && req.method === 'POST') return json(startFigmaLogin((await readJsonBody())?.auto === true));

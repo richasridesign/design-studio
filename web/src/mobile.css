@@ -63,6 +63,8 @@
   .tabs .tab.ex-tab { flex: none; width: 44px; justify-content: center; padding: 0; }
   .browser-bar { height: 44px; }
   .browser-bar .icon-btn, .browser-bar select { height: 32px; min-width: 32px; }
+  .browser-bar .follow-btn { height: 32px; min-width: 32px; justify-content: center; padding: 0; }
+  .browser-bar .follow-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .browser-bar input.url { height: 32px; font-size: var(--text-lg); }
   button.send { width: 36px; height: 36px; border-radius: 8px; font-size: var(--text-lg); }
   .cmd-popup li { height: 44px; }

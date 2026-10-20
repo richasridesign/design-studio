@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
+import { useTip } from '../Tip';
+import { parseFigmaUrl } from '../../../shared/design';
 import { useStore, postJson } from '../store';
 import { Empty, BrowserArt } from './Empty';
 import { FigmaFile } from './FigmaFile';
@@ -7,6 +9,8 @@ import { ALLOW_CHROME, CHROME_CHECKBOX, CHROME_REASONS, chromeAsk } from '../set
 
 type Tab = { id: string; title: string; url: string };
 type State = { state: 'off' | 'connecting' | 'on'; reason: string; retry?: boolean };
+/** Follow Claude in Figma: whether the setting is on, and the files where she moved the view and paused it. */
+type Follow = { on: boolean; paused: string[] };
 
 const BUTTON = ['left', 'middle', 'right'];
 const mods = (e: { altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) =>
@@ -27,6 +31,7 @@ export function BrowserPane() {
   const [url, setUrl] = useState('');
   const [editing, setEditing] = useState(false);
   const figma = useStore((s) => s.session.figma);
+  const [follow, setFollow] = useState<Follow>({ on: true, paused: [] });
 
   const send = (m: object) => ws.current?.readyState === WebSocket.OPEN && ws.current.send(JSON.stringify(m));
   const tab = tabs.find((t) => t.id === current);
@@ -51,6 +56,7 @@ export function BrowserPane() {
           setCurrent(m.current);
           setPinned(m.pinned);
         }
+        if (m.t === 'follow') setFollow({ on: m.on !== false, paused: Array.isArray(m.paused) ? m.paused : [] });
         if (m.t === 'frame' && img.current) {
           vp.current = { w: m.w, h: m.h };
           img.current.src = `data:image/jpeg;base64,${m.data}`;
@@ -178,6 +184,19 @@ export function BrowserPane() {
     if (text) send({ t: 'text', text });
   };
 
+  // The file Claude follows in: the chat's file, else the Figma file in the tab shown.
+  const tabKey = tab && /figma\.com\/(design|file|proto)\//.test(tab.url) ? parseFigmaUrl(tab.url)?.key : undefined;
+  const followKey = figma?.key ?? tabKey ?? null;
+  const toggleFollow = () => {
+    if (!followKey) return;
+    if (!follow.on) {
+      setFollow((f) => ({ on: true, paused: f.paused.filter((k) => k !== followKey) }));
+      postJson('/api/settings', { followClaude: true }).then(() => send({ t: 'follow', key: followKey }), () => {});
+      return;
+    }
+    send({ t: 'follow', key: followKey, pause: !follow.paused.includes(followKey) });
+  };
+
   const go = () => {
     setEditing(false);
     if (url.trim()) send({ t: 'nav', url: url.trim() });
@@ -203,10 +222,11 @@ export function BrowserPane() {
             if (e.key === 'Escape') e.currentTarget.blur();
           }}
         />
-        <select className="tab-pick" value={pinned ?? ''} onChange={(e) => send({ t: 'tab', id: e.target.value || null })} title="Which Chrome tab to show">
-          <option value="">Follow Claude</option>
+        <select className="tab-pick" value={pinned ?? ''} onChange={(e) => send({ t: 'tab', id: e.target.value || null })} title="Which Chrome tab to show" aria-label="Chrome tab to show">
+          <option value="">Front tab</option>
           {tabs.map((t) => <option key={t.id} value={t.id}>{t.title || t.url}</option>)}
         </select>
+        {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} onClick={toggleFollow} />}
         <button className="icon-btn phone-only" title="Keyboard" onClick={() => kbd.current?.focus()}><Icon name="keyboard" /></button>
       </div>
       <div className="frame-host" ref={host}>
@@ -274,5 +294,21 @@ function ChromeLine({ state, onSetup }: { state: State; onSetup: () => void }) {
         )
       )}
     </section>
+  );
+}
+
+/** Shows whether her Figma tab follows Claude, by shape and words: a filled dot while following, a hollow one when not. */
+function FollowButton({ on, paused, onClick }: { on: boolean; paused: boolean; onClick: () => void }) {
+  const active = on && !paused;
+  const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : 'Following Claude';
+  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : 'Pause following Claude');
+  return (
+    <>
+      <button type="button" className={`follow-btn${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick} {...tip.props}>
+        <span className="follow-dot" aria-hidden="true" />
+        <span className="follow-label">{label}</span>
+      </button>
+      {tip.tip}
+    </>
   );
 }

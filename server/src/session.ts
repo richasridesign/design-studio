@@ -74,8 +74,11 @@ export class AgentSession {
   private autoCompact = true;
   private lastResult = '';
   private work: AbortController | null = null;
-  /** Node ids to show in her Figma tab: the frame set_status names, or the nodes a Figma edit just changed. */
-  onFocus: (nodeIds: string[]) => void = () => {};
+  /**
+   * Node ids to show in her Figma tab: the frame set_status names, the nodes an edit script names as it starts
+   * (`start`), and the nodes it changed or created once it is done.
+   */
+  onFocus: (nodeIds: string[], start?: boolean) => void = () => {};
 
   private liveText = new Map<string, string>();
   private edits = new Map<string, string>();
@@ -348,6 +351,9 @@ export class AgentSession {
       } catch (err) {
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: (err as Error).message } };
       }
+      // Her Figma tab moves to the screen as the edit starts, then again to what it returns (new frames).
+      const named = touchedIds(call.code).slice(0, 20);
+      if (named.length) this.onFocus(named, true);
     }
     const next = prepareFigmaCall(call);
     return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
