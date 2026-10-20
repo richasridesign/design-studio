@@ -243,10 +243,12 @@ export function openFigmaApp(ws: WebSocket) {
     } else if (m.t === 'visible') v.visible = m.on !== false;
     else if (m.t === 'front') return openMac(['-b', FIGMA_APP]);
     else if (m.t === 'settings') return openMac([SCREEN_RECORDING]);
+    // Only Screen Recording is checked again on her return: an error waits for Try again, so a failed build never
+    // runs again (and asks macOS to install tools) each time she clicks back into Design Studio.
     else if (m.t === 'recheck') {
-      if (['noperm', 'error', 'nohelper'].includes(state.state)) restart(false);
+      if (state.state === 'noperm') restart();
       return;
-    } else if (m.t === 'retry') return restart(false);
+    } else if (m.t === 'retry') return restart();
     else if (m.t === 'follow') {
       if (typeof m.key === 'string' && /^[A-Za-z0-9]{10,64}$/.test(m.key)) (m.pause === true ? pauseFollow(m.key) : resumeFollow(m.key));
       return;
