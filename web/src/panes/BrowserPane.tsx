@@ -216,8 +216,10 @@ function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, file
     const tick = () => {
       frame = requestAnimationFrame(tick);
       const r = el.getBoundingClientRect();
-      const show = inSight() && r.width > 0 && r.height > 0 && !covered(r);
-      const m = { t: 'stage', show, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: fileKey };
+      const sight = inSight() && r.width > 0 && r.height > 0;
+      const over = sight && covered(r);
+      const show = sight && !over;
+      const m = { t: 'stage', show, why: !sight ? 'out of sight' : over ? 'covered' : '', x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: fileKey };
       const sig = JSON.stringify(m);
       if (sig === last) return;
       last = sig;

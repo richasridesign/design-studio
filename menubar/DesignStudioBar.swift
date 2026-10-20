@@ -165,8 +165,12 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   var focused: Bool { (view.window?.firstResponder as? NSView)?.isDescendant(of: view) ?? false }
 
   /** The web app's stage: CSS pixels in the app view, shown or not, and the chat's file. */
+  var lastStage = ""
+  var filesLater: DispatchWorkItem?
   func stage(_ m: [String: Any], in web: WKWebView) {
     let show = m["show"] as? Bool ?? false
+    let note = "\(show ? "show" : "hide") \(m["key"] as? String ?? "no file") \(m["why"] as? String ?? "")"
+    if note != lastStage { lastStage = note; log("figma stage: \(note)") }
     if show {
       let z = web.pageZoom
       let num = { (k: String) in CGFloat((m[k] as? NSNumber)?.doubleValue ?? 0) * z }
@@ -174,8 +178,16 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
       let r = NSRect(x: x, y: web.isFlipped ? y : web.bounds.height - y - h, width: w, height: h)
       if let parent = view.superview { view.frame = web.convert(r, to: parent) }
       let key = (m["key"] as? String).flatMap { $0.range(of: "^[A-Za-z0-9]{10,64}$", options: .regularExpression) != nil ? $0 : nil }
-      if key != fileKey || !loaded {
-        if let key { open(URL(string: "https://www.figma.com/design/\(key)")!, key) } else if !loaded { open(URL(string: "https://www.figma.com/files")!, nil) }
+      filesLater?.cancel()
+      filesLater = nil
+      if let key, key != fileKey || !loaded {
+        open(URL(string: "https://www.figma.com/design/\(key)")!, key)
+      } else if key == nil && (fileKey != nil || !loaded) {
+        // A chat without a file shows her Figma files, never the file of the chat before. The app says "no file"
+        // for a moment while a chat loads, so this waits before leaving the file.
+        let later = DispatchWorkItem { [weak self] in self?.open(URL(string: "https://www.figma.com/files")!, nil) }
+        filesLater = later
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: later)
       }
     }
     setShown(show)
