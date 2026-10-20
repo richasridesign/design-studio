@@ -262,9 +262,7 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .pane-bar { display: flex; align-items: center; gap: 6px; padding: 4px 12px; height: 28px; font-size: var(--text-sm); color: var(--fg-muted); }
 .pane-bar .path { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pane-bar button { padding: 1px 8px; font-size: var(--text-xs); }
-.pane-bar input.url { flex: 1; min-width: 0; height: 24px; padding: 0 10px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
-.browser-bar { height: 35px; gap: 4px; padding: 0 6px; border-bottom: 1px solid var(--border); background: var(--bg-raised); }
-.browser-bar select { height: 24px; border-radius: var(--radius-sm); }
+.browser-bar { height: 35px; gap: 4px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--border); background: var(--bg-raised); }
 .code-pane, .browser-pane { display: flex; flex-direction: column; height: 100%; }
 .editor-host { flex: 1; min-height: 0; overflow: auto; }
 .editor-host .cm-editor, .editor-host .cm-mergeView, .editor-host .cm-mergeViewEditors { height: 100%; }
@@ -380,14 +378,10 @@ button.destructive:hover { background: color-mix(in srgb, var(--err) 28%, transp
 .sash:hover { background: var(--accent); }
 body.resizing { cursor: ew-resize; user-select: none; }
 body.resizing-v { cursor: ns-resize; user-select: none; }
-body.resizing .chrome-frame, body.resizing-v .chrome-frame { pointer-events: none; }
 
 select { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); font: inherit; font-size: var(--text-xs); padding: 1px 4px; }
 .browser-pane { height: 100%; }
 .frame-host { position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; overflow: hidden; background: var(--bg-sunken); }
-.chrome-frame { max-width: 100%; max-height: 100%; touch-action: none; user-select: none; cursor: default; }
-.chrome-kbd { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none; font-size: var(--text-lg); }
-.browser-bar .tab-pick { max-width: 180px; }
 .follow-btn {
   flex: none; height: 24px; min-height: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid var(--border);
   border-radius: var(--radius-sm); background: var(--bg); color: var(--fg); font-size: var(--text-xs); white-space: nowrap;
@@ -409,7 +403,6 @@ button.link:hover { background: transparent; text-decoration: underline; }
   .desktop-only { display: none !important; }
   .body { display: block; height: calc(100% - 56px); }
   .phone-only { display: inline-flex !important; }
-  .browser-bar .tab-pick { max-width: 110px; }
   .pane { display: none; height: 100%; width: 100%; border: 0; }
   .workbench[data-tab='chat'] .pane.center,
   .workbench[data-tab='repos'] .pane.side,

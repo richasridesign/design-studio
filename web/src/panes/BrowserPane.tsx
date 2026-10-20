@@ -1,40 +1,37 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
-import { useTip } from '../Tip';
-import { parseFigmaUrl } from '../../../shared/design';
+import { IconButton, useTip } from '../Tip';
 import { useStore, postJson } from '../store';
-import { Empty, BrowserArt } from './Empty';
-import { FigmaFile } from './FigmaFile';
-import { ALLOW_CHROME, CHROME_CHECKBOX, CHROME_REASONS, chromeAsk } from '../setupChecks';
+import { useDialogFocus } from '../useDialog';
+import '../figmaapp.css';
 
-type Tab = { id: string; title: string; url: string };
-type State = { state: 'off' | 'connecting' | 'on'; reason: string; retry?: boolean };
-/** Follow Claude in Figma: whether the setting is on, and the files where she moved the view and paused it. */
-type Follow = { on: boolean; paused: string[] };
+// The Figma tab: her Figma app window, view only. The server captures the frontmost Figma window (only while this tab
+// is shown and the page is visible) and sends it here as JPEG frames over /ws?figma-app. A click brings Figma forward.
 
-const BUTTON = ['left', 'middle', 'right'];
-const mods = (e: { altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) =>
-  (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0);
+type CaptureState = 'on' | 'noperm' | 'nofigma' | 'nowindow' | 'error' | 'nohelper' | 'stopped' | 'starting';
+/** `offline`: the socket to Design Studio's server is closed and reconnecting. */
+type Capture = { state: CaptureState | 'offline'; detail?: string; plain?: boolean };
+/** A Design Studio plugin running in a file in the Figma app. `key` is null until the file is matched by its name. */
+type Plugin = { key: string | null; name: string; page: string; following: boolean };
+/** Follow Claude in Figma: whether the setting is on, the files where she paused it, and where the plugin runs. */
+type Follow = { on: boolean; paused: string[]; plugins: Plugin[] };
+
+const SAMPLE = 'sample';
+const SWITCH = 'Click to switch to Figma';
+const norm = (s: string) => s.trim().toLowerCase();
 
 export function BrowserPane() {
   const ws = useRef<WebSocket | null>(null);
   const img = useRef<HTMLImageElement>(null);
-  const kbd = useRef<HTMLTextAreaElement>(null);
   const host = useRef<HTMLDivElement>(null);
-  const vp = useRef({ w: 0, h: 0 });
-  const touch = useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const [state, setState] = useState<State>({ state: 'connecting', reason: '' });
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [current, setCurrent] = useState<string | null>(null);
-  const [pinned, setPinned] = useState<string | null>(null);
+  const size = useRef<{ w: number; h: number } | null>(null);
+  const [capture, setCapture] = useState<Capture>({ state: 'starting' });
   const [hasFrame, setHasFrame] = useState(false);
-  const [url, setUrl] = useState('');
-  const [editing, setEditing] = useState(false);
+  const [follow, setFollow] = useState<Follow>({ on: true, paused: [], plugins: [] });
+  const [manifest, setManifest] = useState('');
   const figma = useStore((s) => s.session.figma);
-  const [follow, setFollow] = useState<Follow>({ on: true, paused: [] });
 
   const send = (m: object) => ws.current?.readyState === WebSocket.OPEN && ws.current.send(JSON.stringify(m));
-  const tab = tabs.find((t) => t.id === current);
 
   useEffect(() => {
     let alive = true;
@@ -42,262 +39,228 @@ export function BrowserPane() {
     let timer: ReturnType<typeof setTimeout>;
     const open = () => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const s = new WebSocket(`${proto}://${location.host}/ws?chrome`);
+      const s = new WebSocket(`${proto}://${location.host}/ws?figma-app`);
       ws.current = s;
-      s.onopen = () => { delay = 1000; };
+      s.onopen = () => {
+        delay = 1000;
+        if (size.current) s.send(JSON.stringify({ t: 'size', ...size.current }));
+        s.send(JSON.stringify({ t: 'visible', on: document.visibilityState === 'visible' }));
+      };
       s.onmessage = (ev) => {
-        const m = JSON.parse(ev.data);
-        if (m.t === 'state') {
-          setState(m);
+        let m: any;
+        try {
+          m = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+        if (m.t === 'capture') {
+          setCapture({ state: m.state, detail: typeof m.detail === 'string' ? m.detail : undefined, plain: m.plain === true });
           if (m.state !== 'on') setHasFrame(false);
-        }
-        if (m.t === 'tabs') {
-          setTabs(m.tabs);
-          setCurrent(m.current);
-          setPinned(m.pinned);
-        }
-        if (m.t === 'follow') setFollow({ on: m.on !== false, paused: Array.isArray(m.paused) ? m.paused : [] });
-        if (m.t === 'frame' && img.current) {
-          vp.current = { w: m.w, h: m.h };
+        } else if (m.t === 'frame' && img.current) {
           img.current.src = `data:image/jpeg;base64,${m.data}`;
           setHasFrame(true);
-        }
+        } else if (m.t === 'follow') {
+          setFollow({
+            on: m.on !== false,
+            paused: Array.isArray(m.paused) ? m.paused : [],
+            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true })) : [],
+          });
+        } else if (m.t === 'plugin' && typeof m.manifest === 'string') setManifest(m.manifest);
       };
       s.onclose = () => {
         if (!alive) return;
-        setState({ state: 'off', reason: 'server', retry: true });
+        setCapture({ state: 'offline' });
         setHasFrame(false);
         timer = setTimeout(open, delay);
         delay = Math.min(delay * 2, 10000);
       };
     };
     open();
+    // Frames come only while the page is in sight. Back in Design Studio, a reason she may have fixed meanwhile
+    // (Screen Recording turned on) is checked again.
+    const onVisible = () => send({ t: 'visible', on: document.visibilityState === 'visible' });
+    const onFocus = () => send({ t: 'recheck' });
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
     return () => {
       alive = false;
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
       ws.current?.close();
     };
   }, []);
 
-  useEffect(() => {
-    if (!editing) setUrl(tab?.url ?? '');
-  }, [tab?.url, editing]);
-
+  // The pane's size in device pixels: the window is scaled down to fit it, never up.
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      send({ t: 'size', w: Math.round(r.width * dpr), h: Math.round(r.height * dpr), cssW: Math.round(r.width), cssH: Math.round(r.height), dpr, mobile: r.width < 700 });
+      size.current = { w: Math.round(r.width * dpr), h: Math.round(r.height * dpr) };
+      send({ t: 'size', ...size.current });
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [state.state]);
+  }, []);
 
-  const pos = (e: { clientX: number; clientY: number }) => {
-    if (!img.current) return { x: 0, y: 0 };
-    const r = img.current.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * vp.current.w, y: ((e.clientY - r.top) / r.height) * vp.current.h };
-  };
+  const chatFile = figma && figma.key !== SAMPLE ? figma : null;
+  const mine = chatFile ? follow.plugins.find((p) => p.key === chatFile.key || (!!p.name && norm(p.name) === norm(chatFile.name))) : undefined;
+  const shown = mine ?? (!chatFile && follow.plugins.length === 1 ? follow.plugins[0] : undefined);
+  const fileName = shown?.name || chatFile?.name || '';
+  const page = shown?.page || '';
 
-  // Pinch and Cmd or Ctrl scroll zoom Figma, as they do in Figma itself. A pinch comes in as a wheel with Ctrl held
-  // (Chrome) or as gesture events (the Mac app's WebKit), so both go to Chrome as a Ctrl wheel. The listeners are
-  // not passive, so the Design Studio page itself never zooms or scrolls under the mirror.
-  useEffect(() => {
-    const el = img.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      send({ t: 'wheel', ...pos(e), dx: e.deltaX * k, dy: e.deltaY * k, modifiers: mods(e) });
-    };
-    let last = 1;
-    const onGestureStart = (e: Event) => { e.preventDefault(); last = 1; };
-    const onGestureChange = (e: Event) => {
-      e.preventDefault();
-      const g = e as Event & { scale: number; clientX: number; clientY: number };
-      const ratio = g.scale / last;
-      last = g.scale;
-      if (!ratio || ratio === 1) return;
-      send({ t: 'wheel', ...pos(g), dx: 0, dy: -Math.log(ratio) * 100, modifiers: 2 });
-    };
-    const stop = (e: Event) => e.preventDefault();
-    el.addEventListener('wheel', onWheel, { passive: false });
-    el.addEventListener('gesturestart', onGestureStart);
-    el.addEventListener('gesturechange', onGestureChange);
-    el.addEventListener('gestureend', stop);
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-      el.removeEventListener('gesturestart', onGestureStart);
-      el.removeEventListener('gesturechange', onGestureChange);
-      el.removeEventListener('gestureend', stop);
-    };
-  }, [state.state]);
-
-  const onDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    if (e.pointerType !== 'mouse') {
-      touch.current = { x: e.clientX, y: e.clientY, moved: false };
-      return;
-    }
-    e.preventDefault();
-    kbd.current?.focus({ preventScroll: true });
-    send({ t: 'mouse', type: 'mousePressed', ...pos(e), button: BUTTON[e.button] ?? 'left', buttons: e.buttons, clickCount: e.detail || 1, modifiers: mods(e) });
-  };
-  const onMove = (e: React.PointerEvent) => {
-    const t = touch.current;
-    if (e.pointerType !== 'mouse') {
-      if (!t) return;
-      const dx = t.x - e.clientX;
-      const dy = t.y - e.clientY;
-      if (!t.moved && Math.hypot(dx, dy) < 8) return;
-      const k = vp.current.w / (img.current?.getBoundingClientRect().width || 1);
-      send({ t: 'wheel', ...pos(e), dx: dx * k, dy: dy * k });
-      touch.current = { x: e.clientX, y: e.clientY, moved: true };
-      return;
-    }
-    send({ t: 'mouse', type: 'mouseMoved', ...pos(e), button: 'none', buttons: e.buttons, modifiers: mods(e) });
-  };
-  const onUp = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'mouse') {
-      if (touch.current && !touch.current.moved) {
-        send({ t: 'mouse', type: 'mousePressed', ...pos(e), button: 'left', buttons: 1, clickCount: 1 });
-        send({ t: 'mouse', type: 'mouseReleased', ...pos(e), button: 'left', buttons: 0, clickCount: 1 });
-      }
-      touch.current = null;
-      return;
-    }
-    send({ t: 'mouse', type: 'mouseReleased', ...pos(e), button: BUTTON[e.button] ?? 'left', buttons: e.buttons, clickCount: e.detail || 1, modifiers: mods(e) });
-  };
-
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) return;
-    if (e.key === 'Unidentified' || e.key === 'Process') return;
-    if (e.metaKey && e.key === 'v') return;
-    e.preventDefault();
-    send({ t: 'key', key: e.key, code: e.code, keyCode: e.keyCode, modifiers: mods(e) });
-  };
-  const onText = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    const text = e.currentTarget.value;
-    e.currentTarget.value = '';
-    if (text) send({ t: 'text', text });
-  };
-
-  // The file Claude follows in: the chat's file, else the Figma file in the tab shown.
-  const tabKey = tab && /figma\.com\/(design|file|proto)\//.test(tab.url) ? parseFigmaUrl(tab.url)?.key : undefined;
-  const followKey = figma?.key ?? tabKey ?? null;
+  const followKey = chatFile?.key ?? null;
   const toggleFollow = () => {
     if (!followKey) return;
     if (!follow.on) {
-      setFollow((f) => ({ on: true, paused: f.paused.filter((k) => k !== followKey) }));
+      setFollow((f) => ({ ...f, on: true, paused: f.paused.filter((k) => k !== followKey) }));
       postJson('/api/settings', { followClaude: true }).then(() => send({ t: 'follow', key: followKey }), () => {});
       return;
     }
     send({ t: 'follow', key: followKey, pause: !follow.paused.includes(followKey) });
   };
 
-  const go = () => {
-    setEditing(false);
-    if (url.trim()) send({ t: 'nav', url: url.trim() });
-  };
-
-  if (state.state !== 'on') return <Connect state={state} onSetup={() => send({ t: 'setup' })} />;
+  const showing = capture.state === 'on' && hasFrame;
+  const strip = !showing || !chatFile || mine ? null : follow.plugins.length ? 'other' : 'none';
 
   return (
     <div className="browser-pane">
       <div className="pane-bar browser-bar">
-        <button className="icon-btn" title="Back" onClick={() => send({ t: 'back' })}><Icon name="arrow-left" /></button>
-        <button className="icon-btn desktop-only" title="Forward" onClick={() => send({ t: 'forward' })}><Icon name="arrow-right" /></button>
-        <button className="icon-btn" title="Reload" onClick={() => send({ t: 'reload' })}><Icon name="refresh" /></button>
-        <input
-          className="url"
-          placeholder="Address"
-          value={url}
-          onFocus={() => setEditing(true)}
-          onBlur={() => setEditing(false)}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { go(); e.currentTarget.blur(); }
-            if (e.key === 'Escape') e.currentTarget.blur();
-          }}
-        />
-        <select className="tab-pick" value={pinned ?? ''} onChange={(e) => send({ t: 'tab', id: e.target.value || null })} title="Which Chrome tab to show" aria-label="Chrome tab to show">
-          <option value="">Front tab</option>
-          {tabs.map((t) => <option key={t.id} value={t.id}>{t.title || t.url}</option>)}
-        </select>
+        <span className="fa-where">
+          {fileName && <span className="fa-file">{fileName}</span>}
+          {fileName && page && <span className="fa-page"> · {page}</span>}
+        </span>
         {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} onClick={toggleFollow} />}
-        <button className="icon-btn phone-only" title="Keyboard" onClick={() => kbd.current?.focus()}><Icon name="keyboard" /></button>
       </div>
+      {strip === 'none' && <PluginStrip manifest={manifest} />}
+      {strip === 'other' && chatFile && (
+        <div className="fa-strip" role="status">
+          <span>Figma shows a different file than this chat. Open {chatFile.name} to follow.</span>
+        </div>
+      )}
       <div className="frame-host" ref={host}>
-        <img
-          ref={img}
-          className="chrome-frame"
-          alt=""
-          hidden={!hasFrame}
-          draggable={false}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={() => { touch.current = null; }}
-          onContextMenu={(e) => e.preventDefault()}
-        />
-        {!hasFrame && (
-          <Empty
-            art={<BrowserArt />}
-            title={tabs.length ? 'Waiting for Chrome' : 'No tab open in Chrome'}
-            text="Chrome only draws the tab that is in front. Pick a tab above to bring it forward."
-            action={figma ? { label: 'Open this file', onClick: () => { postJson('/api/figma/show', {}).catch(() => {}); } } : undefined}
-          />
-        )}
-        <textarea ref={kbd} className="chrome-kbd" aria-label="Type into the page" autoCapitalize="off" autoComplete="off" spellCheck={false} onKeyDown={onKey} onInput={onText} onPaste={(e) => { e.preventDefault(); send({ t: 'text', text: e.clipboardData.getData('text') }); }} />
+        <FrameButton hidden={!showing} img={img} onClick={() => send({ t: 'front' })} />
+        {!showing && <CaptureState capture={capture} send={send} />}
       </div>
     </div>
   );
 }
 
-function Connect({ state, onSetup }: { state: State; onSetup: () => void }) {
-  return <FigmaFile chrome={<ChromeLine state={state} onSetup={onSetup} />} />;
-}
-
-/** A quiet way to show the real Chrome tab here instead of the file summary. */
-function ChromeLine({ state, onSetup }: { state: State; onSetup: () => void }) {
-  const [asked, setAsked] = useState(() => Date.now() - chromeAsk.at < 5 * 60_000);
-  if (state.state === 'on' || state.reason === 'server') return null;
-  const fda = state.reason === 'nofda';
-  const connecting = state.state === 'connecting';
+/** Her Figma window, view only: a click or Enter brings the Figma app forward. */
+function FrameButton({ hidden, img, onClick }: { hidden: boolean; img: React.RefObject<HTMLImageElement | null>; onClick: () => void }) {
   return (
-    <section className="ff-chrome" aria-labelledby="ff-chrome-title">
-      <h3 id="ff-chrome-title" className="ff-chrome-title">Watch Claude work in your Figma tab</h3>
-      <p className="ff-chrome-text">
-        {connecting ? 'Asking Chrome. If Chrome asks, click Allow.' : <>Design Studio can show your Figma tab from Chrome here. {CHROME_REASONS[state.reason] ?? 'Chrome is not linked yet'}.</>}
-      </p>
-      {!connecting && (
-        <>
-          {/* Chrome runs on the computer, so a phone can only point there. */}
-          <p className="ff-chrome-text ff-chrome-phone">Connect from your computer: open Design Studio on your Mac and press {ALLOW_CHROME} on the Figma tab.</p>
-          <button className="ff-chrome-btn" onClick={() => { setAsked(true); onSetup(); }}>
-            {fda ? 'Open Full Disk Access settings' : ALLOW_CHROME}
-          </button>
-        </>
-      )}
-      {asked && (
-        fda ? (
-          <p className="ff-chrome-text" role="status">Drag Design Studio from the Finder window into the Full Disk Access list and turn it on. Design Studio connects on its own; if it does not, quit and reopen it from the menu bar.</p>
-        ) : (
-          <div role="status">
-            <ol className="ff-chrome-steps">
-              <li>In the Chrome tab that opened, tick "{CHROME_CHECKBOX}".</li>
-              <li>Click Allow. Design Studio connects on its own.</li>
-            </ol>
-          </div>
-        )
-      )}
-    </section>
+    <button type="button" className="fa-view" hidden={hidden} aria-label={SWITCH} onClick={onClick}>
+      <img ref={img} alt="" draggable={false} />
+      <span className="fa-hint" aria-hidden="true">{SWITCH}</span>
+    </button>
   );
 }
 
-/** Shows whether her Figma tab follows Claude, by shape and words: a filled dot while following, a hollow one when not. */
+/** What stands between her and the Figma window, one at a time, with the one action that fixes it. */
+function CaptureState({ capture, send }: { capture: Capture; send: (m: object) => void }) {
+  const openFigma = <button type="button" className="primary" onClick={() => send({ t: 'front' })}>Open Figma</button>;
+  switch (capture.state) {
+    case 'nofigma':
+      return <StateBlock text="Figma is not open.">{openFigma}</StateBlock>;
+    case 'nowindow':
+      return <StateBlock text="Figma has no file open.">{openFigma}</StateBlock>;
+    case 'noperm':
+      return (
+        <StateBlock text="Design Studio needs Screen Recording to show your Figma window." note="Turn on Design Studio, then come back.">
+          <button type="button" className="primary" onClick={() => send({ t: 'settings' })}>Open System Settings</button>
+        </StateBlock>
+      );
+    case 'error':
+    case 'nohelper': {
+      const text = capture.state === 'nohelper' ? 'The helper that shows your Figma window is not set up yet.' : capture.plain && capture.detail ? capture.detail : 'Design Studio could not show your Figma window.';
+      return <StateBlock text={text} alert><button type="button" className="primary" onClick={() => send({ t: 'retry' })}>Try again</button></StateBlock>;
+    }
+    case 'offline':
+      return <StateBlock text="Connecting to Design Studio…" status />;
+    default:
+      return <StateBlock text="Looking for your Figma window…" status />;
+  }
+}
+
+function StateBlock({ text, note, status, alert, children }: { text: string; note?: string; status?: boolean; alert?: boolean; children?: React.ReactNode }) {
+  return (
+    <div className="fa-state">
+      <p className="fa-state-text" role={status ? 'status' : alert ? 'alert' : undefined}>{text}</p>
+      {children}
+      {note && <p className="fa-state-note">{note}</p>}
+    </div>
+  );
+}
+
+/** No plugin runs in this chat's file: how to start it, and a one-time setup in a small popover. */
+function PluginStrip({ manifest }: { manifest: string }) {
+  const [open, setOpen] = useState(false);
+  const link = useRef<HTMLButtonElement>(null);
+  return (
+    <div className="fa-strip">
+      <span>To follow Claude, start the Design Studio plugin in Figma: Plugins &gt; Development &gt; Design Studio.</span>
+      <button ref={link} type="button" className="link fa-link" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>How to add it</button>
+      {open && <SetupPop anchor={link} manifest={manifest} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function SetupPop({ anchor, manifest, onClose }: { anchor: React.RefObject<HTMLButtonElement | null>; manifest: string; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const pathId = useId();
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+  useDialogFocus(true, box, onClose);
+
+  // Opens 4px under its link, kept inside the window.
+  useLayoutEffect(() => {
+    const place = () => {
+      const a = anchor.current?.getBoundingClientRect();
+      const w = box.current?.offsetWidth ?? 360;
+      if (a) setPos({ left: Math.max(16, Math.min(a.left, window.innerWidth - w - 16)), top: a.bottom + 4 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [anchor]);
+
+  const copy = () => {
+    navigator.clipboard.writeText(manifest).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }, () => {});
+  };
+
+  return (
+    <>
+      <div className="fa-pop-scrim" onClick={onClose} />
+      <div ref={box} className="fa-pop" role="dialog" aria-labelledby={titleId} style={pos ?? { left: -9999, top: 0 }}>
+        <div className="fa-pop-head">
+          <h2 id={titleId}>Add the Design Studio plugin</h2>
+          <IconButton label="Close" className="icon-btn" onClick={onClose}><Icon name="close" small /></IconButton>
+        </div>
+        <p>You do this once in the Figma app.</p>
+        <ol>
+          <li>In Figma, choose Plugins &gt; Development &gt; Import plugin from manifest.</li>
+          <li>
+            Pick this file:
+            <span className="fa-path">
+              <code id={pathId}>{manifest || 'figma-plugin/manifest.json in the Design Studio folder'}</code>
+              {manifest && <button type="button" aria-describedby={pathId} onClick={copy}>{copied ? 'Copied' : 'Copy path'}</button>}
+            </span>
+          </li>
+          <li>Start it from Plugins &gt; Development &gt; Design Studio, and keep its window open while you work.</li>
+        </ol>
+        <span className="sr-only" role="status">{copied ? 'Path copied' : ''}</span>
+      </div>
+    </>
+  );
+}
+
+/** Shows whether her Figma follows Claude, by shape and words: a filled dot while following, a hollow one when not. */
 function FollowButton({ on, paused, onClick }: { on: boolean; paused: boolean; onClick: () => void }) {
   const active = on && !paused;
   const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : 'Following Claude';
