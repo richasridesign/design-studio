@@ -8,7 +8,7 @@
 .tr-empty { font-size: var(--text-sm); color: var(--fg-faint); }
 
 .tr-user {
-  position: relative; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  position: relative; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--bg-elevated); color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere;
   box-shadow: 0 1px 1px rgba(31, 27, 22, 0.13);
 }
@@ -50,7 +50,7 @@
 
 .tr-file {
   display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px;
-  border: 1px solid var(--border); border-radius: var(--radius, 8px); background: var(--bg-raised);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated);
   font-size: var(--text-sm); color: var(--fg); cursor: pointer;
 }
 .tr-file:hover { border-color: var(--border-strong); }
@@ -108,7 +108,7 @@
 .tr-phase::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 /* The card's main lines (title, counts, area rows, actions) read at 16/24 like the chat; the screens line and notes are meta at 14. */
-.tr-review { position: relative; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); font-size: var(--text-md); line-height: 24px; color: var(--fg-muted); }
+.tr-review { position: relative; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); font-size: var(--text-md); line-height: 24px; color: var(--fg-muted); }
 /* Label and tokens on the first line, the summary on its own line under them. */
 .tr-review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--fg); }
 .tr-review-head .tr-dur { line-height: 16px; }

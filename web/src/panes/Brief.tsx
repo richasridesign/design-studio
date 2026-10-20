@@ -164,7 +164,7 @@ export function Brief(expand: Expand) {
               <section className="up-next" aria-labelledby="up-next-h">
                 <h3 className="up-next-h" id="up-next-h">
                   <button className="up-next-toggle" aria-expanded={stepsOpen} aria-controls="up-next-list" title={stepsOpen ? 'Hide what Claude does next' : 'Show what Claude does next'} onClick={toggleSteps}>
-                    Up next{next.length > 0 && <span className="badge">{next.length}</span>}<Icon name={stepsOpen ? 'chevron-up' : 'chevron-down'} small />
+                    Up next{next.length > 0 && <span className="badge">{next.length}</span>}<Icon name={stepsOpen ? 'chevron-down' : 'chevron-right'} small />
                   </button>
                 </h3>
                 {stepsOpen && (

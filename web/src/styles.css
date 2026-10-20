@@ -62,8 +62,12 @@
   --radius-sm: 8px;
   --radius-lg: 24px;
   --radius-pill: 999px;
+  /* Rows in lists and menus, and small icon buttons: the hover fill's corner. */
+  --radius-row: 6px;
   --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06);
-  --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.08), 0 1px 3px rgba(60, 40, 20, 0.06);
+  /* Menus, popovers and dialogs float on a soft layered shadow: a faint ring, a close shadow and a wide one. Cards have none. */
+  --shadow-pop: 0 0 0 1px rgba(60, 40, 20, 0.04), 0 3px 6px rgba(60, 40, 20, 0.06), 0 9px 24px rgba(60, 40, 20, 0.12);
+  --shadow-md: var(--shadow-pop);
   --claude: var(--link);
   --claude-button: var(--accent);
   /* Headings: Fraunces with soft corners, a free stand-in for Recoleta. UI text: Inter Tight. */
@@ -157,10 +161,8 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .icon { flex: none; }
 .codicon.icon { font-size: 18px; line-height: 1; }
 .codicon.icon.small { font-size: 16px; }
-.svg-icon.icon { width: 18px; height: 18px; flex: none; display: inline-block; vertical-align: middle; }
-.svg-icon.icon.small { width: 16px; height: 16px; }
 .icon-btn {
-  width: 24px; height: 24px; min-height: 0; padding: 0; flex: none; border: 0; border-radius: var(--radius-sm);
+  width: 24px; height: 24px; min-height: 0; padding: 0; flex: none; border: 0; border-radius: var(--radius-row);
   background: transparent; color: var(--fg-muted); display: inline-flex; align-items: center; justify-content: center;
 }
 .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
@@ -190,7 +192,7 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .activitybar button.active::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; z-index: -1; border-radius: 50%; background: var(--tint-lavender); box-shadow: inset 0 0 0 1px var(--ink-lavender); }
 .activitybar button[data-view] { opacity: 0.7; }
 .activitybar button[data-view]:hover, .activitybar button[data-view].active { opacity: 1; }
-.activitybar .codicon.icon { font-size: 24px; }
+.activitybar .codicon.icon { font-size: 20px; }
 .activitybar .badge { position: absolute; right: 8px; bottom: 8px; }
 .badge {
   display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 5px;
@@ -209,25 +211,25 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .side-sash { width: 8px; margin: 0 -4px; flex: none; cursor: ew-resize; position: relative; z-index: 2; }
 .side-sash:hover, .side-sash:focus-visible { background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 6px, transparent 6px); outline: none; }
 .workbench[data-sidebar='false'] .side-sash { display: none; }
+/* Section labels in the sidebar are small and muted, in sentence case, as in Notion. */
 .sidebar-title {
-  height: 35px; flex: none; display: flex; align-items: center; padding: 0 20px;
-  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted);
+  height: 36px; flex: none; display: flex; align-items: center; padding: 0 20px;
+  font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted);
 }
 .section-title {
   font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg);
   padding: 4px 0; display: flex; align-items: center; gap: 4px;
 }
-.section-title::before { content: '\eab4'; font: 14px/1 codicon; color: var(--fg-muted); }
 
 .status-card { padding: 4px 0 8px 14px; border-left: 2px solid var(--border); margin-left: 4px; }
 .status-card.running { border-left-color: var(--accent); }
 .status-text { font-size: var(--text-md); color: var(--fg); margin-bottom: 4px; }
 .status-card .ghost { margin-top: 6px; padding-left: 0; }
+/* Cards are flat blocks: white, a thin border, 8px corners, no shadow and no coloured bar. */
 .card {
-  background: var(--bg-raised); border: 1px solid var(--border); border-left: 3px solid var(--warn); border-radius: var(--radius);
-  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
 }
-.card.permission { border-left-color: var(--accent); }
 .card .label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); font-weight: 600; }
 /* Chips are white pills with a subtle border, as on the portfolio tags. */
 .chip { display: inline-block; font-size: var(--text-xs); line-height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--fg-muted); border: 1px solid var(--border); }
@@ -325,19 +327,21 @@ button.send:disabled { opacity: 0.35; cursor: default; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 6px; z-index: 10; }
+/* Menus and popovers: white, 8px corners, a subtle edge and the layered popover shadow. */
 .switcher {
-  width: min(600px, 92vw); max-height: 60vh; background: var(--bg-raised); border: 1px solid var(--border-strong);
-  border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-md);
+  width: min(600px, 92vw); max-height: 60vh; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-pop);
 }
 .switcher input { margin: 6px; width: auto; }
 .overlay.dialog-overlay { align-items: center; padding: 16px; background: var(--overlay); }
+/* Dialogs: white, 8px corners, 24px padding, an 18px title. */
 .dialog {
-  width: min(420px, 100%); background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius);
-  box-shadow: var(--shadow-md); padding: 16px 16px 12px; display: grid;
+  width: min(420px, 100%); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop); padding: 24px; display: grid;
   grid-template-columns: auto 1fr; gap: 4px 12px;
 }
 .dialog-icon .codicon { font-size: 28px; color: var(--warn); }
-.dialog-title { color: var(--fg); font-size: var(--text-md); font-weight: 600; margin-bottom: 4px; }
+.dialog-title { color: var(--fg); font-size: var(--text-lg); line-height: 24px; font-weight: 600; margin-bottom: 4px; }
 .dialog-detail { color: var(--fg-muted); overflow-wrap: anywhere; }
 .dialog-warning { color: var(--fg-muted); font-size: var(--text-sm); margin-top: 6px; }
 .dialog-icon.neutral .codicon { color: var(--accent); }
@@ -346,18 +350,18 @@ button.send:disabled { opacity: 0.35; cursor: default; }
   color: var(--fg); background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm);
 }
 .dialog-input:focus { outline: 0; border-color: var(--focus); }
-.dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .dialog-actions button { min-width: 76px; border-radius: var(--radius-sm); }
 /* Text darker than --err so it keeps 4.5:1 on the red tint, also on hover. */
 button.destructive { background: color-mix(in srgb, var(--err) 18%, transparent); color: color-mix(in srgb, var(--err) 75%, #000); }
 button.destructive:hover { background: color-mix(in srgb, var(--err) 28%, transparent); }
 .overlay.anchored .switcher { position: fixed; width: min(340px, calc(100vw - 16px)); }
 .overlay.anchored .switcher ul { padding: 4px; }
-.overlay.anchored .switcher li { height: 30px; padding: 0 8px; gap: 10px; border-radius: var(--radius-sm); }
+.overlay.anchored .switcher li { height: 32px; padding: 0 8px; gap: 8px; border-radius: var(--radius-row); }
 .overlay.anchored .switcher li .detail { margin-left: 0; }
 .overlay.anchored .switcher li > span:first-child { min-width: 124px; }
-.switcher ul { list-style: none; margin: 0; padding: 0 0 4px; overflow: auto; }
-.switcher li { padding: 2px 12px; height: 22px; display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: var(--text-md); }
+.switcher ul { list-style: none; margin: 0; padding: 0 4px 4px; overflow: auto; }
+.switcher li { padding: 0 8px; height: 32px; display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: var(--text-md); border-radius: var(--radius-row); }
 .switcher li:hover { background: var(--bg-hover); }
 .switcher li.active { background: var(--accent-soft); color: var(--fg); }
 .switcher li > span:first-child { white-space: nowrap; flex: none; }
@@ -427,12 +431,13 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .switcher li .detail { margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .composer { position: relative; }
 .cmd-popup {
-  position: absolute; left: 12px; right: 12px; bottom: 100%; margin: 0 0 -1px; padding: 4px 0; list-style: none;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius) var(--radius) 0 0; box-shadow: var(--shadow-md);
+  position: absolute; left: 12px; right: 12px; bottom: 100%; margin: 0 0 -1px; padding: 4px; list-style: none;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; box-shadow: var(--shadow-pop);
   max-height: 260px; overflow: auto; z-index: 5;
 }
-.cmd-popup li { padding: 2px 12px; height: 22px; display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: var(--text-md); }
-.cmd-popup li.active, .cmd-popup li:hover { background: var(--accent-soft); color: var(--fg); }
+.cmd-popup li { padding: 0 8px; height: 32px; display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: var(--text-md); border-radius: var(--radius-row); }
+.cmd-popup li:hover { background: var(--bg-hover); color: var(--fg); }
+.cmd-popup li.active { background: var(--accent-soft); color: var(--fg); }
 .cmd-popup .detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .explorer { display: flex; flex-direction: column; min-height: 0; flex: 1; }
@@ -486,7 +491,7 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .tl-now .icon-btn { width: 24px; height: 24px; }
 .tl-thumbs { grid-column: 2; display: flex; gap: 6px; padding: 4px 0 2px; }
 .tl-thumbs:empty { display: none; }
-.tl-thumbs button { padding: 0; height: 64px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); overflow: hidden; cursor: pointer; }
+.tl-thumbs button { padding: 0; height: 64px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); overflow: hidden; cursor: pointer; }
 .tl-thumbs img { display: block; height: 100%; width: auto; max-width: 120px; object-fit: contain; }
 /* The foot over the conversation has its own surface, one step darker than the chat column, so replies scroll behind it
    with a clear edge. --brief-bg is reset here so the status mark and anything else that masks with it match the foot. */
@@ -524,7 +529,7 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .step input { flex: 1; min-width: 0; height: 22px; font-size: var(--text-sm); }
 .step.add .link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
 .step.add .link:hover { color: var(--link); }
-.brief-cards .card { margin: 0; border-radius: var(--radius); border: 1px solid var(--border); border-left: 3px solid var(--warn); background: var(--bg-raised); }
+.brief-cards .card { margin: 0; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elevated); }
 .card .plan { max-height: 50vh; overflow: auto; padding: 4px 10px; background: var(--bg-sunken); border-radius: var(--radius-sm); }
 button.send.steer { background: var(--claude-button); }
 .folder-switch {
@@ -589,7 +594,9 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
   .workbench[data-focus='true'] .pane.center { display: none; }
 }
 
-.tl-setup { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+/* Notices are callouts: a pastel block with the status shape at the left. Amber asks for attention, pink is a failure. */
+.tl-setup { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--tint-amber); font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.tl-setup:has(.tl-setup-mark.bad) { background: var(--tint-pink); }
 .tl-setup-mark { flex: none; width: 8px; height: 8px; margin-top: 6px; background: var(--warn); }
 .tl-setup-mark.bad { width: 0; height: 0; background: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--err); margin-top: 5px; }
 .tl-setup .link { background: none; border: 0; padding: 0; color: var(--link); cursor: pointer; font-size: inherit; }
