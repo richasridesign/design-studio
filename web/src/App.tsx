@@ -193,7 +193,7 @@ export function App() {
   const wideNow = useRef(false);
   const place = useRef<ReadPlace>(null);
   const setWide = (next: boolean) => {
-    place.current = readPlace();
+    if (wideNow.current !== next) place.current = readPlace();
     setChatWide(next);
   };
   const notifying = useNotify();
@@ -236,7 +236,7 @@ export function App() {
   };
   const open = (c: Center) => {
     setCenter(c);
-    setChatWide(false);
+    setWide(false);
     if (narrow()) setTab(isMobileCenter(c) ? c : 'more');
   };
 
@@ -300,7 +300,7 @@ export function App() {
     const onCommand = (e: Event) => {
       const [kind, arg] = (e as CustomEvent<{ id: string }>).detail.id.split(':');
       if (kind === 'view') {
-        setChatWide(false);
+        setWide(false);
         if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
@@ -315,11 +315,13 @@ export function App() {
       else if (kind === 'tab') setTab(arg as Tab);
       // Filling the message box while the chat is hidden shows the chat again.
       else if (kind === 'chat' && arg === 'show') setChatOpen(true);
+      // A frame link shows the frame in the Figma tab, so an expanded chat makes room for it.
+      else if (kind === 'chat' && arg === 'collapse') setWide(false);
     };
     const onSection = (e: Event) => {
       const next = (e as CustomEvent<{ view?: unknown }>).detail?.view;
       if (!isView(next)) return;
-      setChatWide(false);
+      setWide(false);
       setView(next);
       setSidebar(true);
       if (narrow()) setTab('more');
@@ -361,16 +363,23 @@ export function App() {
   // cancels its own edit). Focus goes back to the Expand chat button.
   useEffect(() => {
     if (!wide) return;
+    // Popovers close on their own document listeners, which run first, so whether one was open is read in the
+    // capture phase, before any of them.
+    let popupOpen = false;
+    const before = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') popupOpen = Boolean(document.querySelector('[aria-modal=true], [aria-haspopup][aria-expanded=true]'));
+    };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || narrow()) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || narrow() || popupOpen) return;
       const at = e.target instanceof Element ? e.target : null;
-      if (at?.closest('[role=dialog], [role=alertdialog], [role=menu], [role=listbox]') || document.querySelector('[aria-modal=true]')) return;
+      if (at?.closest('[role=dialog], [role=alertdialog], [role=menu], [role=listbox]')) return;
       if (at?.closest('input, select, [contenteditable=true]') || (at?.matches('textarea') && !at.closest('.cp-text'))) return;
       setWide(false);
       wideToggle.current?.focus();
     };
+    window.addEventListener('keydown', before, true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', before, true); window.removeEventListener('keydown', onKey); };
   }, [wide]);
   const wanted = narrow() && isMobileCenter(tab) ? tab : center;
   const shownCenter = centers.some((c) => c.id === wanted) ? wanted : centers[0]?.id;

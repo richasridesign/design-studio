@@ -6,4 +6,8 @@ export const insertPrompt = (text: string) => window.dispatchEvent(new CustomEve
 /** Shows and focuses the message box without changing its text. */
 export const focusComposer = () => window.dispatchEvent(new Event('designstudio:compose'));
 export const attachFigma = () => window.dispatchEvent(new Event('designstudio:attach'));
-export const showNode = (nodeId: string) => postJson('/api/figma/focus', { nodeId }).catch(() => {});
+/** Shows a frame in the Figma tab. An expanded chat collapses first, so the frame is in sight. */
+export const showNode = (nodeId: string) => {
+  window.dispatchEvent(new CustomEvent('designstudio:command', { detail: { id: 'chat:collapse' } }));
+  return postJson('/api/figma/focus', { nodeId }).catch(() => {});
+};
