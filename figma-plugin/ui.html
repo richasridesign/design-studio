@@ -1,0 +1,59 @@
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; padding: 12px 16px; font: 12px/16px Inter, system-ui, sans-serif; color: var(--figma-color-text, #1e1e1e); background: var(--figma-color-bg, #fff); }
+  .row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; border: 2px solid var(--figma-color-text-secondary, #6e6e6e); flex: none; }
+  .on .dot { background: var(--figma-color-bg-success, #14ae5c); border-color: var(--figma-color-bg-success, #14ae5c); }
+  .status { flex: 1; font-weight: 600; }
+  p { margin: 8px 0 0; color: var(--figma-color-text-secondary, #6e6e6e); }
+  button { font: inherit; color: inherit; background: none; border: 1px solid var(--figma-color-border-strong, #8c8c8c); border-radius: 6px; height: 24px; padding: 0 8px; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--figma-color-border-selected, #0d99ff); outline-offset: 1px; }
+  .small p { display: none; }
+</style>
+<div id="root">
+  <div class="row" id="line"><span class="dot" aria-hidden="true"></span><span class="status" id="status" role="status">Looking for Design Studio</span><button id="size" type="button" aria-pressed="false">Make smaller</button></div>
+  <p>Connects this file to Design Studio on this Mac. While this window is open, Figma shows the screen Claude is editing and selects the changed layers. Move the view yourself and following pauses.</p>
+  <p id="wait">Design Studio is not running, or it is on another computer. This window keeps trying.</p>
+</div>
+<script>
+  const URL_ = 'ws://localhost:7778/ws?figma-plugin';
+  const root = document.getElementById('root');
+  const status = document.getElementById('status');
+  const wait = document.getElementById('wait');
+  const sizeBtn = document.getElementById('size');
+  let ws = null;
+  let delay = 1000;
+  const toCode = (m) => parent.postMessage({ pluginMessage: m }, '*');
+  const show = (on) => {
+    document.getElementById('line').classList.toggle('on', on);
+    status.textContent = on ? 'Connected to Design Studio' : 'Looking for Design Studio';
+    wait.hidden = on;
+  };
+  function open() {
+    const s = new WebSocket(URL_);
+    ws = s;
+    s.onopen = () => { delay = 1000; show(true); toCode({ t: 'ready' }); };
+    s.onmessage = (ev) => { try { toCode(JSON.parse(ev.data)); } catch (e) {} };
+    s.onclose = () => {
+      if (ws !== s) return;
+      ws = null;
+      show(false);
+      setTimeout(open, delay);
+      delay = Math.min(delay * 2, 10000);
+    };
+  }
+  // Messages from the plugin code go to Design Studio as they are.
+  window.onmessage = (ev) => {
+    const m = ev.data && ev.data.pluginMessage;
+    if (m && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m));
+  };
+  sizeBtn.onclick = () => {
+    const small = !root.classList.contains('small');
+    root.classList.toggle('small', small);
+    sizeBtn.textContent = small ? 'Make larger' : 'Make smaller';
+    sizeBtn.setAttribute('aria-pressed', String(small));
+    toCode({ t: 'small', on: small });
+  };
+  show(false);
+  open();
+</script>

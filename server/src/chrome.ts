@@ -7,6 +7,7 @@ import { WebSocket } from 'ws';
 import { parseFigmaUrl } from '../../shared/design.js';
 import { FOLLOW, type FollowResult, type FollowView } from './follow.js';
 import { loadedSettings } from './settings.js';
+import { followState, forgetView, pauseFollow, resumeFollow, useChromeFollow } from './followRun.js';
 
 type Tab = { id: string; title: string; url: string; at: number };
 type State = 'off' | 'connecting' | 'on';
@@ -341,7 +342,7 @@ async function emulate(restart = true) {
   if ((emulated?.session === session ? emulated.key : '') === key) return;
   emulated = { session, key };
   // A new size moves Figma's view without her touching it, so the next follow does not take that as her move.
-  follows.forEach((f) => { f.last = null; });
+  forgetView();
   try {
     if (m) {
       await call('Emulation.setDeviceMetricsOverride', { width: m.cssW, height: m.cssH, deviceScaleFactor: m.dpr, mobile: m.mobile }, session);
@@ -539,35 +540,6 @@ export async function focusFigma(fileKey: string, nodeId: string, navigate: bool
   }
 }
 
-type Follow = { paused: boolean; last: FollowView | null; ids: string[] };
-const follows = new Map<string, Follow>();
-const followOf = (fileKey: string) => {
-  let f = follows.get(fileKey);
-  if (!f) follows.set(fileKey, (f = { paused: false, last: null, ids: [] }));
-  return f;
-};
-/** Design Studio moved or reloaded her Figma tab itself: the next follow must not read the new view as her move. */
-const forgetView = (fileKey?: string) => follows.forEach((f, k) => { if (!fileKey || k === fileKey) f.last = null; });
-let following = false;
-let nextFollow: { fileKey: string; ids: string[]; start: boolean } | null = null;
-/** At most one move per this many ms, so each screen stays long enough to see. */
-export const FOLLOW_GAP = 1500;
-
-/** What the Figma tab header shows: the files she paused following in, and whether the setting is on. */
-export function followState() {
-  return { t: 'follow', on: loadedSettings().followClaude, paused: [...follows].filter(([, f]) => f.paused).map(([k]) => k) };
-}
-
-export const sendFollowState = () => broadcast(followState());
-
-function pauseFollow(fileKey: string) {
-  const f = followOf(fileKey);
-  if (f.paused) return;
-  f.paused = true;
-  if (nextFollow?.fileKey === fileKey) nextFollow = null;
-  sendFollowState();
-}
-
 function pauseWatched() {
   if (!watching || !loadedSettings().followClaude) return;
   const url = tabs.get(watching.target)?.url ?? '';
@@ -575,43 +547,7 @@ function pauseWatched() {
   if (key) pauseFollow(key);
 }
 
-/** She clicked Follow Claude: following starts again from where Claude is now, and her own view is not a reason to stop. */
-export function resumeFollow(fileKey: string) {
-  const f = followOf(fileKey);
-  f.paused = false;
-  f.last = null;
-  sendFollowState();
-  if (f.ids.length) void followFigma(fileKey, f.ids);
-}
-
-/**
- * Moves her Figma tab to what Claude is editing. Edits come fast, so one move runs at a time, only the newest waits,
- * and moves are at least FOLLOW_GAP apart. `start`: the edit is starting, so its section alone is not worth a move.
- */
-export async function followFigma(fileKey: string, ids: string[], start = false) {
-  const f = followOf(fileKey);
-  f.ids = ids;
-  if (f.paused) return;
-  nextFollow = { fileKey, ids, start };
-  if (following) return;
-  following = true;
-  try {
-    while (nextFollow) {
-      const job: { fileKey: string; ids: string[]; start: boolean } = nextFollow;
-      nextFollow = null;
-      const jf = followOf(job.fileKey);
-      if (jf.paused) continue;
-      const result = await followOnce(job.fileKey, job.ids, jf.last, job.start);
-      if (typeof result === 'string') console.log(`follow in Figma: ${result}`);
-      else if (result.status === 'moved') pauseFollow(job.fileKey);
-      else if (result.view) jf.last = result.view;
-      if (typeof result !== 'string' && result.status === 'ok') await sleep(FOLLOW_GAP);
-    }
-  } finally {
-    following = false;
-  }
-}
-
+/** The follow in a Figma tab in Chrome, when the Design Studio plugin does not run in that file in the Figma app. */
 async function followOnce(fileKey: string, ids: string[], last: FollowView | null, start: boolean): Promise<FollowResult | string> {
   if (!cdp) return 'nochrome';
   const tab = figmaTab(fileKey);
@@ -629,6 +565,8 @@ async function followOnce(fileKey: string, ids: string[], last: FollowView | nul
     if (session && !own) void call('Target.detachFromTarget', { sessionId: session }).catch(() => {});
   }
 }
+
+useChromeFollow(followOnce, broadcast);
 
 const MAX_SHOT_HEIGHT = 16000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

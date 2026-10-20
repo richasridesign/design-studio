@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW, type FollowResult, type FollowView } from './follow.js';
+import { FOLLOW, followIn, viewWatch, type FollowResult, type FollowView } from './follow.js';
 
 type N = { id: string; type: string; parent: N | null; absoluteBoundingBox?: { x: number; y: number; width: number; height: number }; removed?: boolean };
 
@@ -112,5 +112,29 @@ describe('FOLLOW', () => {
     expect((await run(figma, ['3:3'], first.view!)).status).toBe('moved');
     expect(calls.center + calls.zoom).toBe(moves);
     expect(selected(figma)).toEqual([]);
+  });
+});
+
+describe('viewWatch', () => {
+  it('reports her own move once, and never the plugin\'s own', async () => {
+    const { figma, pan } = fakeFigma();
+    const moved: number[] = [];
+    const watch = viewWatch(figma, () => moved.push(1));
+    expect(watch.check()).toBe(false);
+    // While the plugin moves the view, a poll in the middle is not her move.
+    const r = await watch.run(async () => {
+      const p = followIn(figma, ['3:2'], null, false);
+      watch.left({ page: '0:1', targets: 'old', cx: 0, cy: 0, zoom: 1 });
+      expect(watch.check()).toBe(false);
+      return p;
+    });
+    watch.left(r.view!);
+    expect(watch.check()).toBe(false);
+    pan(40);
+    expect(watch.check()).toBe(true);
+    expect(watch.check()).toBe(false);
+    expect(moved).toHaveLength(1);
+    figma.currentPage = { id: '0:2', selection: [] };
+    expect(watch.check()).toBe(false);
   });
 });
