@@ -1,6 +1,10 @@
 .chat-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
 /* Expand chat sits at the right end of the head, 32px like the scope lock beside it. */
-.chat-head .chat-expand { margin-left: auto; width: 32px; height: 32px; }
+.chat-head .chat-expand { margin-left: auto; flex: none; width: 32px; height: 32px; }
+/* A flow chat's head holds the place chip too: the view switcher drops to its own row, so Expand chat never leaves the panel. */
+.chat-head:has(.place-chip) { flex-wrap: wrap; row-gap: 8px; }
+.chat-head:has(.place-chip)::after { content: ''; flex-basis: 100%; }
+.chat-head:has(.place-chip) .chat-view { order: 1; }
 .chat-head .scope-switch + .chat-expand { margin-left: 0; }
 /* The head sits on the card's clipped edge, so its icon buttons draw the focus ring inside. */
 .chat-head .icon-btn:focus-visible { outline-offset: -2px; }
