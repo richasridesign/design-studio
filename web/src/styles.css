@@ -459,7 +459,7 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .card pre.wrap { font-family: var(--mono); font-size: var(--text-sm); background: var(--bg-sunken); border-radius: var(--radius-sm); padding: 6px 8px; max-height: 200px; overflow: auto; }
 
 .brief {
-  --brief-bg: var(--bg-raised);
+  --brief-bg: var(--bg-elevated);
   flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px;
   margin: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--brief-bg);
 }
