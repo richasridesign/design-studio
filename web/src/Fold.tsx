@@ -23,7 +23,7 @@ export function useFold(open: boolean, setOpen: (v: boolean) => void) {
 export const FoldButton = forwardRef<HTMLButtonElement, { controls: string; describedBy?: string; onClick: () => void; className?: string }>(function FoldButton({ controls, describedBy, onClick, className }, ref) {
   return (
     <IconButton ref={ref} label="Collapse" place="top" aria-expanded aria-controls={controls} aria-describedby={describedBy} className={`icon-btn fold-btn${className ? ` ${className}` : ''}`} onClick={onClick}>
-      <Icon name="chevron-up" small />
+      <Icon name="chevron-down" small />
     </IconButton>
   );
 });
@@ -51,7 +51,7 @@ export const FoldLine = forwardRef<HTMLButtonElement, { controls: string; onClic
         onClick={onClick}
       >
         <span className="fold-text">{children}</span>
-        <span className="fold-mark" aria-hidden="true"><Icon name="chevron-down" small /></span>
+        <span className="fold-mark" aria-hidden="true"><Icon name="chevron-right" small /></span>
       </button>
       {t.tip}
     </>

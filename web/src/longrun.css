@@ -5,7 +5,7 @@
   /* Anchored to the message card: 4px clear of its 1px border, above the text. */
   position: absolute; z-index: 20; left: 0; bottom: calc(100% + 5px); width: min(320px, calc(100vw - 32px)); padding: 12px 16px 16px;
   display: flex; flex-direction: column; gap: 8px;
-  background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
   font-size: var(--text-sm); color: var(--fg);
 }
 .lr-pop-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--text-md); line-height: 24px; }
@@ -18,7 +18,8 @@
 .lr-pct input { width: 72px; }
 .lr-help { color: var(--fg-muted); font-size: var(--text-xs); line-height: 16px; }
 .lr-field + .lr-help { margin-top: -4px; text-align: right; }
-.lr-warn { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 0; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
+/* Warnings are amber callouts with the square mark at the left. */
+.lr-warn { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 0; padding: 8px 12px; border-radius: var(--radius-row); background: var(--tint-amber); font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
 .lr-warn-mark { flex: none; width: 8px; height: 8px; margin-top: 4px; background: var(--warn); }
 .lr-warn .link { font-size: inherit; min-height: 0; }
 .lr-pop-foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
@@ -79,4 +80,4 @@
 .lr-hint > svg, .lr-hint > .icon { flex: none; margin-top: 2px; }
 .lr-hint > .icon-btn { margin-top: -2px; }
 .lr-hint-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.lr-hint-warn { display: flex; align-items: flex-start; gap: 8px; margin-top: -4px; font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
+.lr-hint-warn { display: flex; align-items: flex-start; gap: 8px; margin-top: -4px; padding: 8px 12px; border-radius: var(--radius-row); background: var(--tint-amber); font-size: var(--text-xs); line-height: 16px; color: var(--fg); }
