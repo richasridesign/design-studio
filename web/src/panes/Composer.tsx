@@ -555,8 +555,8 @@ export function Composer() {
         </div>
         <div className="cp-foot">
           {!shell && <ModelPicker />}
-          {!shell && <LongRunButton text={full} onStart={startLongRun} />}
           <span className="cp-spacer" />
+          {!shell && <LongRunButton text={full} onStart={startLongRun} />}
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { void attach(imagesIn(e.target.files)); e.target.value = ''; }} />
           <button className="icon-btn" title="Attach images" aria-label="Attach images" onClick={() => picker.current?.click()}><Icon name="paperclip" small /></button>
           <Voice onText={dictate} onError={setVoiceError} />
