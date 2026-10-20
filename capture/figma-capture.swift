@@ -78,9 +78,11 @@ func state(_ s: String, _ detail: String? = nil) {
   emit(1, try! JSONSerialization.data(withJSONObject: obj))
 }
 
-/// The front-most normal window of the process, front to back as the window server lists them. Needs no permission.
+/// The Figma window to show: the front-most normal window on this screen, else the largest one in another space or full
+/// screen (Figma in its own space is the usual setup beside Design Studio). Needs no permission.
 func frontWindow(of pid: pid_t) -> (id: CGWindowID, size: CGSize)? {
-  guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+  guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+  var best: (id: CGWindowID, size: CGSize)?
   for w in list {
     guard (w[kCGWindowOwnerPID as String] as? Int).map({ pid_t($0) }) == pid,
           (w[kCGWindowLayer as String] as? Int) == 0,
@@ -89,9 +91,10 @@ func frontWindow(of pid: pid_t) -> (id: CGWindowID, size: CGSize)? {
           rect.width >= 200, rect.height >= 150,
           (w[kCGWindowAlpha as String] as? Double ?? 1) > 0,
           let id = w[kCGWindowNumber as String] as? Int else { continue }
-    return (CGWindowID(id), rect.size)
+    if (w[kCGWindowIsOnscreen as String] as? Bool) == true { return (CGWindowID(id), rect.size) }
+    if best == nil || rect.width * rect.height > best!.size.width * best!.size.height { best = (CGWindowID(id), rect.size) }
   }
-  return nil
+  return best
 }
 
 func targetPid() -> pid_t? {
@@ -153,7 +156,7 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     defer { starting = false }
     stop()
     do {
-      let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+      let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
       guard let win = content.windows.first(where: { $0.windowID == front.id && $0.owningApplication?.processID == pid }) else {
         return state("nowindow")
       }
