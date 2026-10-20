@@ -1,6 +1,6 @@
 import type { FollowResult, FollowView } from './follow.js';
 import { loadedSettings } from './settings.js';
-import { markStalled, pluginEditing, pluginFiles, pluginFollow, pluginFor, pluginForget } from './figmaPlugin.js';
+import { markStalled, pluginEditing, pluginFiles, pluginFollow, pluginFor, pluginForget, pluginsIn } from './figmaPlugin.js';
 
 // Follow Claude in Figma, whichever way her Figma is reached: the Design Studio plugin in the Figma app when it runs
 // in the chat's file, else a Figma tab in Chrome over CDP (chrome.ts registers that way). One move at a time, only
@@ -93,6 +93,9 @@ function syncEditing(fileKey: string) {
   if (!f) return;
   const plugin = pluginFor(fileKey, f.name);
   if (plugin) pluginEditing(plugin, f.editing && !f.paused && loadedSettings().followClaude);
+  // Only the followed one sends changes and shows Claude's cursor; another in the same file (the Figma app's plugin
+  // beside the Design Studio window) is told to stop.
+  for (const other of pluginsIn(fileKey)) if (other !== plugin) pluginEditing(other, false);
 }
 
 /** Nodes the plugin saw change in this file. Followed only while Claude edits it, so her own edits never move her view. */

@@ -14,7 +14,7 @@ type CaptureState = 'on' | 'noperm' | 'nofigma' | 'nowindow' | 'error' | 'nohelp
 /** `offline`: the socket to Design Studio's server is closed and reconnecting. */
 type Capture = { state: CaptureState | 'offline'; detail?: string; plain?: boolean };
 /** A Design Studio plugin running in a file in the Figma app. `key` is null until the file is matched by its name. */
-type Plugin = { key: string | null; name: string; page: string; following: boolean; stalled: boolean; screen: string };
+type Plugin = { key: string | null; name: string; page: string; following: boolean; stalled: boolean; screen: string; embed: boolean };
 /** Follow Claude in Figma: whether the setting is on, the files where she paused it, where the plugin runs, and the files Claude edits now. */
 type Follow = { on: boolean; paused: string[]; plugins: Plugin[]; editing: string[] };
 
@@ -84,7 +84,7 @@ export function BrowserPane() {
           setFollow({
             on: m.on !== false,
             paused: Array.isArray(m.paused) ? m.paused : [],
-            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true, stalled: p.stalled === true, screen: typeof p.screen === 'string' ? p.screen : '' })) : [],
+            plugins: Array.isArray(m.plugins) ? m.plugins.filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ key: typeof p.key === 'string' ? p.key : null, name: p.name, page: typeof p.page === 'string' ? p.page : '', following: p.following === true, stalled: p.stalled === true, screen: typeof p.screen === 'string' ? p.screen : '', embed: p.embed === true })) : [],
             editing: Array.isArray(m.editing) ? m.editing.filter((k: unknown) => typeof k === 'string') : [],
           });
         } else if (m.t === 'plugin' && typeof m.manifest === 'string') setManifest(m.manifest);
@@ -135,7 +135,9 @@ export function BrowserPane() {
   };
 
   const chatFile = figma && figma.key !== SAMPLE ? figma : null;
-  const mine = chatFile ? follow.plugins.find((p) => p.key === chatFile.key || (!!p.name && norm(p.name) === norm(chatFile.name))) : undefined;
+  const inFile = chatFile ? follow.plugins.filter((p) => p.key === chatFile.key || (!!p.name && norm(p.name) === norm(chatFile.name))) : [];
+  // In the Mac window the Figma view is what she sees, so its entry counts over the Figma app's plugin in that file.
+  const mine = (EMBED ? inFile.find((p) => p.embed) : undefined) ?? inFile[0];
   const shown = mine ?? (!chatFile && follow.plugins.length === 1 ? follow.plugins[0] : undefined);
   const fileName = shown?.name || chatFile?.name || '';
   const page = shown?.page || '';
@@ -168,7 +170,7 @@ export function BrowserPane() {
         </span>
         {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} embed={EMBED} onClick={toggleFollow} />}
         {EMBED && (
-          <IconButton label="Open in Figma app" className="icon-btn" onClick={() => send({ t: 'front', key: chatFile?.key })}>
+          <IconButton label="Open in Figma app" place="top" className="icon-btn" onClick={() => send({ t: 'front', key: chatFile?.key })}>
             <Icon name="link-external" small />
           </IconButton>
         )}
@@ -359,9 +361,10 @@ function SetupPop({ anchor, manifest, onClose }: { anchor: React.RefObject<HTMLB
  */
 function FollowButton({ on, paused, ready, stalled, embed, onClick }: { on: boolean; paused: boolean; ready: boolean; stalled: boolean; embed: boolean; onClick: () => void }) {
   const active = on && !paused && ready && !stalled;
+  // In the Mac window the Figma view covers everything under the bar, so tips open above it.
   // In the Mac window, "not ready" means figma.com has not opened the file for editing yet (still loading, or signed out).
   const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : !ready ? (embed ? 'Waiting for Figma' : 'Waiting for the plugin') : stalled ? 'Waiting for Figma' : 'Following Claude';
-  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : !ready ? (embed ? 'Figma is opening the file. If it asks, log in to Figma below. Click to pause following.' : 'Start the Design Studio plugin in Figma to follow Claude. Click to pause following.') : stalled ? 'Click into the file in Figma so it answers the plugin. Click to pause following.' : 'Pause following Claude');
+  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : !ready ? (embed ? 'Figma is opening the file. If it asks, log in to Figma below. Click to pause following.' : 'Start the Design Studio plugin in Figma to follow Claude. Click to pause following.') : stalled ? 'Click into the file in Figma so it answers the plugin. Click to pause following.' : 'Pause following Claude', embed ? 'top' : 'bottom');
   return (
     <>
       <button type="button" className={`follow-btn${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick} {...tip.props}>

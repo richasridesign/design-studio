@@ -99,7 +99,12 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.pageName = str(m.pageName);
       hooks.page?.();
     } else if (m.t === 'shown' && conn.embed) {
-      conn.shown = m.on === true;
+      // Which connection is followed first changes with this, so who is told Claude edits is worked out again.
+      const shown = m.on === true;
+      if (shown !== conn.shown && conns.has(conn)) {
+        conn.shown = shown;
+        hooks.page?.();
+      } else conn.shown = shown;
     } else if (m.t === 'screen' && conn.embed && conns.has(conn)) {
       const screen = str(m.name, 120);
       if (screen !== conn.screen) {
@@ -156,6 +161,9 @@ export function pluginFor(fileKey: string, name?: string): Conn | null {
   byName.followKey = fileKey;
   return byName;
 }
+
+/** Every open connection in this file (by key or the name it was matched by), so the ones not followed can be told to stop. */
+export const pluginsIn = (fileKey: string) => [...conns].filter((c) => c.ws.readyState === OPEN && (c.key ?? c.followKey) === fileKey);
 
 export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled, embed: c.embed, screen: c.screen }));
 
