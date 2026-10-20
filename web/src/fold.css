@@ -2,11 +2,11 @@
 .fold-line {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--row); padding: 3px 3px 3px 16px;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated);
-  font-size: var(--text-sm); line-height: 20px; color: var(--fg); text-align: left;
+  font-size: var(--text-md); line-height: 24px; color: var(--fg); text-align: left;
 }
 .fold-line:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
 .fold-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fold-mark { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); color: var(--fg-muted); }
 .fold-line:hover .fold-mark { background: var(--bg-hover); color: var(--fg); }
 .icon-btn.fold-btn { width: 28px; height: 28px; }
-@media (max-width: 900px) { .fold-line { min-height: 44px; } .fold-text { font-size: var(--text-md); line-height: 24px; } }
+@media (max-width: 900px) { .fold-line { min-height: 44px; } }
