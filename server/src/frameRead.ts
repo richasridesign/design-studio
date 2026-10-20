@@ -19,7 +19,8 @@ export type Loaded = { id: string; document: any; components: Record<string, any
  * (fill, stroke, text), b box, fs font size, fw font weight, x characters, r reaction count, ra reactions
  * ([trigger, [[action type, destination, navigation]]]), m main component, lm layout mode, sp item spacing,
  * p paddings, cr corner radius, c children. Components carry their set's name, and hover targets are looked up so
- * the Code scan can compare a hover variant with the instance's own.
+ * the Code scan can compare a hover variant with the instance's own. `where` names, per id, the screen it sits in and
+ * that screen's section, so a review can show "Activate · Empty state" instead of the id.
  */
 export function framesScript(ids: string[], maxNodes = MAX_NODES) {
   return `const IDS = ${JSON.stringify(ids)};
@@ -124,10 +125,18 @@ async function walk(n) {
   return o;
 }
 const frames = [];
+const where = {};
+const holder = (p) => p.type === 'PAGE' || p.type === 'DOCUMENT' || p.type === 'SECTION' || (p.type === 'FRAME' && (p.children || []).some((c) => c.type === 'SECTION'));
 for (const id of IDS) {
   const n = await figma.getNodeByIdAsync(id);
   if (!n || n.type === 'PAGE' || n.type === 'DOCUMENT') { missing.push(id); continue; }
   frames.push(await walk(n));
+  try {
+    let s = n;
+    while (s.parent && !holder(s.parent)) s = s.parent;
+    const p = s.parent;
+    where[id] = [String(s.name == null ? '' : s.name).slice(0, 200), p && p.type !== 'PAGE' && p.type !== 'DOCUMENT' ? String(p.name == null ? '' : p.name).slice(0, 200) : ''];
+  } catch (e) {}
 }
 for (const id of dests) {
   if (components[id]) continue;
@@ -139,11 +148,12 @@ for (const id of dests) {
     components[id] = { name: d.name, remote: !!d.remote, ...(set ? { componentSetId: set.id, setName: set.name } : {}) };
   } catch (e) {}
 }
-return { frames, components, missing, nodes: count, truncated };`;
+return { frames, components, missing, nodes: count, truncated, where };`;
 }
 
 type Compact = { i: string; n: string; t: string; h?: 1; o?: number; f?: any[]; s?: any[]; bv?: string[]; y?: number[]; b?: number[]; fs?: number; fw?: number; x?: string; r?: number; ra?: Array<[string, Array<[string, string | null, string | null]>]>; m?: string; lm?: string; sp?: number; p?: number[]; cr?: number; c?: Compact[] };
-export type FramesPart = { frames: Compact[]; components: Record<string, any>; missing: string[]; nodes: number; truncated: boolean };
+/** `where`: per id, [screen name, section name or '']. Missing in reads made before it was added. */
+export type FramesPart = { frames: Compact[]; components: Record<string, any>; missing: string[]; nodes: number; truncated: boolean; where?: Record<string, [string, string]> };
 
 const paint = (p: any[]) => (p[0] === 'S' ? { type: 'SOLID', color: { r: p[1], g: p[2], b: p[3], a: 1 }, opacity: p[4], visible: p[5] !== 0 } : { type: p[0], visible: p[1] !== 0 });
 
@@ -186,7 +196,22 @@ export function framesFromParts(ids: string[], parts: FramesPart[]) {
   const components = Object.assign({}, ...parts.map((p) => p.components ?? {}));
   const byId = new Map(parts.flatMap((p) => p.frames).map((f) => [f.i, f]));
   const docs: Loaded[] = ids.filter((id) => byId.has(id)).map((id) => ({ id, document: expandFrame(byId.get(id)!), components }));
-  return { docs, missing: parts.flatMap((p) => p.missing), truncated: parts.some((p) => p.truncated), nodes: parts.reduce((n, p) => n + p.nodes, 0) };
+  const where: Record<string, [string, string]> = Object.assign({}, ...parts.map((p) => p.where ?? {}));
+  return { docs, names: screenNames(docs, where), missing: parts.flatMap((p) => p.missing), truncated: parts.some((p) => p.truncated), nodes: parts.reduce((n, p) => n + p.nodes, 0) };
+}
+
+/**
+ * Per frame id, the name she knows it by: "Section · Screen", or the screen alone outside a section. A read without
+ * `where` falls back to the frame's own name.
+ */
+export function screenNames(docs: Loaded[], where: Record<string, [string, string]>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const d of docs) {
+    const [screen, section] = Array.isArray(where[d.id]) ? where[d.id] : [String(d.document?.name ?? ''), ''];
+    const label = [section, screen].map((x) => (typeof x === 'string' ? x.trim() : '')).filter(Boolean).join(' · ');
+    if (label) out[d.id] = label;
+  }
+  return out;
 }
 
 /** Rough wait for a read of this many frames. 6 frames with screenshots took 22 seconds on a large test file. */
@@ -197,7 +222,7 @@ export function readEstimate(frames: number, shots = true) {
 
 export const readingText = (frames: number, shots = true) => `Reading ${frames === 1 ? 'the frame' : `${frames} frames`} from Figma, ${readEstimate(frames, shots)}`;
 
-export type FrameRead = { docs: Loaded[]; shots: string[]; missing: string[]; truncated: boolean; costUsd: number; ms: number };
+export type FrameRead = { docs: Loaded[]; shots: string[]; missing: string[]; truncated: boolean; costUsd: number; ms: number; /** Per frame id: "Section · Screen". */ names?: Record<string, string> };
 
 const shotFile = (id: string) => `${id.replace(/[:;]/g, '-')}.png`;
 
@@ -219,7 +244,7 @@ export async function readFrames(fileKey: string, ids: string[], opts: { dir: st
     signal: opts.signal,
     key: `frames:${opts.shots?.maxDimension ?? 0}:${unique.join(',')}`,
   }, opts);
-  const { docs, missing, truncated } = framesFromParts(unique, r.value as FramesPart[]);
+  const { docs, names, missing, truncated } = framesFromParts(unique, r.value as FramesPart[]);
   if (!docs.length) throw new FigmaError('Figma could not find those frames. They may have been deleted.', 404);
   const shots: string[] = [];
   if (opts.shots) {
@@ -231,7 +256,7 @@ export async function readFrames(fileKey: string, ids: string[], opts: { dir: st
       await fetchTo(url, path.join(opts.dir, file)).then(() => shots.push(file)).catch((err) => console.error('frame shot:', (err as Error).message));
     }
   }
-  return { docs, shots, missing, truncated, costUsd: r.costUsd, ms: r.ms };
+  return { docs, names, shots, missing, truncated, costUsd: r.costUsd, ms: r.ms };
 }
 
 /** Saves a short-lived screenshot url to a file. */

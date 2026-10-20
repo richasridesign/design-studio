@@ -187,7 +187,7 @@ function ReviewDetail({ run, doc, onDoc, focus, triage, change, awaiting, dev = 
   return (
     <>
       <div className="review-summary">
-        <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} /></div>
+        <div><b>{runLabel(run)}</b> · {when(run.at)} · <FrameNames ids={run.frames} names={run.names} /></div>
         {run.costUsd > 0 && <div className="muted">Cost: ${run.costUsd.toFixed(2)}{dev && run.tokens ? ` · ${k(run.tokens)} tokens` : ''}</div>}
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
       </div>
