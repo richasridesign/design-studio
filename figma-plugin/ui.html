@@ -23,6 +23,12 @@
   const sizeBtn = document.getElementById('size');
   let ws = null;
   let delay = 1000;
+  // Design Studio pings every 10 seconds and the plugin code answers (code.ts), so a ping proves the whole plugin is
+  // alive, not only this window. A socket that has heard nothing for a while is dead (Figma froze this window, the
+  // Mac slept, the server went away without closing): it is closed here, so the status stays honest and a new
+  // socket is opened.
+  const QUIET_MS = 30000;
+  let heard = 0;
   const toCode = (m) => parent.postMessage({ pluginMessage: m }, '*');
   const show = (on) => {
     document.getElementById('line').classList.toggle('on', on);
@@ -32,8 +38,13 @@
   function open() {
     const s = new WebSocket(URL_);
     ws = s;
-    s.onopen = () => { delay = 1000; show(true); toCode({ t: 'ready' }); };
-    s.onmessage = (ev) => { try { toCode(JSON.parse(ev.data)); } catch (e) {} };
+    s.onopen = () => { delay = 1000; heard = Date.now(); show(true); toCode({ t: 'ready' }); };
+    s.onmessage = (ev) => {
+      heard = Date.now();
+      let m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      toCode(m);
+    };
     s.onclose = () => {
       if (ws !== s) return;
       ws = null;
@@ -54,6 +65,7 @@
     sizeBtn.setAttribute('aria-pressed', String(small));
     toCode({ t: 'small', on: small });
   };
+  setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN && Date.now() - heard > QUIET_MS) ws.close(); }, 5000);
   show(false);
   open();
 </script>

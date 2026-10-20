@@ -12,7 +12,7 @@ type CaptureState = 'on' | 'noperm' | 'nofigma' | 'nowindow' | 'error' | 'nohelp
 /** `offline`: the socket to Design Studio's server is closed and reconnecting. */
 type Capture = { state: CaptureState | 'offline'; detail?: string; plain?: boolean };
 /** A Design Studio plugin running in a file in the Figma app. `key` is null until the file is matched by its name. */
-type Plugin = { key: string | null; name: string; page: string; following: boolean };
+type Plugin = { key: string | null; name: string; page: string; following: boolean; stalled: boolean };
 /** Follow Claude in Figma: whether the setting is on, the files where she paused it, and where the plugin runs. */
 type Follow = { on: boolean; paused: string[]; plugins: Plugin[] };
 
@@ -142,7 +142,10 @@ export function BrowserPane() {
   };
 
   const showing = capture.state === 'on' && hasFrame;
-  const strip = !showing || !chatFile || mine ? null : follow.plugins.length ? 'other' : 'none';
+  // No plugin runs in this chat's file: said whenever following is on, whatever the capture shows, since nothing
+  // else tells her why Figma does not move. Offline, the plugin list is stale, so nothing is claimed.
+  const other = chatFile && !mine ? follow.plugins[0] : undefined;
+  const strip = capture.state === 'offline' || !chatFile || !follow.on ? null : mine ? (mine.stalled ? 'stalled' : null) : other ? 'other' : 'none';
 
   return (
     <div className="browser-pane">
@@ -151,12 +154,17 @@ export function BrowserPane() {
           {fileName && <span className="fa-file">{fileName}</span>}
           {fileName && page && <span className="fa-page"> · {page}</span>}
         </span>
-        {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} onClick={toggleFollow} />}
+        {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} onClick={toggleFollow} />}
       </div>
       {strip === 'none' && <PluginStrip manifest={manifest} />}
-      {strip === 'other' && chatFile && (
+      {strip === 'stalled' && chatFile && (
         <div className="fa-strip" role="status">
-          <span>Figma shows a different file than this chat. Open {chatFile.name} to follow.</span>
+          <span>The plugin is open but Figma is not answering it. Click into {chatFile.name} in Figma, so it is the front tab.</span>
+        </div>
+      )}
+      {strip === 'other' && chatFile && other && (
+        <div className="fa-strip" role="status">
+          <span>The plugin runs in {other.name}. To follow Claude here, start it in {chatFile.name}: Plugins &gt; Development &gt; Design Studio.</span>
         </div>
       )}
       <div className="frame-host" ref={host}>
@@ -279,17 +287,21 @@ function SetupPop({ anchor, manifest, onClose }: { anchor: React.RefObject<HTMLB
   );
 }
 
-/** Shows whether her Figma follows Claude, by shape and words: a filled dot while following, a hollow one when not. */
-function FollowButton({ on, paused, onClick }: { on: boolean; paused: boolean; onClick: () => void }) {
-  const active = on && !paused;
-  const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : 'Following Claude';
-  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : 'Pause following Claude');
+/**
+ * Shows whether her Figma follows Claude, by shape and words: a filled dot while following, a hollow one when not.
+ * `ready`: the plugin runs in this chat's file, so following can happen; without it the button says it is waiting.
+ * `stalled`: it runs, but Figma does not answer it (the file is not the front tab), so the button waits for Figma.
+ */
+function FollowButton({ on, paused, ready, stalled, onClick }: { on: boolean; paused: boolean; ready: boolean; stalled: boolean; onClick: () => void }) {
+  const active = on && !paused && ready && !stalled;
+  const label = !on ? 'Follow Claude' : paused ? 'Paused, click to follow' : !ready ? 'Waiting for the plugin' : stalled ? 'Waiting for Figma' : 'Following Claude';
+  const tip = useTip(!on ? 'Turn on Follow Claude in Figma' : paused ? 'Follow Claude again' : !ready ? 'Start the Design Studio plugin in Figma to follow Claude. Click to pause following.' : stalled ? 'Click into the file in Figma so it answers the plugin. Click to pause following.' : 'Pause following Claude');
   return (
     <>
       <button type="button" className={`follow-btn${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick} {...tip.props}>
         <span className="follow-dot" aria-hidden="true" />
         <span className="follow-label">{label}</span>
-        <span className="follow-short" aria-hidden="true">{!on ? 'Follow' : paused ? 'Paused' : 'Following'}</span>
+        <span className="follow-short" aria-hidden="true">{!on ? 'Follow' : paused ? 'Paused' : ready && !stalled ? 'Following' : 'Waiting'}</span>
       </button>
       {tip.tip}
     </>

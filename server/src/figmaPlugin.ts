@@ -10,6 +10,8 @@ export type PluginSocket = {
   readyState: number;
   on(event: 'message', cb: (raw: unknown) => void): unknown;
   on(event: 'close', cb: () => void): unknown;
+  /** Absent on a fake socket in tests. */
+  terminate?: () => void;
 };
 export type PluginHooks = {
   /** She moved the view in this file: following pauses there. */
@@ -31,6 +33,8 @@ type Conn = {
   /** The chat file this plugin was last matched to by name, so her move pauses the right file. */
   followKey: string | null;
   pending: Map<number, (r: FollowResult | string) => void>;
+  /** The last follow got no answer from Figma: the plugin runs, but its file is not the front tab in Figma. */
+  stalled: boolean;
 };
 
 const conns = new Set<Conn>();
@@ -38,10 +42,29 @@ let nextId = 1;
 const OPEN = 1;
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
 const KEY = /^[A-Za-z0-9]{10,64}$/;
+/** Every PING_MS the server pings the plugin; a socket that answered nothing by the next ping is dead and dropped. */
+export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map() };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false };
+  // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
+  // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
+  // the way a protocol ping is), so only a plugin that can still run counts as alive.
+  let alive = true;
+  const timer = setInterval(() => {
+    if (ws.readyState !== OPEN) return;
+    if (!alive) {
+      console.log(`figma plugin: no answer from "${conn.name}", dropping it`);
+      ws.terminate?.();
+      return;
+    }
+    alive = false;
+    try {
+      ws.send(JSON.stringify({ t: 'ping' }));
+    } catch {}
+  }, PING_MS);
   ws.on('message', (raw) => {
+    alive = true;
     let m: any;
     try {
       m = JSON.parse(String(raw));
@@ -57,6 +80,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.pageName = str(m.pageName);
       conn.followKey = null;
       conns.add(conn);
+      console.log(`figma plugin: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
       hooks.changed();
     } else if (m.t === 'page' && conns.has(conn)) {
       conn.page = str(m.pageId, 64);
@@ -72,6 +96,8 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
     }
   });
   ws.on('close', () => {
+    clearInterval(timer);
+    if (conns.has(conn)) console.log(`figma plugin: closed in "${conn.name}"`);
     conns.delete(conn);
     conn.pending.forEach((done) => done('failed: the plugin closed'));
     conn.pending.clear();
@@ -80,7 +106,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
 }
 
 function validResult(r: any): FollowResult | null {
-  if (!r || typeof r !== 'object' || !['ok', 'shown', 'moved', 'nonode', 'noapi'].includes(r.status)) return null;
+  if (!r || typeof r !== 'object' || !['ok', 'shown', 'moved', 'nonode', 'noapi', 'stalled'].includes(r.status)) return null;
   const v = r.view;
   if (v === undefined) return { status: r.status };
   const num = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
@@ -104,7 +130,14 @@ export function pluginFor(fileKey: string, name?: string): Conn | null {
   return byName;
 }
 
-export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName }));
+export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled }));
+
+/** Remembers whether Figma answers this plugin's follows; true when that changed, so the Figma tab can be told. */
+export function markStalled(conn: Conn, stalled: boolean) {
+  if (conn.stalled === stalled) return false;
+  conn.stalled = stalled;
+  return true;
+}
 
 /** Asks the plugin to show these nodes. A plugin that does not answer in `ms` counts as failed, not as a move. */
 export function pluginFollow(conn: Conn, ids: string[], last: FollowView | null, start: boolean, ms = 8000): Promise<FollowResult | string> {

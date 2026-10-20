@@ -36,11 +36,11 @@
     const picked = screens.length ? screens : all;
     const targets = picked.length > 3 ? picked.slice(0, 1) : picked;
     const key = targets.map((t) => t.id).join(",");
-    const within = (a, b) => {
+    const within2 = (a, b) => {
       for (let p = a.parent; p; p = p.parent) if (p === b) return true;
       return false;
     };
-    const deepest = onPage.filter((n) => !onPage.some((m) => m !== n && within(m, n))).slice(0, 20);
+    const deepest = onPage.filter((n) => !onPage.some((m) => m !== n && within2(m, n))).slice(0, 20);
     const select = () => {
       try {
         figma2.currentPage.selection = deepest;
@@ -97,6 +97,17 @@
   var SMALL = { w: 280, h: 48 };
   figma.showUI(__html__, { width: SIZE.w, height: SIZE.h, title: "Design Studio", themeColors: true });
   var api = figma;
+  var STALL_MS = 6e3;
+  var within = (p, ms) => new Promise((r) => {
+    const t = setTimeout(() => r("stalled"), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      r(v);
+    }, () => {
+      clearTimeout(t);
+      r("stalled");
+    });
+  });
   var watch = viewWatch(api, () => figma.ui.postMessage({ t: "moved" }));
   var fileKey = () => {
     try {
@@ -109,14 +120,16 @@
   figma.ui.onmessage = async (m) => {
     if (!m || typeof m !== "object") return;
     if (m.t === "ready") hello();
+    else if (m.t === "ping") figma.ui.postMessage({ t: "pong" });
     else if (m.t === "follow" && typeof m.id === "number" && Array.isArray(m.ids)) {
       let result = null;
       try {
         const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
-        result = await watch.run(() => {
+        const r = await watch.run(() => {
           var _a;
-          return followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true);
+          return within(followIn(api, ids, (_a = m.last) != null ? _a : null, m.start === true), STALL_MS);
         });
+        result = r === "stalled" ? { status: "stalled" } : r;
         if (result.view) watch.left(result.view);
         else if (result.status === "moved") watch.left(null);
       } catch (e) {

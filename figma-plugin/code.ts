@@ -11,6 +11,9 @@ const SMALL = { w: 280, h: 48 };
 figma.showUI(__html__, { width: SIZE.w, height: SIZE.h, title: 'Design Studio', themeColors: true });
 
 const api = figma as FigmaLike;
+/** Figma answers a plugin's node lookups only while the file is its front tab: a follow that waits longer than this says so. */
+const STALL_MS = 6000;
+const within = <T>(p: Promise<T>, ms: number) => new Promise<T | 'stalled'>((r) => { const t = setTimeout(() => r('stalled'), ms); p.then((v) => { clearTimeout(t); r(v); }, () => { clearTimeout(t); r('stalled'); }); });
 const watch = viewWatch(api, () => figma.ui.postMessage({ t: 'moved' }));
 
 // Figma gives the file's key only to private plugins, and may throw instead of answering; Design Studio then finds
@@ -21,11 +24,14 @@ const hello = () => figma.ui.postMessage({ t: 'hello', fileKey: fileKey(), fileN
 figma.ui.onmessage = async (m: any) => {
   if (!m || typeof m !== 'object') return;
   if (m.t === 'ready') hello();
+  // Design Studio's heartbeat: answered here, not in the window, so a stalled plugin thread shows as no plugin.
+  else if (m.t === 'ping') figma.ui.postMessage({ t: 'pong' });
   else if (m.t === 'follow' && typeof m.id === 'number' && Array.isArray(m.ids)) {
     let result: FollowResult | null = null;
     try {
       const ids = m.ids.filter((id: unknown) => typeof id === 'string').slice(0, 200);
-      result = await watch.run(() => followIn(api, ids, m.last ?? null, m.start === true));
+      const r = await watch.run(() => within(followIn(api, ids, m.last ?? null, m.start === true), STALL_MS));
+      result = r === 'stalled' ? { status: 'stalled' } : r;
       if (result.view) watch.left(result.view);
       else if (result.status === 'moved') watch.left(null);
     } catch {
