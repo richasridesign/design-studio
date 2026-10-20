@@ -172,8 +172,9 @@ export function App() {
     }
   });
   const toggleFocus = () => setFocusMode((v) => !v);
-  // Expand chat: the chat covers the whole window, its conversation in a 720px column. Desktop only; a phone already
-  // shows the chat full screen. The panels stay laid out underneath, so the Figma mirror keeps its size.
+  // Expand chat: the chat takes the panel area (Figma, Review, History), its conversation in a 720px column. The top
+  // bar, the activity bar and the sidebar stay as they are. Desktop only; a phone already shows the chat full screen.
+  // The Figma tab is out of sight meanwhile, so its capture pauses.
   const [chatWide, setChatWide] = useState(() => {
     try {
       return localStorage.getItem('designstudio.chatExpanded') === '1';
@@ -288,8 +289,8 @@ export function App() {
       if (k === 'o') { e.preventDefault(); window.dispatchEvent(new Event('designstudio:attach')); }
       if (k === '.' && !narrow()) { e.preventDefault(); toggleFocus(); }
       if (e.code === 'KeyB' && e.altKey && !narrow()) { e.preventDefault(); setChatOpen((v) => !v); }
-      // The sidebar sits under the expanded chat, so ⌘B there brings the panels back with the sidebar shown.
-      else if (k === 'b') { e.preventDefault(); if (wideNow.current) { setWide(false); setSidebar(true); } else setSidebar((v) => !v); }
+      // The sidebar stays beside the expanded chat, so ⌘B shows or hides it as always.
+      else if (k === 'b') { e.preventDefault(); setSidebar((v) => !v); }
       if (k === 'j' && dev) { e.preventDefault(); setTerminal((v) => !v); }
     };
     window.addEventListener('keydown', onKey);
@@ -299,8 +300,8 @@ export function App() {
   useEffect(() => {
     const onCommand = (e: Event) => {
       const [kind, arg] = (e as CustomEvent<{ id: string }>).detail.id.split(':');
+      // A sidebar view opens beside the expanded chat; only a panel (open) makes the chat give the room back.
       if (kind === 'view') {
-        setWide(false);
         if (arg === 'rules') openSection('system', 'rules');
         else if (isView(arg)) { setView(arg); setSidebar(true); if (narrow()) setTab('more'); }
       }
@@ -321,7 +322,6 @@ export function App() {
     const onSection = (e: Event) => {
       const next = (e as CustomEvent<{ view?: unknown }>).detail?.view;
       if (!isView(next)) return;
-      setWide(false);
       setView(next);
       setSidebar(true);
       if (narrow()) setTab('more');
@@ -360,7 +360,8 @@ export function App() {
     return () => { clearTimeout(stop); end(); el.removeEventListener('wheel', end); el.removeEventListener('touchstart', end); };
   }, [wide]);
   // Esc collapses, unless it belongs to something open (a menu, dialog, the composer's suggestions or a field that
-  // cancels its own edit). Focus goes back to the Expand chat button.
+  // cancels its own edit) or to the sidebar, which stays usable beside the chat. Focus goes back to the Expand chat
+  // button.
   useEffect(() => {
     if (!wide) return;
     // Popovers close on their own document listeners, which run first, so whether one was open is read in the
@@ -372,6 +373,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || narrow() || popupOpen) return;
       const at = e.target instanceof Element ? e.target : null;
+      if (at && at !== document.body && !at.closest('.main')) return;
       if (at?.closest('[role=dialog], [role=alertdialog], [role=menu], [role=listbox]')) return;
       if (at?.closest('input, select, [contenteditable=true]') || (at?.matches('textarea') && !at.closest('.cp-text'))) return;
       setWide(false);
@@ -412,7 +414,7 @@ export function App() {
         {!connected && <span className="error-text">Disconnected</span>}
       </header>
       <div className="body">
-        <nav className="activitybar desktop-only" aria-label="Views" inert={wide}>
+        <nav className="activitybar desktop-only" aria-label="Views">
           {views.map((v) => {
             const badge = v.id === 'chats' && elsewhere > 0;
             return (
@@ -426,7 +428,7 @@ export function App() {
         </nav>
 
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
-        <section className="sidebar pane side" inert={wide} role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
+        <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
           <div className="sidebar-title">
             {(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}
             <span className="spacer" />
@@ -443,7 +445,7 @@ export function App() {
           </ErrorBoundary>
         </section>
         {/* Drag to widen the sidebar, double-click for the default width. Arrow keys move it by 16px. */}
-        <div className="side-sash desktop-only" inert={wide} role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={sideW}
+        <div className="side-sash desktop-only" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={sideW}
           tabIndex={0} title="Drag to resize, double-click to reset" onPointerDown={startSideResize} onDoubleClick={() => setSideW(SIDE_MIN)} onKeyDown={sideKeys} />
 
         {/* On a phone the chat is hidden behind the Figma or Review tab, so the shown panel is the main landmark. */}

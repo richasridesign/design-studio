@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api, getJson, postJson, send, useRev, useStore } from '../store';
 import { Icon } from '../Icon';
 import { WORKFLOW_INFO, type CardAction, type StepCard, type StepId, type StepView, type WorkflowState } from '../../../shared/workflow';
@@ -7,6 +7,7 @@ import { focusComposer, insertPrompt } from './composerEvents';
 import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import { PickCard } from './PickCard';
 import { WorkflowMenu } from './WorkflowMenu';
+import { FoldButton, FoldLine, useFold } from '../Fold';
 import '../workflow.css';
 
 // The workflow strip and the step card above a flow chat: which step the flow's iteration is at, and the one next
@@ -65,11 +66,12 @@ function Mark({ state }: { state: StepView['state'] }) {
   );
 }
 
-/** One row: the workflow's name, then its steps as text buttons, and the round once it is above 1. */
-export function WorkflowStrip({ view, onStep, onSwitch, disabled }: { view: FlowView; onStep: (s: StepId) => void; onSwitch?: (body: Extract<Post, { action: 'switch' }>) => Promise<unknown>; disabled?: boolean }) {
+/** One row: the workflow's name, then its steps as text buttons, and the round once it is above 1. `fold` is the
+ * Collapse chevron at its end, in the chat. */
+export function WorkflowStrip({ view, onStep, onSwitch, disabled, fold }: { view: FlowView; onStep: (s: StepId) => void; onSwitch?: (body: Extract<Post, { action: 'switch' }>) => Promise<unknown>; disabled?: boolean; fold?: ReactNode }) {
   const round = view.state.round;
   return (
-    <nav className="wf-strip" aria-label={`Workflow: ${WORKFLOW_INFO[view.state.workflow].name}`}>
+    <nav className={`wf-strip${fold ? ' has-fold' : ''}`} aria-label={`Workflow: ${WORKFLOW_INFO[view.state.workflow].name}`}>
       {onSwitch ? <WorkflowMenu state={view.state} flowName={view.flow.name} iteration={vId(view.iteration.id)} post={onSwitch} disabled={disabled} /> : <span className="wf-name">{WORKFLOW_INFO[view.state.workflow].name}</span>}
       <ol className="wf-steps">
         {view.steps.map((s, i) => (
@@ -91,6 +93,7 @@ export function WorkflowStrip({ view, onStep, onSwitch, disabled }: { view: Flow
         ))}
       </ol>
       {round > 1 && <span className="wf-round">Round {round}</span>}
+      {fold}
     </nav>
   );
 }
@@ -105,6 +108,34 @@ const ASKS: Partial<Record<CardAction, { step: StepId; text: (v: FlowView) => st
 /** Actions that send a message: they wait while Claude is in a turn. */
 const SENDS = new Set<CardAction>(['review', 'review-again', ...(Object.keys(ASKS) as CardAction[])]);
 
+const FOLD_KEY = 'designstudio.workflowCard';
+
+/** The folded line: where the flow is, e.g. "Workflow: Activate · V1.19 · Review, step 3 of 5". */
+export function workflowSummary(v: FlowView) {
+  const i = v.steps.findIndex((s) => s.state === 'current');
+  const step = i >= 0 ? `${v.steps[i].name}, step ${i + 1} of ${v.steps.length}` : `${v.steps.length} steps`;
+  return `Workflow: ${v.flow.name} · ${vId(v.iteration.id)} · ${step}${v.state.round > 1 ? `, round ${v.state.round}` : ''}`;
+}
+
+/**
+ * Whether the card above the conversation is open. Before the first message it is open, since its button starts the
+ * flow. Once the chat has messages it is folded, unless she opened it; her last choice is kept for this browser.
+ */
+function useCardOpen() {
+  const chat = useStore((s) => s.session.id);
+  const hasMessages = useStore((s) => s.events.length > 0);
+  const [stored, setStored] = useState(() => { try { return localStorage.getItem(FOLD_KEY); } catch { return null; } });
+  const [mine, setMine] = useState<boolean | null>(null);
+  useEffect(() => setMine(null), [chat]);
+  const open = mine ?? (hasMessages ? stored === 'open' : true);
+  const set = (v: boolean) => {
+    setMine(v);
+    setStored(v ? 'open' : 'closed');
+    try { localStorage.setItem(FOLD_KEY, v ? 'open' : 'closed'); } catch {}
+  };
+  return [open, set] as const;
+}
+
 /** The strip, the step card and their dialogs, for the chat's flow. Nothing for chats that are not on a flow. */
 export function WorkflowPanel() {
   const { view, error, setError, post } = useWorkflow();
@@ -114,14 +145,18 @@ export function WorkflowPanel() {
   const fileName = useStore((s) => s.session.figma?.name ?? 'this file');
   const [dialog, setDialog] = useState<'freeze' | 'next' | 'adopt' | null>(null);
   const [working, setWorking] = useState(false);
+  const [open, setOpen] = useCardOpen();
+  const fold = useFold(open, setOpen);
 
   if (!view || view.scope === 'none') return null;
   if (view.scope === 'unadopted') {
     return (
-      <div className="wf">
-        <div className="wf-card">
+      <div className={`wf${open ? '' : ' folded'}`}>
+        {!open && <FoldLine ref={fold.control} controls={fold.bodyId} onClick={fold.toggle}>Workflows: Adopt this file to use them</FoldLine>}
+        <div className="wf-card has-fold" id={fold.bodyId} hidden={!open}>
           <p className="wf-line">Adopt this file to use the workflows. Until then, chat works as usual.</p>
           <div className="wf-acts"><button onClick={() => setDialog('adopt')}>Adopt this file</button></div>
+          {open && <FoldButton ref={fold.control} controls={fold.bodyId} onClick={fold.toggle} />}
         </div>
         {dialog === 'adopt' && <AdoptDialog cwd={view.root} name={view.name} onClose={() => setDialog(null)} />}
       </div>
@@ -157,8 +192,11 @@ export function WorkflowPanel() {
   const primary = b?.primary && !busy;
 
   return (
-    <div className="wf">
-      <WorkflowStrip view={v} disabled={working} onSwitch={post} onStep={(step) => void run(() => post({ action: 'step', step }))} />
+    <div className={`wf${open ? '' : ' folded'}`}>
+      {!open && <FoldLine ref={fold.control} controls={fold.bodyId} onClick={fold.toggle}>{workflowSummary(v)}</FoldLine>}
+      <div className="wf-body" id={fold.bodyId} hidden={!open}>
+      <WorkflowStrip view={v} disabled={working} onSwitch={post} onStep={(step) => void run(() => post({ action: 'step', step }))}
+        fold={open && <FoldButton ref={fold.control} controls={fold.bodyId} onClick={fold.toggle} />} />
       {card.pick ? <PickCard state={v.state} flow={v.flow} post={post} busy={busy} running={running} /> : <div className="wf-card" aria-live="polite">
         <p className="wf-line">{card.line}</p>
         {(b || card.link) && (
@@ -178,6 +216,7 @@ export function WorkflowPanel() {
         )}
         {error && <p className="error-text small" role="alert">{error}</p>}
       </div>}
+      </div>
       {dialog === 'freeze' && <FreezeDialog view={v} onClose={() => setDialog(null)} />}
       {dialog === 'next' && (
         <NewIterationDialog

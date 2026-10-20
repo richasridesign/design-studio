@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { approvalReply } from '../../../shared/stages';
 import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
 import { FIX_ASK } from '../../../shared/workflow';
@@ -13,6 +13,7 @@ import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
+import { FoldButton, FoldLine, useFold } from '../Fold';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, replySummary, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
@@ -32,6 +33,8 @@ import { runningText } from '../StatusBar';
 export type ChatView = 'timeline' | 'transcript';
 
 const Settle = createContext({ settle: () => {}, recheck: () => {} });
+// The run time of the last review card in this chat: that card stays open, older ones fold to their title line.
+const NewestReview = createContext<number | null>(null);
 
 export function Transcript({ view = 'transcript', children }: { view?: ChatView; children?: ReactNode }) {
   const events = useStore((s) => s.events);
@@ -146,9 +149,11 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
   const scroll = useMemo(() => ({ settle, recheck }), [settle, recheck]);
+  const newestReview = useMemo(() => [...items].reverse().find((x): x is Extract<Item, { kind: 'review' }> => x.kind === 'review')?.runAt ?? null, [items]);
 
   return (
     <Settle.Provider value={scroll}>
+      <NewestReview.Provider value={newestReview}>
       <div ref={box} className={`tr ${view}`} onScroll={recheck}>
         {items.length === 0 && (
           <Welcome fileName={fileName} />
@@ -165,6 +170,7 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
         )}
         {children}
       </div>
+      </NewestReview.Provider>
     </Settle.Provider>
   );
 }
@@ -523,6 +529,14 @@ function ReviewCard({ runAt }: { runAt: number }) {
   const outline = useOutline(figmaKey);
   const lastModified = latestAt === runAt && figmaKey !== 'sample' ? outline?.lastModified : null;
   const full = doc?.runs.find((r) => r.at === runAt);
+  // The newest card stays open, older ones fold to their title line, until she opens or folds one herself.
+  const newest = useContext(NewestReview) === runAt;
+  const [mine, setMine] = useState<boolean | null>(null);
+  const open = mine ?? newest;
+  const fold = useFold(open, setMine);
+  const titleId = useId();
+  const { settle, recheck } = useContext(Settle);
+  useEffect(() => { if (mine === null) settle(); else recheck(); }, [open, mine, settle, recheck]);
   if (!doc || !full) return <div className="tr-system">Review finished</div>;
   // Findings closed by hand in the Review pane leave the counts, the area rows and the checklist.
   const run = openRun(full, triage);
@@ -537,13 +551,17 @@ function ReviewCard({ runAt }: { runAt: number }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+  const sum = summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run });
   return (
-    <div className="tr-review">
+    <div className={`tr-review${open ? '' : ' folded'}`}>
+      {!open && <FoldLine ref={fold.control} controls={fold.bodyId} className="tr-review-line" onClick={fold.toggle}><b>{runLabel(run)}</b> · {sum}</FoldLine>}
+      <div className="tr-review-body" id={fold.bodyId} hidden={!open}>
       <div className="tr-review-head">
-        <b>{runLabel(run)}</b>
-        <span className="tr-review-sum">{summarize({ kind: run.kind === 'audit' ? 'audit' : 'review', id: run.id, at: run.at, tokens: run.tokens, run })}{deciding > 0 && <> · <button className="link tr-review-await" title="Open Review: findings that change something shared wait for your decision" onClick={openReview}>{waitText(deciding)}</button></>}</span>
+        <b id={titleId}>{runLabel(run)}</b>
+        <span className="tr-review-sum">{sum}{deciding > 0 && <> · <button className="link tr-review-await" title="Open Review: findings that change something shared wait for your decision" onClick={openReview}>{waitText(deciding)}</button></>}</span>
       </div>
-      {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} /></div>}
+      {open && <FoldButton ref={fold.control} controls={fold.bodyId} describedBy={titleId} onClick={fold.toggle} />}
+      {run.frames.length > 0 && <div className="tr-review-frames"><FrameNames ids={run.frames} names={run.names} /></div>}
       <ul className="tr-review-rows">
         {areaRows(run).map((a) => (
           <li key={a.key} className={a.pass ? 'pass' : `fail tr-review-go ${a.tone}`}>
@@ -571,6 +589,7 @@ function ReviewCard({ runAt }: { runAt: number }) {
         {hasFindings && <button className="link" onClick={copy}>{copied ? 'Copied' : 'Copy as checklist'}</button>}
         {retryPrompt(run) && <button className="link" title="Put this review in the composer to run it again" onClick={() => insertPrompt(retryPrompt(run)!)}>Retry</button>}
         {canGoDeeper(run) && <button className="link" onClick={() => insertPrompt('/review full')}>Review deeper</button>}
+      </div>
       </div>
     </div>
   );

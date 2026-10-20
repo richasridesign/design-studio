@@ -5,12 +5,10 @@
 /* The head sits on the card's clipped edge, so its icon buttons draw the focus ring inside. */
 .chat-head .icon-btn:focus-visible { outline-offset: -2px; }
 @media (min-width: 901px) {
-  /* Expanded, the chat card covers the window. Everything else keeps its place underneath (inert), so the Figma mirror
-     keeps its size. */
-  .workbench[data-chat-expanded='true'] .body { position: relative; }
-  .workbench[data-chat-expanded='true'] .main .brief { position: absolute; inset: 0; z-index: 3; }
-  .workbench[data-chat-expanded='true'] .body::after { content: ''; position: absolute; inset: 0; z-index: 2; background: var(--bg); }
-  .workbench[data-chat-expanded='true'] :is(.activitybar, .sidebar, .side-sash, .editor-group, .sash) { visibility: hidden; }
+  /* Expanded, the chat grows into the panel area in the same window: the top bar, activity bar and sidebar stay and
+     work. The panel area and its sash are hidden (inert), so the Figma tab's capture pauses until the chat collapses. */
+  .workbench[data-chat-expanded='true'] :is(.editor-group, .sash) { display: none; }
+  .workbench[data-chat-expanded='true'] .main { flex: 1 1 auto; width: auto; }
   /* The conversation and the composer read in one 720px column. The scroller stays full width, so the wheel works
      anywhere and the scrollbar sits at the card edge. */
   .workbench[data-chat-expanded='true'] .brief-status > :is(.chat-head, .wf),
@@ -36,7 +34,7 @@
   -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
   mask-image: linear-gradient(to bottom, #000 60%, transparent);
 }
-.tr-assistant .tr-more { display: block; margin-top: 4px; font-size: var(--text-sm); line-height: 20px; }
+.tr-assistant .tr-more { display: block; margin-top: 4px; font-size: var(--text-md); line-height: 24px; }
 
 /* Up next: Claude's list of what it does after this turn, headed by its own toggle, in line with the list text. */
 .up-next { padding: 8px 0 0 24px; }
@@ -130,7 +128,8 @@
 .tl-turn > .tr-phase { margin: 0; }
 .tl-turn > .tr-review, .tl-turn > .tr-assistant { margin-block: 4px; }
 
-.tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
+/* Her prompts and Claude's replies read at 16/24 in the side panel too, like the transcript and the phone. */
+.tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-md); line-height: 24px; color: var(--fg-muted); }
 .tl-prompt-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-prompt-open {
   flex: 1 1 auto; min-width: 0; min-height: 24px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0;
@@ -139,14 +138,14 @@
 .tl-prompt-open > .codicon { flex: none; color: var(--fg-muted); }
 .tl-prompt-open:hover { background: transparent; color: var(--fg); }
 .tl-prompt-open:hover > .codicon { color: var(--fg); }
-.tl-prompt .frame-chip { min-height: 0; color: var(--fg); font-size: var(--text-sm); line-height: 18px; vertical-align: baseline; }
+.tl-prompt .frame-chip { min-height: 0; color: var(--fg); font-size: var(--text-md); line-height: 20px; vertical-align: baseline; }
 .tl-prompt.open { flex-direction: column; align-items: flex-start; gap: 4px; }
 .tl-prompt-full { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tl-prompt-stop { flex: none; display: flex; align-items: center; color: var(--fg-muted); }
 
 .tl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.tl-li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
-.tl-mark { display: flex; align-items: center; justify-content: center; width: 16px; height: 20px; color: var(--fg-muted); }
+.tl-li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; font-size: var(--text-md); line-height: 24px; color: var(--fg); }
+.tl-mark { display: flex; align-items: center; justify-content: center; width: 16px; height: 24px; color: var(--fg-muted); }
 .tl-mark .codicon.icon.small { font-size: 12px; }
 .tl-li.done .tl-mark { color: var(--ok); }
 .tl-li.note .tl-mark { color: var(--warn); }
@@ -154,18 +153,16 @@
 .tl-say { min-width: 0; overflow-wrap: anywhere; }
 .tl-li.system .tl-say, .tl-li.phase .tl-say { color: var(--fg-muted); }
 .tl-li .tl-thumbs { grid-column: 2; }
-/* Show reply and Show less: a 24px target that keeps the 20px line. */
-.tl-more { display: block; margin: 0 0 -4px; padding: 2px 0; min-height: 24px; font-size: var(--text-sm); line-height: 20px; text-align: left; }
+/* Show reply and Show less: a 24px target on the 24px line. */
+.tl-more { display: block; margin: 0; padding: 0; min-height: 24px; font-size: var(--text-md); line-height: 24px; text-align: left; }
 .tl-prompt.open .tl-more, .tl-li.reply.open .tl-more { margin-top: 4px; }
-.tl-li.reply.open .tr-assistant .md { font-size: var(--text-sm); line-height: 20px; }
+.tl-li.reply.open .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
 .tl-li.reply.open .tr-assistant .md p, .tl-li.reply.open .tr-assistant .md ul, .tl-li.reply.open .tr-assistant .md ol { margin-bottom: 8px; }
 
 @media (max-width: 900px) {
-  .tl-prompt, .tl-li, .tl-more, .tl-prompt .frame-chip { font-size: var(--text-md); line-height: 24px; }
-  .tl-mark { height: 24px; }
+  .tl-prompt .frame-chip { line-height: 24px; }
   .tl-prompt-open { min-height: 36px; }
   .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; }
-  .tl-li.reply.open .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
 }
 /* Allow edits anywhere (ScopeSwitch.tsx): an icon toggle right of the view switch, before Steps. */
 .chat-head .scope-switch { margin-left: auto; flex: none; width: 32px; height: 32px; }

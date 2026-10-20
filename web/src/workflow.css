@@ -1,5 +1,12 @@
 /* The workflow strip and step card above a flow chat. One row of steps, one card with at most one primary button. */
 .wf { flex: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.wf-body { display: flex; flex-direction: column; gap: 8px; }
+.wf-body[hidden], .wf-card[hidden] { display: none; }
+/* Collapse sits at the strip's right end, top aligned, so it stays put when the steps wrap to a second row. */
+.wf-strip.has-fold { position: relative; padding-right: 40px; }
+.wf-strip > .fold-btn { position: absolute; top: 3px; right: 3px; }
+.wf-card.has-fold { position: relative; padding-right: 48px; }
+.wf-card > .fold-btn { position: absolute; top: 10px; right: 8px; }
 
 .wf-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: var(--row); padding: 4px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); container: wfstrip / inline-size; }
 .wf-name { flex: none; font-size: var(--text-sm); line-height: 20px; font-weight: 600; color: var(--fg); }
@@ -37,10 +44,10 @@
 
 
 .wf-card { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
-.wf-line { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+.wf-line { margin: 0; font-size: var(--text-md); line-height: 24px; color: var(--fg); }
 .wf-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .wf-acts button:not(.link) { min-height: var(--row); }
-.wf-acts .link { min-height: var(--row); font-size: var(--text-sm); line-height: 20px; text-decoration: underline; }
+.wf-acts .link { min-height: var(--row); font-size: var(--text-md); line-height: 24px; text-decoration: underline; }
 .wf-acts [aria-disabled='true'] { opacity: 0.5; cursor: default; }
 .wf-card .error-text { margin: 0; color: var(--err); }
 
