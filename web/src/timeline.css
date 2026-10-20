@@ -1,4 +1,24 @@
 .chat-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
+/* Expand chat sits at the right end of the head, 32px like the scope lock beside it. */
+.chat-head .chat-expand { margin-left: auto; width: 32px; height: 32px; }
+.chat-head .scope-switch + .chat-expand { margin-left: 0; }
+/* The head sits on the card's clipped edge, so its icon buttons draw the focus ring inside. */
+.chat-head .icon-btn:focus-visible { outline-offset: -2px; }
+@media (min-width: 901px) {
+  /* Expanded, the chat card covers the window. Everything else keeps its place underneath (inert), so the Figma mirror
+     keeps its size. */
+  .workbench[data-chat-expanded='true'] .body { position: relative; }
+  .workbench[data-chat-expanded='true'] .main .brief { position: absolute; inset: 0; z-index: 3; }
+  .workbench[data-chat-expanded='true'] .body::after { content: ''; position: absolute; inset: 0; z-index: 2; background: var(--bg); }
+  .workbench[data-chat-expanded='true'] :is(.activitybar, .sidebar, .side-sash, .editor-group, .sash) { visibility: hidden; }
+  /* The conversation and the composer read in one 720px column. The scroller stays full width, so the wheel works
+     anywhere and the scrollbar sits at the card edge. */
+  .workbench[data-chat-expanded='true'] .brief-status > :is(.chat-head, .wf),
+  .workbench[data-chat-expanded='true'] .brief > :is(.brief-cards, .brief-input) { width: min(720px, 100%); align-self: center; box-sizing: border-box; }
+  .workbench[data-chat-expanded='true'] .brief .brief-status > .tr {
+    padding-left: max(0px, calc((100% - 720px) / 2)); padding-right: calc(max(0px, (100% - 720px) / 2) + 12px);
+  }
+}
 .seg.chat-view { padding: 3px; gap: 4px; border-radius: var(--radius-sm); }
 .seg.chat-view button {
   min-height: 24px; padding: 0 12px; border-radius: calc(var(--radius-sm) - 4px);
