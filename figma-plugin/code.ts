@@ -13,13 +13,10 @@ figma.showUI(__html__, { width: SIZE.w, height: SIZE.h, title: 'Design Studio', 
 const api = figma as FigmaLike;
 const watch = viewWatch(api, () => figma.ui.postMessage({ t: 'moved' }));
 
-const hello = () => figma.ui.postMessage({
-  t: 'hello',
-  // Figma gives the file's key only to private plugins; Design Studio then finds the file by its name.
-  fileKey: typeof figma.fileKey === 'string' ? figma.fileKey : null,
-  fileName: figma.root.name,
-  pageId: figma.currentPage.id,
-});
+// Figma gives the file's key only to private plugins, and may throw instead of answering; Design Studio then finds
+// the file by its name.
+const fileKey = () => { try { return typeof figma.fileKey === 'string' ? figma.fileKey : null; } catch { return null; } };
+const hello = () => figma.ui.postMessage({ t: 'hello', fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id });
 
 figma.ui.onmessage = async (m: any) => {
   if (!m || typeof m !== 'object') return;
