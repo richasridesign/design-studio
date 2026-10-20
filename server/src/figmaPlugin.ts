@@ -43,6 +43,8 @@ type Conn = {
   embed: boolean;
   /** For the embed: its view is on screen (the Figma tab is shown in the Mac window). */
   shown: boolean;
+  /** For the embed: the screen its last follow showed, for the Figma tab's "Claude is editing" line. */
+  screen: string;
 };
 
 const conns = new Set<Conn>();
@@ -54,7 +56,7 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '' };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
   // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
   // the way a protocol ping is), so only a plugin that can still run counts as alive.
@@ -98,6 +100,12 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       hooks.page?.();
     } else if (m.t === 'shown' && conn.embed) {
       conn.shown = m.on === true;
+    } else if (m.t === 'screen' && conn.embed && conns.has(conn)) {
+      const screen = str(m.name, 120);
+      if (screen !== conn.screen) {
+        conn.screen = screen;
+        hooks.page?.();
+      }
     } else if (m.t === 'result' && typeof m.id === 'number') {
       const done = conn.pending.get(m.id);
       conn.pending.delete(m.id);
@@ -149,7 +157,7 @@ export function pluginFor(fileKey: string, name?: string): Conn | null {
   return byName;
 }
 
-export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled, embed: c.embed }));
+export const pluginFiles = () => [...conns].map((c) => ({ key: c.key ?? c.followKey, name: c.name, page: c.pageName, stalled: c.stalled, embed: c.embed, screen: c.screen }));
 
 /** Remembers whether Figma answers this plugin's follows; true when that changed, so the Figma tab can be told. */
 export function markStalled(conn: Conn, stalled: boolean) {

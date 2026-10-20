@@ -11,7 +11,17 @@ const GATHER_MS = 200;
 /** At most this many changed nodes go per message, the newest first. */
 const MAX_IDS = 40;
 
-export function agent(figma: any, post: (m: object) => void, fileKey: () => string | null, extra: object = {}) {
+/** What a host may show around Claude's edits (embed.ts draws a cursor and flashes). */
+export type AgentHooks = {
+  /** A follow ran: `start` when the edit is starting, the ids it named, and what the follow did. */
+  followed?: (ids: string[], start: boolean, result: FollowResult) => void;
+  /** Nodes changed in the file while Claude edits it. */
+  changed?: (ids: string[]) => void;
+  /** Claude started or finished editing this file. */
+  editing?: (on: boolean) => void;
+};
+
+export function agent(figma: any, post: (m: object) => void, fileKey: () => string | null, extra: object = {}, hooks: AgentHooks = {}) {
   const api = figma as FigmaLike;
   const within = <T>(p: Promise<T>, ms: number) => new Promise<T | 'stalled'>((r) => { const t = setTimeout(() => r('stalled'), ms); p.then((v) => { clearTimeout(t); r(v); }, () => { clearTimeout(t); r('stalled'); }); });
   const watch = viewWatch(api, () => post({ t: 'moved' }));
@@ -34,7 +44,10 @@ export function agent(figma: any, post: (m: object) => void, fileKey: () => stri
     sendTimer = null;
     const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
     changes = [];
-    if (ids.length) post({ t: 'changed', ids });
+    if (ids.length) {
+      post({ t: 'changed', ids });
+      hooks.changed?.(ids);
+    }
   }
   let listened: any = null;
   function listen() {
@@ -63,6 +76,7 @@ export function agent(figma: any, post: (m: object) => void, fileKey: () => stri
         result = r === 'stalled' ? { status: 'stalled' } : r;
         if (result.view) watch.left(result.view);
         else if (result.status === 'moved') watch.left(null);
+        hooks.followed?.(ids, m.start === true, result);
       } catch {
         result = null;
       }
@@ -90,6 +104,7 @@ export function agent(figma: any, post: (m: object) => void, fileKey: () => stri
       editing = m.on === true;
       if (editing) listen();
       else unlisten();
+      hooks.editing?.(editing);
     } else if (m.t === 'forget') watch.left(null);
   }
 
