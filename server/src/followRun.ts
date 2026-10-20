@@ -1,6 +1,6 @@
 import type { FollowResult, FollowView } from './follow.js';
 import { loadedSettings } from './settings.js';
-import { markStalled, pluginFiles, pluginFollow, pluginFor, pluginForget } from './figmaPlugin.js';
+import { markStalled, pluginEditing, pluginFiles, pluginFollow, pluginFor, pluginForget } from './figmaPlugin.js';
 
 // Follow Claude in Figma, whichever way her Figma is reached: the Design Studio plugin in the Figma app when it runs
 // in the chat's file, else a Figma tab in Chrome over CDP (chrome.ts registers that way). One move at a time, only
@@ -8,11 +8,12 @@ import { markStalled, pluginFiles, pluginFollow, pluginFor, pluginForget } from 
 
 export type FollowOnce = (fileKey: string, ids: string[], last: FollowView | null, start: boolean) => Promise<FollowResult | string>;
 
-type Follow = { paused: boolean; last: FollowView | null; ids: string[]; name?: string };
+/** `editing`: Claude is editing this file now, so the changes the plugin sees land there are his and are followed. */
+type Follow = { paused: boolean; last: FollowView | null; ids: string[]; name?: string; editing: boolean; editTimer?: ReturnType<typeof setTimeout> };
 const follows = new Map<string, Follow>();
 const followOf = (fileKey: string) => {
   let f = follows.get(fileKey);
-  if (!f) follows.set(fileKey, (f = { paused: false, last: null, ids: [] }));
+  if (!f) follows.set(fileKey, (f = { paused: false, last: null, ids: [], editing: false }));
   return f;
 };
 
@@ -54,7 +55,47 @@ export function followState() {
   return { t: 'follow', on, paused, plugins };
 }
 
-export const sendFollowState = () => broadcast(followState());
+export const sendFollowState = () => {
+  follows.forEach((_, k) => syncEditing(k));
+  broadcast(followState());
+};
+
+/** Changes still landing after an edit script ended count as Claude's for this long. */
+export const EDIT_TAIL = 4000;
+/** An edit that never reports its end stops counting after this long, so her own edits cannot move her view for good. */
+export const EDIT_MAX = 180_000;
+
+/**
+ * Claude started (on) or finished (off) a Figma edit in this file. While on, the plugin sends the changes it sees land
+ * in the file and the view follows them as a long script builds, not once at its end. Off waits EDIT_TAIL first.
+ */
+export function setEditing(fileKey: string, on: boolean, name?: string) {
+  const f = followOf(fileKey);
+  if (name) f.name = name;
+  clearTimeout(f.editTimer);
+  if (on) f.editing = true;
+  f.editTimer = setTimeout(() => {
+    f.editing = false;
+    syncEditing(fileKey);
+  }, on ? EDIT_MAX : EDIT_TAIL);
+  f.editTimer.unref?.();
+  syncEditing(fileKey);
+}
+
+/** Tells the file's plugin whether to send its changes: only while Claude edits there and following is on. */
+function syncEditing(fileKey: string) {
+  const f = follows.get(fileKey);
+  if (!f) return;
+  const plugin = pluginFor(fileKey, f.name);
+  if (plugin) pluginEditing(plugin, f.editing && !f.paused && loadedSettings().followClaude);
+}
+
+/** Nodes the plugin saw change in this file. Followed only while Claude edits it, so her own edits never move her view. */
+export function followChanged(fileKey: string, ids: string[]) {
+  const f = follows.get(fileKey);
+  if (!f?.editing || f.paused || !ids.length || !loadedSettings().followClaude) return;
+  void followFigma(fileKey, ids, false, f.name);
+}
 
 export function pauseFollow(fileKey: string) {
   const f = followOf(fileKey);

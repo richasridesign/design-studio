@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { followFigma, followState, forgetView, pauseFollow, resumeFollow, sendFollowState, useChromeFollow } from './followRun.js';
+import { EDIT_TAIL, followChanged, followFigma, followState, forgetView, pauseFollow, resumeFollow, sendFollowState, setEditing, useChromeFollow } from './followRun.js';
 import { openFigmaPlugin, pluginFocus, pluginFor } from './figmaPlugin.js';
 import type { FollowResult } from './follow.js';
 
@@ -12,7 +12,7 @@ function fakePlugin(hello: { fileKey: string | null; fileName: string }, answer:
     const r = m.t === 'focus' ? { status: 'ok' } : m.t === 'follow' && answer ? answer(m) : null;
     if (r) queueMicrotask(() => ws.emit('message', JSON.stringify({ t: 'result', id: m.id, result: r })));
   } });
-  openFigmaPlugin(ws as any, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState });
+  openFigmaPlugin(ws as any, { moved: pauseFollow, changed: () => { forgetView(); sendFollowState(); }, page: sendFollowState, edited: followChanged });
   ws.emit('message', JSON.stringify({ t: 'hello', ...hello, pageId: '0:1' }));
   return ws;
 }
@@ -103,6 +103,41 @@ describe('follow transport', () => {
       const follows = ws.sent.filter((m) => m.t === 'follow');
       expect(follows).toHaveLength(1);
       expect(follows[0].ids).toEqual(['5:2']);
+      ws.emit('close');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('follows the changes landing in the file only while Claude edits it, and stops when she moves the view', async () => {
+    vi.useFakeTimers();
+    try {
+      const key = 'KeyGGGGGGGGG';
+      const ws = fakePlugin({ fileKey: key, fileName: 'Live' }, shown);
+      const changed = (ids: string[]) => ws.emit('message', JSON.stringify({ t: 'changed', ids }));
+      const follows = () => ws.sent.filter((m) => m.t === 'follow');
+      // Her own edits never move her view.
+      changed(['6:1']);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(follows()).toHaveLength(0);
+      setEditing(key, true, 'Live');
+      expect(ws.sent.at(-1)).toEqual({ t: 'editing', on: true });
+      changed(['6:2', '6:1']);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(follows().at(-1)?.ids).toEqual(['6:2', '6:1']);
+      // The script ended: its last changes still count for a few seconds, then the plugin stops sending.
+      setEditing(key, false);
+      await vi.advanceTimersByTimeAsync(EDIT_TAIL + 10);
+      expect(ws.sent.at(-1)).toEqual({ t: 'editing', on: false });
+      changed(['6:3']);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(follows()).toHaveLength(1);
+      // She moves the view during an edit: the plugin stops sending until she follows Claude again.
+      setEditing(key, true);
+      ws.emit('message', JSON.stringify({ t: 'moved' }));
+      expect(ws.sent.at(-1)).toEqual({ t: 'editing', on: false });
+      resumeFollow(key);
+      expect(ws.sent.filter((m) => m.t === 'editing').at(-1)).toEqual({ t: 'editing', on: true });
       ws.emit('close');
     } finally {
       vi.useRealTimers();

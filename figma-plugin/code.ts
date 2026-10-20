@@ -57,6 +57,10 @@ figma.ui.onmessage = async (m: any) => {
     }
     watch.left(null);
     figma.ui.postMessage({ t: 'result', id: m.id, result: { status } });
+  } else if (m.t === 'editing') {
+    editing = m.on === true;
+    if (editing) listen();
+    else unlisten();
   } else if (m.t === 'forget') watch.left(null);
   else if (m.t === 'small') {
     const s = m.on ? SMALL : SIZE;
@@ -64,9 +68,47 @@ figma.ui.onmessage = async (m: any) => {
   }
 };
 
+// While Claude edits this file (Design Studio says so), the changes landing here go to Design Studio as they come, so
+// the view follows a long script while it builds, not once at its end. Design Studio picks and paces the moves. Off
+// means nothing is sent, so her own edits never move her view. Only the shown page is watched: documentchange would
+// need every page loaded, which is slow in a big file.
+let editing = false;
+let changes: string[] = [];
+let sendTimer: ReturnType<typeof setTimeout> | null = null;
+/** Changes are gathered this long, so a burst goes as one message. */
+const GATHER_MS = 200;
+/** At most this many changed nodes go per message, the newest first. */
+const MAX_IDS = 40;
+const onNodeChange = (e: any) => {
+  if (!editing) return;
+  for (const c of e?.nodeChanges ?? []) if (c && c.type !== 'DELETE' && typeof c.id === 'string') changes.push(c.id);
+  if (changes.length > 400) changes = changes.slice(-MAX_IDS);
+  if (!sendTimer && changes.length) sendTimer = setTimeout(sendChanges, GATHER_MS);
+};
+function sendChanges() {
+  sendTimer = null;
+  const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
+  changes = [];
+  if (ids.length) figma.ui.postMessage({ t: 'changed', ids });
+}
+let listened: any = null;
+function listen() {
+  if (listened === figma.currentPage) return;
+  unlisten();
+  try {
+    figma.currentPage.on('nodechange', onNodeChange);
+    listened = figma.currentPage;
+  } catch {}
+}
+function unlisten() {
+  try { listened?.off('nodechange', onNodeChange); } catch {}
+  listened = null;
+}
+
 // No viewport event exists, so her own moves are found by looking a few times a second.
 setInterval(() => watch.check(), 400);
 figma.on('currentpagechange', () => {
   watch.check();
+  if (editing) listen();
   figma.ui.postMessage({ t: 'page', pageId: figma.currentPage.id, pageName: figma.currentPage.name });
 });
