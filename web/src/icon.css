@@ -1,0 +1,14 @@
+/* Lucide line icons (Icon.tsx). The <i> is the old codicon box: 1em square, sized by font-size (18px, 16px small,
+   set in styles.css), so other rules that size or tint `.codicon` keep working. :where() keeps these defaults at zero
+   specificity so any of those rules wins. The colour always comes from the parent (currentColor), so an icon is muted
+   where its label is muted and darkens with it on hover. */
+:where(.codicon) {
+  display: inline-flex; align-items: center; justify-content: center; width: 1em; height: 1em;
+  font-size: 16px; line-height: 1; vertical-align: text-bottom; user-select: none; -webkit-user-select: none;
+}
+.codicon > svg { display: block; flex: none; width: 1em; height: 1em; overflow: visible; }
+
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .codicon.spin > svg { animation: icon-spin 1.2s linear infinite; }
+}
