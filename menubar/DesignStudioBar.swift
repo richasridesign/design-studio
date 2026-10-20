@@ -160,6 +160,7 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     view.allowsMagnification = false
     view.isHidden = true
     if #available(macOS 13.3, *) { view.isInspectable = true }
+    watchShots()
   }
 
   var focused: Bool { (view.window?.firstResponder as? NSView)?.isDescendant(of: view) ?? false }
@@ -321,6 +322,25 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   @available(macOS 12.0, *)
   func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
     decisionHandler(.deny)
+  }
+
+  /**
+   * Test aid, only with defaults DSFigmaShots set: while the view shows the scratch test file, a file named
+   * figma-shot-now in the logs folder asks for a picture of this view alone, written next to it.
+   */
+  func watchShots() {
+    guard UserDefaults.standard.bool(forKey: "DSFigmaShots") else { return }
+    Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+      let ask = logs.appendingPathComponent("figma-shot-now")
+      guard let self, FileManager.default.fileExists(atPath: ask.path) else { return }
+      try? FileManager.default.removeItem(at: ask)
+      guard self.fileKey == "SCRATCHFILEKEY00000000", !self.view.isHidden else { return }
+      let n = Int(Date().timeIntervalSince1970 * 10) % 100000
+      self.view.takeSnapshot(with: nil) { image, _ in
+        guard let tiff = image?.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return }
+        try? png.write(to: logs.appendingPathComponent("figma-shot-\(n).png"))
+      }
+    }
   }
 
   /** Test aid (defaults DSFigmaProbe): what the page offers Follow Claude, written to the logs folder. */

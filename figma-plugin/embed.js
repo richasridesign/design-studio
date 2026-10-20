@@ -350,7 +350,11 @@
       at = { x: b.x + Math.min(inset, b.width / 2), y: b.y + Math.min(inset, b.height / 2) };
       lastMove = Date.now();
     }
+    let lastFlash = { key: "", at: 0 };
     async function flash(ids) {
+      const key = [...ids].sort().join(",");
+      if (key === lastFlash.key && Date.now() - lastFlash.at < 2e3) return;
+      lastFlash = { key, at: Date.now() };
       const nodes = deepest(await boxes(ids)).slice(0, MAX_FLASH);
       if (!nodes.length) return;
       mount();
@@ -423,7 +427,7 @@
         followed: (ids, start2, result) => {
           var _a;
           if (result.status !== "ok" && result.status !== "shown") return;
-          void show.followed(ids);
+          void (start2 ? show.followed(ids) : show.changed(ids));
           void screenName(figma, (_a = result.view) == null ? void 0 : _a.targets).then((name) => {
             if (name) post({ t: "screen", name });
           });
