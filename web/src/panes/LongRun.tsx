@@ -1,6 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { getJson, send, useStore } from '../store';
 import { Icon } from '../Icon';
+import { focusChecked, menuKeys } from '../press';
+import { useDialogFocus } from '../useDialog';
+import { usePopAbove } from './abovePop';
 import { Markdown } from './Chat';
 import { insertPrompt } from './composerEvents';
 import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, askedEnd, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
@@ -18,12 +21,16 @@ const pctOk = (n: number) => Number.isFinite(n) && n >= 1 && n <= 100;
 
 export type LongRunStart = { until: number; cap: number; weeklyCap: number; rounds: number };
 
-/** Composer control: starts a long run with the message as the task. */
+/**
+ * Composer "More options" menu. Its one item, Long run, opens the long run popover, which starts a long run with the
+ * message as the task. Hidden while a long run is on, since the menu would be empty.
+ */
 export function LongRunButton({ text, onStart }: { text: string; onStart: (o: LongRunStart) => void }) {
   const run = useStore((s) => s.session.longRun);
   const running = useStore((s) => s.session.running);
   const limit = useStore((s) => s.session.limit);
   const limitsRaw = useStore((s) => s.session.limits);
+  const [menu, setMenu] = useState(false);
   const [open, setOpen] = useState(false);
   const [until, setUntil] = useState('');
   const [cap, setCap] = useState(String(DEFAULT_CAP));
@@ -32,18 +39,52 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (o: Lo
   const mode = useStore((s) => s.session.permissionMode);
   const [askBeforeEdit, setAskBeforeEdit] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const more = useRef<HTMLSpanElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
   const id = useId();
+  const lift = usePopAbove(menu, more);
+  // The menu keeps its right edge on the button, and slides right when that would put it past the card's left edge.
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const wrap = more.current;
+    const card = wrap?.closest('.cp-card');
+    const list = wrap?.querySelector<HTMLElement>('[role="menu"]');
+    if (!menu || !wrap || !card || !list) { setShift(0); return; }
+    const measure = () => setShift(Math.min(0, Math.round(wrap.getBoundingClientRect().right - list.offsetWidth - card.getBoundingClientRect().left)));
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [menu]);
+  const menuStyle = lift && { ...lift, right: shift };
+  const trigger = () => more.current?.querySelector<HTMLButtonElement>('.icon-btn');
 
+  useEffect(() => {
+    if (!menu) return;
+    focusChecked(more.current?.querySelector('[role="menu"]') ?? null);
+    const down = (e: MouseEvent) => { if (!more.current?.contains(e.target as Node)) setMenu(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setMenu(false); trigger()?.focus(); } };
+    document.addEventListener('mousedown', down);
+    document.addEventListener('keydown', key, true);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key, true); };
+  }, [menu]);
+
+  // The popover: focus moves to the time field, Tab stays inside, Esc closes and focus goes back to More options.
+  useDialogFocus(open, pop, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     setUntil(hhmm(Date.now() + TWO_HOURS));
     getJson<{ askBeforeEdit?: boolean }>('/api/settings').then((x) => setAskBeforeEdit(Boolean(x.askBeforeEdit)), () => {});
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', down);
-    document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+    return () => document.removeEventListener('mousedown', down);
   }, [open]);
+
+  const pickLongRun = () => {
+    // Focus the trigger first, so the popover gives focus back to it when it closes.
+    trigger()?.focus();
+    setMenu(false);
+    setOpen(true);
+  };
 
   if (isActive(run)) return null;
   const end = untilFrom(until, Date.now());
@@ -70,11 +111,28 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (o: Lo
 
   return (
     <div className="lr-start" ref={box}>
-      <button className="cp-pill lr-btn" aria-haspopup="dialog" aria-expanded={open} title="Long run: Claude keeps working on its own until a time or usage cap" aria-label="Long run" onClick={() => setOpen((o) => !o)}>
-        <Icon name="watch" small /><span>Long run</span>
-      </button>
+      <span className="lr-more" ref={more}>
+        <button
+          className="icon-btn"
+          title="More options"
+          aria-label="More options"
+          aria-haspopup="menu"
+          aria-expanded={menu}
+          onClick={() => { setOpen(false); setMenu((m) => !m); }}
+        >
+          <Icon name="ellipsis" small />
+        </button>
+        {menu && (
+          <div className="cp-modepop lr-menu" style={menuStyle} role="menu" aria-label="More options" onKeyDown={menuKeys}>
+            <button role="menuitem" aria-haspopup="dialog" onClick={pickLongRun}>
+              <Icon name="watch" small />
+              <span className="cp-modetext"><span className="lr-menu-t">Long run</span><span>Claude keeps working until a time</span></span>
+            </button>
+          </div>
+        )}
+      </span>
       {open && (
-        <div className="lr-pop" role="dialog" aria-labelledby={`${id}-t`}>
+        <div className="lr-pop" ref={pop} role="dialog" aria-labelledby={`${id}-t`}>
           <div className="lr-pop-head">
             <b id={`${id}-t`}>Long run</b>
             <button className="icon-btn" title="Close" aria-label="Close" onClick={() => setOpen(false)}><Icon name="close" small /></button>
@@ -82,7 +140,7 @@ export function LongRunButton({ text, onStart }: { text: string; onStart: (o: Lo
           <p className="lr-pop-sub">Claude works on your message alone, then reports what needs your decision.</p>
           <label className="lr-field" htmlFor={`${id}-u`}>
             <span>Run until</span>
-            <input id={`${id}-u`} type="time" value={until} onChange={(e) => setUntil(e.target.value)} />
+            <input id={`${id}-u`} data-autofocus type="time" value={until} onChange={(e) => setUntil(e.target.value)} />
           </label>
           {end && <span className="lr-help">{new Date(end).toDateString() === new Date().toDateString() ? 'Today' : 'Tomorrow'} at {clock(end)}</span>}
           <label className="lr-field" htmlFor={`${id}-c`}>
