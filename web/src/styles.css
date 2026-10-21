@@ -607,3 +607,6 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 .error-panel { padding: 16px; display: flex; flex-direction: column; gap: 8px; color: var(--fg); }
 .error-panel code { background: var(--bg-sunken); padding: 8px; border-radius: var(--radius-sm); white-space: pre-wrap; font-size: var(--text-sm); }
 .error-panel button { align-self: flex-start; }
+/* Notify me, Open on phone and Settings close the side nav at the bottom; the top bar keeps them on a phone. */
+.activitybar .activity-end { margin-top: auto; display: flex; flex-direction: column; align-items: center; }
+.topbar .top-acts { display: flex; align-items: center; }
