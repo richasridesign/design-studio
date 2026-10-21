@@ -406,8 +406,8 @@ export function App() {
   return (
     <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} data-chat-expanded={wide} style={{ '--chat-w': `${chatW}px`, '--side-w': `${sideW}px` } as React.CSSProperties}>
       <Offline />
-      <header className="topbar">
-        <h1 style={HIDDEN}>Design Studio</h1>
+      <h1 style={HIDDEN}>Design Studio</h1>
+      <header className="topbar mobile-only">
         <span className="brand" aria-hidden><span className="logo" />Design Studio</span>
         <span className="spacer" />
         <span className={`run-state ${session.running ? 'busy' : ''}`}>
@@ -435,6 +435,9 @@ export function App() {
 
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
         <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
+          {/* On desktop the brand heads the sidebar, so the top bar's row goes to the columns. */}
+          <div className="side-brand desktop-only" aria-hidden><span className="logo" />Design Studio</div>
+          {!connected && <span className="side-offline error-text desktop-only">Disconnected</span>}
           <div className="sidebar-title">
             {(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}
             <span className="spacer" />

@@ -610,3 +610,7 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 /* Notify me, Open on phone and Settings close the side nav at the bottom; the top bar keeps them on a phone. */
 .activitybar .activity-end { margin-top: auto; display: flex; flex-direction: column; align-items: center; }
 .topbar .top-acts { display: flex; align-items: center; }
+/* Desktop has no top bar: the brand heads the sidebar, 52px like the bar it replaces. */
+.side-brand { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 20px; font-family: var(--serif); font-weight: 600; font-size: var(--text-lg); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; }
+.side-brand .logo { width: 20px; height: 20px; flex: none; border-radius: 6px; background: var(--accent); }
+.side-offline { padding: 0 20px 8px; font-size: var(--text-sm); }
