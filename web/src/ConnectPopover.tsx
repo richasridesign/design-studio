@@ -34,12 +34,16 @@ export function ConnectPopover({ onClose }: { onClose: () => void }) {
   const titleId = useId();
   useDialogFocus(true, box, onClose);
 
-  // Sits 4px under the Open on phone button. Opened from the command palette with the button hidden, it sits top right.
+  // Sits 4px right of the Open on phone button at the bottom of the side nav, or 4px under it in a phone's top bar.
+  // Opened from the command palette with the button hidden, it sits top right.
   const [at, setAt] = useState<React.CSSProperties>({});
   useLayoutEffect(() => {
     const place = () => {
-      const r = document.querySelector('.phone-btn')?.getBoundingClientRect();
-      setAt(r && r.width > 0 ? { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) } : { top: 52, right: 8 });
+      const r = [...document.querySelectorAll('.phone-btn')].map((b) => b.getBoundingClientRect()).find((b) => b.width > 0);
+      const side = r && r.left < window.innerWidth / 2;
+      setAt(!r ? { top: 52, right: 8 }
+        : side ? { left: r.right + 4, bottom: Math.max(8, window.innerHeight - r.bottom) }
+          : { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
     };
     place();
     window.addEventListener('resize', place);

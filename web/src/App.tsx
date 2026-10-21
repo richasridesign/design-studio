@@ -397,6 +397,12 @@ export function App() {
     tabs[to].focus();
   };
 
+  const appActions = (place: 'right' | 'bottom') => <>
+    {canNotify && <IconButton label="Notify me" place={place} tip={notifying ? 'Notifications on: Claude tells you when it finishes or needs you' : 'Notify me when Claude finishes or needs me'} aria-pressed={notifying} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></IconButton>}
+    <IconButton label="Open on phone" place={place} className="icon-btn phone-btn" aria-haspopup="dialog" aria-expanded={phone} onClick={() => setPhone((v) => !v)}><Icon name="device-mobile" /></IconButton>
+    <IconButton label="Settings" place={place} tip="Settings (⌘,)" aria-keyshortcuts="Meta+Comma" className={`icon-btn ${settings ? 'active' : ''}`} onClick={() => setSettings(true)}><Icon name="settings-gear" /></IconButton>
+  </>;
+
   return (
     <div className="workbench" data-tab={tab} data-sidebar={sidebar} data-focus={focusMode} data-collapsed={collapsed} data-chat={chatOpen || collapsed} data-chat-expanded={wide} style={{ '--chat-w': `${chatW}px`, '--side-w': `${sideW}px` } as React.CSSProperties}>
       <Offline />
@@ -408,9 +414,8 @@ export function App() {
           <Icon name={session.running ? 'loading' : 'circle-large-outline'} small spin={session.running} /> <span className="label">{session.running ? runningText(status) : 'Idle'}</span>
         </span>
         <span className="mobile-only top-meta"><ErrorBoundary label="cost"><SpendPill /></ErrorBoundary>{dev ? <McpItem /> : <FigmaItem />}</span>
-        {canNotify && <IconButton label="Notify me" tip={notifying ? 'Notifications on: Claude tells you when it finishes or needs you' : 'Notify me when Claude finishes or needs me'} aria-pressed={notifying} onClick={toggleNotify}><Icon name={notifying ? 'bell' : 'bell-slash'} /></IconButton>}
-        <IconButton label="Open on phone" className="icon-btn phone-btn" aria-haspopup="dialog" aria-expanded={phone} onClick={() => setPhone((v) => !v)}><Icon name="device-mobile" /></IconButton>
-        <IconButton label="Settings" tip="Settings (⌘,)" aria-keyshortcuts="Meta+Comma" className={`icon-btn ${settings ? 'active' : ''}`} onClick={() => setSettings(true)}><Icon name="settings-gear" /></IconButton>
+        {/* On desktop these three sit at the bottom of the side nav; the top bar keeps them on a phone. */}
+        <span className="mobile-only top-acts">{appActions('bottom')}</span>
         {!connected && <span className="error-text">Disconnected</span>}
       </header>
       <div className="body">
@@ -425,6 +430,7 @@ export function App() {
               </IconButton>
             );
           })}
+          <span className="activity-end">{appActions('right')}</span>
         </nav>
 
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
