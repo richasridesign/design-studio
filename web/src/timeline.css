@@ -129,14 +129,16 @@
 .tl-foot .tl-now .tool { font-family: inherit; }
 .tl-foot .tl-now .tool.mono { font-family: var(--mono); }
 
-/* Timeline view: per prompt, her prompt as one quiet line, then a short bullet list of what came of it. */
-.tr.timeline > .tl-turn + .tl-turn { margin-top: 32px; }
-.tl-turn { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Timeline view: one white card per prompt, 12px apart (.tr > * + *). Her prompt, Claude's reply, a strip of what came
+   of it, then Steps and the time. Text in the card reads at 14/20. */
+.tl-turn {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated);
+  font-size: var(--text-sm); line-height: 20px;
+}
 .tl-turn > .tr-phase { margin: 0; }
-.tl-turn > .tr-review, .tl-turn > .tr-assistant { margin-block: 4px; }
 
-/* Her prompts and Claude's replies read at 16/24 in the side panel too, like the transcript and the phone. */
-.tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-md); line-height: 24px; color: var(--fg-muted); }
+.tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
 .tl-prompt-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-prompt-open {
   flex: 1 1 auto; min-width: 0; min-height: 24px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0;
@@ -145,31 +147,62 @@
 .tl-prompt-open > .codicon { flex: none; color: var(--fg-muted); }
 .tl-prompt-open:hover { background: transparent; color: var(--fg); }
 .tl-prompt-open:hover > .codicon { color: var(--fg); }
-.tl-prompt .frame-chip { min-height: 0; color: var(--fg); font-size: var(--text-md); line-height: 20px; vertical-align: baseline; }
+.tl-prompt .frame-chip { min-height: 0; color: var(--fg); font-size: var(--text-sm); line-height: 20px; vertical-align: baseline; }
 .tl-prompt.open { flex-direction: column; align-items: flex-start; gap: 4px; }
 .tl-prompt-full { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tl-prompt-stop { flex: none; display: flex; align-items: center; color: var(--fg-muted); }
 
-.tl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.tl-li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; font-size: var(--text-md); line-height: 24px; color: var(--fg); }
-.tl-mark { display: flex; align-items: center; justify-content: center; width: 16px; height: 24px; color: var(--fg-muted); }
-.tl-mark .codicon.icon.small { font-size: 12px; }
-.tl-li.done .tl-mark { color: var(--ok); }
-.tl-li.note .tl-mark { color: var(--warn); }
-.tl-bullet { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
-.tl-say { min-width: 0; overflow-wrap: anywhere; }
-.tl-li.system .tl-say, .tl-li.phase .tl-say { color: var(--fg-muted); }
-.tl-li .tl-thumbs { grid-column: 2; }
-/* Show reply and Show less: a 24px target on the 24px line. */
-.tl-more { display: block; margin: 0; padding: 0; min-height: 24px; font-size: var(--text-md); line-height: 24px; text-align: left; }
-.tl-prompt.open .tl-more, .tl-li.reply.open .tl-more { margin-top: 4px; }
-.tl-li.reply.open .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
-.tl-li.reply.open .tr-assistant .md p, .tl-li.reply.open .tr-assistant .md ul, .tl-li.reply.open .tr-assistant .md ol { margin-bottom: 8px; }
+/* The reply: all of it in the newest card, two lines with a fade in older ones. */
+.tl-turn .tr-assistant .md { font-size: var(--text-sm); line-height: 20px; }
+.tl-turn .tr-assistant .md :is(p, ul, ol, pre, table, blockquote) { margin-bottom: 8px; }
+.tl-turn .tr-assistant .md > :last-child { margin-bottom: 0; }
+.tl-turn .tr-reply.clamp { max-height: 40px; }
+.tl-turn .tr-reply.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+}
+/* Show more, Show less and Steps: a 24px target on the 20px line. */
+.tl-more { display: block; margin: 0; padding: 0; min-height: 24px; font-size: var(--text-sm); line-height: 24px; text-align: left; }
+.tl-turn .tr-assistant .tl-more, .tl-prompt.open .tl-more { margin-top: 4px; }
+
+/* What came of the turn: small chips that wrap. Notes, failures and what waits on her are tinted with a bold label and
+   an icon; the rest stay quiet grey. */
+.tl-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.tl-facts > li { display: flex; max-width: 100%; min-width: 0; }
+.tl-chip {
+  display: inline-flex; align-items: flex-start; gap: 4px; max-width: 100%; min-width: 0; min-height: 24px; padding: 2px 8px;
+  border: 0; border-radius: var(--radius-row); background: var(--bg-sunken);
+  font: inherit; font-size: var(--text-xs); line-height: 20px; color: var(--fg-muted); text-align: left; overflow-wrap: anywhere;
+}
+.tl-chip > .codicon, .tl-chip > .file-icon { flex: none; display: flex; align-items: center; height: 20px; }
+.tl-chip b { font-weight: 600; color: var(--fg); }
+.tl-chip.note { background: var(--tint-amber); color: var(--fg); }
+.tl-chip.wait { background: var(--tint-blue); color: var(--fg); }
+.tl-chip.err { background: var(--tint-pink); color: var(--fg); }
+.tl-chip.err b, .tl-chip.err > .codicon { color: var(--err); }
+.tl-chip.note > .codicon { color: var(--warn); }
+button.tl-chip { cursor: pointer; }
+button.tl-chip:hover { background: var(--btn-hover); color: var(--fg); }
+button.tl-chip.err:hover { background: var(--tint-pink); text-decoration: underline; }
+.tl-chip.tl-frame { color: var(--fg); }
+.tl-chip .tr-count { line-height: 20px; }
+.tl-turn > .tl-thumbs { padding: 0; }
+.tl-turn > .tl-thumbs button { height: 48px; }
+
+/* Steps on the left, the time and how long it took on the right. Open, the turn's steps show as in the Transcript. */
+.tl-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.tl-when { margin-left: auto; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tl-card-steps { margin: 0; }
 
 @media (max-width: 900px) {
-  .tl-prompt .frame-chip { line-height: 24px; }
+  .tl-turn, .tl-prompt, .tl-prompt .frame-chip, .tl-turn .tr-assistant .md { font-size: var(--text-md); line-height: 24px; }
+  .tl-turn .tr-reply.clamp { max-height: 48px; }
   .tl-prompt-open { min-height: 36px; }
-  .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; }
+  .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; font-size: var(--text-md); }
+  .tl-chip { min-height: 36px; padding-block: 6px; font-size: var(--text-sm); line-height: 24px; }
+  .tl-chip > .codicon, .tl-chip > .file-icon, .tl-chip .tr-count { height: 24px; line-height: 24px; }
+  .tl-card-foot { min-height: 36px; }
+  .tl-when { font-size: var(--text-sm); line-height: 20px; }
 }
 /* Allow edits anywhere (ScopeSwitch.tsx): an icon toggle right of the view switch, before Steps. */
 .chat-head .scope-switch { margin-left: auto; flex: none; width: 32px; height: 32px; }

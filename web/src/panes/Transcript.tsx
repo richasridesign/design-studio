@@ -2,19 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { approvalReply } from '../../../shared/stages';
 import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
 import { FIX_ASK } from '../../../shared/workflow';
-import { getJson, setUi, useRev, useStore } from '../store';
+import { getJson, useRev, useStore } from '../store';
 import { CHECKS, lastMcp } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { FileIcon } from './Explorer';
-import { focusComposer, insertPrompt, showNode } from './composerEvents';
+import { focusComposer, insertPrompt, openFileTab, showNode } from './composerEvents';
+import { asksForGo, optionLetters } from './quickReplies';
 import { openSample } from './Chats';
 import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
 import { FoldButton, FoldLine, useFold } from '../Fold';
-import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, replySummary, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
+import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
@@ -127,7 +128,9 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
   const items = useMemo(() => buildTranscript(events), [events]);
   const all = useMemo(() => (view === 'timeline' ? timelineTurns(items) : groupTurns(items)), [items, view]);
   const [early, setEarly] = useState(false);
-  const { from, hidden } = view === 'timeline' && !early ? recentTurns(all) : { from: 0, hidden: 0 };
+  const { from, hidden } = view === 'timeline' && !early ? recentTurns(all, 5) : { from: 0, hidden: 0 };
+  // The timeline leaves tool steps out; each card finds its steps and files in the same turn from groupTurns.
+  const groups = useMemo(() => (view === 'timeline' ? new Map(groupTurns(items).map((t) => [t.id, t])) : null), [items, view]);
   const turns = all.slice(from);
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -160,7 +163,7 @@ export function TranscriptView({ events, cwd, running, stopping, status, figmaKe
         )}
         {hidden > 0 && <div className="tl-earlier"><button className="link" onClick={() => setEarly(true)}>Show {hidden} earlier {hidden === 1 ? 'prompt' : 'prompts'}</button></div>}
         {view === 'timeline'
-          ? turns.map((t) => <TimelineTurn key={t.id} t={t} cwd={cwd} thumb={thumb} />)
+          ? turns.map((t, i) => <TimelineTurn key={t.id} t={t} group={groups?.get(t.id)} cwd={cwd} thumb={thumb} latest={i === turns.length - 1} running={running} />)
           : turns.map((t, i) => t.blocks.map((b) => <BlockRow key={b.id} b={b} cwd={cwd} thumb={thumb} live={running && i === turns.length - 1} />))}
         {running && children === undefined && (
           <div className="tr-working">
@@ -276,30 +279,148 @@ function Reply({ text, streaming }: { text: string; streaming: boolean }) {
 }
 
 type Thumb = (id: string) => string | null;
-type Bulleted = Extract<Item, { kind: 'done' | 'note' | 'system' | 'assistant' | 'phase' }>;
-const BULLETED = new Set<Item['kind']>(['done', 'note', 'system', 'assistant', 'phase']);
+type StepsBlock = Extract<Block, { kind: 'steps' }>;
+type FileItem = Extract<Item, { kind: 'file' }>;
+const IN_CARD = new Set<Item['kind']>(['review', 'report']);
+const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// System notices that say something failed, and the ones that wait for her decision (waitText in shared/awaiting).
+const FAILED = /\b(failed|error|could not)\b/i;
+const WAITS = /\bwaits? for your decision\b/i;
 
 /**
- * One prompt in the Timeline: her prompt as one quiet line, then a bullet list of what came of it (finished work, notes,
- * notices and the first sentence of Claude's reply). Review cards and run reports keep their own cards, in order.
+ * One prompt in the Timeline as one card: her prompt as one quiet line, Claude's reply, a strip of chips for what came
+ * of it (finished work, frames, files, notes, notices), then Steps and the time. Review cards and run reports sit in
+ * the card, in order. `group` is the same turn from groupTurns, which keeps the tool steps the timeline leaves out.
  */
-function TimelineTurn({ t, cwd, thumb }: { t: Turn; cwd: string; thumb: Thumb }) {
+function TimelineTurn({ t, group, cwd, thumb, latest, running }: { t: Turn; group?: Turn; cwd: string; thumb: Thumb; latest: boolean; running: boolean }) {
   const items = t.blocks.filter((b): b is Item => b.kind !== 'steps');
   const head = items[0]?.kind === 'user' ? items[0] : null;
   const head2 = items[0]?.kind === 'phase' ? items[0] : null;
-  const parts: Array<Bulleted[] | Item> = [];
-  for (const it of items.slice(head || head2 ? 1 : 0)) {
-    if (!BULLETED.has(it.kind)) parts.push(it);
-    else if (Array.isArray(parts[parts.length - 1])) (parts[parts.length - 1] as Bulleted[]).push(it as Bulleted);
-    else parts.push([it as Bulleted]);
-  }
+  const rest = items.slice(head || head2 ? 1 : 0);
+  const reply = rest.find((it): it is Extract<Item, { kind: 'assistant' }> => it.kind === 'assistant');
+  const steps = group?.blocks.find((b): b is StepsBlock => b.kind === 'steps');
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const { settle, recheck } = useContext(Settle);
+  useEffect(() => { if (open) recheck(); else settle(); }, [open, settle, recheck]);
+  const dur = steps ? duration(steps.ms) : '';
+  const when = [head ? clock(head.at) : '', dur].filter(Boolean).join(' · ');
   return (
     <div className="tl-turn">
       {head && <PromptLine text={head.text} stopping={!!head.stopping} />}
       {head2 && <Row it={head2} cwd={cwd} thumb={thumb} />}
-      {parts.map((p) => (Array.isArray(p)
-        ? <ul key={p[0].id} className="tl-list">{p.map((it) => <Bullet key={it.id} it={it} thumb={thumb} />)}</ul>
-        : <Row key={p.id} it={p} cwd={cwd} thumb={thumb} />))}
+      {reply && <CardReply key={reply.id} text={reply.text} streaming={reply.streaming} latest={latest} />}
+      {rest.filter((it) => IN_CARD.has(it.kind)).map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}
+      <Facts items={rest} steps={steps} reply={latest && !running && reply && !reply.streaming ? reply.text : null} waiting={latest} cwd={cwd} thumb={thumb} />
+      {(steps || when) && (
+        <div className="tl-card-foot">
+          {steps && <button className="link tl-more" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}>{open ? 'Hide steps' : `Steps · ${steps.count}`}</button>}
+          {when && <span className="tl-when">{when}</span>}
+        </div>
+      )}
+      {steps && open && <div className="tr-steps-body tl-card-steps" id={bodyId}>{steps.items.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}</div>}
+    </div>
+  );
+}
+
+type Fact = { id: string; tone: 'plain' | 'note' | 'err' | 'wait'; label?: string; text: string; icon?: string };
+
+/**
+ * What came of the turn as one wrapping row of chips. Notes, failures and what waits on her are tinted with a bold
+ * label and an icon, so the colour is never the only cue; the rest stay quiet. Frames and files open on click.
+ */
+function Facts({ items, steps, reply, waiting, cwd, thumb }: { items: Item[]; steps?: StepsBlock; reply: string | null; waiting: boolean; cwd: string; thumb: Thumb }) {
+  const outline = useOutline(useStore((s) => s.session.figma?.key));
+  const facts: Fact[] = [];
+  const nodes = new Set<string>();
+  for (const it of items) {
+    if (it.kind === 'done') {
+      facts.push({ id: it.id, tone: 'plain', text: it.text, icon: 'check' });
+      for (const [id] of it.nodes) nodes.add(id);
+    }
+    else if (it.kind === 'note') facts.push({ id: it.id, tone: 'note', label: 'Note:', text: it.text, icon: 'info' });
+    else if (it.kind === 'system') {
+      const tone = FAILED.test(it.text) ? 'err' : WAITS.test(it.text) ? 'wait' : 'plain';
+      facts.push({ id: it.id, tone, label: tone === 'err' ? 'Error:' : tone === 'wait' ? 'Waiting on you:' : undefined, text: it.text, icon: tone === 'err' ? 'error' : tone === 'wait' ? 'bell' : undefined });
+    }
+  }
+  // Only the newest turn can still wait on her: a question or a plan with no answer yet, or a reply that asks for her go.
+  if (waiting) {
+    const ask = steps?.items.find((it) => it.kind === 'step' && !it.result && (it.use.name === 'AskUserQuestion' || it.use.name === 'ExitPlanMode'));
+    if (ask?.kind === 'step') facts.push({ id: `${ask.id}:wait`, tone: 'wait', label: 'Waiting on you:', text: ask.use.name === 'ExitPlanMode' ? 'a plan to approve' : 'a question to answer', icon: 'bell' });
+    else if (reply) {
+      const letters = optionLetters(reply);
+      if (letters.length) facts.push({ id: 'wait:pick', tone: 'wait', label: 'Waiting on you:', text: `pick ${letters.slice(0, -1).join(', ')} or ${letters[letters.length - 1]}`, icon: 'bell' });
+      else if (asksForGo(reply)) facts.push({ id: 'wait:go', tone: 'wait', label: 'Waiting on you:', text: 'your go', icon: 'bell' });
+    }
+  }
+  // Files written in the turn, one chip per file with its line counts added up.
+  const files = new Map<string, FileItem>();
+  for (const it of steps?.items ?? []) {
+    if (it.kind !== 'file') continue;
+    const had = files.get(it.path);
+    files.set(it.path, had ? { ...had, count: { add: had.count.add + it.count.add, del: had.count.del + it.count.del }, error: had.error ?? it.error } : it);
+  }
+  const shots = [...nodes].filter((id) => thumb(id));
+  const named = [...nodes].filter((id) => !thumb(id));
+  if (!facts.length && !files.size && !nodes.size) return null;
+  return (
+    <>
+      <ul className="tl-facts">
+        {facts.map((f) => (
+          <li key={f.id} className={`tl-chip ${f.tone}`}>
+            {f.icon && <Icon name={f.icon} small />}
+            <span>{f.label && <b>{f.label}</b>}{f.label && ' '}{f.text}</span>
+          </li>
+        ))}
+        {named.map((id) => (
+          <li key={id}><button className="tl-chip tl-frame" title="Show in Figma" onClick={() => showNode(id)}><Icon name="layers" small /><span>{frameName(outline, id) ?? id}</span></button></li>
+        ))}
+        {[...files.values()].map((f) => {
+          const rel = relPath(f.path, cwd);
+          const name = rel.slice(rel.lastIndexOf('/') + 1);
+          return (
+            <li key={f.path}>
+              <button className={`tl-chip file ${f.error ? 'err' : ''}`} title={f.error ? `${rel}: ${f.error}` : rel} aria-label={`Open ${rel}`} onClick={() => openFileTab(rel)}>
+                <FileIcon name={name} />
+                <span>{f.error && <b>Failed:</b>}{f.error && ' '}{name}</span>
+                {!f.error && <span className="tr-count"><span className="add">+{f.count.add}</span> <span className="del">-{f.count.del}</span></span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {shots.length > 0 && (
+        <span className="tl-thumbs">
+          {shots.map((id) => <button key={id} title="Show in Figma" onClick={() => showNode(id)}><img src={thumb(id)!} alt={frameName(outline, id) ?? ''} loading="lazy" /></button>)}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Claude's reply in the card: the newest card shows it all, older ones cut it to two lines with Show more. */
+function CardReply({ text, streaming, latest }: { text: string; streaming: boolean; latest: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  const clamp = !latest && !streaming && !open;
+  const { settle, recheck } = useContext(Settle);
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el || !clamp) return;
+    const measure = () => setLong(el.scrollHeight > el.clientHeight + 2);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clamp, text]);
+  useEffect(() => { if (open) recheck(); else settle(); }, [long, open, settle, recheck]);
+  // One button for Show more and Show less, so the keyboard stays on it when it flips.
+  return (
+    <div className={`tr-assistant ${streaming ? 'streaming' : ''}`}>
+      <div ref={body} className={`tr-reply ${clamp ? 'clamp' : ''} ${clamp && long ? 'clipped' : ''}`}><Markdown text={text} /></div>
+      {!latest && !streaming && (long || open) && <button className="link tl-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? 'Show less' : 'Show more'}</button>}
     </div>
   );
 }
@@ -367,67 +488,6 @@ function PromptLine({ text, stopping }: { text: string; stopping: boolean }) {
   );
 }
 
-function Bullet({ it, thumb }: { it: Bulleted; thumb: Thumb }) {
-  switch (it.kind) {
-    case 'done': {
-      const shown = it.nodes.filter(([id]) => thumb(id));
-      return (
-        <li className="tl-li done">
-          <span className="tl-mark"><Icon name="check" small /></span>
-          <span className="tl-say">{it.text}</span>
-          {shown.length > 0 && (
-            <span className="tl-thumbs">
-              {shown.map(([id]) => <button key={id} title="Show in Figma" onClick={() => showNode(id)}><img src={thumb(id)!} alt="" loading="lazy" /></button>)}
-            </span>
-          )}
-        </li>
-      );
-    }
-    case 'note':
-      return <li className="tl-li note"><span className="tl-mark"><i className="tr-dot" /></span><span className="tl-say"><b>Note:</b> {it.text}</span></li>;
-    case 'assistant':
-      return <ReplyBullet text={it.text} streaming={it.streaming} />;
-    default:
-      return <li className={`tl-li ${it.kind}`}><span className="tl-mark"><i className="tl-bullet" /></span><span className="tl-say">{it.text}</span></li>;
-  }
-}
-
-/** Claude's reply as its first sentence. Show reply opens the whole reply in place. */
-function ReplyBullet({ text, streaming }: { text: string; streaming: boolean }) {
-  const outline = useOutline(useStore((s) => s.session.figma?.key));
-  const [open, setOpen] = useState(false);
-  const { settle, recheck } = useContext(Settle);
-  const sum = useMemo(() => replySummary(text, (url) => {
-    const p = splitFrameLinks(url)[0];
-    return typeof p === 'object' ? frameName(outline, p.id) ?? p.id : null;
-  }), [text, outline]);
-  const btn = useRef<HTMLButtonElement>(null);
-  const moved = useRef(false);
-  useEffect(() => {
-    if (open) recheck(); else settle();
-    if (moved.current) btn.current?.focus();
-    moved.current = false;
-  }, [open, settle, recheck]);
-  const toggle = () => { moved.current = true; setOpen((v) => !v); };
-  const full = open && !streaming;
-  return (
-    <li className={`tl-li reply ${full ? 'open' : ''}`}>
-      <span className="tl-mark"><i className="tl-bullet" /></span>
-      {full ? (
-        <div className="tl-say">
-          <div className="tr-assistant"><Markdown text={text} /></div>
-          <button ref={btn} className="link tl-more" aria-expanded onClick={toggle}>Show less</button>
-        </div>
-      ) : (
-        <span className="tl-say">
-          {sum.text || (streaming ? 'Writing a reply…' : '')}
-          {!streaming && sum.more && <button ref={btn} className="link tl-more" aria-expanded={false} onClick={toggle}>Show reply</button>}
-        </span>
-      )}
-    </li>
-  );
-}
-
 function UserRule({ text }: { text: string }) {
   const hasFile = useStore((s) => Boolean(s.session.figma));
   return <MakeRule text={text} hasFile={hasFile} />;
@@ -469,7 +529,7 @@ function FileCard({ it, cwd }: { it: Extract<Item, { kind: 'file' }>; cwd: strin
   const cut = rel.lastIndexOf('/');
   const name = rel.slice(cut + 1);
   return (
-    <div className={`tr-file tr-act ${it.error ? 'err' : ''}`} title={rel} aria-label={`Open ${rel}`} onClick={() => setUi({ openFile: rel, follow: false })} {...press(() => setUi({ openFile: rel, follow: false }))}>
+    <div className={`tr-file tr-act ${it.error ? 'err' : ''}`} title={rel} aria-label={`Open ${rel}`} onClick={() => openFileTab(rel)} {...press(() => openFileTab(rel))}>
       <FileIcon name={name} />
       <span className="tr-path"><span className="tr-dir">{cut >= 0 ? rel.slice(0, cut + 1) : ''}</span>{name}</span>
       {it.error ? (
