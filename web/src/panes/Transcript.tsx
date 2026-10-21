@@ -15,7 +15,7 @@ import { useThumbs } from '../useThumbs';
 import { frameName, splitFrameLinks, useOutline } from '../outline';
 import { FrameNames } from '../FrameNames';
 import { FoldButton, FoldLine, useFold } from '../Fold';
-import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
+import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, stepsSummary, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
 import { MakeRule } from './MakeRule';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
@@ -288,9 +288,10 @@ const FAILED = /\b(failed|error|could not)\b/i;
 const WAITS = /\bwaits? for your decision\b/i;
 
 /**
- * One prompt in the Timeline as one card: her prompt as one quiet line, Claude's reply, a strip of chips for what came
- * of it (finished work, frames, files, notes, notices), then Steps and the time. Review cards and run reports sit in
- * the card, in order. `group` is the same turn from groupTurns, which keeps the tool steps the timeline leaves out.
+ * One prompt in the Timeline, as in the Claude app: her prompt in a grey bubble on the right with the time under it, a
+ * quiet line naming the steps (it opens them in place), then Claude's reply in a white block with the strip of what came
+ * of it. Review cards and run reports sit in the block, in order. `group` is the same turn from groupTurns, which keeps
+ * the tool steps the timeline leaves out.
  */
 function TimelineTurn({ t, group, cwd, thumb, latest, running }: { t: Turn; group?: Turn; cwd: string; thumb: Thumb; latest: boolean; running: boolean }) {
   const items = t.blocks.filter((b): b is Item => b.kind !== 'steps');
@@ -305,20 +306,29 @@ function TimelineTurn({ t, group, cwd, thumb, latest, running }: { t: Turn; grou
   useEffect(() => { if (open) recheck(); else settle(); }, [open, settle, recheck]);
   const dur = steps ? duration(steps.ms) : '';
   const when = [head ? clock(head.at) : '', dur].filter(Boolean).join(' · ');
+  const said = useMemo(() => (steps ? stepsSummary(steps.items) : ''), [steps]);
+  const cards = rest.filter((it) => IN_CARD.has(it.kind));
+  const facts = <Facts items={rest} steps={steps} reply={latest && !running && reply && !reply.streaming ? reply.text : null} waiting={latest} cwd={cwd} thumb={thumb} />;
   return (
     <div className="tl-turn">
-      {head && <PromptLine text={head.text} stopping={!!head.stopping} />}
-      {head2 && <Row it={head2} cwd={cwd} thumb={thumb} />}
-      {reply && <CardReply key={reply.id} text={reply.text} streaming={reply.streaming} latest={latest} />}
-      {rest.filter((it) => IN_CARD.has(it.kind)).map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}
-      <Facts items={rest} steps={steps} reply={latest && !running && reply && !reply.streaming ? reply.text : null} waiting={latest} cwd={cwd} thumb={thumb} />
-      {(steps || when) && (
-        <div className="tl-card-foot">
-          {steps && <button className="link tl-more" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}>{open ? 'Hide steps' : `Steps · ${steps.count}`}</button>}
+      {head && (
+        <div className="tl-you">
+          <div className="tl-bubble"><PromptLine text={head.text} stopping={!!head.stopping} /></div>
           {when && <span className="tl-when">{when}</span>}
         </div>
       )}
+      {head2 && <Row it={head2} cwd={cwd} thumb={thumb} />}
+      {steps && said && (
+        <button className="tl-steps-line" aria-expanded={open} aria-controls={bodyId} title={open ? 'Hide steps' : `Show ${steps.count} ${steps.count === 1 ? 'step' : 'steps'}`} onClick={() => setOpen((v) => !v)}>
+          <span>{said}</span><Icon name={open ? 'chevron-down' : 'chevron-right'} small />
+        </button>
+      )}
       {steps && open && <div className="tr-steps-body tl-card-steps" id={bodyId}>{steps.items.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}</div>}
+      <div className="tl-claude">
+        {reply && <CardReply key={reply.id} text={reply.text} streaming={reply.streaming} latest={latest} />}
+        {cards.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}
+        {facts}
+      </div>
     </div>
   );
 }
