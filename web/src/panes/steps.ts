@@ -261,3 +261,34 @@ export function replySummary(text: string, frame: (url: string) => string | null
   const line = clip(firstSentence(lines[0]), max);
   return { text: line, more: code || line !== lines.join(' ') };
 }
+
+/**
+ * A turn's steps in a few plain words, as the Claude app says them ("Read 3 files, worked in Figma"). Kinds keep the
+ * order they first ran in, and at most three are named.
+ */
+export function stepsSummary(items: Item[]): string {
+  const counts = new Map<string, number>();
+  for (const it of items) {
+    const name = it.kind === 'step' || it.kind === 'agent' ? it.use.name : it.kind === 'file' ? 'Edit' : null;
+    if (!name) continue;
+    const kind = name === 'Read' ? 'read' : ['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(name) ? 'edit'
+      : ['Grep', 'Glob', 'LS'].includes(name) ? 'search' : name === 'Bash' ? 'run' : name === 'WebFetch' ? 'fetch'
+        : name === 'WebSearch' ? 'web' : AGENT_TOOLS.has(name) ? 'agent' : /^mcp__.*figma/i.test(name) ? 'figma' : 'tool';
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const n = (k: number, one: string, many: string) => (k === 1 ? one : `${k} ${many}`);
+  const say: Record<string, (k: number) => string> = {
+    read: (k) => `read ${n(k, 'a file', 'files')}`,
+    edit: (k) => `edited ${n(k, 'a file', 'files')}`,
+    search: () => 'searched the project',
+    run: (k) => `ran ${n(k, 'a command', 'commands')}`,
+    fetch: (k) => `fetched ${n(k, 'a page', 'pages')}`,
+    web: () => 'browsed the web',
+    agent: (k) => `asked ${n(k, 'a helper', 'helpers')}`,
+    figma: () => 'worked in Figma',
+    tool: (k) => `used ${n(k, 'a tool', 'tools')}`,
+  };
+  const parts = [...counts].slice(0, 3).map(([k, c]) => say[k](c));
+  const line = parts.join(', ') + (counts.size > 3 ? ' and more' : '');
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}

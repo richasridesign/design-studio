@@ -129,13 +129,26 @@
 .tl-foot .tl-now .tool { font-family: inherit; }
 .tl-foot .tl-now .tool.mono { font-family: var(--mono); }
 
-/* Timeline view: one white card per prompt, 12px apart (.tr > * + *). Her prompt, Claude's reply, a strip of what came
-   of it, then Steps and the time. Text in the card reads at 14/20. */
-.tl-turn {
-  display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated);
-  font-size: var(--text-sm); line-height: 20px;
+/* Timeline view, as in the Claude app: per prompt, her prompt in a grey bubble on the right with the time under it, a
+   quiet steps line, then Claude's reply in a white block with a subtle outline. 24px between prompts. Text reads at 14/20. */
+.tr.timeline > .tl-turn + .tl-turn { margin-top: 24px; }
+.tl-turn { display: flex; flex-direction: column; gap: 8px; min-width: 0; font-size: var(--text-sm); line-height: 20px; }
+.tl-you { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.tl-bubble { max-width: 85%; min-width: 0; padding: 8px 12px; border-radius: 12px; background: var(--bg-sunken); }
+.tl-bubble .tl-prompt, .tl-bubble .tl-prompt-open { color: var(--fg); }
+.tl-you .tl-when { margin-left: 0; }
+.tl-steps-line {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0; border: 0;
+  background: transparent; font: inherit; color: var(--fg-muted); text-align: left;
 }
+.tl-steps-line:hover { background: transparent; color: var(--fg); }
+.tl-claude {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 16px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated);
+}
+.tl-claude:empty { display: none; }
+.tl-claude > .tl-thumbs { padding: 0; }
+.tl-claude > .tl-thumbs button { height: 48px; }
 .tl-turn > .tr-phase { margin: 0; }
 
 .tl-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg-muted); }
@@ -186,11 +199,8 @@ button.tl-chip:hover { background: var(--btn-hover); color: var(--fg); }
 button.tl-chip.err:hover { background: var(--tint-pink); text-decoration: underline; }
 .tl-chip.tl-frame { color: var(--fg); }
 .tl-chip .tr-count { line-height: 20px; }
-.tl-turn > .tl-thumbs { padding: 0; }
-.tl-turn > .tl-thumbs button { height: 48px; }
 
 /* Steps on the left, the time and how long it took on the right. Open, the turn's steps show as in the Transcript. */
-.tl-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
 .tl-when { margin-left: auto; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tl-card-steps { margin: 0; }
 
@@ -201,7 +211,7 @@ button.tl-chip.err:hover { background: var(--tint-pink); text-decoration: underl
   .tl-more { margin-bottom: -6px; padding-block: 6px; min-height: 36px; font-size: var(--text-md); }
   .tl-chip { min-height: 36px; padding-block: 6px; font-size: var(--text-sm); line-height: 24px; }
   .tl-chip > .codicon, .tl-chip > .file-icon, .tl-chip .tr-count { height: 24px; line-height: 24px; }
-  .tl-card-foot { min-height: 36px; }
+  .tl-steps-line { min-height: 36px; }
   .tl-when { font-size: var(--text-sm); line-height: 20px; }
 }
 /* Allow edits anywhere (ScopeSwitch.tsx): an icon toggle right of the view switch, before Steps. */
