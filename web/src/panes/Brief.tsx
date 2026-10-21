@@ -1,7 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type RefObject } from 'react';
+import { useLayoutEffect, useMemo, useState, type RefObject } from 'react';
 import { send, useStore } from '../store';
 import { Icon } from '../Icon';
-import { ago } from '../ago';
 import { IconButton } from '../Tip';
 import { Pending } from './Pending';
 import { Composer } from './Chat';
@@ -15,8 +14,6 @@ import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
 import { runningText } from '../StatusBar';
 import { WorkflowPanel } from './Workflow';
 import { stepLabel } from './steps';
-import { insertPrompt } from './composerEvents';
-import { quickReplies, replyToAnswer } from './quickReplies';
 import { Brainstorm, BrainstormLine } from './Brainstorm';
 
 export function nextSteps(events: ChatEvent[]) {
@@ -74,7 +71,6 @@ export function Brief(expand: Expand) {
   const stopping = useStore((s) => s.session.stopping);
   const next = useMemo(() => nextSteps(events), [events]);
   const lastTool = useMemo(() => [...events].reverse().find((e) => e.kind === 'tool_use' && !e.name.endsWith('__set_status')), [events]);
-  const lastReply = useMemo(() => [...events].reverse().find((e) => e.kind === 'assistant' && e.text.trim()), [events]);
   const [adding, setAdding] = useState(false);
   const chatId = useStore((s) => s.session.id);
   const brainstorm = useStore((s) => Boolean(s.session.brainstorm));
@@ -92,24 +88,16 @@ export function Brief(expand: Expand) {
   };
   const showViews = events.length > 0 || brainstorm || rounds > 0;
   const toggleSteps = () => { setStepsOpen(!stepsOpen); save(STEPS_KEY, stepsOpen ? '0' : '1'); };
-  // The foot's details (quick replies, Up next) fold away so the conversation gets the room; the status line stays.
+  // The foot's details (Up next) fold away so the conversation gets the room; the status line stays.
   const [footOpen, setFootOpen] = useState(() => load(FOOT_KEY) !== '0');
   const toggleFoot = () => { setFootOpen(!footOpen); save(FOOT_KEY, footOpen ? '0' : '1'); };
   // Up next, Claude's own list of what it does after this turn: shown when it has items, hidden when empty (Add to Up next lives with the items).
   const hasSteps = next.length > 0 || adding;
-  const answerTo = useMemo(() => replyToAnswer(events), [events]);
-  const [, tick] = useState(0);
   const setNext = (list: string[]) => send({ type: 'plan', next: list });
   const state = waiting ? 'waiting' : stopping ? 'stopping' : running ? 'running' : 'idle';
-  const quick = state === 'idle' && answerTo ? quickReplies(answerTo) : [];
   const toolLine = lastTool?.kind === 'tool_use' ? stepLabel(lastTool.name, lastTool.input, cwd) : null;
   const where = useChatPlace();
   const frozen = where.place?.iteration?.state === 'frozen';
-
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 30000);
-    return () => clearInterval(t);
-  }, []);
 
   return (
     <div className="brief">
@@ -133,32 +121,27 @@ export function Brief(expand: Expand) {
         {/* A flow chat's workflow: shown from the start, before the first message. */}
         <WorkflowPanel />
         {view === 'brainstorm' ? <Brainstorm onBuilt={() => pick('timeline')} /> : <Transcript view={view}>
-          {(events.length > 0 || running) && <div className="tl-foot">
-            <div className={`tl-now ${state}`}>
-              <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : state === 'idle' ? 'circle-large-outline' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
+          {/* Idle, the foot is gone: no Last reply line and no quick reply chips. Up next stays while it has items, and Read
+              aloud stays mounted (hidden) so a finished reply is still spoken. */}
+          {state === 'idle' && <span hidden><ReadAloud /></span>}
+          {(state !== 'idle' || (events.length > 0 && hasSteps)) && <div className="tl-foot">
+            {state !== 'idle' && <div className={`tl-now ${state}`}>
+              <span className="mark"><Icon name={state === 'waiting' ? 'bell-dot' : 'loading'} small spin={state === 'running' || state === 'stopping'} /></span>
               <span className="text">
-                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : state === 'running' ? runningText(status) : lastReply ? '' : 'Idle'}
-                {state === 'idle' && lastReply && <span className="when" title={new Date(lastReply.at).toLocaleString()}>Last reply: {ago(lastReply.at)}</span>}
+                {state === 'waiting' ? 'Waiting for you' : state === 'stopping' ? 'Stopping…' : runningText(status)}
                 {state === 'running' && toolLine && <span className={`tool ${toolLine.mono ? 'mono' : ''}`} title={toolLine.object}>{toolLine.verb} {toolLine.object}</span>}
               </span>
               <span className="tl-now-acts">
                 <ReadAloud />
-                {(quick.length > 0 || hasSteps) && <>
+                {hasSteps && <>
                   {!footOpen && next.length > 0 && <span className="badge" title={`Up next: ${next.length}`}><span className="sr-only">Up next: </span>{next.length}</span>}
                   <IconButton label={footOpen ? 'Hide details' : 'Show details'} place="top" aria-expanded={footOpen} aria-controls="tl-foot-details" onClick={toggleFoot}>
                     <Icon name={footOpen ? 'chevron-up' : 'chevron-down'} small />
                   </IconButton>
                 </>}
               </span>
-            </div>
-            <div className="tl-foot-details" id="tl-foot-details" hidden={!footOpen}>
-            {quick.length > 0 && (
-              <div className="quick-replies" role="group" aria-label="Quick replies">
-                {quick.map((q) => (
-                  <button key={q.label} className={q.main ? 'qr qr-main' : 'qr'} title={q.title} onClick={() => (q.send ? send({ type: 'prompt', text: q.text }) : insertPrompt(q.text))}>{q.label}</button>
-                ))}
-              </div>
-            )}
+            </div>}
+            <div className="tl-foot-details" id="tl-foot-details" hidden={state !== 'idle' && !footOpen}>
             {/* Up next: what Claude plans to do after this turn. "Steps" is kept for the workflow in the chat head. */}
             {hasSteps && (
               <section className="up-next" aria-labelledby="up-next-h">
