@@ -189,7 +189,7 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 .activitybar button.active { color: var(--fg); }
 /* Side nav: 14px Lucide glyphs in 40px targets. The open view's icon sits on a 32px lavender disc, the same tint as the open chat in the sidebar. */
 .activitybar button { isolation: isolate; }
-.activitybar button.active::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; z-index: -1; border-radius: 50%; background: var(--tint-lavender); box-shadow: inset 0 0 0 1px var(--ink-lavender); }
+.activitybar button.active::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; z-index: -1; border-radius: 50%; background: var(--tint-lavender); }
 .activitybar button[data-view] { opacity: 0.7; }
 .activitybar button[data-view]:hover, .activitybar button[data-view].active { opacity: 1; }
 .activitybar .codicon.icon { font-size: 14px; }
