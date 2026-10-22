@@ -4,7 +4,7 @@
 
 .cp-card {
   position: relative; display: flex; flex-direction: column;
-  background: var(--bg-raised); border: 1px solid var(--input-border); border-radius: var(--radius, 8px);
+  background: var(--bg-elevated); border: 1px solid var(--input-border); border-radius: var(--radius, 8px);
   transition: border-color 0.12s;
 }
 /* Focus is always the focus blue, whatever the mode; the mode colour shows at rest. */
