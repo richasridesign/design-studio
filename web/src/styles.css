@@ -614,5 +614,4 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 .side-brand { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
 .side-brand .brand-mark { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-family: var(--serif); font-weight: 600; font-size: var(--text-lg); letter-spacing: -0.01em; white-space: nowrap; }
 .side-brand .brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.side-brand .logo { width: 20px; height: 20px; flex: none; border-radius: 6px; background: var(--accent); }
 .side-offline { padding: 0 12px 8px; font-size: var(--text-sm); }
