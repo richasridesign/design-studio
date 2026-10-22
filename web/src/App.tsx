@@ -436,13 +436,14 @@ export function App() {
         {/* Desktop: named regions so every part sits in a landmark. Phone: the shown part is the one main. */}
         <section className="sidebar pane side" role={narrow() && tab === 'more' ? 'main' : undefined} aria-label={narrow() ? (tab === 'more' ? 'More' : undefined) : (VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}>
           {/* On desktop the brand heads the sidebar, so the top bar's row goes to the columns. */}
-          <div className="side-brand desktop-only" aria-hidden><span className="logo" />Design Studio</div>
-          {!connected && <span className="side-offline error-text desktop-only">Disconnected</span>}
-          <div className="sidebar-title">
-            {(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}
-            <span className="spacer" />
-            <IconButton label="Hide sidebar" tip="Hide sidebar (⌘B)" aria-keyshortcuts="Meta+B" className="icon-btn side-hide desktop-only" onClick={() => setSidebar(false)}><Icon name="layout-sidebar-left" small /></IconButton>
+          {/* Hide sidebar sits at the brand row's end, so every view keeps it. */}
+          <div className="side-brand desktop-only">
+            <span className="brand-mark" aria-hidden><span className="logo" /><span className="brand-name">Design Studio</span></span>
+            <IconButton label="Hide sidebar" tip="Hide sidebar (⌘B)" aria-keyshortcuts="Meta+B" className="icon-btn side-hide" onClick={() => setSidebar(false)}><Icon name="layout-sidebar-left" small /></IconButton>
           </div>
+          {!connected && <span className="side-offline error-text desktop-only">Disconnected</span>}
+          {/* Chats needs no title row on desktop: New chat and the brand head it. A phone keeps it. */}
+          <div className={`sidebar-title${view === 'chats' ? ' mobile-only' : ''}`}>{(VIEWS.find((v) => v.id === view) ?? VIEWS[0]).title}</div>
           {tab === 'more' && (
             <div className="side-switch mobile-only">
               {views.map((v) => <button key={v.id} className={view === v.id ? 'active' : ''} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.title}</button>)}

@@ -1,157 +1,116 @@
-.sessions .sessions-bar { gap: 4px; padding: 0 12px 6px 8px; align-items: center; }
-.sessions .sessions-bar input {
-  height: 32px; padding: 0 12px; font-size: var(--text-md); line-height: 30px;
-  background: var(--bg-sunken); border: 1px solid var(--input-border); border-radius: var(--radius-sm);
+/* Chats sidebar, after the chat's welcome panel: a soft peach glow at the top, white controls with a subtle border, and
+   a quiet tree. One left edge (12px) for the brand, New chat, search and the top level of the tree. */
+.sidebar:has(> .sessions.chats) { background: var(--glow-peach) top / 100% 320px no-repeat, var(--side); }
+.sessions .sessions-bar { gap: 8px; padding: 0 12px 8px; align-items: center; }
+/* New chat and Add project share one row: a white button and a white icon button, like Attach a file in the welcome. */
+.sessions .sessions-bar :is(.new-chat, .add-project) {
+  height: 36px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--fg);
+  font-size: var(--text-sm); font-weight: 500; white-space: nowrap;
 }
-.sessions .sessions-bar input:focus { outline: 0; border-color: var(--focus); }
-.sessions .hint { padding: 0 12px 6px 8px; font-size: var(--text-xs); color: var(--fg-muted); }
-.sessions .hint.error { color: var(--err); display: flex; gap: 4px; align-items: center; cursor: pointer; }
-.sessions .tree .row { flex-wrap: nowrap; padding-left: 8px; height: 28px; }
-.sessions .tree .row.project { font-weight: 600; color: var(--fg); }
-.sessions .tree .row.session, .sessions .tree .row.more { padding-left: 24px; }
-.sessions .tree .row.session.sample { padding-left: 8px; }
-.sessions .tree .row.selected { background: var(--accent-soft); color: var(--fg); }
-/* Hover and the open chat sit on a rounded pill inset 8px from the sidebar edges; the open chat's pill is lavender, as on the portfolio cards. */
-.sessions .tree .row { position: relative; isolation: isolate; }
-.sessions .tree .row:hover, .sessions .tree .row.selected { background: transparent; }
-.sessions .tree .row:is(:hover, .selected)::before { content: ''; position: absolute; inset: 0 8px; z-index: -1; border-radius: var(--radius-row); background: var(--bg-hover); }
-.sessions .tree .row.selected::before { background: var(--tint-lavender); }
-.sessions .tree .row.selected:hover::before { background: color-mix(in srgb, var(--tint-lavender) 92%, var(--ink-lavender)); }
-/* Sample tour: its compass sits on a small peach disc. */
-.sessions .tree .row.session.sample .twistie { width: 20px; height: 20px; align-items: center; border-radius: 50%; background: var(--tint-peach); color: var(--ink-terracotta); }
-.sessions .tree .row .name { flex: 1; min-width: 0; }
-.sessions .tree .row .count, .sessions .tree .row .when {
-  flex: none; margin-left: auto; padding: 0 16px 0 8px; font-size: var(--text-xs); font-weight: 400;
+.sessions .sessions-bar .new-chat { flex: 1 1 0; min-width: 0; padding: 0 12px; }
+.sessions .sessions-bar .add-project { flex: none; width: 36px; padding: 0; }
+.sessions .sessions-bar :is(.new-chat, .add-project):hover { background: var(--bg-hover); color: var(--fg); }
+/* Search: a white field with its icon inside on the left. */
+.sessions .sessions-bar .search { position: relative; flex: 1; min-width: 0; display: flex; }
+.sessions .sessions-bar .search > .icon { position: absolute; left: 12px; top: 50%; margin-top: -8px; color: var(--fg-muted); pointer-events: none; }
+.sessions .sessions-bar .search input {
+  flex: 1; min-width: 0; padding: 0 12px 0 36px; font-size: var(--text-sm);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+/* The clear button reserves its room even when empty and cuts the placeholder at 160px, so it shows once there is text. */
+.sessions .sessions-bar .search input:placeholder-shown::-webkit-search-cancel-button { display: none; }
+.sessions .sessions-bar .search input:focus { outline: 0; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.sessions .hint { padding: 0 12px 8px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
+.sessions .hint.error-text { margin: 0; color: var(--err); }
+/* Sample tour: a quiet link at the foot of the sidebar. */
+.sessions .side-foot { flex: none; padding: 8px 12px 12px; }
+.sessions .side-foot .link { min-height: 32px; font-size: var(--text-sm); }
+.sessions .side-foot .link:disabled { color: var(--fg-muted); cursor: default; text-decoration: none; }
+.sessions .side-foot .hint { padding: 0; }
+
+/* Tree rows: 32px, 14px text. Each level indents 16px, and each row starts with a 16px column for its chevron, status
+   dot or icon, so a row's mark sits under its parent's icon. Names start 8px after the icon. */
+.sessions .tree { font-size: var(--text-sm); }
+.sessions .tree .row { --d: 0; position: relative; isolation: isolate; flex-wrap: nowrap; height: 32px; padding-left: calc(12px + 16px * var(--d)); gap: 8px; }
+.sessions .tree .row.d1 { --d: 1; }
+.sessions .tree .row.d2 { --d: 2; }
+.sessions .tree .row.d3 { --d: 3; }
+.sessions .tree .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sessions .tree .twistie { width: 16px; }
+/* A project's block has 24px above it. Project names are semibold; flows, iterations and chats are regular. */
+.sessions .tree > .branch.d0 { margin-top: 24px; }
+.sessions .tree .row.project { gap: 0; font-weight: 400; color: var(--fg); }
+.sessions .tree .row.project.d0 { font-weight: 600; }
+.sessions .tree .row.project .fold { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; height: 100%; border-radius: var(--radius-row); }
+.sessions .tree .row.project .fold .name { flex: 0 1 auto; margin-left: 8px; }
+.sessions .tree .row.project .fold:focus-visible { outline-offset: -2px; }
+.sessions .tree .row.project.d1 .twistie:not(.chevron), .sessions .tree .row.project.d2 .twistie:not(.chevron) { color: var(--fg-muted); }
+/* Selectable rows fold on the chevron alone: a 24px target drawn in the 16px column. */
+.sessions .tree .row.project .fold-btn { position: relative; z-index: 1; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0 -4px; border-radius: var(--radius-row); cursor: pointer; }
+.sessions .tree .row.project .fold-btn:hover { background: var(--bg-hover); }
+.sessions .tree .row.project .fold-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+/* Toggle chevron: muted, it turns from right to down as the row opens. */
+.sessions .tree .twistie.chevron { color: var(--fg-muted); }
+.sessions .tree .row.project:hover .twistie.chevron { color: var(--fg); }
+.sessions .tree .twistie.chevron > .icon { transition: transform 0.15s ease; }
+.sessions .tree [aria-expanded='true'] > .twistie.chevron > .icon { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .sessions .tree .twistie.chevron > .icon { transition: none; } }
+/* Tags (stage, Working, Not in Figma) sit 8px after the name and keep 12px from the edge; the count and the actions
+   keep the right edge. */
+.sessions .tree .row :is(.stage-tag, .state-tag) { margin-right: 12px; }
+.sessions .tree .row.project > .count { order: 1; }
+.sessions .tree .row.project > .acts { order: 2; }
+/* Chats: the status dot is centred in the row's first column. Saved chats have no dot, so their names line up after it. */
+.sessions .tree .row.live { color: var(--fg); }
+.sessions .tree .row :is(.dot, .tk-dot) { margin: 0 4px; }
+.sessions .tree .row.recent { padding-left: calc(36px + 16px * var(--d)); }
+.sessions .tree .row.recent .name { color: var(--fg-muted); }
+/* Portfolio: its site row has the globe in the icon column, and its runs sit under it. */
+.sessions .tree .row.pf-site-row, .sessions .tree .row.pf-run-row { --d: 1; }
+.sessions .tree .row.pf-run-row .pf-shape { margin: 0 3px; }
+/* Section label (Portfolio): small and muted. */
+.sessions .tree .row.group-row { margin-top: 12px; font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted); }
+/* Times and counts: 12px, muted, at the right edge. */
+.sessions .tree .row :is(.count, .when) {
+  flex: none; margin-left: auto; padding: 0 12px 0 8px; font-size: var(--text-xs); font-weight: 400;
   color: var(--fg-muted); font-variant-numeric: tabular-nums; text-align: right;
 }
-.sessions .tree .row .when { min-width: 44px; }
-.sessions .tree .row.project .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
-.sessions .tree .row.project.here .name { color: var(--fg); font-weight: 600; }
-.sessions .tree .row .branch {
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-left: 4px;
-  font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted);
-}
-.sessions .tree .row.worktree { gap: 6px; }
+.sessions .tree .row .meta { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding-right: 12px; font-weight: 400; }
+/* Hover and the open chat sit on a rounded pill inset 8px from the sidebar edges; the open chat's pill is lavender, as on the portfolio cards. */
+.sessions .tree .row:is(:hover, .selected)::before { content: ''; position: absolute; inset: 0 8px; z-index: -1; border-radius: var(--radius-row); background: var(--bg-hover); }
+.sessions .tree .row.selected { color: var(--fg); }
+.sessions .tree .row.selected::before { background: var(--tint-lavender); }
+.sessions .tree .row.selected:hover::before { background: color-mix(in srgb, var(--tint-lavender) 92%, var(--ink-lavender)); }
 /* Row actions stay in the Tab order: hidden visually until the row is hovered or focused. */
-.sessions .tree .row .acts { display: inline-flex; flex: none; gap: 2px; margin: 0 12px 0 auto; }
+.sessions .tree .row .acts { display: inline-flex; flex: none; gap: 4px; margin: 0 12px 0 auto; }
 .sessions .tree .row:not(:hover, :focus-within) .acts { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .sessions .tree .row .acts .icon-btn { width: 24px; height: 24px; }
-.sessions .tree .row:has(.acts):is(:hover, :focus-within) :is(.when, .count) { display: none; }
+.sessions .tree .row:has(.acts):is(:hover, :focus-within) :is(.when, .count, .stage-tag, .state-tag) { display: none; }
+.sessions .tree .row.project:hover .meta { display: none; }
 @media (hover: none) { .sessions .tree .row:not(:hover, :focus-within) .acts { position: static; width: auto; height: auto; overflow: visible; clip-path: none; } .sessions .tree .row .acts { margin-left: 0; } }
-.sessions .tree .row.removing { color: var(--fg-muted); pointer-events: none; }
-.sessions .tree .row.removing .when { display: none; }
-.sessions .tree .row .busy { display: inline-flex; margin: 0 10px 0 auto; }
-.sessions .tree .row .dirty { flex: none; font-size: var(--text-xs); color: var(--warn); margin-left: 6px; }
-/* Section labels: small, muted, sentence case, with room above them so the sections read as groups without lines. */
-.sessions .tree .group {
-  height: 24px; line-height: 24px; padding: 0 12px 0 8px; margin-top: 12px;
-  font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted);
-}
-.sessions .tree .row.live { padding-left: 8px; gap: 6px; }
-.sessions .tree .row.live .state { display: inline-flex; width: 16px; justify-content: center; color: var(--fg-muted); flex: none; }
-.sessions .tree .row.live .state.running { color: var(--claude); }
-.sessions .tree .row.live .state.waiting { color: var(--warn); }
-.sessions .tree .row.live .repo { flex: none; font-weight: 600; color: var(--fg); }
-.sessions .tree .row.live .name { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
-.sessions .tree .row.live.selected .name { color: var(--fg); }
-.sessions .tree .row.live .when:empty { display: none; }
-.sessions .tree .row.more { font-size: var(--text-sm); color: var(--fg-muted); }
-.sessions .tree .row.more:hover { color: var(--fg); text-decoration: underline; }
-.sessions .sessions-bar .new-chat {
-  flex: 1; height: 32px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  font-size: var(--text-md); font-weight: 500; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-}
-.side-switch { display: flex; gap: 4px; padding: 0 12px 8px 8px; }
-.side-switch button { flex: 1; height: 32px; font-size: var(--text-md); color: var(--fg-muted); background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
-.side-switch button.active { color: var(--fg); background: var(--tint-lavender); border-color: var(--ink-lavender); }
-.sessions.chats .sessions-bar + .sessions-bar input { flex: 1; min-width: 0; }
-.sessions.chats .tree .row.live, .sessions.chats .tree .row.recent { padding-left: 24px; gap: 6px; }
-.sessions .tree.needs { flex: none; max-height: 30%; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.sessions .tree.needs .group { margin-top: 0; color: var(--warn); display: flex; align-items: center; gap: 6px; }
-.sessions .tree.needs .row.live { padding-left: 8px; }
-.sessions.chats .tree .row.recent .name { color: var(--fg-muted); }
-.sessions.chats .tree .row .meta { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding-right: 2px; font-weight: 400; }
-.sessions.chats .tree .row .meta .count { margin-left: 0; padding: 0 10px 0 2px; min-width: 22px; }
-.sessions.chats .tree .row.project:hover .meta { display: none; }
-.sessions .dot { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 50%; box-sizing: border-box; }
+/* Folder stage: dot + label. */
+.sessions .tree .row .stage-tag { flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted); }
+.sessions .tree .row .stage-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--fg-muted); }
+/* Hints under a project (No Figma file yet, Not adopted yet, Reading flows): 12px, muted, in the child column. */
+.sessions .tree .hint { padding: 4px 12px 4px 28px; }
+.sessions .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
 .sessions .dot.running { background: var(--accent); animation: dot-pulse 1.4s ease-in-out infinite; }
 .sessions .dot.waiting { background: var(--warn); }
 .sessions .dot.idle { border: 1.5px solid var(--fg-muted); }
 @keyframes dot-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
-.sessions .tree .row.live .repo { font-weight: 400; color: var(--fg); }
-.sessions .tree .hint { padding: 6px 12px 6px 24px; }
-.sessions.chats .tree .row.live .name { color: var(--fg); }
-.sessions .tree .row .badges { flex: none; display: inline-flex; align-items: center; margin-left: auto; padding-right: 10px; font-weight: 400; }
-.sessions .tree .row .badges .dirty { width: 14px; margin: 0; text-align: center; }
-.sessions .tree .row .badges .count { width: 24px; margin: 0; padding: 0; }
-.sessions .tree .row.project:hover .badges { display: none; }
-.sessions .tree .row.group-row { margin-top: 12px; font-size: var(--text-xs); font-weight: 600; color: var(--fg-muted); }
-.sessions.chats .tree .row.recent { padding-left: 42px; }
-.sessions .side-switch .seg-count { margin-left: 4px; font-size: var(--text-xs); color: var(--fg-muted); }
-.sessions .side-switch button { height: 24px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
-.sessions .tree .row.group-row .count { margin-left: auto; padding-right: 10px; font-weight: 400; text-transform: none; }
-.sessions.workspace .tree .row.repo-row { padding-left: 16px; gap: 4px; font-weight: 400; color: var(--fg); }
-.sessions.workspace .tree .row.repo-row > .icon { flex: none; color: var(--fg-muted); }
-.sessions.workspace .tree .row.repo-row .label { flex: 1; min-width: 0; display: flex; flex-direction: column; padding-left: 2px; }
-.sessions.workspace .tree .row.repo-row .name { flex: none; overflow: hidden; text-overflow: ellipsis; }
-.sessions.workspace .tree .row.repo-row.dim .name { color: var(--fg-muted); }
-.sessions.workspace .tree .row.repo-row.here .name { color: var(--fg); font-weight: 600; }
-.sessions.workspace .tree .row.repo-row.two { height: auto; min-height: 22px; padding-top: 2px; padding-bottom: 3px; align-items: flex-start; }
-.sessions.workspace .tree .row.repo-row.two > :is(.twistie, .icon, .badges, .acts) { margin-top: 3px; }
-.sessions.workspace .tree .row.repo-row .branch-chip {
-  align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 0 6px; border-radius: var(--radius-sm); font-size: var(--text-xs); line-height: 15px; color: var(--fg-muted); background: var(--border);
+.side-switch { display: flex; gap: 4px; padding: 0 12px 8px 8px; }
+.side-switch button { flex: 1; height: 32px; font-size: var(--text-md); color: var(--fg-muted); background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.side-switch button.active { color: var(--fg); background: var(--tint-lavender); border-color: var(--ink-lavender); }
+/* Phone: the section switch wraps instead of running off screen. Rows, New chat and search get their phone sizes in mobile.css. */
+@media (max-width: 900px) {
+  .sidebar > .side-switch { flex-wrap: wrap; overflow: visible; padding: 12px 12px 8px; }
+  .sidebar > .side-switch > button { flex: 1 0 auto; }
+  .sessions.chats .sessions-bar .add-project { width: 44px; height: 44px; }
+  .sessions .sessions-bar .search input { font-size: var(--text-lg); }
+  .sessions .tree { font-size: var(--text-md); }
+  .sessions .side-foot .link { min-height: 44px; font-size: var(--text-md); }
 }
-.sessions.workspace .tree .row.repo-row .badges .when { min-width: 28px; padding: 0; margin: 0; }
-.sessions.workspace .tree .row.repo-row .badges .count { width: 20px; }
-.sessions.workspace .tree .row.session, .sessions.workspace .tree .row.more { padding-left: 54px; }
-@media (max-width: 900px) { .sessions.workspace .tree .row.repo-row.two { min-height: 36px; align-items: center; } }
-
-/* Folder stage: dot + label, hidden while the row's actions show. */
-.sessions .tree .row .stage-tag {
-  flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0 10px 0 8px;
-  font-size: var(--text-xs); font-weight: 400; color: var(--fg-muted);
-}
-.sessions .tree .row .stage-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--fg-muted); }
-.sessions .tree .row:has(.acts):is(:hover, :focus-within) .stage-tag { display: none; }
-
-/* Chat list: one left edge (12px) for the title, New chat, search and folder chevrons.
-   Folder: chevron, file icon, name at 48px. Chats under it: status dot under the file icon, name at 48px. */
-.sidebar:has(> .sessions.chats) > .sidebar-title { padding: 0 12px; }
-.sessions.chats .sessions-bar { gap: 8px; padding: 0 12px 8px; }
-/* New chat and Add project share a row when the sidebar is wide enough, and stack when it is at its narrow default. */
-.sessions.chats .sessions-bar:has(> .add-project) { flex-wrap: wrap; }
-.sessions.chats .sessions-bar .new-chat { flex: 1 1 auto; }
-.sessions.chats .sessions-bar .add-project {
-  flex: 1 1 auto; height: 32px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  font-size: var(--text-md); font-weight: 500; color: var(--fg-muted); border-radius: var(--radius-sm); white-space: nowrap;
-}
-.sessions.chats .sessions-bar .add-project:hover { color: var(--fg); }
-@media (min-width: 901px) {
-  .sessions.chats .sessions-bar .new-chat, .sessions.chats .sessions-bar .add-project, .sessions.chats .sessions-bar input { height: 36px; }
-  .sessions.chats .sessions-bar input { line-height: 34px; font-size: var(--text-sm); }
-}
-.sessions.chats .sessions-bar input { padding: 0 16px; }
-/* Phone: the section switch wraps instead of running off screen. */
-@media (max-width: 900px) { .sidebar > .side-switch { flex-wrap: wrap; overflow: visible; padding: 12px 12px 8px; } .sidebar > .side-switch > button { flex: 1 0 auto; } }
-.sessions.chats .sessions-bar input:focus { box-shadow: 0 0 0 1px var(--focus); }
-.sessions.chats .tree .row.project { padding-left: 8px; }
-.sessions.chats .tree .row.project .fold { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; height: 100%; border-radius: var(--radius-row); }
-.sessions.chats .tree .row.project .fold .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.sessions.chats .tree .row.project .fold:focus-visible { outline-offset: -2px; }
-/* Toggle triangle: a muted chevron that turns from right to down as the row opens. */
-.sessions.chats .tree .row.project .twistie.chevron { color: var(--fg-muted); }
-.sessions .tree .twistie.chevron > .icon { transition: transform 0.15s ease; }
-.sessions .tree [aria-expanded='true'] > .twistie.chevron > .icon { transform: rotate(90deg); }
-@media (prefers-reduced-motion: reduce) { .sessions .tree .twistie.chevron > .icon { transition: none; } }
-.sessions.chats .tree .row.project:hover .twistie.chevron { color: var(--fg); }
-.sessions.chats .tree .row.session.sample { padding-left: 26px; gap: 4px; }
-.sessions.chats .tree .row.live, .sessions.chats .tree .row.live.two { padding-left: 32px; gap: 8px; }
-.sessions.chats .tree .row.live .dot { margin: 0; }
-.sessions.chats .tree .row.live.two { padding-top: 4px; padding-bottom: 4px; }
-.sessions.chats .tree .row.live.two > .dot { margin-top: 5px; }
-.sessions.chats .tree .row.recent { padding-left: 48px; }
-.sessions.chats .tree .hint { padding: 8px 12px 8px 48px; }
 
 /* At the 160px default the design system list stacks: swatch on the left, the full name above its value. Names wrap, never cut. */
 .ds .ds-head .ds-name { white-space: normal; overflow-wrap: anywhere; }
@@ -160,4 +119,3 @@
 .ds .swatches .sw-name { white-space: normal; overflow-wrap: break-word; font-size: var(--text-sm); line-height: 20px; }
 .ds .swatches .sw-value { line-height: 16px; }
 .ds .comp-list .name { overflow-wrap: anywhere; }
-@media (max-width: 900px) { .sessions.chats .sessions-bar .add-project { height: 44px; } }

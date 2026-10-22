@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getJson, postJson, send, setUi, useStore, type Selection } from '../store';
 import { Icon } from '../Icon';
+import { IconButton } from '../Tip';
 import { ATTACH, openAttach } from '../AttachFile';
 import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
@@ -27,7 +28,7 @@ export { buildTree, filterTree } from './projectTree';
 const RECENT = 5;
 const FOLDED_KEY = 'designstudio.foldedFolders';
 
-// Opens the sample chat (Grocery app) on its Figma tab. Shared by the sidebar row and the first-run state.
+// Opens the sample chat (Grocery app) on its Figma tab. Shared by the sidebar link and the first-run state.
 export async function openSample() {
   const { id } = await postJson<{ id: string }>('/api/sample', {});
   send({ type: 'view', id });
@@ -316,23 +317,26 @@ export function Chats() {
     <div className="sessions chats">
       <div className="sessions-bar">
         <button className="new-chat" onClick={() => send({ type: 'new_chat' })}><Icon name="add" small /> New chat</button>
-        {/* Rarer than a new chat, so it is the quieter of the two. It opens the same popover as ⌘O, under itself. */}
-        <button className="ghost add-project" aria-haspopup="dialog" aria-keyshortcuts="Meta+O" onClick={(e) => openAttach(e.currentTarget)}><Icon name="file-media" small /> {ATTACH}</button>
+        {/* Rarer than a new chat, so it is an icon beside it. It opens the same popover as ⌘O, under itself. */}
+        <IconButton label={ATTACH} tip={`${ATTACH} (⌘O)`} className="icon-btn add-project" aria-haspopup="dialog" aria-keyshortcuts="Meta+O" onClick={(e) => openAttach(e.currentTarget)}><Icon name="file-media" small /></IconButton>
       </div>
       <div className="sessions-bar">
-        <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />
+        <span className="search">
+          <Icon name="search" small />
+          <input type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery(''); } }} />
+        </span>
       </div>
       <div className="tree">
-        <div className={`row session sample ${sampleBusy ? 'busy' : ''}`} title="Open the sample chat" onClick={() => sampleBusy || void runSample()} {...press(() => sampleBusy || void runSample())}>
-          <span className="twistie"><Icon name="compass" small /></span>
-          <span className="name">Sample tour</span>
-        </div>
-        {sampleError && <div className="hint error-text">{sampleError}</div>}
         {note && <div className={`hint ${note.error ? 'error-text' : ''}`} role={note.error ? 'alert' : 'status'}>{note.text}</div>}
         <PortfolioGroup />
         {tree.projects.map(projectRow)}
         {noFile}
         {!tree.projects.length && !noFile && <div className="hint">{query ? 'No chats match.' : 'No chats yet.'}</div>}
+      </div>
+      {/* The sample tour is for a first look, so it is a quiet link at the foot, out of the way of real chats. */}
+      <div className="side-foot">
+        <button className="link" aria-busy={sampleBusy || undefined} disabled={sampleBusy} onClick={() => void runSample()}>{sampleBusy ? 'Opening the sample tour…' : 'Try the sample tour'}</button>
+        {sampleError && <div className="hint error-text" role="alert">{sampleError}</div>}
       </div>
       {ask && <Confirm {...ask} onClose={() => setAsk(null)} />}
       {dialog?.kind === 'adopt' && <AdoptDialog cwd={dialog.p.cwd} name={dialog.p.name} onClose={() => setDialog(null)} />}

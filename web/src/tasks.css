@@ -60,7 +60,6 @@
   .tk-meta { min-height: 44px; }
   .tk-meta button.link { min-height: 44px; }
 }
-.sessions .tree .row.live.two.task > .tk-dot { margin-top: 5px; margin-right: 2px; }
 .project-dialog:has(.tk-card) .project-dialog-head { height: auto; min-height: 48px; padding-block: 12px; gap: 12px; align-items: flex-start; }
 .project-dialog:has(.tk-card) .project-dialog-head h2 { line-height: 24px; }
 .tk-facts-top { margin-top: 16px; }
@@ -68,7 +67,7 @@
 /* Project row extras: the duplicate tag warning (a triangle, named for screen readers, ids in the tooltip) and the
    adopt hint under a project with no flows yet. */
 .sessions .tree .row .dup-tag { display: inline-flex; align-items: center; flex: none; color: var(--warn); margin-left: 4px; }
-.sessions.chats .tree .hint.adopt-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding: 4px 12px 4px 32px; font-size: var(--text-xs); line-height: 16px; }
+.sessions.chats .tree .hint.adopt-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding: 4px 12px 4px 28px; font-size: var(--text-xs); line-height: 16px; }
 .sessions .tree .hint.adopt-hint button.link { min-height: 24px; font-size: var(--text-xs); }
 .sessions.chats .tree .hint.autofill-hint { display: block; }
 .sessions.chats .tree .hint.autofill-hint .icon { display: inline-block; vertical-align: -3px; margin-right: 4px; }

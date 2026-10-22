@@ -129,8 +129,6 @@
 
 /* Sidebar */
 .sessions .tree .row.pf-site-row .badge { margin-right: 8px; }
-.sessions .tree .row.pf-run-row { gap: 8px; }
-.sessions .tree .row.pf-run-row .pf-shape { margin-right: 0; }
 
 @media (max-width: 900px) {
   .pf-head { padding: 8px 16px; }
