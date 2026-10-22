@@ -7,7 +7,7 @@ import { PORTFOLIO_CHANGED, RunMark, openPortfolio, runTitle } from './Portfolio
 import { SHOWN_RUNS, newCount, type PortfolioView } from './portfolioState';
 
 // The Portfolio group in the sidebar: one row per Framer site (richadesign.in) with a Count pill of new finished
-// work, and the last 3 runs under it. It sits under Sample tour, never under a project: the site is not a Figma file.
+// work, and the last 3 runs under it. It heads the tree, never under a project: the site is not a Figma file.
 
 export function PortfolioGroup() {
   const [view, setView] = useState<PortfolioView | null>(null);
