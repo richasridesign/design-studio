@@ -10,10 +10,10 @@
 .topbar .item:hover { background: var(--bg-hover); }
 .topbar .icon-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .topbar .icon-btn.active { color: var(--accent); background: var(--accent-soft); }
-/* Side nav: 16px Lucide glyphs in 40px targets, the open view on a 32px lavender disc. */
+/* Side nav: 14px Lucide glyphs in 40px targets, the open view on a 32px lavender disc. */
 .activitybar { width: 48px; padding: 8px 0; gap: 4px; }
 .activitybar button { width: 40px; height: 40px; }
-.activitybar .codicon.icon { font-size: 16px; }
+.activitybar .codicon.icon { font-size: 14px; }
 .activitybar button.active::before { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
 .activitybar .badge { right: 2px; bottom: 2px; }
 .activitybar .activity-end { gap: 4px; }

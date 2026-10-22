@@ -438,7 +438,7 @@ export function App() {
           {/* On desktop the brand heads the sidebar, so the top bar's row goes to the columns. */}
           {/* Hide sidebar sits at the brand row's end, so every view keeps it. */}
           <div className="side-brand desktop-only">
-            <span className="brand-mark" aria-hidden><span className="logo" /><span className="brand-name">Design Studio</span></span>
+            <span className="brand-mark" aria-hidden><span className="brand-name">Design Studio</span></span>
             <IconButton label="Hide sidebar" tip="Hide sidebar (⌘B)" aria-keyshortcuts="Meta+B" className="icon-btn side-hide" onClick={() => setSidebar(false)}><Icon name="layout-sidebar-left" small /></IconButton>
           </div>
           {!connected && <span className="side-offline error-text desktop-only">Disconnected</span>}
