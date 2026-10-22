@@ -179,21 +179,21 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; font-family: inherit; 
 
 .activitybar {
   width: 48px; background: var(--side); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; align-items: center; padding: 4px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0;
 }
 .activitybar button {
-  width: 48px; height: 48px; background: transparent; color: var(--fg-muted); padding: 0; border: 0; border-radius: 0;
+  width: 40px; height: 40px; background: transparent; color: var(--fg-muted); padding: 0; border: 0; border-radius: 0;
   display: flex; align-items: center; justify-content: center; position: relative; border-left: 2px solid transparent;
 }
 .activitybar button:hover { color: var(--fg); }
 .activitybar button.active { color: var(--fg); }
-/* The open view's icon sits on a lavender disc, the same tint as the open chat in the sidebar. */
+/* Side nav: 14px Lucide glyphs in 40px targets. The open view's icon sits on a 32px lavender disc, the same tint as the open chat in the sidebar. */
 .activitybar button { isolation: isolate; }
-.activitybar button.active::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; z-index: -1; border-radius: 50%; background: var(--tint-lavender); box-shadow: inset 0 0 0 1px var(--ink-lavender); }
+.activitybar button.active::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; z-index: -1; border-radius: 50%; background: var(--tint-lavender); box-shadow: inset 0 0 0 1px var(--ink-lavender); }
 .activitybar button[data-view] { opacity: 0.7; }
 .activitybar button[data-view]:hover, .activitybar button[data-view].active { opacity: 1; }
-.activitybar .codicon.icon { font-size: 20px; }
-.activitybar .badge { position: absolute; right: 8px; bottom: 8px; }
+.activitybar .codicon.icon { font-size: 14px; }
+.activitybar .badge { position: absolute; right: 2px; bottom: 2px; }
 .badge {
   display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 5px;
   border-radius: 8px; background: var(--border-strong); color: var(--fg); font-size: var(--text-xs); line-height: 16px; font-weight: 600; text-transform: none;
@@ -607,7 +607,7 @@ button.send { width: auto; padding: 0 8px; gap: 4px; font-size: var(--text-sm); 
 .error-panel code { background: var(--bg-sunken); padding: 8px; border-radius: var(--radius-sm); white-space: pre-wrap; font-size: var(--text-sm); }
 .error-panel button { align-self: flex-start; }
 /* Notify me, Open on phone and Settings close the side nav at the bottom; the top bar keeps them on a phone. */
-.activitybar .activity-end { margin-top: auto; display: flex; flex-direction: column; align-items: center; }
+.activitybar .activity-end { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .topbar .top-acts { display: flex; align-items: center; }
 /* Desktop has no top bar: the brand heads the sidebar, 52px like the bar it replaces, with Hide sidebar at its end.
    Its left and right edges match New chat and search (12px). At the narrow default the name cuts off, the button stays. */
