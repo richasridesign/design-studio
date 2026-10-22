@@ -10,8 +10,13 @@
 .topbar .item:hover { background: var(--bg-hover); }
 .topbar .icon-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .topbar .icon-btn.active { color: var(--accent); background: var(--accent-soft); }
-.activitybar { width: 56px; }
-.activitybar button { height: 52px; }
+/* Side nav: 16px Lucide glyphs in 40px targets, the open view on a 32px lavender disc. */
+.activitybar { width: 48px; padding: 8px 0; gap: 4px; }
+.activitybar button { width: 40px; height: 40px; }
+.activitybar .codicon.icon { font-size: 16px; }
+.activitybar button.active::before { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
+.activitybar .badge { right: 2px; bottom: 2px; }
+.activitybar .activity-end { gap: 4px; }
 .sidebar { width: 160px; }
 .tabs { height: 46px; padding: 0 6px; gap: 2px; background: var(--bg); }
 .tabs .tab { font-size: var(--text-md); padding: 0 16px; gap: 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fg-muted); }
