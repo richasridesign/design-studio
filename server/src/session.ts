@@ -1028,9 +1028,9 @@ export class AgentSession {
       // A read that lists every screen of a section marks them all touched, so the check stops at AUTO_CHECK_MAX.
       const frames = (await framesContaining(this.cwd, key, touched, screens).catch(() => touched.filter((id) => screens.includes(id)))).slice(0, AUTO_CHECK_MAX);
       if (!frames.length) return;
-      // Decisions from an auto check stay on its run in the Review tab; only reviews she starts fill Awaiting.
-      const run = await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit', awaiting: false });
-      this.reviewDone(run);
+      // An auto check shows only in the Review tab: no card in the chat and nothing in Awaiting. Reviews she starts
+      // (/review, /audit) still post their card.
+      await runReview({ dir: this.cwd, fileKey: key, frames, preset: 'check', areas: [], round: 0, kind: 'audit', awaiting: false });
     } catch (err) {
       console.error('auto check failed', err);
       this.system('Could not check the edited frames');
