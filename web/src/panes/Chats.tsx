@@ -318,7 +318,7 @@ export function Chats() {
       {/* Like the Claude app: New chat and Projects as two stacked rows. Projects adds a project, the same popover as ⌘O,
           under itself; the projects themselves are the tree below. */}
       <div className="sessions-bar side-rows">
-        <button className="new-chat" onClick={() => send({ type: 'new_chat' })}><Icon name="add" small /> New chat</button>
+        <button className="new-chat" onClick={() => send({ type: 'new_chat' })}><Icon name="comment" small /> <span className="label">New chat</span> <Icon name="add" small /></button>
         <IconButton label={`Projects: ${ATTACH}`} tip={`${ATTACH} (⌘O)`} className="add-project" aria-haspopup="dialog" aria-keyshortcuts="Meta+O" onClick={(e) => openAttach(e.currentTarget)}>
           <Icon name="folder" small /> <span className="label">Projects</span> <Icon name="add" small />
         </IconButton>
