@@ -2,15 +2,17 @@
    a quiet tree. One left edge (12px) for the brand, New chat, search and the top level of the tree. */
 .sidebar:has(> .sessions.chats) { background: var(--glow-peach) top / 100% 320px no-repeat, var(--side); }
 .sessions .sessions-bar { gap: 8px; padding: 0 12px 8px; align-items: center; }
-/* New chat and Add project share one row: a white button and a white icon button, like Attach a file in the welcome. */
+/* New chat and Projects: two stacked full-width rows on a soft fill, like the Claude app. Projects is quieter, with its
+   + at the row's end. */
+.sessions .sessions-bar.side-rows { flex-direction: column; align-items: stretch; gap: 4px; }
 .sessions .sessions-bar :is(.new-chat, .add-project) {
-  height: 36px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--fg);
-  font-size: var(--text-sm); font-weight: 500; white-space: nowrap;
+  height: 36px; min-height: 0; width: 100%; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  border: 0; border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--fg);
+  font-size: var(--text-sm); font-weight: 500; white-space: nowrap; text-align: left;
 }
-.sessions .sessions-bar .new-chat { flex: 1 1 0; min-width: 0; padding: 0 12px; }
-.sessions .sessions-bar .add-project { flex: none; width: 36px; padding: 0; }
-.sessions .sessions-bar :is(.new-chat, .add-project):hover { background: var(--bg-hover); color: var(--fg); }
+.sessions .sessions-bar .add-project { color: var(--fg-muted); }
+.sessions .sessions-bar .add-project .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sessions .sessions-bar :is(.new-chat, .add-project):hover { background: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--bg-sunken); color: var(--fg); }
 /* Search: a white field with its icon inside on the left. */
 .sessions .sessions-bar .search { position: relative; flex: 1; min-width: 0; display: flex; }
 .sessions .sessions-bar .search > .icon { position: absolute; left: 12px; top: 50%; margin-top: -8px; color: var(--fg-muted); pointer-events: none; }
@@ -106,7 +108,6 @@
 @media (max-width: 900px) {
   .sidebar > .side-switch { flex-wrap: wrap; overflow: visible; padding: 12px 12px 8px; }
   .sidebar > .side-switch > button { flex: 1 0 auto; }
-  .sessions.chats .sessions-bar .add-project { width: 44px; height: 44px; }
   .sessions .sessions-bar .search input { font-size: var(--text-lg); }
   .sessions .tree { font-size: var(--text-md); }
   .sessions .side-foot .link { min-height: 44px; font-size: var(--text-md); }
