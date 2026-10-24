@@ -6,7 +6,7 @@ import { CHAT_MODEL, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
 import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
 import { figmaEdits } from './touched.js';
-import { FIGMA_WRITE_MATCHER } from './lean.js';
+import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
@@ -154,6 +154,21 @@ export function historyAfterFigma(cwd: string): HookCallback {
   };
 }
 
+/**
+ * The MCP servers a chat loads: Design Studio's own, Figma (the plugin, or the server her config names) and Claude in
+ * Chrome (from extraArgs chrome; chats use it for anything in a browser). Her other servers (playwright, github,
+ * penpot, claude.ai connectors) only added tool names and server instructions to every prompt. An allowlist in the
+ * flag settings layer, because strictMcpConfig would also drop the Figma plugin's server.
+ */
+export function chatMcpAllowlist(figmaServers: Record<string, McpServerConfig>) {
+  return [
+    { serverName: 'designstudio' },
+    { serverName: 'claude-in-chrome' },
+    { serverUrl: `${new URL(FIGMA_MCP_URL).origin}/*` },
+    ...Object.keys(figmaServers).map((serverName) => ({ serverName })),
+  ];
+}
+
 export function agentOptions(o: {
   cwd: string;
   resume?: string;
@@ -189,6 +204,7 @@ export function agentOptions(o: {
     permissionMode: 'auto',
     mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap, o.cwd, o.onBrainstorm), ...o.figmaServers },
     strictMcpConfig: o.strictMcp,
+    settings: { allowedMcpServers: chatMcpAllowlist(o.figmaServers) },
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
