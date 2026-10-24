@@ -1,5 +1,7 @@
 (() => {
   var __defProp = Object.defineProperty;
+  var __defProps = Object.defineProperties;
+  var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
   var __getOwnPropSymbols = Object.getOwnPropertySymbols;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __propIsEnum = Object.prototype.propertyIsEnumerable;
@@ -15,6 +17,7 @@
       }
     return a;
   };
+  var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
   // server/src/follow.ts
   function offView(figma, last) {
@@ -22,7 +25,7 @@
     const z = vp.zoom;
     return figma.currentPage.id !== last.page || Math.abs(z - last.zoom) / last.zoom > 5e-3 || Math.abs(vp.center.x - last.cx) * z > 1.5 || Math.abs(vp.center.y - last.cy) * z > 1.5;
   }
-  async function followIn(figma, ids, last, screensOnly) {
+  async function followIn(figma, ids2, last, screensOnly) {
     const MAX_ZOOM = 2;
     const MIN_ZOOM = 0.5;
     const TALL_ZOOM = 1;
@@ -32,7 +35,7 @@
     const vp = figma.viewport;
     const read = (targets2) => ({ page: figma.currentPage.id, targets: targets2, cx: vp.center.x, cy: vp.center.y, zoom: vp.zoom });
     if (last && offView(figma, last)) return { status: "moved" };
-    const all0 = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id).catch(() => null)));
+    const all0 = await Promise.all(ids2.map((id) => figma.getNodeByIdAsync(id).catch(() => null)));
     const found = all0.filter((n) => !!n && !n.removed && n.type !== "PAGE" && n.type !== "DOCUMENT" && !!n.absoluteBoundingBox);
     if (!found.length) return { status: "nonode" };
     const pageOf = (n) => {
@@ -128,10 +131,243 @@
     };
   }
 
+  // figma-plugin/reads.ts
+  var ids = (v, max) => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 200).slice(0, max) : [];
+  var word = (v, fallback) => typeof v === "string" && /^[A-Za-z0-9_]{1,64}$/.test(v) ? v : fallback;
+  async function outline(figma) {
+    const pages = [];
+    for (const page of figma.root.children) {
+      await page.loadAsync();
+      const frames = [];
+      for (const n of page.children) {
+        if (["FRAME", "COMPONENT", "COMPONENT_SET", "SECTION"].includes(n.type)) frames.push([n.id, String(n.name).slice(0, 200), n.type, Math.round(n.width), Math.round(n.height)]);
+      }
+      pages.push([page.id, String(page.name).slice(0, 200), frames]);
+    }
+    return pages;
+  }
+  async function map(figma) {
+    const r = (v) => Math.round(Number(v || 0));
+    const nm = (n, k = 90) => String(n.name == null ? "" : n.name).slice(0, k);
+    const LETTER = { SECTION: "S", FRAME: "F", COMPONENT: "C", COMPONENT_SET: "K", INSTANCE: "I", GROUP: "G" };
+    const isScreen = (n) => n.type === "FRAME" || n.type === "COMPONENT" || n.type === "COMPONENT_SET" || n.type === "GROUP" || n.type === "INSTANCE" && n.width >= 900;
+    const isBox = (n) => n.type === "SECTION" || n.type === "FRAME" && n.children.some((c) => c.type === "SECTION");
+    function walk(n, depth) {
+      const b = n.absoluteBoundingBox || { x: n.x, y: n.y, width: n.width, height: n.height };
+      const row = [LETTER[n.type] || n.type, n.id, nm(n), r(b.x), r(b.y), r(b.width), r(b.height)];
+      if (isBox(n) && depth < 6) {
+        const kids = [];
+        let other = 0;
+        for (const c of n.children) {
+          if (c.type === "SECTION" || isScreen(c)) kids.push(walk(c, depth + 1));
+          else other++;
+        }
+        row.push(kids, other);
+        if (n.type === "SECTION") {
+          let tag = null;
+          try {
+            const kind = n.getSharedPluginData("designstudio", "kind");
+            if (kind) tag = kind + ";" + n.getSharedPluginData("designstudio", "iteration") + ";" + n.getSharedPluginData("designstudio", "flow");
+          } catch (e) {
+          }
+          row.push(tag);
+        }
+      }
+      return row;
+    }
+    const pages = [];
+    const sets = [];
+    const comps = [];
+    for (const page of figma.root.children) {
+      await page.loadAsync();
+      const top = [];
+      for (const n of page.children) if (n.type === "SECTION" || isScreen(n)) top.push(walk(n, 0));
+      const starts = (page.flowStartingPoints || []).map((s) => [s.nodeId, String(s.name).slice(0, 80)]);
+      pages.push([page.id, nm(page, 120), top, starts]);
+      for (const s of page.findAllWithCriteria({ types: ["COMPONENT_SET"] })) {
+        let defs = [];
+        try {
+          const d = s.componentPropertyDefinitions;
+          defs = Object.keys(d).map((k) => [k, d[k].type, d[k].type === "VARIANT" ? (d[k].variantOptions || []).slice(0, 30) : []]);
+        } catch (e) {
+        }
+        const hasState = defs.some((d) => d[1] === "VARIANT" && /state|interaction/i.test(d[0]));
+        const variants = hasState ? s.children.slice(0, 120).map((c) => [c.id, nm(c, 160)]) : [];
+        sets.push([s.id, nm(s), nm(page, 60), defs, variants]);
+      }
+      for (const c of page.findAllWithCriteria({ types: ["COMPONENT"] })) if (!c.parent || c.parent.type !== "COMPONENT_SET") comps.push([c.id, nm(c), nm(page, 60)]);
+    }
+    const collections = {};
+    for (const c of await figma.variables.getLocalVariableCollectionsAsync()) collections[c.id] = c.name;
+    const vars = (await figma.variables.getLocalVariablesAsync()).slice(0, 1500).map((v) => [v.id, v.name, v.resolvedType, collections[v.variableCollectionId] || ""]);
+    const styles = [];
+    for (const s of await figma.getLocalTextStylesAsync()) styles.push([s.id, s.name, "text " + (typeof s.fontSize === "number" ? s.fontSize : "")]);
+    for (const s of await figma.getLocalPaintStylesAsync()) styles.push([s.id, s.name, "paint"]);
+    for (const s of await figma.getLocalEffectStylesAsync()) styles.push([s.id, s.name, "effect"]);
+    return { pages, sets, comps, vars, styles };
+  }
+  async function kit(figma) {
+    var _a;
+    const hex = (c) => "#" + [c.r, c.g, c.b].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+    const cols = await figma.variables.getLocalVariableCollectionsAsync();
+    const colName = {};
+    const modeOf = {};
+    for (const c of cols) {
+      colName[c.id] = c.name;
+      modeOf[c.id] = c.defaultModeId;
+    }
+    const variables = [];
+    for (const v of (await figma.variables.getLocalVariablesAsync()).slice(0, 600)) {
+      let val = v.valuesByMode[modeOf[v.variableCollectionId]];
+      if (val && val.type === "VARIABLE_ALIAS") {
+        const t = await figma.variables.getVariableByIdAsync(val.id);
+        val = t ? (_a = t.valuesByMode[modeOf[t.variableCollectionId]]) != null ? _a : Object.values(t.valuesByMode)[0] : null;
+      }
+      if (v.resolvedType === "COLOR" && val && typeof val === "object" && "r" in val) variables.push({ name: v.name, collection: colName[v.variableCollectionId], type: "COLOR", value: hex(val) });
+      else if (v.resolvedType === "FLOAT" && typeof val === "number") variables.push({ name: v.name, collection: colName[v.variableCollectionId], type: "FLOAT", value: val });
+    }
+    const paints = (await figma.getLocalPaintStylesAsync()).slice(0, 200).map((s) => {
+      const p = s.paints[0];
+      return { name: s.name, hex: p && p.type === "SOLID" ? hex(p.color) : null };
+    });
+    const texts = (await figma.getLocalTextStylesAsync()).slice(0, 120).map((s) => ({
+      name: s.name,
+      family: s.fontName.family,
+      style: s.fontName.style,
+      size: s.fontSize,
+      lineHeight: s.lineHeight.unit === "PIXELS" ? s.lineHeight.value : s.lineHeight.unit === "PERCENT" ? Math.round(s.lineHeight.value) + "%" : "auto"
+    }));
+    const components = [];
+    for (const page of figma.root.children) {
+      if (components.length >= 200) break;
+      try {
+        await page.loadAsync();
+      } catch (e) {
+        continue;
+      }
+      let found = [];
+      try {
+        found = page.findAllWithCriteria({ types: ["COMPONENT_SET", "COMPONENT"] });
+      } catch (e) {
+        found = [];
+      }
+      for (const n of found) {
+        if (components.length >= 200) break;
+        if (n.type === "COMPONENT" && n.parent && n.parent.type === "COMPONENT_SET") continue;
+        let variants = [];
+        if (n.type === "COMPONENT_SET") {
+          try {
+            variants = Object.entries(n.componentPropertyDefinitions).filter(([, d]) => d.type === "VARIANT").map(([k, d]) => k + ": " + (d.variantOptions || []).join(" / "));
+          } catch (e) {
+            variants = [];
+          }
+        }
+        try {
+          components.push({ name: n.name, key: n.key, variants, description: n.description || "" });
+        } catch (e) {
+          components.push({ name: n.name, key: "", variants, description: "" });
+        }
+      }
+    }
+    return { file: figma.root.name, variables, paints, texts, components };
+  }
+  async function containing(figma, args) {
+    const out = {};
+    const holder = (p) => p.type === "PAGE" || p.type === "DOCUMENT" || p.type === "SECTION" || p.type === "FRAME" && (p.children || []).some((c) => c.type === "SECTION");
+    const screen = (n) => n.type === "FRAME" || n.type === "COMPONENT" || n.type === "COMPONENT_SET" || n.type === "GROUP" || n.type === "INSTANCE" && n.width >= 900;
+    for (const id of ids(args == null ? void 0 : args.ids, 50)) {
+      let n = await figma.getNodeByIdAsync(id);
+      while (n && n.parent && !holder(n.parent)) n = n.parent;
+      if (n && n.parent && !holder(n) && screen(n)) out[id] = n.id;
+    }
+    return out;
+  }
+  async function stickies(figma, args) {
+    const list = ids(args == null ? void 0 : args.ids, 200);
+    const NS = word(args == null ? void 0 : args.ns, "designstudio_decision");
+    const TAG = word(args == null ? void 0 : args.tag, "designstudio");
+    const r = (v) => Math.round(Number(v || 0));
+    const box = (n) => {
+      const b = n.absoluteBoundingBox || { x: n.x, y: n.y, width: n.width, height: n.height };
+      return { id: n.id, name: String(n.name || "").slice(0, 120), x: r(b.x), y: r(b.y), w: r(b.width), h: r(b.height) };
+    };
+    const cut = (s) => String(s == null ? "" : s).slice(0, 600);
+    const DECISION = /^decision( sticky)?$/i;
+    const NAMED = /^\s*decision\s*\d+\s*[·•:|-]/i;
+    async function stickyOf(n) {
+      const screen = n.getSharedPluginData ? n.getSharedPluginData(NS, "screen") : "";
+      if (n.type === "STICKY") return { parts: [{ text: cut(n.text && n.text.characters) }], screen };
+      if (n.type !== "INSTANCE" && n.type !== "FRAME" && n.type !== "GROUP") return null;
+      let isDecision = !!screen || NAMED.test(n.name || "");
+      if (n.type === "INSTANCE") {
+        const main = await n.getMainComponentAsync();
+        const owner = main && main.parent && main.parent.type === "COMPONENT_SET" ? main.parent : main;
+        if (owner && DECISION.test(String(owner.name || "").trim())) isDecision = true;
+      }
+      if (!isDecision) return null;
+      const parts = [];
+      if (n.type === "INSTANCE") {
+        for (const [key, p] of Object.entries(n.componentProperties || {})) if (p && p.type === "TEXT") parts.push({ key, text: cut(p.value) });
+      }
+      if (!parts.length) for (const t of n.findAll((x) => x.type === "TEXT")) parts.push({ text: cut(t.characters) });
+      return { parts, screen };
+    }
+    const out = { screens: [], stickies: [], missing: [] };
+    async function walk(sec, depth) {
+      for (const n of sec.children) {
+        if (n.type === "SECTION") {
+          if (depth < 1) await walk(n, depth + 1);
+          continue;
+        }
+        const s = await stickyOf(n);
+        if (s) {
+          const num = Number(n.getSharedPluginData ? n.getSharedPluginData(NS, "n") : "") || void 0;
+          const it = n.getSharedPluginData ? n.getSharedPluginData(NS, "iteration") : "";
+          out.stickies.push(__spreadProps(__spreadValues(__spreadValues(__spreadValues(__spreadValues({}, box(n)), s.screen ? { screen: s.screen } : {}), num ? { n: num } : {}), it ? { iteration: it } : {}), { parts: s.parts }));
+          continue;
+        }
+        if (n.type !== "FRAME" && n.type !== "COMPONENT" && n.type !== "INSTANCE") continue;
+        if (/\(entry, unchanged\)/i.test(n.name || "") || n.getSharedPluginData && n.getSharedPluginData(TAG, "kind") === "entry") continue;
+        out.screens.push(box(n));
+      }
+    }
+    for (const id of list) {
+      const sec = await figma.getNodeByIdAsync(id);
+      if (!sec || !("children" in sec)) {
+        out.missing.push(id);
+        continue;
+      }
+      await walk(sec, 0);
+    }
+    return out;
+  }
+  async function restack(figma, args) {
+    const id = ids([args == null ? void 0 : args.id], 1)[0];
+    const TAG = word(args == null ? void 0 : args.tag, "designstudio");
+    const s = id ? await figma.getNodeByIdAsync(id) : null;
+    if (!s || s.type !== "SECTION") return null;
+    const box = (n) => {
+      const b = n.absoluteBoundingBox || { x: n.x, y: n.y, width: n.width, height: n.height };
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    };
+    const kids = s.children.filter((c) => c.type === "SECTION").map((c) => __spreadProps(__spreadValues({ id: c.id }, box(c)), { flow: c.getSharedPluginData(TAG, "flow") || null }));
+    const page = s.parent;
+    const others = page && page.type === "PAGE" ? page.children.filter((c) => c !== s) : [];
+    const belowAll = others.filter((c) => c.y > s.y);
+    const below = belowAll.length ? belowAll.reduce((a, b) => b.y < a.y ? b : a) : null;
+    const aboveAll = others.filter((c) => c.y < s.y);
+    const above = aboveAll.length ? aboveAll.reduce((a, b) => b.y + b.height > a.y + a.height ? b : a) : null;
+    return { section: __spreadValues({ id: s.id }, box(s)), kids, below: below ? __spreadValues({ id: below.id }, box(below)) : null, above: above ? __spreadValues({ id: above.id }, box(above)) : null };
+  }
+  var READS = { outline, map, kit, containing, stickies, restack };
+  var READ_NAMES = Object.keys(READS);
+
   // figma-plugin/agent.ts
   var STALL_MS = 6e3;
   var GATHER_MS = 200;
   var MAX_IDS = 40;
+  var PROBE_MS = 2e3;
+  var SLICE = 256e3;
   function agent(figma, post, fileKey, extra = {}, hooks = {}) {
     const api = figma;
     const within = (p, ms) => new Promise((r) => {
@@ -145,7 +381,7 @@
       });
     });
     const watch = viewWatch(api, () => post({ t: "moved" }));
-    const hello = () => post(__spreadValues({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id, pageName: figma.currentPage.name }, extra));
+    const hello = () => post(__spreadValues({ t: "hello", fileKey: fileKey(), fileName: figma.root.name, pageId: figma.currentPage.id, pageName: figma.currentPage.name, reads: READ_NAMES }, extra));
     let editing = false;
     let changes = [];
     let sendTimer = null;
@@ -159,11 +395,11 @@
     function sendChanges() {
       var _a;
       sendTimer = null;
-      const ids = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
+      const ids2 = editing ? [...new Set(changes.reverse())].slice(0, MAX_IDS) : [];
       changes = [];
-      if (ids.length) {
-        post({ t: "changed", ids });
-        (_a = hooks.changed) == null ? void 0 : _a.call(hooks, ids);
+      if (ids2.length) {
+        post({ t: "changed", ids: ids2 });
+        (_a = hooks.changed) == null ? void 0 : _a.call(hooks, ids2);
       }
     }
     let listened = null;
@@ -191,15 +427,15 @@
       else if (m.t === "follow" && typeof m.id === "number" && Array.isArray(m.ids)) {
         let result = null;
         try {
-          const ids = m.ids.filter((id) => typeof id === "string").slice(0, 200);
+          const ids2 = m.ids.filter((id) => typeof id === "string").slice(0, 200);
           const r = await watch.run(() => {
             var _a2;
-            return within(followIn(api, ids, (_a2 = m.last) != null ? _a2 : null, m.start === true), STALL_MS);
+            return within(followIn(api, ids2, (_a2 = m.last) != null ? _a2 : null, m.start === true), STALL_MS);
           });
           result = r === "stalled" ? { status: "stalled" } : r;
           if (result.view) watch.left(result.view);
           else if (result.status === "moved") watch.left(null);
-          (_a = hooks.followed) == null ? void 0 : _a.call(hooks, ids, m.start === true, result);
+          (_a = hooks.followed) == null ? void 0 : _a.call(hooks, ids2, m.start === true, result);
         } catch (e) {
           result = null;
         }
@@ -221,12 +457,31 @@
         }
         watch.left(null);
         post({ t: "result", id: m.id, result: { status } });
+      } else if (m.t === "read" && typeof m.id === "number" && typeof m.name === "string") {
+        await read(m.id, m.name, m.args);
       } else if (m.t === "editing") {
         editing = m.on === true;
         if (editing) listen();
         else unlisten();
         (_b = hooks.editing) == null ? void 0 : _b.call(hooks, editing);
       } else if (m.t === "forget") watch.left(null);
+    }
+    async function read(id, name, args) {
+      var _a;
+      const fn = Object.prototype.hasOwnProperty.call(READS, name) ? READS[name] : null;
+      if (!fn) return post({ t: "readResult", id, error: `no read named ${String(name).slice(0, 40)}` });
+      const answered = await within(figma.getNodeByIdAsync(figma.currentPage.id).then(() => true), PROBE_MS);
+      if (answered !== true) return post({ t: "readResult", id, error: "stalled" });
+      post({ t: "readResult", id, started: true });
+      let text;
+      try {
+        const value = await fn(figma, args && typeof args === "object" ? args : {});
+        text = JSON.stringify(value === void 0 ? null : value);
+      } catch (err) {
+        return post({ t: "readResult", id, error: String((_a = err == null ? void 0 : err.message) != null ? _a : err).slice(0, 300) });
+      }
+      const parts = Math.max(1, Math.ceil(text.length / SLICE));
+      for (let part = 0; part < parts; part++) post({ t: "readResult", id, part, parts, data: text.slice(part * SLICE, (part + 1) * SLICE) });
     }
     setInterval(() => watch.check(), 400);
     try {
@@ -301,10 +556,10 @@
         if (cursor.style.opacity !== "0") cursor.style.opacity = "0";
         return;
       }
-      const map = toScreen();
-      if (!map) return;
+      const map2 = toScreen();
+      if (!map2) return;
       if (at) {
-        const p = map.pt(at.x, at.y);
+        const p = map2.pt(at.x, at.y);
         cursor.style.transition = `opacity 200ms ease${glide && !reduce() ? ", transform 400ms ease" : ""}`;
         cursor.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
         glide = false;
@@ -317,17 +572,17 @@
           flashes.splice(i, 1);
           continue;
         }
-        const p = map.pt(f.box.x, f.box.y);
+        const p = map2.pt(f.box.x, f.box.y);
         f.el.style.transform = `translate(${Math.round(p.x) - 2}px, ${Math.round(p.y) - 2}px)`;
-        f.el.style.width = `${Math.max(4, Math.round(f.box.width * map.sx) + 4)}px`;
-        f.el.style.height = `${Math.max(4, Math.round(f.box.height * map.sy) + 4)}px`;
+        f.el.style.width = `${Math.max(4, Math.round(f.box.width * map2.sx) + 4)}px`;
+        f.el.style.height = `${Math.max(4, Math.round(f.box.height * map2.sy) + 4)}px`;
         if (now > f.until) f.el.style.opacity = "0";
       }
     };
     requestAnimationFrame(tick);
-    const boxes = async (ids) => {
+    const boxes = async (ids2) => {
       const page = figma.currentPage;
-      const nodes = await Promise.all(ids.slice(0, 40).map((id) => figma.getNodeByIdAsync(id).catch(() => null)));
+      const nodes = await Promise.all(ids2.slice(0, 40).map((id) => figma.getNodeByIdAsync(id).catch(() => null)));
       const onPage = (n) => {
         for (let p = n; p; p = p.parent) if (p === page) return true;
         return false;
@@ -338,9 +593,9 @@
       for (let p = m.parent; p; p = p.parent) if (p === n) return true;
       return false;
     })()));
-    async function moveTo(ids) {
+    async function moveTo(ids2) {
       var _a;
-      const nodes = deepest(await boxes(ids));
+      const nodes = deepest(await boxes(ids2));
       if (!nodes.length) return;
       const b = nodes[0].absoluteBoundingBox;
       const z = ((_a = figma.viewport) == null ? void 0 : _a.zoom) || 1;
@@ -351,11 +606,11 @@
       lastMove = Date.now();
     }
     let lastFlash = { key: "", at: 0 };
-    async function flash(ids) {
-      const key = [...ids].sort().join(",");
+    async function flash(ids2) {
+      const key = [...ids2].sort().join(",");
       if (key === lastFlash.key && Date.now() - lastFlash.at < 2e3) return;
       lastFlash = { key, at: Date.now() };
-      const nodes = deepest(await boxes(ids)).slice(0, MAX_FLASH);
+      const nodes = deepest(await boxes(ids2)).slice(0, MAX_FLASH);
       if (!nodes.length) return;
       mount();
       const until = Date.now() + FLASH_MS;
@@ -368,17 +623,17 @@
     }
     return {
       /** A follow moved the view (or found it already there): the cursor goes to what it named. */
-      async followed(ids) {
+      async followed(ids2) {
         try {
-          await moveTo(ids);
+          await moveTo(ids2);
         } catch (e) {
         }
       },
       /** Changes landed: they flash, and the cursor moves to them. */
-      async changed(ids) {
+      async changed(ids2) {
         try {
-          await flash(ids);
-          await moveTo(ids);
+          await flash(ids2);
+          await moveTo(ids2);
         } catch (e) {
         }
       },
@@ -424,15 +679,15 @@
       if (!figma || !figma.getNodeByIdAsync || !figma.root || !figma.currentPage || !fileKey()) return false;
       const show = overlay(figma);
       a = agent(figma, post, fileKey, { embed: true }, {
-        followed: (ids, start2, result) => {
+        followed: (ids2, start2, result) => {
           var _a;
           if (result.status !== "ok" && result.status !== "shown") return;
-          void (start2 ? show.followed(ids) : show.changed(ids));
+          void (start2 ? show.followed(ids2) : show.changed(ids2));
           void screenName(figma, (_a = result.view) == null ? void 0 : _a.targets).then((name) => {
             if (name) post({ t: "screen", name });
           });
         },
-        changed: (ids) => void show.changed(ids),
+        changed: (ids2) => void show.changed(ids2),
         editing: (on) => show.editing(on)
       });
       a.hello();

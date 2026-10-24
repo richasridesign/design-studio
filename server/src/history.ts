@@ -317,7 +317,7 @@ export async function syncDecisions(cwd: string, deps: ReadDeps = {}, now = new 
   const ids = [node, states].filter((x): x is string => !!x);
   let screens: ScreenDecisions[] = [];
   if (ids.length) {
-    const r = await pluginScript<StickyRead>(ctx.project.key, stickyScript(ids), 'Read the Decision stickies of this flow (read only)', { ...deps, dir: ctx.root, key: `history:${ids.join(',')}` });
+    const r = await pluginScript<StickyRead>(ctx.project.key, stickyScript(ids), 'Read the Decision stickies of this flow (read only)', { ...deps, dir: ctx.root, key: `history:${ids.join(',')}`, socket: { name: 'stickies', args: { ids, ns: DECISION_NS, tag: TAG_NS } } });
     const read: StickyRead = { screens: r.value?.screens ?? [], stickies: r.value?.stickies ?? [], missing: r.value?.missing ?? [] };
     screens = assignStickies(read, ctx.iteration.id, ctx.project.key);
   }

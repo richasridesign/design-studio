@@ -307,7 +307,7 @@ export async function restack(dir: string, key: string, id: string, deps: ReadDe
   if (!project || !it?.node || it.state === 'frozen') return { moved: 0, changed: false };
   const node = it.node;
   return withWrite(key, async () => {
-    const read = await pluginScript<ReadOut>(key, READ_SCRIPT(node), `Read the layout of V${id}`, { ...deps, dir: root });
+    const read = await pluginScript<ReadOut>(key, READ_SCRIPT(node), `Read the layout of V${id}`, { ...deps, dir: root, socket: { name: 'restack', args: { id: node, tag: TAG_NS } } });
     const got = read.value;
     if (!got) return { moved: 0, changed: false };
     const plan = restackPlan(flowOrder(got.kids, project.flows), got.section, got.below, got.above ?? null);

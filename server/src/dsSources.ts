@@ -60,7 +60,7 @@ return { file: figma.root.name, variables, paints, texts, components };`;
 
 /** Reads the Figma file's variables, styles and components through the plugin. About half a cent. */
 export async function readFigmaKit(dir: string, fileKey: string, opts: { signal?: AbortSignal } & ReadDeps = {}) {
-  const r = await pluginScript<FigmaKitRaw>(fileKey, FIGMA_KIT_BODY, 'Read variables, styles and components for the design system profile (read only)', { dir, key: 'ds-kit', ...opts });
+  const r = await pluginScript<FigmaKitRaw>(fileKey, FIGMA_KIT_BODY, 'Read variables, styles and components for the design system profile (read only)', { dir, key: 'ds-kit', socket: { name: 'kit', ms: 30_000 }, ...opts });
   return { found: parseFigmaKit(r.value ?? {}), costUsd: r.costUsd };
 }
 

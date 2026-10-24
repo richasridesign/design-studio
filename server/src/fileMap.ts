@@ -265,7 +265,7 @@ export function buildMap(dir: string, key: string, opts: { signal?: AbortSignal 
   const hit = runs.get(id);
   if (hit) return hit;
   const run = (async () => {
-    const r = await pluginScript<RawMap>(key, MAP_SCRIPT, 'Map pages, sections, screens and components (read only)', { ...opts, dir, key: 'map' });
+    const r = await pluginScript<RawMap>(key, MAP_SCRIPT, 'Map pages, sections, screens and components (read only)', { ...opts, dir, key: 'map', socket: { name: 'map', ms: 30_000 } });
     const raw = r.value;
     if (!raw || !Array.isArray(raw.pages)) throw new Error('The file map came back empty');
     const name = await readFile(path.join(projectRoot(dir), 'figma.json'), 'utf8').then((t) => String(JSON.parse(t).name ?? ''), () => '');

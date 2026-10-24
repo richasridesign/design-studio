@@ -66,7 +66,7 @@ export async function fileOutline(dir: string, key: string, opts: { fresh?: bool
     const hit = await cachedOutline(dir, key);
     if (hit) return hit;
   }
-  const r = await pluginScript<RawPages>(key, OUTLINE_SCRIPT, 'List the frames on each page (read only)', { ...opts, dir, key: 'outline' });
+  const r = await pluginScript<RawPages>(key, OUTLINE_SCRIPT, 'List the frames on each page (read only)', { ...opts, dir, key: 'outline', socket: { name: 'outline' } });
   const outline = outlineFrom(r.value ?? [], await fileName(dir));
   await mkdir(cacheDir(dir, key), { recursive: true });
   await writeFile(path.join(cacheDir(dir, key), 'outline.json'), JSON.stringify(outline));
@@ -117,7 +117,7 @@ export async function framesContaining(dir: string, key: string, ids: string[], 
   const known = new Set(screens);
   const rest = ids.filter((id) => !known.has(id));
   const found = rest.length
-    ? (await pluginScript<Record<string, string>>(key, containingScript(rest.slice(0, 50)), 'Find the frames that hold the edited layers (read only)', { ...deps, dir })).value ?? {}
+    ? (await pluginScript<Record<string, string>>(key, containingScript(rest.slice(0, 50)), 'Find the frames that hold the edited layers (read only)', { ...deps, dir, socket: { name: 'containing', args: { ids: rest.slice(0, 50) } } })).value ?? {}
     : {};
   const out = new Set<string>();
   for (const id of ids) {

@@ -45,7 +45,14 @@ type Conn = {
   shown: boolean;
   /** For the embed: the screen its last follow showed, for the Figma tab's "Claude is editing" line. */
   screen: string;
+  /** The background reads this plugin build can run (figma-plugin/reads.ts); empty for builds from before them. */
+  reads: string[];
+  /** Reads waiting for their answer, by id. */
+  reading: Map<number, Reading>;
 };
+
+/** One read on its way: whether Figma started it, the value's slices so far, and how it ends. */
+type Reading = { started: () => void; slices: string[]; got: number; done: (r: { value: unknown } | { error: string }) => void };
 
 const conns = new Set<Conn>();
 let nextId = 1;
@@ -56,14 +63,16 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '' };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '', reads: [], reading: new Map() };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
   // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
   // the way a protocol ping is), so only a plugin that can still run counts as alive.
   let alive = true;
   const timer = setInterval(() => {
     if (ws.readyState !== OPEN) return;
-    if (!alive) {
+    // A long read holds the plugin's thread, so its pong can come late: a socket with a read under way is not dropped.
+    // The read has its own time limit, and the next ping after it counts again.
+    if (!alive && !conn.reading.size) {
       console.log(`figma plugin: no answer from "${conn.name}", dropping it`);
       ws.terminate?.();
       return;
@@ -91,6 +100,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.followKey = null;
       conn.embed = m.embed === true;
       conn.shown = conn.embed && m.shown === true;
+      conn.reads = Array.isArray(m.reads) ? m.reads.filter((r: unknown) => typeof r === 'string').slice(0, 40) : [];
       conns.add(conn);
       console.log(`figma ${conn.embed ? 'in the Design Studio window' : 'plugin'}: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
       hooks.changed();
@@ -115,6 +125,23 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       const done = conn.pending.get(m.id);
       conn.pending.delete(m.id);
       done?.(validResult(m.result) ?? 'failed: bad answer from the plugin');
+    } else if (m.t === 'readResult' && typeof m.id === 'number') {
+      const r = conn.reading.get(m.id);
+      if (!r) return;
+      if (typeof m.error === 'string') return r.done({ error: m.error.slice(0, 300) || 'failed' });
+      if (m.started === true) return r.started();
+      const parts = Number(m.parts);
+      const part = Number(m.part);
+      if (!Number.isInteger(parts) || parts < 1 || parts > 4000 || !Number.isInteger(part) || part < 0 || part >= parts || typeof m.data !== 'string') return r.done({ error: 'bad answer from the plugin' });
+      if (r.slices.length !== parts) r.slices = new Array(parts);
+      if (r.slices[part] === undefined) r.got++;
+      r.slices[part] = m.data;
+      if (r.got < parts) return;
+      try {
+        r.done({ value: JSON.parse(r.slices.join('')) });
+      } catch {
+        r.done({ error: 'bad answer from the plugin' });
+      }
     } else if (m.t === 'changed' && Array.isArray(m.ids)) {
       const key = conn.key ?? conn.followKey;
       const ids = m.ids.filter((id: unknown) => typeof id === 'string' && id.length > 0 && id.length <= 200).slice(0, 50);
@@ -131,6 +158,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
     conns.delete(conn);
     conn.pending.forEach((done) => done('failed: the plugin closed'));
     conn.pending.clear();
+    [...conn.reading.values()].forEach((r) => r.done({ error: 'the plugin closed' }));
     hooks.changed();
   });
 }
@@ -219,4 +247,54 @@ export function pluginForget(conn: Conn) {
   try {
     conn.ws.send(JSON.stringify({ t: 'forget' }));
   } catch {}
+}
+
+/**
+ * The connections in this file that can run this read, best first: the Figma view in the Design Studio window (shown,
+ * then hidden), which is Design Studio's own, then the Figma app's plugin, which shares her Figma app. One whose
+ * follows Figma does not answer is left out: its reads would wait the same way.
+ */
+export function readersFor(fileKey: string, name: string, read: string): Conn[] {
+  const rank = (c: Conn) => (c.embed ? (c.shown ? 0 : 1) : 2);
+  return [...conns]
+    .filter((c) => c.ws.readyState === OPEN && !c.stalled && c.reads.includes(read) && (c.key ? c.key === fileKey : (c.followKey === fileKey || (!!norm(name) && norm(c.name) === norm(name)))))
+    .reverse()
+    .sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Runs one of the plugin's named reads (figma-plugin/reads.ts) with plain arguments and gives its value. Figma must
+ * start it within `startMs` (a file that is not the front tab never does), and the whole read must end within `ms`.
+ */
+export function pluginReadCall(conn: Conn, read: string, args: object, opts: { startMs?: number; ms?: number; signal?: AbortSignal } = {}): Promise<{ value: unknown } | { error: string }> {
+  const startMs = opts.startMs ?? 4000;
+  const ms = opts.ms ?? 20_000;
+  return new Promise((resolve) => {
+    const id = nextId++;
+    let timer = setTimeout(() => finish({ error: 'Figma did not start the read' }), startMs);
+    const onAbort = () => finish({ error: 'stopped' });
+    const finish = (r: { value: unknown } | { error: string }) => {
+      if (conn.reading.get(id) !== reading) return;
+      clearTimeout(timer);
+      conn.reading.delete(id);
+      opts.signal?.removeEventListener('abort', onAbort);
+      resolve(r);
+    };
+    const reading: Reading = {
+      started: () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => finish({ error: `the read took over ${Math.round(ms / 1000)} s` }), ms);
+      },
+      slices: [],
+      got: 0,
+      done: finish,
+    };
+    conn.reading.set(id, reading);
+    opts.signal?.addEventListener('abort', onAbort);
+    try {
+      conn.ws.send(JSON.stringify({ t: 'read', id, name: read, args }));
+    } catch (err) {
+      finish({ error: (err as Error).message });
+    }
+  });
 }
