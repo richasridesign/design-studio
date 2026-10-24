@@ -338,7 +338,8 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard webView === view, !helloSinceLoad else { return }
-    arm(FigmaEmbed.helloWaitAfterFinish)
+    // Never sooner than helloWait after the load started: the page often finishes a second or two in.
+    arm(max(FigmaEmbed.helloWaitAfterFinish, FigmaEmbed.helloWait - Date().timeIntervalSince(loadStart)))
   }
 
   // A load that fails (no network yet just after login, say) leaves a blank view: it is tried again a few times.
