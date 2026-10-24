@@ -253,6 +253,16 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     reload(why: "the app asked, no hello \(Int(Date().timeIntervalSince(loadStart))) s after the load started")
   }
 
+  /** She clicked Reload Figma in the Figma tab ({t:'reload', manual:true}): the file loads again, whatever the counts. */
+  func reloadNow() {
+    guard loaded, let url = lastURL else { return }
+    reloads = 0
+    retries = 0
+    log("figma view: she asked, loading it again")
+    closeSocket()
+    view.load(URLRequest(url: url))
+  }
+
   func setShown(_ on: Bool) {
     if view.isHidden == !on { return }
     view.isHidden = !on
@@ -524,7 +534,8 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
     if (m["show"] as? Bool ?? false) == false && figma == nil { return }
     makeFigma().stage(m, in: web)
     // {t:'reload'} carries the whole stage too, so an older app reads it as a plain stage and nothing changes.
-    if (m["t"] as? String) == "reload" { figma?.reloadIfStuck() }
+    // `manual`: she clicked Reload Figma, so it loads again even after a reload of its own or a hello.
+    if (m["t"] as? String) == "reload" { if (m["manual"] as? Bool) == true { figma?.reloadNow() } else { figma?.reloadIfStuck() } }
   }
 
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
