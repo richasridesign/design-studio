@@ -1,24 +1,22 @@
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import type { SessionMessage } from '@anthropic-ai/claude-agent-sdk';
-import { lastModel, readChatModel, saveChatModel, startModel } from './chatModel.js';
+import { readChatModel, saveChatModel, startModel } from './chatModel.js';
 import { currentOption } from '../../shared/models.js';
 import { CHAT_MODEL } from '../../shared/design.js';
 
-const reply = (model: string, sub = false) => ({ type: 'assistant', uuid: 'u', session_id: 's', parent_tool_use_id: sub ? 't1' : null, parent_agent_id: null, message: { model } }) as SessionMessage;
-
 describe('chat model', () => {
-  it('keeps an old chat on the model it ran on, and starts a new chat on Opus', () => {
-    expect(startModel(undefined, null, null)).toBe(CHAT_MODEL);
-    expect(startModel('s1', null, 'claude-sonnet-5-5')).toBe('claude-sonnet-5-5');
-    expect(startModel('s1', 'opus', 'claude-sonnet-5-5')).toBe('opus');
-    expect(startModel('s1', null, null)).toBe('claude-sonnet-5-5');
-  });
-
-  it('reads the last main-thread reply, not a subagent or a synthetic row', () => {
-    expect(lastModel([reply('claude-sonnet-5-5'), reply('claude-haiku-5-5', true), reply('<synthetic>')])).toBe('claude-sonnet-5-5');
+  it('starts new and reopened chats on Opus, and a chat she switched on her pick', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'ds-model-'));
+    // Saved by the old turn-start save (the id it ran on) and a pick from before: only the alias counts as a pick.
+    await writeFile(path.join(dir, 'models.json'), JSON.stringify({ old: 'claude-sonnet-5-5', picked: 'sonnet' }));
+    expect(startModel(await readChatModel(dir, 'old'))).toBe(CHAT_MODEL);
+    expect(startModel(await readChatModel(dir, 'picked'))).toBe('sonnet');
+    expect(startModel(await readChatModel(dir, 'none'))).toBe(CHAT_MODEL);
+    // A run across flows picks a full id: saved as a pick, so it keeps it.
+    await saveChatModel(dir, 'task', 'claude-sonnet-5-5');
+    expect(startModel(await readChatModel(dir, 'task'))).toBe('claude-sonnet-5-5');
   });
 
   it('saves a switch per session and refuses odd values', async () => {
