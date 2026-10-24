@@ -175,7 +175,7 @@ export function Settings() {
 
       <section className="set-card" id="set-models" aria-labelledby="set-models-h">
         <h2 id="set-models-h" className="sr-only">Models</h2>
-        <p className="muted">Reviews: Sonnet 5.5. Chat: pick the model in the message box.</p>
+        <p className="muted">Chat: new chats start on Opus 5.5, switch in the message box. Reviews: Sonnet 5.5.</p>
       </section>
 
       <section className="set-card" id="set-usage" aria-labelledby="set-usage-h">

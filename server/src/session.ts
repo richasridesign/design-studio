@@ -35,6 +35,7 @@ import { awaitQuestions } from './awaiting.js';
 import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
 import { BRAINSTORM_NOTE, BUILD_NOTE, brainstormDeny, chooseOption, listRounds, parseRound, readMode, saveMode, saveRound } from './brainstorm.js';
 import { buildPrompt } from '../../shared/brainstorm.js';
+import { lastModel, modelId, readChatModel, saveChatModel, startModel } from './chatModel.js';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
@@ -94,6 +95,9 @@ export class AgentSession {
   private liveMsgId = '';
 
   private resumedAuto = false;
+  /** A resumed chat's saved model and its transcript's last one: it starts on that, not on the new-chat default. */
+  private savedModel: string | null = null;
+  private transcriptModel: string | null = null;
   private lastError = false;
   private lrErrors = 0;
   /** The long run report seen in this turn's text, if any. */
@@ -188,9 +192,11 @@ export class AgentSession {
       if (this.figma?.key === SAMPLE_KEY) this.state.events.push(...withReviews([], (await readReview(this.cwd)).runs));
       return;
     }
-    const { events, context, cache } = historyFrom(await getSessionMessages(this.resume, { dir: this.cwd }));
+    const msgs = await getSessionMessages(this.resume, { dir: this.cwd });
+    const { events, context, cache } = historyFrom(msgs);
     this.state.events.push(...withReviews(events, (await readReview(this.cwd)).runs));
-    Object.assign(this.state.session, { context, cache });
+    this.transcriptModel = lastModel(msgs);
+    Object.assign(this.state.session, { context, cache, model: startModel(this.resume, this.savedModel, this.transcriptModel) });
   }
 
   async init() {
@@ -203,6 +209,7 @@ export class AgentSession {
     this.defaultAreas = s.areas;
     this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
+    if (this.resume) this.savedModel = await readChatModel(this.cwd, this.resume).catch(() => null);
     // A resumed chat keeps its Brainstorm mode, so a restart never lifts the write lock, and shows its rounds.
     if (this.resume) {
       this.state.session.brainstorm = await readMode(this.cwd, this.resume).catch(() => false);
@@ -249,6 +256,7 @@ export class AgentSession {
       options: agentOptions({
         cwd: this.cwd,
         resume: this.resume,
+        model: startModel(this.resume, this.savedModel, this.transcriptModel),
         figma: this.figma,
         rules: this.rules,
         figmaServers: this.figmaServers,
@@ -290,7 +298,7 @@ export class AgentSession {
         { name: 'system', description: 'Rebuild the design system profile' },
       ];
       this.setSession({
-        models: models.map((m) => ({ value: m.value, displayName: m.displayName, description: m.description })),
+        models: models.map((m) => ({ value: m.value, displayName: m.displayName, description: m.description, resolvedModel: m.resolvedModel })),
         commands: [...own, ...commands.filter((c) => !own.some((o) => o.name === c.name)).map((c) => ({ name: c.name, description: c.description }))],
       });
     } catch (err) {
@@ -320,10 +328,15 @@ export class AgentSession {
     this.system(on ? 'Allow edits anywhere: on. This chat can edit other flows and iterations.' : 'Allow edits anywhere: off. This chat edits only its own flow.');
   }
 
+  /** Applies from the next request, and is saved for this chat so a reload, restart or resume keeps it. */
   async setModel(model: string) {
+    const id = modelId(model);
+    if (!id) return this.system(`Unknown model: ${model.slice(0, 80)}`);
     this.start();
-    await this.q?.setModel(model);
-    this.setSession({ model });
+    await this.q?.setModel(id);
+    this.setSession({ model: id });
+    const sid = this.state.session.sessionId;
+    if (sid) void saveChatModel(this.cwd, sid, id).catch((err) => console.error(`model: ${String(err)}`));
   }
 
   async setPermissionMode(mode: string, quiet = false) {
@@ -1069,10 +1082,13 @@ export class AgentSession {
     switch (msg.type) {
       case 'system':
         if (msg.subtype === 'init') {
-          const changed = msg.model !== this.state.session.model;
+          const before = this.state.session.model;
+          const changed = msg.model !== before;
           this.setSession({ sessionId: msg.session_id, model: msg.model, permissionMode: msg.permissionMode, apiKeySource: msg.apiKeySource, mcp: mcpFrom(msg.mcp_servers, msg.tools) });
+          // The model this turn runs on, saved so the chat starts on it again after a restart.
+          void saveChatModel(this.cwd, msg.session_id, msg.model).catch((err) => console.error(`model: ${String(err)}`));
           if (this.state.session.brainstorm) void saveMode(this.cwd, msg.session_id, true).catch((err) => console.error(`brainstorm: ${String(err)}`));
-          if (changed) this.system(`Session started with ${msg.model}`);
+          if (changed) this.system(before ? `Model: ${msg.model}` : `Session started with ${msg.model}`);
           if (this.resume && msg.permissionMode !== 'auto' && !this.resumedAuto) {
             this.resumedAuto = true;
             void this.q?.setPermissionMode('auto').then(() => this.setSession({ permissionMode: 'auto' }));
