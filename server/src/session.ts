@@ -29,7 +29,7 @@ import { acquireWrite } from './figmaLock.js';
 import { chatContext, readProject } from './project.js';
 import { checkScope, frozenChat } from './scopeGuard.js';
 import { markTurn, scheduleRestack } from './iterations.js';
-import { projectInstructions, type ChatContext } from '../../shared/project.js';
+import { latestOf, projectInstructions, type ChatContext } from '../../shared/project.js';
 import { ASK_DENIED, AWAKE_GRACE, CONTINUE_TEXT, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, LONG_RUN_STEER, MAX_ROUNDS, REASON_TEXT, decide, isActive, longRunPrompt, parseReport, reportAsk, reportQuestions, roundFrom, windowPct, withLimit, type Limits, type LongRun, type LongRunReason, type Report } from '../../shared/longRun.js';
 import { keepAwake } from './awake.js';
 import { awaitQuestions } from './awaiting.js';
@@ -54,7 +54,8 @@ export const AUTO_CHECK_MAX = 20;
 function projectKeyOf(ctx: ChatContext | null): string {
   if (!ctx || ctx.scope !== 'flow' || !ctx.iteration || !ctx.flow) return '';
   const f = ctx.iteration.flows?.[ctx.flow.slug];
-  return [ctx.iteration.node, ctx.iteration.state, f?.node, f?.states].join('|');
+  const latest = latestOf(ctx.project, ctx.flow.slug)?.flows?.[ctx.flow.slug];
+  return [ctx.iteration.node, ctx.iteration.state, f?.node, f?.states, latest?.node].join('|');
 }
 
 export class AgentSession {
@@ -535,12 +536,14 @@ export class AgentSession {
     return mapSummary(map, mapFiles(this.cwd, key).md, this.mapScope());
   }
 
-  /** A flow chat's map summary lists only its own sections: the iteration, its flow subsection and the baseline. */
+  /** A flow chat's map summary lists only its own sections: the iteration, its flow subsection, the flow's latest
+   * section (where the prompt points it) and the baseline. */
   private mapScope() {
     const c = this.projectCtx;
     if (!c || c.scope !== 'flow' || !c.iteration || !c.flow) return undefined;
     const inIt = c.iteration.flows?.[c.flow.slug];
-    const sections = [c.iteration.node, inIt?.node, inIt?.states, c.flow.baseline].filter((x): x is string => Boolean(x));
+    const latest = latestOf(c.project, c.flow.slug)?.flows?.[c.flow.slug];
+    const sections = [c.iteration.node, inIt?.node, inIt?.states, latest?.node, latest?.states, c.flow.baseline].filter((x): x is string => Boolean(x));
     return sections.length ? { sections } : undefined;
   }
 
