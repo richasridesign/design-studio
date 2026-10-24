@@ -1,11 +1,19 @@
 import type { HookCallbackMatcher, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk';
 import { MODELS } from '../../shared/design.js';
+import { readFigma } from './figma.js';
 import { FigmaError } from './figmaError.js';
+import { pluginFiles, pluginReadCall, readersFor } from './figmaPlugin.js';
 import { figmaMcp, lean, type FigmaMcp } from './lean.js';
 
 // Reads a Figma file through the Figma plugin that Claude is logged in to (no REST token).
 // One read is one short, cheap Claude run. Claude only makes the calls: hooks on the run put the real script into
 // each use_figma call and take every result out before Claude sees it, so the file's content never reaches the model.
+//
+// When the Design Studio plugin runs in the file (the Figma app's plugin, or figma.com in the Design Studio window),
+// a read it knows by name goes to it first: the server sends the name and plain arguments over its socket, never
+// code, and the plugin runs the same Plugin API code as the body (figma-plugin/reads.ts). No Claude run, no cost.
+// A plugin that is not there, does not know the read, does not start it (the file is not the front tab in Figma) or
+// fails, leaves the read to the Claude run.
 //
 // use_figma caps a return value at 20480 bytes, so a script's value is packed (UTF-8, then LZW, then base64url)
 // and returned in pages of PAGE_CHARS characters. Every page call runs the whole script again and returns one slice.
@@ -364,7 +372,12 @@ export type ReadSpec = {
   signal?: AbortSignal;
   /** Reads with the same key share one run while it is in flight. */
   key?: string;
+  /** The plugin's own read that gives the same value as `body` (figma-plugin/reads.ts), tried first. Reads only. */
+  socket?: SocketRead;
 };
+
+/** A read the plugin runs itself: its name in figma-plugin/reads.ts and its plain arguments. `ms`: the longest it may take once Figma started it. */
+export type SocketRead = { name: string; args?: Record<string, unknown>; ms?: number };
 
 export type ReadResult = { value: unknown; shots: Record<string, string | null>; costUsd: number; tokens: number; ms: number };
 
@@ -475,13 +488,40 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
   return { value, shots: Object.fromEntries(ids.map((id) => [id, state.shots.get(id) ?? null])), costUsd: r.costUsd, tokens: r.tokens, ms: Date.now() - t0 };
 }
 
+/** The read through the plugin's socket, or null when no plugin in the file can give it: the Claude run reads it then. */
+async function socketRead(spec: ReadSpec): Promise<ReadResult | null> {
+  const want = spec.socket;
+  if (!want || spec.shots || typeof spec.body !== 'string') return null;
+  const t0 = Date.now();
+  let readers = readersFor(spec.fileKey, '', want.name);
+  // A plugin Figma gave no file key is found by the file's name.
+  if (!readers.length && pluginFiles().some((p) => !p.key)) {
+    const file = await readFigma(spec.dir);
+    if (file?.key === spec.fileKey) readers = readersFor(spec.fileKey, file.name, want.name);
+  }
+  // At most two tries (the Figma view, then the Figma app), so a file Figma holds back costs seconds, not minutes.
+  for (const conn of readers.slice(0, 2)) {
+    if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
+    const r = await pluginReadCall(conn, want.name, want.args ?? {}, { ms: want.ms, signal: spec.signal });
+    if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
+    const via = conn.embed ? 'the Figma view' : 'the Figma app plugin';
+    if ('value' in r) {
+      console.log(`figma read: ${want.name} through ${via} in ${Date.now() - t0} ms, no Claude run`);
+      return { value: r.value, shots: {}, costUsd: 0, tokens: 0, ms: Date.now() - t0 };
+    }
+    console.log(`figma read: ${want.name} through ${via} failed after ${Date.now() - t0} ms (${r.error})`);
+  }
+  return null;
+}
+
 /** Runs one read through the Figma plugin, at most MAX_RUNS at a time, sharing in-flight reads with the same key. */
 export function pluginRead(spec: ReadSpec, deps: ReadDeps = {}): Promise<ReadResult> {
   const key = spec.key ? `${spec.fileKey}|${spec.key}` : null;
   const hit = key ? inFlight.get(key) : undefined;
   if (hit) return hit;
   // A session Figma no longer takes is dropped in readOnce, so the one retry makes a new one.
-  const p = slot(() => readOnce(spec, deps).catch((err: Error) => (/session/i.test(err.message) && !spec.signal?.aborted ? readOnce(spec, deps) : Promise.reject(err))));
+  const claude = () => slot(() => readOnce(spec, deps).catch((err: Error) => (/session/i.test(err.message) && !spec.signal?.aborted ? readOnce(spec, deps) : Promise.reject(err))));
+  const p = socketRead(spec).catch((err: Error) => (spec.signal?.aborted ? Promise.reject(err) : null)).then((r) => r ?? claude());
   if (key) {
     inFlight.set(key, p);
     const clear = () => inFlight.delete(key);
@@ -491,8 +531,8 @@ export function pluginRead(spec: ReadSpec, deps: ReadDeps = {}): Promise<ReadRes
 }
 
 /** Runs a read-only script and returns its value. */
-export async function pluginScript<T = unknown>(fileKey: string, body: string, what: string, opts: { dir: string; signal?: AbortSignal; key?: string } & ReadDeps): Promise<{ value: T; costUsd: number; ms: number }> {
-  const r = await pluginRead({ fileKey, body, what, dir: opts.dir, signal: opts.signal, key: opts.key }, opts);
+export async function pluginScript<T = unknown>(fileKey: string, body: string, what: string, opts: { dir: string; signal?: AbortSignal; key?: string; socket?: SocketRead } & ReadDeps): Promise<{ value: T; costUsd: number; ms: number }> {
+  const r = await pluginRead({ fileKey, body, what, dir: opts.dir, signal: opts.signal, key: opts.key, socket: opts.socket }, opts);
   return { value: r.value as T, costUsd: r.costUsd, ms: r.ms };
 }
 
