@@ -85,7 +85,12 @@ export class AgentSession {
   /** A Figma edit script started (true) or the last running one ended (false): her Figma follows changes live meanwhile. */
   onEditing: (on: boolean) => void = () => {};
 
+  /** Text of a reply block before its first visible word, and the event of each block streaming now, by block key. */
   private liveText = new Map<string, string>();
+  private liveEvents = new Map<string, Extract<ChatEvent, { kind: 'assistant' }>>();
+  /** When the prompt arrived, for the turn timing line in the server log. */
+  private promptAt = 0;
+  private timing: { at: number; queued: number; first: number; text: number; deltas: number; tools: number } | null = null;
   private edits = new Map<string, string>();
   /** Figma calls waiting for their result, by tool use id: true when the call's script creates or changes nodes. */
   /** Each running use_figma call: whether its script edits, and the node ids it names. */
@@ -542,6 +547,9 @@ export class AgentSession {
 
   private enqueue(text: string, blocks: Parameters<typeof userMessage>[1] = []) {
     this.start();
+    const now = Date.now();
+    this.timing ??= { at: this.promptAt || now, queued: now, first: 0, text: 0, deltas: 0, tools: 0 };
+    this.promptAt = 0;
     this.turns++;
     this.setSession({ running: true });
     if (/^\/compact\b/.test(text.trim())) this.startCompacting();
@@ -628,6 +636,7 @@ export class AgentSession {
 
   async prompt(text: string, refs?: unknown) {
     if (this.sampleBlocked()) return;
+    this.promptAt = Date.now();
     await this.refreshRules();
     const images = await loadImages(this.cwd, refs);
     if (this.state.session.longRun && !isActive(this.state.session.longRun)) this.setSession({ longRun: null });
@@ -1081,6 +1090,25 @@ export class AgentSession {
     }
   }
 
+  /** A streaming reply block ended: the full text goes out once, marked done. */
+  private endLive(key: string) {
+    const event = this.liveEvents.get(key);
+    this.liveEvents.delete(key);
+    if (!event) return;
+    event.streaming = false;
+    this.emit({ type: 'event', event });
+  }
+
+  /** One line per turn in the server log: time to get ready, to the SDK's first event, to the first word, and done. */
+  private logTiming(sdkTurns: number) {
+    const t = this.timing;
+    this.timing = null;
+    if (!t) return;
+    const now = Date.now();
+    const s = (to: number) => (to ? `${((to - t.at) / 1000).toFixed(1)}s` : 'none');
+    console.log(`turn timing: ready ${t.queued - t.at}ms, first event ${s(t.first)}, first word ${s(t.text)}, done ${s(now)}, ${t.tools} tools, ${sdkTurns} model calls, ${t.deltas} deltas`);
+  }
+
   private handle(msg: SDKMessage) {
     switch (msg.type) {
       case 'system':
@@ -1110,6 +1138,7 @@ export class AgentSession {
           this.system(`Compacted from ${Math.round(pre_tokens / 1000)}k${post_tokens ? ` to ${Math.round(post_tokens / 1000)}k` : ''} tokens`);
         } else if (msg.subtype === 'local_command_output') {
           this.pushEvent({ id: msg.uuid, kind: 'assistant', text: msg.content, streaming: false, at: Date.now() });
+          this.timing = null;
           this.turnEnded();
         }
         return;
@@ -1123,26 +1152,36 @@ export class AgentSession {
       case 'stream_event': {
         if (msg.parent_tool_use_id) return;
         const ev = msg.event;
-        if (ev.type === 'message_start') this.liveMsgId = ev.message.id;
+        if (ev.type === 'message_start') {
+          this.liveMsgId = ev.message.id;
+          if (this.timing && !this.timing.first) this.timing.first = Date.now();
+        }
         if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
           const key = `${this.liveMsgId}:${ev.index}`;
-          const text = (this.liveText.get(key) ?? '') + ev.delta.text;
-          this.liveText.set(key, text);
-          const existing = this.state.events.find((e) => e.id === key);
-          if (existing && existing.kind === 'assistant') {
-            existing.text = text;
-            this.emit({ type: 'event', event: existing });
+          if (this.timing) {
+            this.timing.text ||= Date.now();
+            this.timing.deltas++;
+          }
+          const live = this.liveEvents.get(key);
+          if (live) {
+            // Only the new words go to the page, never the whole reply again.
+            live.text += ev.delta.text;
+            this.emit({ type: 'delta', id: key, text: ev.delta.text, len: live.text.length });
           } else {
-            this.pushEvent({ id: key, kind: 'assistant', text, streaming: true, at: Date.now() });
+            // The reply shows from its first visible word; whitespace before it waits here.
+            const text = (this.liveText.get(key) ?? '') + ev.delta.text;
+            if (!text.trim()) this.liveText.set(key, text);
+            else {
+              this.liveText.delete(key);
+              const event: Extract<ChatEvent, { kind: 'assistant' }> = { id: key, kind: 'assistant', text, streaming: true, at: Date.now() };
+              this.liveEvents.set(key, event);
+              this.pushEvent(event);
+            }
           }
         }
         if (ev.type === 'content_block_stop') {
           const key = `${this.liveMsgId}:${ev.index}`;
-          const existing = this.state.events.find((e) => e.id === key);
-          if (existing && existing.kind === 'assistant') {
-            existing.streaming = false;
-            this.emit({ type: 'event', event: existing });
-          }
+          this.endLive(key);
           this.liveText.delete(key);
         }
         return;
@@ -1155,6 +1194,7 @@ export class AgentSession {
           if (block.type === 'text' && isActive(this.state.session.longRun)) this.longRunText(block.text);
           if (block.type === 'server_tool_use' && block.name === 'advisor') this.pushEvent(advisorEvent(block.id, Date.now()));
           if (block.type === 'tool_use') {
+            if (this.timing) this.timing.tools++;
             this.pushEvent(toolUseEvent(block.id, block.name, block.input, Date.now()));
             const file = (block.input as { file_path?: unknown })?.file_path;
             if (EDIT_TOOLS.has(block.name) && typeof file === 'string') this.edits.set(block.id, file);
@@ -1199,7 +1239,10 @@ export class AgentSession {
       }
 
       case 'result': {
+        // A block cut off by Stop never gets its block end: its reply stops streaming here.
+        for (const key of [...this.liveEvents.keys()]) this.endLive(key);
         this.liveText.clear();
+        this.logTiming(msg.num_turns);
         this.recordResult(msg);
         this.lastResult = msg.subtype === 'success' ? msg.result : '';
         this.lastError = msg.is_error;
