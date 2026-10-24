@@ -142,4 +142,16 @@ export const BRAINSTORM_NOTE = [
   'Each turn, post the round with mcp__designstudio__brainstorm_update (problem, assumptions, 2 or 3 options with a grey-box sketch, the flow, questions with suggested answers), then keep your chat reply to one or two lines.',
 ].join(' ');
 
-export const BUILD_NOTE = 'Brainstorm mode is over: the designer chose to build, so Figma writes are allowed again. Follow the brief in this message.';
+export const BUILD_NOTE = 'Brainstorm mode is over: the designer chose to build, so Figma writes are allowed again. Follow the brief in this message. When the message is only a go ("go", "build it"), build the option you recommended in the last round, with the answers she gave, or the option she names.';
+
+// ---------- A typed go ----------
+
+/** A short message that only says go: "go", "go build it", "approved", "yes, build", "ok do it please", "build option B". */
+const GO = /^(?:(?:ok|okay|yes|yep|yeah|sure|great|perfect|looks good|lgtm)[,.!]?\s+)?(?:go(?: ahead)?(?:,?\s+(?:build|do) (?:it|this|that))?|go for it|build(?: it| this| that| now)?|yes,? build(?: it| this)?|approved?|do it|start building|let'?s build(?: it| this)?|(?:go with|build) option [a-c])(?:[,\s]+(?:please|thanks|now))?[.!]*$/i;
+
+/** Whether a message she typed in brainstorm is a clear go to build: short, no question, nothing else asked. */
+export function isGoPhrase(text: string): boolean {
+  const t = String(text ?? '').trim().replace(/\s+/g, ' ');
+  if (!t || t.length > 40 || t.includes('?')) return false;
+  return GO.test(t);
+}
