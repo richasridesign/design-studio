@@ -598,6 +598,18 @@ function HouseRulesRow({ run }: { run: ReviewRun }) {
   );
 }
 
+// Every review card in a chat reads the same two files. Cards that mount together (a chat opens with up to 30 of
+// them) share one request per file, chat and change, instead of one each.
+const reads = new Map<string, { key: string; at: number; p: Promise<unknown> }>();
+function sharedJson<T>(path: string, key: string): Promise<T> {
+  const hit = reads.get(path);
+  if (hit && hit.key === key && Date.now() - hit.at < 3000) return hit.p as Promise<T>;
+  const p = getJson<T>(path);
+  reads.set(path, { key, at: Date.now(), p });
+  p.catch(() => { if (reads.get(path)?.p === p) reads.delete(path); });
+  return p;
+}
+
 const ReviewCard = memo(ReviewCardView);
 function ReviewCardView({ runAt }: { runAt: number }) {
   const chat = useStore((s) => s.session.id);
@@ -605,9 +617,9 @@ function ReviewCardView({ runAt }: { runAt: number }) {
   const [copied, setCopied] = useState(false);
   const rev = useRev('review.json');
   const [doc, setDoc] = useState<ReviewDoc | null>(null);
-  useEffect(() => { getJson<ReviewDoc>('/api/review').then(setDoc).catch(() => {}); }, [chat, rev]);
+  useEffect(() => { sharedJson<ReviewDoc>('/api/review', `${chat}|${rev}`).then(setDoc).catch(() => {}); }, [chat, rev]);
   const [awaiting, setAwaiting] = useState<AwaitItem[] | null>(null);
-  useEffect(() => { getJson<AwaitItem[]>('/api/awaiting').then(setAwaiting).catch(() => {}); }, [chat, rev]);
+  useEffect(() => { sharedJson<AwaitItem[]>('/api/awaiting', `${chat}|${rev}`).then(setAwaiting).catch(() => {}); }, [chat, rev]);
   const { triage } = useTriage();
   const latestAt = doc?.runs.length ? Math.max(...doc.runs.map((r) => r.at)) : 0;
   const outline = useOutline(figmaKey);
