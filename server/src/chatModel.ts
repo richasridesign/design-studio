@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import type { SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CHAT_MODEL, LEGACY_CHAT_MODEL } from '../../shared/design.js';
@@ -28,7 +29,7 @@ export async function saveChatModel(cwd: string, sessionId: string, model: strin
   if (all[sessionId] === id) return;
   const f = file(cwd);
   await mkdir(path.dirname(f), { recursive: true });
-  const tmp = `${f}.${process.pid}.tmp`;
+  const tmp = `${f}.${process.pid}.${randomUUID()}.tmp`;
   await writeFile(tmp, JSON.stringify({ ...all, [sessionId]: id }, null, 2));
   await rename(tmp, f);
 }

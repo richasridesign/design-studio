@@ -98,6 +98,8 @@ export class AgentSession {
   /** A resumed chat's saved model and its transcript's last one: it starts on that, not on the new-chat default. */
   private savedModel: string | null = null;
   private transcriptModel: string | null = null;
+  /** The model she picked in this chat (an alias like "opus[1m]" or "default" stays as picked, never the id it runs as). */
+  private pickedModel: string | null = null;
   private lastError = false;
   private lrErrors = 0;
   /** The long run report seen in this turn's text, if any. */
@@ -209,7 +211,7 @@ export class AgentSession {
     this.defaultAreas = s.areas;
     this.state.session.flow = { ...flowOff(s), areas: reviewAreas(s.areas, false, (await readProfile(this.cwd))?.areas) };
     if (this.resume) this.state.session.spend = await loadChatSpend(this.cwd, this.resume);
-    if (this.resume) this.savedModel = await readChatModel(this.cwd, this.resume).catch(() => null);
+    if (this.resume) this.savedModel = this.pickedModel = await readChatModel(this.cwd, this.resume).catch(() => null);
     // A resumed chat keeps its Brainstorm mode, so a restart never lifts the write lock, and shows its rounds.
     if (this.resume) {
       this.state.session.brainstorm = await readMode(this.cwd, this.resume).catch(() => false);
@@ -335,6 +337,7 @@ export class AgentSession {
     this.start();
     await this.q?.setModel(id);
     this.setSession({ model: id });
+    this.pickedModel = id;
     const sid = this.state.session.sessionId;
     if (sid) void saveChatModel(this.cwd, sid, id).catch((err) => console.error(`model: ${String(err)}`));
   }
@@ -1085,8 +1088,8 @@ export class AgentSession {
           const before = this.state.session.model;
           const changed = msg.model !== before;
           this.setSession({ sessionId: msg.session_id, model: msg.model, permissionMode: msg.permissionMode, apiKeySource: msg.apiKeySource, mcp: mcpFrom(msg.mcp_servers, msg.tools) });
-          // The model this turn runs on, saved so the chat starts on it again after a restart.
-          void saveChatModel(this.cwd, msg.session_id, msg.model).catch((err) => console.error(`model: ${String(err)}`));
+          // Saved so the chat starts on it again after a restart: her pick as she made it, else the model this turn runs on.
+          void saveChatModel(this.cwd, msg.session_id, this.pickedModel ?? msg.model).catch((err) => console.error(`model: ${String(err)}`));
           if (this.state.session.brainstorm) void saveMode(this.cwd, msg.session_id, true).catch((err) => console.error(`brainstorm: ${String(err)}`));
           if (changed) this.system(before ? `Model: ${msg.model}` : `Session started with ${msg.model}`);
           if (this.resume && msg.permissionMode !== 'auto' && !this.resumedAuto) {
