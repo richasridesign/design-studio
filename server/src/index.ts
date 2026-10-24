@@ -122,10 +122,15 @@ function summary(chat: AgentSession): LiveChat {
 }
 
 let liveTimer: NodeJS.Timeout | null = null;
+let liveSent = '';
 function broadcastLive() {
   liveTimer ??= setTimeout(() => {
     liveTimer = null;
     const chats = [...live.values()].map((l) => summary(l.chat)).sort((a, b) => b.lastActive - a.lastActive);
+    // The same list again is not sent: every page would re-render its sidebar for nothing.
+    const text = JSON.stringify(chats);
+    if (text === liveSent) return;
+    liveSent = text;
     clients.forEach((c) => c.send({ type: 'live', chats }));
   }, 100);
 }
@@ -172,7 +177,7 @@ async function createChat(cwd: string, resume?: string, title = '') {
     clients.forEach((c) => c.view === chat && c.send(m));
     notifyAway(m, () => (viewers(chat) ? null : summary(chat)));
     if (m.type === 'session' && chat === lastViewed) remember(chat);
-    if (m.type !== 'event' || m.event.kind === 'user') broadcastLive();
+    if (m.type !== 'event' && m.type !== 'delta' || m.type === 'event' && m.event.kind === 'user') broadcastLive();
   });
   if (!resume) chat.start();
   live.set(chat.id, { chat, watcher: watchFiles(cwd, (rel) => chat.fileChangedExternally(rel)) });
@@ -188,7 +193,7 @@ function taskHandle(chat: AgentSession): ChatHandle {
       const last = [...s.events].reverse().find((e) => e.kind === 'result');
       return { running: s.session.running, pending: s.pending.length, error: Boolean(last?.kind === 'result' && last.isError), tokens: s.session.spend.tokens, costUsd: s.session.spend.costUsd, model: s.session.model, sessionId: s.session.sessionId, closed: !live.has(chat.id) };
     },
-    onChange: (fn) => { const off = chat.onMessage((m) => { if (m.type !== 'event' || m.event.kind === 'result') fn(); }); return () => void off(); },
+    onChange: (fn) => { const off = chat.onMessage((m) => { if (m.type !== 'event' && m.type !== 'delta' || m.type === 'event' && m.event.kind === 'result') fn(); }); return () => void off(); },
     stop: () => chat.interrupt(),
   };
 }
@@ -264,6 +269,8 @@ function view(client: Client, chat: AgentSession) {
   }
   void chat.refreshMcp();
   if (prev && prev !== chat && idle(prev) && !prev.state.session.sessionId) closeChat(prev);
+  // A page that just connected or switched chats always gets the list.
+  liveSent = '';
   broadcastLive();
 }
 
