@@ -139,6 +139,15 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   /** The page's agent said hello, so the socket is wanted (opened again after a drop). */
   var wanted = false
   var popups: [NSWindow] = []
+  /** The page the view was last told to load, loaded again when a load fails or never starts its agent. */
+  var lastURL: URL?
+  /** When the current page started loading, and whether its agent said hello since. */
+  var loadStart = Date()
+  var helloSinceLoad = false
+  /** Reloads and retries made since the last open or hello, so a page that never works is not reloaded for ever. */
+  var reloads = 0
+  var retries = 0
+  var watchdog: DispatchWorkItem?
 
   override init() {
     let config = WKWebViewConfiguration()
@@ -197,8 +206,51 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   func open(_ url: URL, _ key: String?) {
     fileKey = key
     loaded = true
+    lastURL = url
+    reloads = 0
+    retries = 0
     log("figma view: opening \(key ?? "files")")
     view.load(URLRequest(url: url))
+  }
+
+  // A file usually says hello 9 to 12 s after it starts loading, once 31 s. A page that loaded but never started its
+  // agent (on 23 Oct one stayed blank for almost two hours, until the window was opened again) is loaded once more.
+  static let helloWait: TimeInterval = 40
+  static let helloWaitAfterFinish: TimeInterval = 30
+
+  func arm(_ after: TimeInterval) {
+    watchdog?.cancel()
+    let w = DispatchWorkItem { [weak self] in self?.checkHello() }
+    watchdog = w
+    DispatchQueue.main.asyncAfter(deadline: .now() + after, execute: w)
+  }
+
+  /** Only a file page waits for the agent: her Figma files and the sign-in pages never say hello. */
+  var onFilePage: Bool {
+    guard let path = view.url?.path else { return lastURL?.path.hasPrefix("/design/") ?? false }
+    return path.range(of: "^/(design|file)/[A-Za-z0-9]{10,64}", options: .regularExpression) != nil
+  }
+
+  func checkHello() {
+    guard !helloSinceLoad, onFilePage else { return }
+    // Hidden, the page may be held back: it is checked again once it shows.
+    guard shown else { arm(10); return }
+    reload(why: "no hello \(Int(Date().timeIntervalSince(loadStart))) s after the load started")
+  }
+
+  /** Loads the page again, at most once until the next open or hello. */
+  func reload(why: String) {
+    guard reloads < 1, let url = lastURL else { return }
+    reloads += 1
+    log("figma view: \(why), loading it again")
+    closeSocket()
+    view.load(URLRequest(url: url))
+  }
+
+  /** The web app saw no hello for a while and asks for a reload ({t:'reload'}): done only when this load is stuck too. */
+  func reloadIfStuck() {
+    guard loaded, !helloSinceLoad, onFilePage, Date().timeIntervalSince(loadStart) > 15 else { return }
+    reload(why: "the app asked, no hello \(Int(Date().timeIntervalSince(loadStart))) s after the load started")
   }
 
   func setShown(_ on: Bool) {
@@ -213,6 +265,11 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
     guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.host == "www.figma.com", let text = message.body as? String else { return }
     if text.contains("\"t\":\"hello\"") {
+      if !helloSinceLoad { log("figma view: hello \(String(format: "%.1f", Date().timeIntervalSince(loadStart))) s after the load started") }
+      helloSinceLoad = true
+      reloads = 0
+      retries = 0
+      watchdog?.cancel()
       wanted = true
       if socket == nil { connect() }
       sendText(text)
@@ -272,7 +329,33 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
 
   // A new page in the view (another file, a reload) starts a new agent, which says hello again.
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-    if webView === view { closeSocket() }
+    guard webView === view else { return }
+    closeSocket()
+    loadStart = Date()
+    helloSinceLoad = false
+    arm(FigmaEmbed.helloWait)
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    guard webView === view, !helloSinceLoad else { return }
+    arm(FigmaEmbed.helloWaitAfterFinish)
+  }
+
+  // A load that fails (no network yet just after login, say) leaves a blank view: it is tried again a few times.
+  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { loadFailed(webView, error) }
+  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { loadFailed(webView, error) }
+
+  func loadFailed(_ webView: WKWebView, _ error: Error) {
+    let e = error as NSError
+    // Cancelled (another load took over) and links sent to the Figma app are not failures.
+    guard webView === view, e.code != NSURLErrorCancelled, !(e.domain == "WebKitErrorDomain" && e.code == 102) else { return }
+    log("figma view: load failed (\(e.domain) \(e.code)) \(e.localizedDescription)")
+    guard retries < 3, let url = lastURL else { return }
+    retries += 1
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+      guard let self, !self.helloSinceLoad, self.lastURL == url else { return }
+      self.view.load(URLRequest(url: url))
+    }
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -316,7 +399,7 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     guard webView === view else { return }
     log("figma view: page ended, loading again")
     closeSocket()
-    webView.reload()
+    if let url = lastURL, webView.url == nil { webView.load(URLRequest(url: url)) } else { webView.reload() }
   }
 
   @available(macOS 12.0, *)
@@ -439,6 +522,8 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
       let m = message.body as? [String: Any] else { return }
     if (m["show"] as? Bool ?? false) == false && figma == nil { return }
     makeFigma().stage(m, in: web)
+    // {t:'reload'} carries the whole stage too, so an older app reads it as a plain stage and nothing changes.
+    if (m["t"] as? String) == "reload" { figma?.reloadIfStuck() }
   }
 
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
