@@ -56,7 +56,7 @@ function whereAll(map: FileMap, project: Project): Map<string, Where> {
   const out = new Map<string, Where>();
   for (const [, pageName, top] of map.raw.pages) {
     const walk = (n: (typeof top)[number], trail: Where['tags']) => {
-      const tag = n[0] === 'S' ? tagOf(n) ?? byNode.get(n[1]) ?? null : null;
+      const tag = n[0] === 'S' ? tagOf(n) ?? byNode.get(n[1]) ?? frozenByName(n[2], project) : null;
       const here = tag ? [...trail, { id: n[1], tag }] : trail;
       out.set(n[1], { page: pageName, tags: here });
       for (const k of n[7] ?? []) walk(k, here);
@@ -64,6 +64,13 @@ function whereAll(map: FileMap, project: Project): Map<string, Where> {
     for (const n of top) walk(n, []);
   }
   return out;
+}
+
+/** A section with no tag named like a frozen iteration ("V0.1 · Flow 1 · new work"): that iteration, so it stays
+ * frozen too. Her own V0.N sections are often neither tagged nor in project.json. Working ones are left alone. */
+function frozenByName(name: string, p: Project): Tag | null {
+  const id = /^V(\d+(?:\.\d+)*)\s*·/.exec(name.trim())?.[1];
+  return id && p.iterations.some((it) => it.id === id && it.state === 'frozen') ? { kind: 'iteration', iteration: id } : null;
 }
 
 /** The tags project.json implies, for sections the map has without a tag. */
