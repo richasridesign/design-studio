@@ -153,7 +153,9 @@ export function BrowserPane() {
     send({ t: 'follow', key: followKey, pause: !follow.paused.includes(followKey) });
   };
 
-  useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight);
+  // The view in this file said hello: it is up, so nothing needs reloading. Offline, the list says nothing.
+  const embedUp = !!chatFile && inFile.some((p) => p.embed);
+  useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight, capture.state === 'offline' ? null : embedUp);
 
   const showing = capture.state === 'on' && hasFrame;
   // No plugin runs in this chat's file: said whenever following is on, whatever the capture shows, since nothing
@@ -206,12 +208,46 @@ export function BrowserPane() {
   );
 }
 
+/** A shown file whose view has not said hello for this long is asked to reload (apps that know {t:'reload'}). */
+const EMBED_RELOAD_MS = 45_000;
+/** Still nothing: the file is opened again by leaving it for a moment, which every app build does. */
+const EMBED_REOPEN_MS = 60_000;
+/** The app leaves a file for "no file" only after 1.5 s, so "no file" is held a little longer than that. */
+const EMBED_LEAVE_MS = 2_500;
+
 /**
  * Tells the Mac window where the stage is (CSS pixels), whether its Figma view shows there, and which file it opens.
  * It shows only while the stage is in sight and no web menu or dialog overlaps it; it hides when the tab goes away.
  * The stage can move without changing size (the sidebar or chat sash), so its place is read every frame.
+ * `up`: the view in this file said hello (null while the server cannot say). A file shown that long without one
+ * (on 23 Oct a view stayed blank all morning) is reloaded, then opened again, once each per file.
  */
-function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, fileKey: string | null, inSight: () => boolean) {
+function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, fileKey: string | null, inSight: () => boolean, up: boolean | null) {
+  const shownAt = useRef(0);
+  const waited = useRef(0);
+  const ask = useRef<'reload' | null>(null);
+  const leaveUntil = useRef(0);
+  useEffect(() => {
+    waited.current = 0;
+    if (!host || !fileKey || up !== false) return;
+    let reloaded = false;
+    let reopened = false;
+    let lastTick = Date.now();
+    const t = setInterval(() => {
+      const now = Date.now();
+      // Only time the view is shown counts: a hidden view may be held back.
+      if (shownAt.current) waited.current += now - lastTick;
+      lastTick = now;
+      if (!reloaded && waited.current >= EMBED_RELOAD_MS) {
+        reloaded = true;
+        ask.current = 'reload';
+      } else if (!reopened && waited.current >= EMBED_REOPEN_MS) {
+        reopened = true;
+        leaveUntil.current = now + EMBED_LEAVE_MS;
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [host, fileKey, up]);
   useEffect(() => {
     const bridge = stageBridge();
     const el = host?.current;
@@ -228,10 +264,15 @@ function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, file
       const sight = inSight() && r.width > 0 && r.height > 0;
       const over = sight && covered(r);
       const show = sight && !over;
-      const m = { t: 'stage', show, why: !sight ? 'out of sight' : over ? 'covered' : '', x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: fileKey };
+      shownAt.current = show && fileKey ? shownAt.current || Date.now() : 0;
+      const leaving = show && Date.now() < leaveUntil.current;
+      const t = show && ask.current ? ask.current : 'stage';
+      const why = !sight ? 'out of sight' : over ? 'covered' : leaving ? 'no hello, opening the file again' : t === 'reload' ? 'no hello, reload' : '';
+      const m = { t, show, why, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: leaving ? null : fileKey };
       const sig = JSON.stringify(m);
       if (sig === last) return;
       last = sig;
+      if (t === 'reload') ask.current = null;
       try { bridge.postMessage(m); } catch {}
     };
     tick();
