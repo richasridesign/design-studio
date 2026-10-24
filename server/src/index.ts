@@ -20,6 +20,7 @@ import { openFigmaPlugin, pluginFocus, pluginFor } from './figmaPlugin.js';
 import { ensureHelper, openFigmaApp, showFigmaApp } from './figmaApp.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
+import { isGoPhrase } from './brainstorm.js';
 import { Tasks, type ChatHandle } from './tasks.js';
 import { removeProject, renameToConvention } from './projectAdmin.js';
 import { TASK_CAP } from '../../shared/tasks.js';
@@ -340,6 +341,12 @@ async function newChat(cwd: string, from: AgentSession, flow?: string, iteration
   // A chat for a new flow or a new iteration starts in Brainstorm mode: talk first, build when she clicks Build this.
   if (brainstorm) chat.setBrainstorm(true, true);
   return chat;
+}
+
+/** A clear go typed in Brainstorm ("go", "build it") builds, the same as Build this: the mode switches, the chat says
+ * so in one line, and her message runs as the first build turn. */
+function goBuild(chat: AgentSession, text: unknown) {
+  if (chat.state.session.brainstorm && typeof text === 'string' && isGoPhrase(text)) chat.setBrainstorm(false);
 }
 
 let remembered = '';
@@ -765,9 +772,11 @@ wss.on('connection', (ws: WebSocket, req) => {
     const chat = client.view;
     switch (msg.type) {
       case 'prompt':
+        goBuild(chat, msg.text);
         void chat.prompt(msg.text, msg.images);
         break;
       case 'steer':
+        goBuild(chat, msg.text);
         void chat.steer(msg.text, typeof msg.id === 'string' ? msg.id.slice(0, 64) : undefined, msg.images);
         break;
       case 'plan':

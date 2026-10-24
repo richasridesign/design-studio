@@ -3,7 +3,7 @@ import path from 'node:path';
 import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { AgentSession } from './session.js';
-import { BRAINSTORM_DENIED, ROUND_MAX, chooseOption, listRounds, parseRound, readMode, saveMode, saveRound } from './brainstorm.js';
+import { BRAINSTORM_DENIED, ROUND_MAX, chooseOption, isGoPhrase, listRounds, parseRound, readMode, saveMode, saveRound } from './brainstorm.js';
 import { FIGMA_WRITE_MATCHER } from './lean.js';
 
 const F = 'mcp__plugin_figma_figma__';
@@ -55,6 +55,15 @@ describe('brainstorm write lock', () => {
     await saveMode(dir, 'chat-a', false);
     expect(await readMode(dir, 'chat-a')).toBe(false);
   });
+});
+
+describe('a typed go in brainstorm', () => {
+  it.each(['go', 'Go!', 'go build it', 'build it', 'build this', 'approved', 'Approve', 'yes build', 'yes, build it', 'do it', 'start building', 'ok go ahead', 'go ahead please', 'Looks good, go', 'build option B', 'go with option a', "let's build it"])(
+    'builds on "%s"', (t) => expect(isGoPhrase(t)).toBe(true),
+  );
+  it.each(['should we go with cards?', 'go?', 'can you build it', 'yes', 'ok', 'build it with a table instead of cards please', 'go on, what about the empty state', 'I think we should go build it later after review', 'do it for every connector and then show me', 'how do I start building', 'not approved', ''])(
+    'keeps brainstorming on "%s"', (t) => expect(isGoPhrase(t)).toBe(false),
+  );
 });
 
 describe('brainstorm_update input', () => {
