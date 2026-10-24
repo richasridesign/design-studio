@@ -1,8 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { approvalReply } from '../../../shared/stages';
 import { stillAwaiting, waitText, type AwaitItem } from '../../../shared/awaiting';
 import { FIX_ASK } from '../../../shared/workflow';
-import { getJson, useRev, useStore } from '../store';
+import { getJson, useLiveText, useRev, useStore } from '../store';
 import { CHECKS, lastMcp } from '../setupChecks';
 import { RECHECK, openFigmaLogin } from '../FigmaLogin';
 import { Icon } from '../Icon';
@@ -222,7 +222,7 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
     case 'phase':
       return <div className="tr-phase"><Icon name="sync" small />{it.text}</div>;
     case 'assistant':
-      return <Reply text={it.text} streaming={it.streaming} />;
+      return <Reply id={it.id} text={it.text} streaming={it.streaming} />;
     case 'system':
       return <div className="tr-system">{it.text}</div>;
     case 'step':
@@ -254,7 +254,11 @@ function Row({ it, cwd, thumb }: { it: Item; cwd: string; thumb: (id: string) =>
   }
 }
 
-function Reply({ text, streaming }: { text: string; streaming: boolean }) {
+// The rows below are memoized: their props are strings and event objects that keep their identity, so a new event
+// re-renders only the rows it changed.
+const Reply = memo(ReplyView);
+function ReplyView({ id, text: first, streaming }: { id: string; text: string; streaming: boolean }) {
+  const text = useLiveText(id, first);
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
   const body = useRef<HTMLDivElement>(null);
@@ -270,6 +274,8 @@ function Reply({ text, streaming }: { text: string; streaming: boolean }) {
     return () => ro.disconnect();
   }, [clamp, text]);
   useEffect(() => { if (open) recheck(); else settle(); }, [long, open, settle, recheck]);
+  // A streaming reply grows without the transcript re-rendering, so it keeps the view at the bottom itself.
+  useEffect(() => { if (streaming) settle(); }, [text, streaming, settle]);
   return (
     <div className={`tr-assistant ${streaming ? 'streaming' : ''}`}>
       <div ref={body} className={`tr-reply ${clamp ? 'clamp' : ''} ${clamp && long ? 'clipped' : ''}`}><Markdown text={text} /></div>
@@ -325,7 +331,7 @@ function TimelineTurn({ t, group, cwd, thumb, latest, running }: { t: Turn; grou
       )}
       {steps && open && <div className="tr-steps-body tl-card-steps" id={bodyId}>{steps.items.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}</div>}
       <div className="tl-claude">
-        {reply && <CardReply key={reply.id} text={reply.text} streaming={reply.streaming} latest={latest} />}
+        {reply && <CardReply key={reply.id} id={reply.id} text={reply.text} streaming={reply.streaming} latest={latest} />}
         {cards.map((it) => <Row key={it.id} it={it} cwd={cwd} thumb={thumb} />)}
         {facts}
       </div>
@@ -410,7 +416,9 @@ function Facts({ items, steps, reply, waiting, cwd, thumb }: { items: Item[]; st
 }
 
 /** Claude's reply in the card: the newest card shows it all, older ones cut it to two lines with Show more. */
-function CardReply({ text, streaming, latest }: { text: string; streaming: boolean; latest: boolean }) {
+const CardReply = memo(CardReplyView);
+function CardReplyView({ id, text: first, streaming, latest }: { id: string; text: string; streaming: boolean; latest: boolean }) {
+  const text = useLiveText(id, first);
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
   const body = useRef<HTMLDivElement>(null);
@@ -426,6 +434,7 @@ function CardReply({ text, streaming, latest }: { text: string; streaming: boole
     return () => ro.disconnect();
   }, [clamp, text]);
   useEffect(() => { if (open) recheck(); else settle(); }, [long, open, settle, recheck]);
+  useEffect(() => { if (streaming) settle(); }, [text, streaming, settle]);
   // One button for Show more and Show less, so the keyboard stays on it when it flips.
   return (
     <div className={`tr-assistant ${streaming ? 'streaming' : ''}`}>
@@ -436,7 +445,8 @@ function CardReply({ text, streaming, latest }: { text: string; streaming: boole
 }
 
 /** Her prompt in one muted line. A long prompt opens to the full text, frame links and all. */
-function PromptLine({ text, stopping }: { text: string; stopping: boolean }) {
+const PromptLine = memo(PromptLineView);
+function PromptLineView({ text, stopping }: { text: string; stopping: boolean }) {
   const outline = useOutline(useStore((s) => s.session.figma?.key));
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
@@ -503,12 +513,14 @@ function UserRule({ text }: { text: string }) {
   return <MakeRule text={text} hasFile={hasFile} />;
 }
 
-function UserText({ text }: { text: string }) {
+const UserText = memo(UserTextView);
+function UserTextView({ text }: { text: string }) {
   const outline = useOutline(useStore((s) => s.session.figma?.key));
   return <>{splitFrameLinks(text).map((p, i) => typeof p === 'string' ? p : <button key={i} className="frame-chip" title={p.url} onClick={() => showNode(p.id)}>{frameName(outline, p.id) ?? p.id}</button>)}</>;
 }
 
-function Step({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd: string }) {
+const Step = memo(StepView);
+function StepView({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd: string }) {
   const [open, setOpen] = useState(false);
   const { verb, object, mono } = stepLabel(use.name, use.input, cwd);
   const state = !result ? 'pending' : result.isError ? 'err' : 'ok';
@@ -551,7 +563,8 @@ function FileCard({ it, cwd }: { it: Extract<Item, { kind: 'file' }>; cwd: strin
   );
 }
 
-function AgentRow({ use, result }: { use: ToolUse; result?: ToolResult }) {
+const AgentRow = memo(AgentRowView);
+function AgentRowView({ use, result }: { use: ToolUse; result?: ToolResult }) {
   const [open, setOpen] = useState(false);
   const desc = typeof use.input.description === 'string' && use.input.description ? use.input.description : 'Sub-agent';
   const dur = result ? duration(result.at - use.at) : '';
@@ -585,7 +598,8 @@ function HouseRulesRow({ run }: { run: ReviewRun }) {
   );
 }
 
-function ReviewCard({ runAt }: { runAt: number }) {
+const ReviewCard = memo(ReviewCardView);
+function ReviewCardView({ runAt }: { runAt: number }) {
   const chat = useStore((s) => s.session.id);
   const figmaKey = useStore((s) => s.session.figma?.key);
   const [copied, setCopied] = useState(false);

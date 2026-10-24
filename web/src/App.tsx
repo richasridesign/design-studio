@@ -143,7 +143,8 @@ export function App() {
   const elsewhere = useStore((s) => s.live.filter((c) => c.id !== s.session.id && c.pending > 0).length);
   const session = useStore((s) => s.session);
   const status = useStore((s) => s.status);
-  const events = useStore((s) => s.events);
+  // Only whether the chat has messages: reading the events array would re-render the whole app on every event.
+  const noEvents = useStore((s) => s.events.length === 0);
   const [tab, setTab] = useState<Tab>('chat');
   const [center, setCenter] = useState<Center>('figma');
   const [sidebar, setSidebar] = useState(true);
@@ -245,7 +246,7 @@ export function App() {
     if (pendingCount > 0) setTab('chat');
   }, [pendingCount]);
 
-  const empty = !session.figma || session.id === '' || events.length === 0;
+  const empty = !session.figma || session.id === '' || noEvents;
   useEffect(() => {
     if (empty) setCenter('figma');
   }, [session.id]);

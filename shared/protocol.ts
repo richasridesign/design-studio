@@ -105,6 +105,8 @@ export type ServerState = {
 export type ServerMessage =
   | { type: 'init'; state: ServerState }
   | { type: 'event'; event: ChatEvent }
+  /** More text for a streaming reply: `text` is appended to event `id`, which then has `len` characters. */
+  | { type: 'delta'; id: string; text: string; len: number }
   | { type: 'status'; text: string }
   | { type: 'pending'; request: PendingRequest }
   | { type: 'resolved'; id: string }
