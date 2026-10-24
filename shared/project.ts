@@ -325,7 +325,7 @@ export type ProjectSummary = {
 
 // ---------- Node ids against the latest map ----------
 
-export type TaggedNode = { id: string; tag: Tag };
+export type TaggedNode = { id: string; tag: Tag; name?: string };
 
 /**
  * Checks the project's node ids against a map read: an id that is gone but whose tag sits on another section (Richa
@@ -349,7 +349,7 @@ export function reconcileNodes(p: Project, tagged: TaggedNode[], ids: Set<string
     if (found) return { node: found };
     return node ? { node, missing: true } : {};
   };
-  const iterations = p.iterations.map((it) => {
+  const iterations: Iteration[] = p.iterations.map((it) => {
     const self = fix(it.node, { kind: 'iteration', iteration: it.id });
     let flows = it.flows
       ? Object.fromEntries(Object.entries(it.flows).map(([slug, f]) => {
@@ -369,6 +369,23 @@ export function reconcileNodes(p: Project, tagged: TaggedNode[], ids: Set<string
     const { missing: _drop, ...rest } = it;
     return { ...rest, ...(self.node ? { node: self.node } : {}), ...(self.missing ? { missing: true } : {}), ...(flows ? { flows } : {}) };
   });
+  // A flow section tagged with an iteration project.json does not know (a chat made the next V0.N round as its own
+  // page-level section) joins as a working iteration, with the topic and date of its Figma name, so the prompt can
+  // point at it.
+  const known = iterations.length;
+  for (const t of tagged) {
+    const id = t.tag.kind === 'flow' && t.tag.iteration ? cleanId(t.tag.iteration) : null;
+    const slug = t.tag.flow;
+    if (!id || !slug || !p.flows.some((f) => f.slug === slug) || pick(t.tag) !== t.id) continue;
+    const at = iterations.findIndex((it) => it.id === id);
+    if (at >= 0) {
+      if (!p.iterations.some((it) => it.id === id) && !iterations[at].flows?.[slug]) iterations[at] = { ...iterations[at], flows: { ...iterations[at].flows, [slug]: { node: t.id } } };
+      continue;
+    }
+    const parsed = t.name ? parseSectionName(t.name) : null;
+    iterations.push({ id, ...(parsed?.topic ? { topic: parsed.topic } : {}), ...(parsed?.date ? { date: parsed.date } : {}), state: 'working', adopted: true, flows: { [slug]: { node: t.id } } });
+  }
+  if (iterations.length > known) iterations.sort((a, b) => compareIds(a.id, b.id));
   const parked = p.parked ? fix(p.parked.node, { kind: 'parked' }) : null;
   return { project: { ...p, iterations, ...(parked?.node ? { parked: { node: parked.node } } : {}) }, doubles };
 }
@@ -382,6 +399,8 @@ export type ChatContext = {
   flow?: Flow;
   iteration?: Iteration;
   project: Project;
+  /** The project folder (figma.json, project.json), so the scope guard can see which iterations have chats. */
+  root?: string;
 };
 
 /** The prompt block that scopes a chat to its flow and iteration. Replaces the "Design Studio page" rule. */
@@ -390,20 +409,28 @@ export function projectInstructions(ctx: ChatContext): string {
   const frozen = frozenIds(ctx.project);
   const working = sortedIterations(ctx.project).filter((it) => it.state === 'working');
   const never = `Never edit a frozen iteration${frozen.length ? ` (${frozen.join(', ')})` : ''}, the Parked section or the LATEST baseline: they are history. Components get new variants only; old variants stay as they are.`;
+  const pageName = ctx.project.page ? `"${ctx.project.page.name}" (${ctx.project.page.id})` : null;
+  const page = pageName ? `page ${pageName}` : 'the flows page';
+  const onPage = pageName ? `Working page: ${pageName}. New sections go on this page only, never on another page.` : '';
   if (ctx.scope === 'flow' && ctx.flow && ctx.iteration) {
+    const flow = ctx.flow;
+    // Richa's newer V0.N sections can sit in a later iteration than the one the chat started in: point it there.
+    const latest = latestOf(ctx.project, flow.slug);
+    if (latest && compareIds(latest.id, ctx.iteration.id) > 0) return movedOn(ctx.project, flow, ctx.iteration, latest, { pageName, never });
     const it = ctx.iteration;
-    const inIt = it.flows?.[ctx.flow.slug];
-    const others = Object.entries(it.flows ?? {}).filter(([slug]) => slug !== ctx.flow!.slug).map(([slug, f]) => `${slug} ${f.node}`);
-    const page = ctx.project.page ? `page "${ctx.project.page.name}" (${ctx.project.page.id})` : 'the flows page';
-    const makeSection = it.node
+    const inIt = it.flows?.[flow.slug];
+    const others = Object.entries(it.flows ?? {}).filter(([slug]) => slug !== flow.slug).map(([slug, f]) => `${slug} ${f.node}`);
+    // An iteration made of page-level flow sections (no section around them) needs no iteration section.
+    const makeSection = it.node || inIt
       ? ''
-      : `The iteration section is not in Figma yet. Make it first, in one call: a page-level section on ${page} named "${iterationName(it.id, it.topic ?? '', it.date ?? '')}", placed 800px above the topmost iteration section (never move the existing ones), with a text layer "${decisionsNoteName(it.id)}" at its top; inside it your flow subsection. Then set shared plugin data on both: node.setSharedPluginData("${TAG_NS}", "kind", "iteration") and ("${TAG_NS}", "iteration", "${it.id}") and ("${TAG_NS}", "project", "${ctx.project.key}") on the section; kind "flow", iteration "${it.id}", flow "${ctx.flow.slug}" and project on the subsection. Design Studio finds them by these tags after your turn.`;
+      : `The iteration section is not in Figma yet. Make it first, in one call: a page-level section on ${page} named "${iterationName(it.id, it.topic ?? '', it.date ?? '')}", placed 400px below the lowest iteration section on that page, at its x (never move the existing ones), with a text layer "${decisionsNoteName(it.id)}" at its top; inside it your flow subsection. Then set shared plugin data on both: node.setSharedPluginData("${TAG_NS}", "kind", "iteration") and ("${TAG_NS}", "iteration", "${it.id}") and ("${TAG_NS}", "project", "${ctx.project.key}") on the section; kind "flow", iteration "${it.id}", flow "${flow.slug}" and project on the subsection. Design Studio finds them by these tags after your turn.`;
     return [
-      `This chat works on Flow ${ctx.flow.n}${SEP}${ctx.flow.name} in iteration ${iterationLabel(it)} (${it.state}) of this project. Iteration section: ${it.node ?? 'not in Figma yet'}${it.name ? ` "${it.name}"` : ''}.`,
+      `This chat works on Flow ${flow.n}${SEP}${flow.name} in iteration ${iterationLabel(it)} (${it.state}) of this project. Iteration section: ${it.node ?? (inIt ? 'none, each flow has its own page-level section' : 'not in Figma yet')}${it.name ? ` "${it.name}"` : ''}.`,
+      onPage,
       makeSection,
-      inIt ? `Your flow subsection: ${inIt.node} "${flowSectionName(it.id, ctx.flow)}".${inIt.states ? ` Supporting states subsection: ${inIt.states}.` : ` Supporting states (voice, attach, error) go in a sibling subsection "${statesSectionName(it.id, ctx.flow)}" beside it, 400px below when they do not fit beside.`}` : it.node ? `This flow has no subsection in ${vId(it.id)} yet: create one named "${flowSectionName(it.id, ctx.flow)}" inside the iteration section ${it.node}, below the other flow subsections with 800px between, tag it (shared plugin data "${TAG_NS}": kind "flow", iteration "${it.id}", flow "${ctx.flow.slug}", project "${ctx.project.key}") and tell the designer its node id.` : '',
-      ctx.flow.entry.length ? `Entry screens of this flow: ${ctx.flow.entry.join(', ')}. Copies of them in your subsection are named "<name> (Entry, unchanged)" and stay unchanged; wire links from them into your new screens.` : '',
-      ctx.flow.baseline ? `The flow's baseline (frozen, read it for reference): section ${ctx.flow.baseline}.` : '',
+      inIt ? `Your flow subsection: ${inIt.node} "${flowSectionName(it.id, flow)}".${inIt.states ? ` Supporting states subsection: ${inIt.states}.` : ` Supporting states (voice, attach, error) go in a sibling subsection "${statesSectionName(it.id, flow)}" beside it, 400px below when they do not fit beside.`}` : it.node ? `This flow has no subsection in ${vId(it.id)} yet: create one named "${flowSectionName(it.id, flow)}" inside the iteration section ${it.node}, below the other flow subsections with 800px between, tag it (shared plugin data "${TAG_NS}": kind "flow", iteration "${it.id}", flow "${flow.slug}", project "${ctx.project.key}") and tell the designer its node id.` : '',
+      flow.entry.length ? `Entry screens of this flow: ${flow.entry.join(', ')}. Copies of them in your subsection are named "<name> (Entry, unchanged)" and stay unchanged; wire links from them into your new screens.` : '',
+      flow.baseline ? `The flow's baseline (frozen, read it for reference): section ${flow.baseline}.` : '',
       `Edit only inside your flow subsection${inIt?.states ? ' and its states subsection' : ''}: put every new or changed screen there and end each edit with DS.fit on your subsection. Never move or resize other subsections${others.length ? ` (${others.join(', ')})` : ''} or the iteration section itself; Design Studio restacks them. ${never}`,
       it.state === 'frozen' ? `Iteration ${vId(it.id)} is frozen. Do not edit it; ask the designer to reopen it or to create a new iteration from the sidebar.` : '',
       'Under each new screen put 3 to 5 Decision stickies right below it, and the flow notes as short bullets, as the designer\'s rules say.',
@@ -411,7 +438,36 @@ export function projectInstructions(ctx: ChatContext): string {
   }
   return [
     `This chat is a project task on this file, not tied to one flow. Flows: ${ctx.project.flows.map((f) => `${f.n} ${f.name}`).join(', ') || 'none yet'}.`,
-    working.length ? `Working iterations you may edit: ${working.map((it) => `${iterationLabel(it)} (section ${it.node ?? '?'})`).join('; ')}. Edit only inside flow subsections of those, and shared components (new variants only).` : 'There is no working iteration yet. Before editing flows, ask the designer to create one from the sidebar (New iteration).',
+    onPage,
+    working.length ? `Working iterations you may edit: ${working.map((it) => `${iterationLabel(it)} (${sectionsOf(it)})`).join('; ')}. Edit only inside flow subsections of those, and shared components (new variants only).` : 'There is no working iteration yet. Before editing flows, ask the designer to create one from the sidebar (New iteration).',
     never,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
+}
+
+/** "section 120:1", or the flow sections when the iteration has no section around them. */
+function sectionsOf(it: Iteration): string {
+  if (it.node) return `section ${it.node}`;
+  const nodes = Object.values(it.flows ?? {}).map((f) => f.node);
+  return nodes.length ? `sections ${nodes.join(', ')}` : 'section ?';
+}
+
+/**
+ * A flow chat whose flow already has newer work than the chat's own iteration (the chat started in V0.1, the latest
+ * section is V0.3): it works from the latest section, and a new round is a new V0.N section below it on the working page.
+ */
+function movedOn(p: Project, flow: Flow, own: Iteration, latest: Iteration, o: { pageName: string | null; never: string }): string {
+  const sec = latest.flows?.[flow.slug];
+  const all = sortedIterations(p);
+  const newest = all.at(-1)!;
+  const sections = Object.entries(newest.flows ?? {}).map(([slug, f]) => `${slug === flow.slug ? 'yours' : slug} ${f.node}`);
+  const next = nextIterationId(p);
+  const where = o.pageName ? `on page ${o.pageName}` : 'on the flows page';
+  return [
+    `This chat works on Flow ${flow.n}${SEP}${flow.name}. It started in ${vId(own.id)}, but this flow's latest work is ${iterationLabel(latest)} (${latest.state}): section ${sec?.node ?? '?'} ${where}. Work from that section, never from the ${vId(own.id)} sections${own.node ? ` (${own.node})` : ''}: they are older versions.`,
+    o.pageName ? `Working page: ${o.pageName}. New sections go on this page only, never on another page.` : '',
+    `The latest iteration is ${vId(newest.id)}${sections.length ? `, with sections ${sections.join(', ')}` : ''}. Change a section in place only when the designer asks for a change to it. A new round is a new page-level section ${where}, named like the ${vId(latest.id)} one: "V${next}${SEP}<the flow, as the ${vId(latest.id)} section names it>${SEP}<topic>${SEP}<today, written like Tue 20 Oct 2026>", placed 400px below the lowest V${newest.id.split('.')[0]}.N section, at its x. Tag it with shared plugin data "${TAG_NS}": kind "flow", iteration "${next}", flow "${flow.slug}", project "${p.key}", and tell the designer its node id.`,
+    latest.state === 'frozen' ? `${vId(latest.id)} is frozen: do not edit it. Put the work in a new section as above.` : '',
+    `Never move or resize the sections of other flows. ${o.never}`,
+    'Under each new screen put 3 to 5 Decision stickies right below it, and the flow notes as short bullets, as the designer\'s rules say.',
+  ].filter(Boolean).join('\n');
 }

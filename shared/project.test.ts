@@ -148,6 +148,40 @@ describe('derived views and prompt', () => {
   });
 });
 
+describe('prompt for flow sections made as page-level V0.N sections', () => {
+  // Like Richa's file: V0.1 on an old page, then V0.2 and V0.3 as one page-level section per flow on the working page.
+  const project: Project = {
+    key: 'k',
+    page: { id: '9:1', name: 'Design Studio ( WIP )' },
+    flows: [{ n: 1, slug: 'first-visit', name: 'first visit', entry: [] }, { n: 2, slug: 'add-a-connector', name: 'add a connector', entry: [] }],
+    iterations: [
+      { id: '0.1', node: '10:1', topic: 'first visit', state: 'working', flows: { 'first-visit': { node: '10:2' }, 'add-a-connector': { node: '10:3' } } },
+      { id: '0.2', name: 'V0.2 · Flow 1 · Visual refinement · Wed 21 Oct 2026', topic: 'Flow 1 · Visual refinement', state: 'frozen', adopted: true, flows: { 'first-visit': { node: '20:1' } } },
+      { id: '0.3', name: 'V0.3 · Flow 1 · First visit · Thu 22 Oct 2026', topic: 'Flow 1 · First visit', state: 'working', adopted: true, flows: { 'first-visit': { node: '30:1' }, 'add-a-connector': { node: '30:2' } } },
+    ],
+  };
+
+  it('points a chat that started in an older iteration at its flow\'s latest section on the working page', () => {
+    const text = projectInstructions({ scope: 'flow', project, flow: project.flows[0], iteration: project.iterations[0] });
+    expect(text).toContain('It started in V0.1, but this flow\'s latest work is V0.3 · Flow 1 · First visit (working): section 30:1 on page "Design Studio ( WIP )" (9:1)');
+    expect(text).toContain('Working page: "Design Studio ( WIP )" (9:1). New sections go on this page only');
+    expect(text).toContain('named like the V0.3 one: "V0.4 · <the flow, as the V0.3 section names it> · <topic> · <today');
+    expect(text).toContain('400px below the lowest V0.N section, at its x');
+    expect(text).toContain('with sections yours 30:1, add-a-connector 30:2');
+    expect(text).not.toContain('Your flow subsection: 10:2');
+  });
+
+  it('never asks a chat in such an iteration to make an iteration section around the flow sections', () => {
+    const text = projectInstructions({ scope: 'flow', project, flow: project.flows[1], iteration: project.iterations[2] });
+    expect(text).toContain('Your flow subsection: 30:2');
+    expect(text).toContain('Iteration section: none, each flow has its own page-level section');
+    expect(text).not.toContain('not in Figma yet');
+    expect(text).toContain('Working page: "Design Studio ( WIP )" (9:1)');
+    const task = projectInstructions({ scope: 'project', project });
+    expect(task).toContain('V0.3 · Flow 1 · First visit (sections 30:1, 30:2)');
+  });
+});
+
 describe('reconcileNodes', () => {
   const base: Project = {
     key: 'K',
@@ -164,7 +198,23 @@ describe('reconcileNodes', () => {
       { id: '54:1', tag: { kind: 'flow' as const, iteration: '1.18', flow: 'home' } },
     ];
     const { project } = reconcileNodes(base, tagged, new Set(['50:1', '51:1', '52:1', '53:1', '54:1']));
-    expect(project.iterations[0].flows).toEqual({ connectors: { node: '51:1', states: '52:1' } });
+    expect(project.iterations.find((it) => it.id === '1.19')?.flows).toEqual({ connectors: { node: '51:1', states: '52:1' } });
+  });
+
+  it('adds a flow section tagged with an iteration it does not know as a working iteration, topic and date from its name', () => {
+    const tagged = [
+      { id: '90:1', tag: { kind: 'flow' as const, iteration: '1.20', flow: 'home' }, name: 'V1.20 · Flow 1 · Home: empty state · Sat 24 Oct 2026' },
+      { id: '91:1', tag: { kind: 'flow' as const, iteration: '1.20', flow: 'connectors' }, name: 'V1.20 · Flow 2 · Connectors' },
+      { id: '92:1', tag: { kind: 'flow' as const, iteration: '1.21', flow: 'not-a-flow' } },
+    ];
+    const { project } = reconcileNodes(base, tagged, new Set(['50:1', '90:1', '91:1', '92:1']));
+    expect(project.iterations.map((it) => it.id)).toEqual(['1.19', '1.20']);
+    expect(project.iterations[1]).toEqual({
+      id: '1.20', topic: 'Flow 1 · Home: empty state', date: '2026-10-24',
+      state: 'working', adopted: true, flows: { home: { node: '90:1' }, connectors: { node: '91:1' } },
+    });
+    // Read again with the same tags: nothing changes.
+    expect(reconcileNodes(project, tagged, new Set(['50:1', '90:1', '91:1', '92:1'])).project).toEqual(project);
   });
 
   it('adds a states subsection to a flow that had none, and keeps the newest of two tagged copies', () => {

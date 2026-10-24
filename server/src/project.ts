@@ -128,9 +128,9 @@ export async function chatContext(cwd: string): Promise<ChatContext | null> {
   if (parts[0] === FLOWS_DIR && parts[2] === ITERATIONS_DIR && parts[3]) {
     const flow = project.flows.find((f) => flowDirName(f) === parts[1]);
     const iteration = project.iterations.find((it) => it.id === cleanId(parts[3]));
-    if (flow && iteration) return { scope: 'flow', project, flow, iteration };
+    if (flow && iteration) return { scope: 'flow', project, flow, iteration, root };
   }
-  return { scope: 'project', project };
+  return { scope: 'project', project, root };
 }
 
 // ---------- The tree ----------
@@ -154,7 +154,7 @@ export async function listProjects(): Promise<ProjectView[]> {
     if (saved) {
       const map = await cachedMap(f.dir, f.figma.key);
       if (map) {
-        const r = reconcileNodes(saved, taggedSections(map).map((s) => ({ id: s.id, tag: s.tag })), mapIds(map));
+        const r = reconcileNodes(saved, taggedSections(map).map((s) => ({ id: s.id, tag: s.tag, name: s.name })), mapIds(map));
         project = r.project;
         doubles = r.doubles.length ? r.doubles : undefined;
         renames = renamePlan(project, taggedSections(map)).length;
