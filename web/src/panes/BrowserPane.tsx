@@ -156,7 +156,9 @@ export function BrowserPane() {
 
   // The view in this file said hello: it is up, so nothing needs reloading. Offline, the list says nothing.
   const embedUp = !!chatFile && inFile.some((p) => p.embed);
-  useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight, capture.state === 'offline' ? null : embedUp);
+  const reloadFigma = useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight, capture.state === 'offline' ? null : embedUp);
+  // The follow button says "Waiting for Figma" in the Mac window: the view has not opened the file, or it does not answer.
+  const waiting = EMBED && !!followKey && follow.on && !follow.paused.includes(followKey) && (!mine || mine.stalled);
 
   const showing = capture.state === 'on' && hasFrame;
   // No plugin runs in this chat's file: said whenever following is on, whatever the capture shows, since nothing
@@ -172,6 +174,7 @@ export function BrowserPane() {
           {fileName && page && <span className="fa-page"> · {page}</span>}
         </span>
         {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} embed={EMBED} onClick={toggleFollow} />}
+        {waiting && <ReloadLink onClick={reloadFigma} />}
         {EMBED && (
           <IconButton label="Open in Figma app" place="top" className="icon-btn" onClick={() => send({ t: 'front', key: chatFile?.key })}>
             <Icon name="link-external" small />
@@ -226,7 +229,8 @@ const EMBED_LEAVE_MS = 2_500;
 function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, fileKey: string | null, inSight: () => boolean, up: boolean | null) {
   const shownAt = useRef(0);
   const waited = useRef(0);
-  const ask = useRef<'reload' | null>(null);
+  /** A reload to send with the next stage: the app's own after no hello, or hers from the Reload Figma link. */
+  const ask = useRef<'reload' | 'manual' | null>(null);
   const leaveUntil = useRef(0);
   useEffect(() => {
     waited.current = 0;
@@ -267,9 +271,11 @@ function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, file
       const show = sight && !over;
       shownAt.current = show && fileKey ? shownAt.current || Date.now() : 0;
       const leaving = show && Date.now() < leaveUntil.current;
-      const t = show && ask.current ? ask.current : 'stage';
-      const why = !sight ? 'out of sight' : over ? 'covered' : leaving ? 'no hello, opening the file again' : t === 'reload' ? 'no hello, reload' : '';
-      const m = { t, show, why, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: leaving ? null : fileKey };
+      const t = show && ask.current ? 'reload' : 'stage';
+      const manual = t === 'reload' && ask.current === 'manual';
+      const why = !sight ? 'out of sight' : over ? 'covered' : leaving ? 'no hello, opening the file again' : manual ? 'she asked for a reload' : t === 'reload' ? 'no hello, reload' : '';
+      // `manual`: apps built after 24 Oct reload for it whatever happened before; older ones treat it as their own ask.
+      const m = { t, show, why, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), key: leaving ? null : fileKey, ...(manual ? { manual: true } : {}) };
       const sig = JSON.stringify(m);
       if (sig === last) return;
       last = sig;
@@ -282,6 +288,18 @@ function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, file
       try { bridge.postMessage({ t: 'stage', show: false }); } catch {}
     };
   }, [host, fileKey]);
+  return () => { ask.current = 'manual'; };
+}
+
+/** Beside "Waiting for Figma" in the Mac window: loads the file in the Figma view again. The view covers the stage, so it sits in the bar. */
+function ReloadLink({ onClick }: { onClick: () => void }) {
+  const tip = useTip('Load this file in the Figma view again', 'top');
+  return (
+    <>
+      <button type="button" className="link fa-reload" onClick={onClick} {...tip.props}>Reload Figma</button>
+      {tip.tip}
+    </>
+  );
 }
 
 /** Her Figma window, view only: a click or Enter brings the Figma app forward. */

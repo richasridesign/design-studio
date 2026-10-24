@@ -1,6 +1,8 @@
 /* The Figma tab: her Figma app window, view only, the strip about the plugin and the states before a window shows. */
 .fa-where { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fa-page { color: var(--fg-muted); }
+/* Reload Figma: a text link 8px from the follow button, as tall as it. */
+.browser-bar .fa-reload { flex: none; min-height: 24px; margin-left: 4px; font-size: var(--text-xs); line-height: 16px; white-space: nowrap; }
 
 .fa-strip {
   flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 4px 12px;
