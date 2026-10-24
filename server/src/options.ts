@@ -169,6 +169,14 @@ export function chatMcpAllowlist(figmaServers: Record<string, McpServerConfig>) 
   ];
 }
 
+/** Design Studio's own tools never ask. */
+export const OWN_TOOLS_MATCHER = '^mcp__designstudio__(set_status|refresh_file_map|brainstorm_update)$';
+/**
+ * Allows Design Studio's own tools on purpose, in a hook. Bare allowedTools entries did the same, but the SDK warned
+ * that they shadow canUseTool (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED), which reads like a gap in the approvals.
+ */
+export const allowOwnTools: HookCallback = async () => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'Design Studio\'s own tool' } });
+
 export function agentOptions(o: {
   cwd: string;
   resume?: string;
@@ -198,7 +206,6 @@ export function agentOptions(o: {
     systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd)) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,
-    allowedTools: ['mcp__designstudio__set_status', 'mcp__designstudio__refresh_file_map', 'mcp__designstudio__brainstorm_update'],
     disallowedTools: ['mcp__playwright'],
     extraArgs: { chrome: null },
     permissionMode: 'auto',
@@ -208,7 +215,7 @@ export function agentOptions(o: {
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
-      PreToolUse: [{ matcher: FIGMA_WRITE_MATCHER, hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
+      PreToolUse: [{ matcher: OWN_TOOLS_MATCHER, hooks: [allowOwnTools] }, { matcher: FIGMA_WRITE_MATCHER, hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
       PostToolUse: [{ hooks: [o.afterTool] }, { matcher: 'mcp__.*use_figma', hooks: [historyAfterFigma(o.cwd)] }],
       ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },
