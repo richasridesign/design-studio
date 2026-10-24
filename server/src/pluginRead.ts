@@ -1,8 +1,7 @@
 import type { HookCallbackMatcher, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk';
 import { MODELS } from '../../shared/design.js';
-import { readFigma } from './figma.js';
 import { FigmaError } from './figmaError.js';
-import { pluginFiles, pluginReadCall, readersFor } from './figmaPlugin.js';
+import { pluginReadCall, readersFor } from './figmaPlugin.js';
 import { figmaMcp, lean, type FigmaMcp } from './lean.js';
 
 // Reads a Figma file through the Figma plugin that Claude is logged in to (no REST token).
@@ -493,14 +492,8 @@ async function socketRead(spec: ReadSpec): Promise<ReadResult | null> {
   const want = spec.socket;
   if (!want || spec.shots || typeof spec.body !== 'string') return null;
   const t0 = Date.now();
-  let readers = readersFor(spec.fileKey, '', want.name);
-  // A plugin Figma gave no file key is found by the file's name.
-  if (!readers.length && pluginFiles().some((p) => !p.key)) {
-    const file = await readFigma(spec.dir);
-    if (file?.key === spec.fileKey) readers = readersFor(spec.fileKey, file.name, want.name);
-  }
   // At most two tries (the Figma view, then the Figma app), so a file Figma holds back costs seconds, not minutes.
-  for (const conn of readers.slice(0, 2)) {
+  for (const conn of readersFor(spec.fileKey, want.name).slice(0, 2)) {
     if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
     const r = await pluginReadCall(conn, want.name, want.args ?? {}, { ms: want.ms, signal: spec.signal });
     if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);

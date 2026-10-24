@@ -49,6 +49,8 @@ type Conn = {
   reads: string[];
   /** Reads waiting for their answer, by id. */
   reading: Map<number, Reading>;
+  /** Figma did not start this plugin's last read (the file is not the front tab, or the view is held back): until then reads skip it. */
+  readsOffUntil: number;
 };
 
 /** One read on its way: whether Figma started it, the value's slices so far, and how it ends. */
@@ -63,7 +65,7 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 export const PING_MS = 10_000;
 
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
-  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '', reads: [], reading: new Map() };
+  const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '', reads: [], reading: new Map(), readsOffUntil: 0 };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
   // follows would wait on it. {t:'ping'} is answered by the plugin code itself (never by the browser on its own,
   // the way a protocol ping is), so only a plugin that can still run counts as alive.
@@ -101,10 +103,12 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conn.embed = m.embed === true;
       conn.shown = conn.embed && m.shown === true;
       conn.reads = Array.isArray(m.reads) ? m.reads.filter((r: unknown) => typeof r === 'string').slice(0, 40) : [];
+      conn.readsOffUntil = 0;
       conns.add(conn);
       console.log(`figma ${conn.embed ? 'in the Design Studio window' : 'plugin'}: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
       hooks.changed();
     } else if (m.t === 'page' && conns.has(conn)) {
+      conn.readsOffUntil = 0;
       conn.page = str(m.pageId, 64);
       conn.pageName = str(m.pageName);
       hooks.page?.();
@@ -249,15 +253,20 @@ export function pluginForget(conn: Conn) {
   } catch {}
 }
 
+/** After Figma did not start a plugin's read, its reads go to Claude for this long, or until it says hello or changes page. */
+export const READS_OFF_MS = 60_000;
+
 /**
  * The connections in this file that can run this read, best first: the Figma view in the Design Studio window (shown,
- * then hidden), which is Design Studio's own, then the Figma app's plugin, which shares her Figma app. One whose
- * follows Figma does not answer is left out: its reads would wait the same way.
+ * then hidden), which is Design Studio's own, then the Figma app's plugin, which shares her Figma app. Only by the
+ * file's key: a plugin matched by name could be in another file of that name, and what a read gives is kept (the
+ * map, history.md) or acted on (the restack). One that Figma does not answer is left out: its reads would wait.
  */
-export function readersFor(fileKey: string, name: string, read: string): Conn[] {
+export function readersFor(fileKey: string, read: string): Conn[] {
   const rank = (c: Conn) => (c.embed ? (c.shown ? 0 : 1) : 2);
+  const now = Date.now();
   return [...conns]
-    .filter((c) => c.ws.readyState === OPEN && !c.stalled && c.reads.includes(read) && (c.key ? c.key === fileKey : (c.followKey === fileKey || (!!norm(name) && norm(c.name) === norm(name)))))
+    .filter((c) => c.ws.readyState === OPEN && !c.stalled && c.readsOffUntil <= now && c.reads.includes(read) && c.key === fileKey)
     .reverse()
     .sort((a, b) => rank(a) - rank(b));
 }
@@ -275,6 +284,7 @@ export function pluginReadCall(conn: Conn, read: string, args: object, opts: { s
     const onAbort = () => finish({ error: 'stopped' });
     const finish = (r: { value: unknown } | { error: string }) => {
       if (conn.reading.get(id) !== reading) return;
+      if ('error' in r && (r.error === 'stalled' || r.error === 'Figma did not start the read')) conn.readsOffUntil = Date.now() + READS_OFF_MS;
       clearTimeout(timer);
       conn.reading.delete(id);
       opts.signal?.removeEventListener('abort', onAbort);

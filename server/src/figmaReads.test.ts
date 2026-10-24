@@ -167,7 +167,7 @@ describe('reads over the plugin socket', () => {
     conn.close();
   });
 
-  it('go to Claude when the plugin is an older build, or Figma does not answer it', async () => {
+  it('go to Claude when the plugin is an older build, is matched only by name, or Figma does not answer it', async () => {
     const { figma } = fakeFile();
     const old = connect(figma, { reads: undefined });
     const a = claudeRun(figma);
@@ -175,6 +175,12 @@ describe('reads over the plugin socket', () => {
     expect(a.log.runs).toBe(1);
     expect(old.ws.sent.filter((m) => m.t === 'read')).toHaveLength(0);
     old.close();
+    // Another file can have the same name, and what a read gives is kept, so a plugin with no file key is never read.
+    const keyless = connect(figma, { fileKey: null });
+    await pluginScript<any>('KeyAAAAAAAAAA', MAP_SCRIPT, 'map', { dir, run: a.run, mcp: MCP, socket: { name: 'map' } });
+    expect(a.log.runs).toBe(2);
+    expect(keyless.ws.sent.filter((m) => m.t === 'read')).toHaveLength(0);
+    keyless.close();
     // Not the front tab in Figma: node lookups never answer, so the plugin says so after its probe.
     const stalled = connect(fakeFile({ stall: true }).figma);
     const b = claudeRun(figma);
@@ -182,6 +188,10 @@ describe('reads over the plugin socket', () => {
     expect(b.log.runs).toBe(1);
     expect(stalled.ws.sent.filter((m) => m.t === 'read')).toHaveLength(1);
     expect(second.value).toEqual(first.value);
+    // The next read does not ask it again for a while.
+    await pluginScript<any>('KeyAAAAAAAAAA', OUTLINE_SCRIPT, 'outline', { dir, run: b.run, mcp: MCP, socket: { name: 'outline' } });
+    expect(b.log.runs).toBe(2);
+    expect(stalled.ws.sent.filter((m) => m.t === 'read')).toHaveLength(1);
     stalled.close();
   }, 10_000);
 });
