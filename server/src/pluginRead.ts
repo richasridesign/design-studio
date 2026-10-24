@@ -176,7 +176,7 @@ const normId = (id: unknown) => String(id ?? '').replace('-', ':');
 export function figmaFailure(text: string): FigmaError {
   const t = text.replace(/\s+/g, ' ').trim();
   // A call Design Studio's own read did not allow (Figma's create_session, say) is not her login or her access.
-  if (/create_session|don.?t.?ask|dontAsk|was denied|denied (by|because)|not allowed here|permission to use/i.test(t)) return new FigmaError(`Design Studio stopped a Figma call its read needed, so nothing was read. Your Figma login is fine. ${t.slice(0, 160)}`, 502);
+  if (/create_session|don.?t.?ask|dontAsk|was denied|denied (by|because)|not allowed here|permission to use/i.test(t)) return new FigmaError(`Design Studio stopped a Figma call its read needed, so nothing was read. This is not a Figma login problem. ${t.slice(0, 160)}`, 502);
   if (/not (logged|signed) in|log ?in|sign ?in|unauthori[sz]ed|authenticat|\b401\b|oauth/i.test(t)) return new FigmaError('Figma is not logged in. Log in to Figma, then try again.', 401);
   if (/\b403\b|forbidden|no access|permission|cannot access|not have access/i.test(t)) return new FigmaError('This Figma account cannot open the file. Log in to Figma with an account that can, then try again.', 403);
   if (/\b404\b|not found|does not exist/i.test(t)) return new FigmaError('Figma could not find that file or frame. Check the link, then try again.', 404);
