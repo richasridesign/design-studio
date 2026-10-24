@@ -143,6 +143,7 @@ export type SavedSession = {
   lastModified: number;
 };
 
+/** The least context a chat compacts at; compactAt in shared/models.ts scales it with the model's window. */
 export const COMPACT_AT = 200_000;
 
 export const STALE_MS = 12 * 60 * 60 * 1000;

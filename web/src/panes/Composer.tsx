@@ -4,7 +4,7 @@ import { Icon } from '../Icon';
 import { Voice, useDictation } from './Voice';
 import { FileIcon } from './Explorer';
 import { match } from './FileSwitcher';
-import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
+import { type ChatEvent } from '../../../shared/protocol';
 import { TONES, figmaNodeUrl } from '../../../shared/design';
 import { recipeText, useCustomRecipes } from '../recipes';
 import { RECIPES, toRecipe, type Recipe } from '../../../shared/recipes';
@@ -13,7 +13,7 @@ import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton, LongRunHint, type LongRunStart } from './LongRun';
 import { ModelPicker } from './ModelPicker';
-import { contextPercent, contextWindow } from '../../../shared/models';
+import { compactAt, contextPercent, contextWindow } from '../../../shared/models';
 import { useTip } from '../Tip';
 import { waitingPlaceholder } from './typedAnswer';
 import { markSent, publishDraft, readInserted, routeMessage, sentItems } from './awaitingSent';
@@ -182,9 +182,10 @@ const kTokens = (n: number) => (n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}
 export function contextTip(context: number | null, model: string | null) {
   if (context === null) return '';
   const size = contextWindow(model);
-  const full = size <= COMPACT_AT
-    ? `At ${kTokens(COMPACT_AT)} Design Studio compacts the chat: Claude sums up older messages to make room.`
-    : `Design Studio compacts at ${kTokens(COMPACT_AT)} to keep turns cheap.`;
+  const at = compactAt(model);
+  const full = size <= at
+    ? `At ${kTokens(at)} Design Studio compacts the chat: Claude sums up older messages to make room.`
+    : `Design Studio compacts at ${kTokens(at)} to keep turns cheap.`;
   return `${kTokens(context)} of ${kTokens(size)} tokens in the last turn. ${full} For a fresh start, open a new chat.`;
 }
 

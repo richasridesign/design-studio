@@ -10,7 +10,8 @@ import { Transcript, type ChatView } from './Transcript';
 import { LongRunLine } from './LongRun';
 import { ScopeSwitch } from './ScopeSwitch';
 import { ChatPlace, useChatPlace } from './ChatPlace';
-import { COMPACT_AT, type ChatEvent } from '../../../shared/protocol';
+import { type ChatEvent } from '../../../shared/protocol';
+import { compactAt } from '../../../shared/models';
 import { runningText } from '../StatusBar';
 import { WorkflowPanel } from './Workflow';
 import { stepLabel } from './steps';
@@ -66,6 +67,7 @@ export function Brief(expand: Expand) {
   const running = useStore((s) => s.session.running);
   const waiting = useStore((s) => s.pending.length > 0);
   const context = useStore((s) => s.session.context);
+  const model = useStore((s) => s.session.model);
   const cwd = useStore((s) => s.session.cwd);
   const compacting = useStore((s) => s.session.compacting);
   const stopping = useStore((s) => s.session.stopping);
@@ -175,7 +177,7 @@ export function Brief(expand: Expand) {
         <Composer />
         {compacting ? (
           <div className="ctx-line"><Icon name="loading" small spin /> Compacting the conversation…</div>
-        ) : context !== null && context >= COMPACT_AT && (
+        ) : context !== null && context >= compactAt(model) && (
           <div className="ctx-line">
             <span><b>{Math.round(context / 1000)}k</b> context · {running ? 'compacts when this turn ends' : 'compact to keep turns cheap'}</span>
             {!running && <button className="link" title="Run /compact" onClick={() => send({ type: 'prompt', text: '/compact' })}>Compact now</button>}

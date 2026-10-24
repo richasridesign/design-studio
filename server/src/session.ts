@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { query, getSessionMessages, type Query, type SDKMessage, type SDKUserMessage, type PermissionMode, type HookInput, type HookJSONOutput, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
-import { COMPACT_AT, type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
+import { compactAt } from '../../shared/models.js';
+import { type ChatEvent, type PlanLimit, type ServerMessage, type ServerState, type SessionInfo, type SpendPart } from '../../shared/protocol.js';
 import { AREAS, MODELS, PRESETS, PRESET_INFO, flowOff, nodeIdsIn, type Area, type FigmaFile, type FlowState, type ReviewPreset, type ReviewRun, type ReviewerState } from '../../shared/design.js';
 import { Approvals } from './approvals.js';
 import { STATUS_REMINDER, agentOptions, figmaSpeed, userMessage } from './options.js';
@@ -1068,7 +1069,7 @@ export class AgentSession {
       this.planChange = null;
       return text;
     }
-    if (this.autoCompact && (this.state.session.context ?? 0) >= COMPACT_AT) {
+    if (this.autoCompact && (this.state.session.context ?? 0) >= compactAt(this.state.session.model)) {
       this.autoCompact = false;
       return '/compact';
     }
