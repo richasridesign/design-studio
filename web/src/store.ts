@@ -29,7 +29,8 @@ type UiState = {
   selection: Selection | null;
 };
 
-export type State = ServerState & { live: LiveChat[]; ui: UiState };
+/** `stream`: the text so far of each reply still streaming, by event id, from delta messages. */
+export type State = ServerState & { live: LiveChat[]; ui: UiState; stream: Record<string, string> };
 
 let state: State = {
   session: { id: '', sessionId: null, model: null, cwd: '', figma: null, running: false, permissionMode: null, apiKeySource: null, models: [], commands: [], cache: null, context: null, compacting: false, stopping: false, mcp: [], flow: flowOff(), spend: { tokens: 0, costUsd: 0, byPhase: {}, byModel: {} } },
@@ -39,6 +40,7 @@ let state: State = {
   recentFiles: [],
   brainstorm: [],
   live: [],
+  stream: {},
   ui: { connected: false, openFile: null, follow: false, switcherOpen: false, revs: {}, focus: null, selection: null },
 };
 
@@ -73,6 +75,12 @@ export function useStore<T>(selector: (s: State) => T): T {
   );
 }
 
+/**
+ * A streaming reply's text so far. Only the component showing it re-renders per delta: the events array, and every
+ * component that reads it, stays the same until the reply's block ends.
+ */
+export const useLiveText = (id: string, text: string) => useStore((s) => s.stream[id]) ?? text;
+
 export const api = (path: string) => `${path}${path.includes('?') ? '&' : '?'}chat=${encodeURIComponent(state.session.id)}`;
 
 const repo = (c: LiveChat) => c.cwd.split('/').pop();
@@ -99,7 +107,46 @@ export function steer(text: string, images?: string[]) {
   send({ type: 'steer', text, id, images });
 }
 
+// Streaming text is applied at most once a frame, so a fast reply never renders more often than the screen draws. The
+// timer covers a hidden window, where frames do not run.
+let deltas: Array<Extract<ServerMessage, { type: 'delta' }>> = [];
+let frame = 0;
+let timer: ReturnType<typeof setTimeout> | undefined;
+
+function flushDeltas() {
+  cancelAnimationFrame(frame);
+  clearTimeout(timer);
+  frame = 0;
+  timer = undefined;
+  if (!deltas.length) return;
+  const list = deltas;
+  deltas = [];
+  set((s) => {
+    const stream = { ...s.stream };
+    for (const d of list) {
+      let base: string | undefined = stream[d.id];
+      if (base === undefined) {
+        for (let i = s.events.length - 1; i >= 0 && base === undefined; i--) {
+          const e = s.events[i];
+          if (e.id === d.id && e.kind === 'assistant') base = e.text;
+        }
+      }
+      // Out of step (a missed message): the full event at the end of the block puts the text right.
+      if (base === undefined || base.length + d.text.length !== d.len) continue;
+      stream[d.id] = base + d.text;
+    }
+    return { stream };
+  });
+}
+
 function handle(m: ServerMessage) {
+  if (m.type === 'delta') {
+    deltas.push(m);
+    if (!frame) frame = requestAnimationFrame(flushDeltas);
+    timer ??= setTimeout(flushDeltas, 100);
+    return;
+  }
+  flushDeltas();
   switch (m.type) {
     case 'init':
       set((s) => {
@@ -112,7 +159,7 @@ function handle(m: ServerMessage) {
         const keep = same && events.length === s.events.length && events.every((e, i) => e === s.events[i]);
         // Viewing another chat drops a sidebar selection, so the tabs follow the chat again.
         const ui = same ? s.ui : { ...s.ui, selection: null };
-        return { ...m.state, events: keep ? s.events : events, ui: s.session.cwd && s.session.cwd !== m.state.session.cwd ? { ...ui, openFile: null } : ui };
+        return { ...m.state, events: keep ? s.events : events, stream: {}, ui: s.session.cwd && s.session.cwd !== m.state.session.cwd ? { ...ui, openFile: null } : ui };
       });
       break;
     case 'error':
@@ -125,7 +172,9 @@ function handle(m: ServerMessage) {
       set((s) => {
         const i = s.events.findIndex((e) => e.id === m.event.id);
         const events = i >= 0 ? s.events.map((e, j) => (j === i ? m.event : e)) : [...s.events, m.event];
-        return { events };
+        if (!(m.event.id in s.stream)) return { events };
+        const { [m.event.id]: _, ...stream } = s.stream;
+        return { events, stream };
       });
       break;
     case 'status':
