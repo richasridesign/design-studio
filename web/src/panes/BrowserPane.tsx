@@ -158,7 +158,9 @@ export function BrowserPane() {
   const embedUp = !!chatFile && inFile.some((p) => p.embed);
   const reloadFigma = useEmbedStage(EMBED ? host : null, chatFile?.key ?? null, inSight, capture.state === 'offline' ? null : embedUp);
   // The follow button says "Waiting for Figma" in the Mac window: the view has not opened the file, or it does not answer.
-  const waiting = EMBED && !!followKey && follow.on && !follow.paused.includes(followKey) && (!mine || mine.stalled);
+  // The Figma view in this file has not said hello, or does not answer: stuck, whatever Follow says. Offline, the list says nothing.
+  const view = inFile.find((p) => p.embed);
+  const stuck = EMBED && !!chatFile && capture.state !== 'offline' && (!view || !!view.stalled);
 
   const showing = capture.state === 'on' && hasFrame;
   // No plugin runs in this chat's file: said whenever following is on, whatever the capture shows, since nothing
@@ -174,7 +176,7 @@ export function BrowserPane() {
           {fileName && page && <span className="fa-page"> · {page}</span>}
         </span>
         {followKey && <FollowButton on={follow.on} paused={follow.paused.includes(followKey)} ready={!!mine} stalled={!!mine?.stalled} embed={EMBED} onClick={toggleFollow} />}
-        {waiting && <ReloadLink onClick={reloadFigma} />}
+        {stuck && <ReloadLink onClick={reloadFigma} />}
         {EMBED && (
           <IconButton label="Open in Figma app" place="top" className="icon-btn" onClick={() => send({ t: 'front', key: chatFile?.key })}>
             <Icon name="link-external" small />
@@ -291,7 +293,7 @@ function useEmbedStage(host: React.RefObject<HTMLDivElement | null> | null, file
   return () => { ask.current = 'manual'; };
 }
 
-/** Beside "Waiting for Figma" in the Mac window: loads the file in the Figma view again. The view covers the stage, so it sits in the bar. */
+/** In the Mac window's bar whenever the Figma view is stuck (Follow on, off or paused): loads the file in it again. The view covers the stage, so it sits in the bar. */
 function ReloadLink({ onClick }: { onClick: () => void }) {
   const tip = useTip('Load this file in the Figma view again', 'top');
   return (
