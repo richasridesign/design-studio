@@ -1,14 +1,14 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { flowDirName, vId, type ChatContext, type Project, type Tag } from '../../shared/project.js';
+import { compareIds, flowDirName, latestOf, vId, type ChatContext, type Iteration, type Project, type Tag } from '../../shared/project.js';
 import { tagOf, type FileMap } from './fileMap.js';
 
 // The scope guard: a flow chat edits only its own flow subsection in its own iteration. It runs in beforeFigma on
 // every use_figma script that edits, before the write lock, on the ids the script names. Reads are never guarded.
 //
 // Decided by tag (iteration id and flow slug), from the map rows, with project.json's node ids as a fallback for a
-// file whose tagging failed. Allowed: the chat's own subsection and states, its own flow in a frozen iteration
-// (cloning from the baseline is normal work), anything outside the tagged sections (the Comp page, loose frames),
+// file whose tagging failed. Allowed: the chat's own subsection and states, its own flow's entry screens in a frozen
+// iteration (copying them is normal work; nothing else in a frozen iteration), anything outside the tagged sections (the Comp page, loose frames),
 // ids the map does not know (new nodes, layers inside a screen), and the iteration section while the flow has no
 // subsection yet (the chat makes it). Denied: other flows, other working iterations, frozen ones of other flows,
 // the iteration section itself (Design Studio keeps its layout) and Parked.
@@ -16,6 +16,19 @@ import { tagOf, type FileMap } from './fileMap.js';
 // has a chat folder in that iteration, and a section tagged with an iteration project.json does not know is allowed.
 // So Richa's own V0.N sections, which no chat was opened on, never block her chats.
 // A project chat (fan-out parent, Components chat) may edit every working iteration but no frozen one.
+// A flow chat whose own iteration is frozen while its flow has a newer working one (her V0.1 chats once V0.3 is the
+// work) is carried there: it edits that iteration as its own, and its old one is frozen to it like any other.
+
+/** The newer working iteration a chat on a frozen iteration is carried to, else null. */
+export function carriedTo(ctx: ChatContext | null, project: Project | null): Iteration | null {
+  if (ctx?.scope !== 'flow' || !ctx.iteration || !ctx.flow) return null;
+  const p = project ?? ctx.project;
+  const id = ctx.iteration.id;
+  const state = p.iterations.find((it) => it.id === id)?.state ?? ctx.iteration.state;
+  if (state !== 'frozen') return null;
+  const latest = latestOf(p, ctx.flow.slug);
+  return latest && latest.state === 'working' && compareIds(latest.id, id) > 0 ? latest : null;
+}
 
 export type Verdict = { allow: true } | { allow: false; id: string; reason: string };
 
@@ -28,7 +41,7 @@ export function frozenChat(ctx: ChatContext | null, project: Project | null): st
   if (ctx?.scope !== 'flow' || !ctx.iteration) return null;
   const id = ctx.iteration.id;
   const state = (project ?? ctx.project).iterations.find((it) => it.id === id)?.state ?? ctx.iteration.state;
-  if (state !== 'frozen') return null;
+  if (state !== 'frozen' || carriedTo(ctx, project)) return null;
   return `This chat is on ${vId(id)}, which is frozen, so it only reads Figma and cannot change it. Reopen ${vId(id)} from the sidebar to edit it, or start a chat on the working iteration.`;
 }
 
@@ -96,7 +109,7 @@ export function checkScope(map: FileMap | null, ctx: ChatContext | null, project
   if (!map || !ctx || !project) return ALLOW;
   const where = whereAll(map, project);
   const has = owns ?? chatFolderOwns(ctx.root, project);
-  const own = ctx.scope === 'flow' ? { it: ctx.iteration?.id, flow: ctx.flow?.slug } : null;
+  const own = ctx.scope === 'flow' ? { it: carriedTo(ctx, project)?.id ?? ctx.iteration?.id, flow: ctx.flow?.slug } : null;
   for (const id of ids) {
     const w = where.get(id);
     if (!w || !w.tags.length) continue;
@@ -131,7 +144,7 @@ function verdict(id: string, w: Where, own: { it?: string; flow?: string } | nul
     return `${id} is in ${flowLabel(p, flow)} · ${vId(itId)}, which belongs to the ${flowLabel(p, flow)} chat. Ask there, or run this as a project task.`;
   }
   if (frozen) {
-    if (flow && flow === own.flow && !(self.id === id && self.tag.kind === 'iteration')) return null;
+    if (flow && flow === own.flow && p.flows.find((f) => f.slug === flow)?.entry.includes(id)) return null;
     return `${id} is in ${flow ? `${flowLabel(p, flow)} · ${vId(itId)}` : `iteration ${vId(itId)}`}, which is frozen: chats only read it.${flow && flow !== own.flow ? ` It belongs to ${flowLabel(p, flow)}.` : ''}`;
   }
   if (!taken) return null;

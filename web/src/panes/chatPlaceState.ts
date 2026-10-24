@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getJson, postJson, send, useStore } from '../store';
-import { compareIds, flowDirName, vId, type Flow, type Iteration, type Project, type ProjectSummary } from '../../../shared/project';
+import { compareIds, flowDirName, latestOf, vId, type Flow, type Iteration, type Project, type ProjectSummary } from '../../../shared/project';
 import type { SavedSession } from '../../../shared/protocol';
 import { PROJECTS_CHANGED } from './ProjectDialogs';
 import { locateChat } from './projectTree';
@@ -46,7 +46,7 @@ export async function startFlowChat(cwd: string, flow: Pick<Flow, 'slug' | 'name
   return r.figma.ok ? null : `${flow.name} is in ${vId(it.id)}, but its Figma subsection was not made: ${r.figma.error ?? 'unknown error'}. The chat makes it.`;
 }
 
-export type Place = { summary: ProjectSummary; flow?: Flow; iteration?: Iteration };
+export type Place = { summary: ProjectSummary; flow?: Flow; iteration?: Iteration; startedIn?: Iteration };
 
 /** The project a chat folder belongs to, and its flow and iteration when it is a flow chat. Null outside every project. */
 export function placeOf(cwd: string, projects: ProjectSummary[]): Place | null {
@@ -57,7 +57,11 @@ export function placeOf(cwd: string, projects: ProjectSummary[]): Place | null {
   if (!where || where === 'root' || !summary.project) return { summary };
   const flow = summary.project.flows.find((f) => flowDirName(f) === where.flowDir);
   const iteration = summary.project.iterations.find((it) => it.id === where.iteration);
-  return flow && iteration ? { summary, flow, iteration } : { summary };
+  if (!flow || !iteration) return { summary };
+  // A chat on a frozen iteration whose flow has newer working work edits that work (the server's scope guard carries it).
+  const latest = latestOf(summary.project, flow.slug);
+  if (iteration.state === 'frozen' && latest?.state === 'working' && compareIds(latest.id, iteration.id) > 0) return { summary, flow, iteration: latest, startedIn: iteration };
+  return { summary, flow, iteration };
 }
 
 /** The projects and saved chats, reloaded when a project changes and when chats open or close. */

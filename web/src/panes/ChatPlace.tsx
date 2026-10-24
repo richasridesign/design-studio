@@ -67,7 +67,7 @@ export function ChatPlace({ place, projects, saved }: ReturnType<typeof useChatP
   const chip = useRef<HTMLButtonElement | null>(null);
   const frozen = place?.iteration?.state === 'frozen';
   const text = place ? (place.flow && place.iteration ? placeLabel(place.flow, place.iteration) : place.summary.name) : '';
-  const tip = useTip(place?.flow ? `Switch flow or chat (⌘K). This chat stays on ${place.flow.name} in ${vId(place.iteration!.id)}${frozen ? ', read only' : ''}: a chat cannot move to another flow.` : 'Switch flow or chat (⌘K). This chat works on the whole project: a chat cannot move to a flow.');
+  const tip = useTip(place?.flow ? `Switch flow or chat (⌘K). This chat stays on ${place.flow.name} in ${vId(place.iteration!.id)}${place.startedIn ? ` (it started in ${vId(place.startedIn.id)}, which is frozen)` : ''}${frozen ? ', read only' : ''}: a chat cannot move to another flow.` : 'Switch flow or chat (⌘K). This chat works on the whole project: a chat cannot move to a flow.');
 
   const show = () => setOpen(chip.current?.getBoundingClientRect() ?? new DOMRect(16, 48, 0, 0));
   useEffect(() => {
