@@ -169,15 +169,18 @@ export const textOf = (v: unknown): string => (typeof v === 'string' ? v : Array
 
 const isPage = (x: any) => x && x.ds === 1 && typeof x.page === 'number' && typeof x.len === 'number' && typeof x.data === 'string';
 const URL_RE = /https:\/\/[^\s"'\\)]+/;
+const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const normId = (id: unknown) => String(id ?? '').replace('-', ':');
 
 /** Turns what the plugin said into an error a designer can act on. */
 export function figmaFailure(text: string): FigmaError {
   const t = text.replace(/\s+/g, ' ').trim();
+  // A call Design Studio's own read did not allow (Figma's create_session, say) is not her login or her access.
+  if (/create_session|don.?t.?ask|dontAsk|was denied|denied (by|because)|not allowed here|permission to use/i.test(t)) return new FigmaError(`Design Studio stopped a Figma call its read needed, so nothing was read. Your Figma login is fine. ${t.slice(0, 160)}`, 502);
   if (/not (logged|signed) in|log ?in|sign ?in|unauthori[sz]ed|authenticat|\b401\b|oauth/i.test(t)) return new FigmaError('Figma is not logged in. Log in to Figma, then try again.', 401);
   if (/\b403\b|forbidden|no access|permission|cannot access|not have access/i.test(t)) return new FigmaError('This Figma account cannot open the file. Log in to Figma with an account that can, then try again.', 403);
   if (/\b404\b|not found|does not exist/i.test(t)) return new FigmaError('Figma could not find that file or frame. Check the link, then try again.', 404);
-  if (!t) return new FigmaError('Design Studio could not reach Figma. Log in to Figma, then try again.', 502);
+  if (!t) return new FigmaError('Figma did not answer the read. Try again in a moment.', 502);
   return new FigmaError(`Figma could not read the file: ${t.slice(0, 200)}`, 502);
 }
 
@@ -197,8 +200,11 @@ export class ReadState {
   errors: string[] = [];
   calls = 0;
   fatal: string | null = null;
+  /** The Figma session every file call carries (create_session made it), or null until it is made. */
+  sessionId: string | null;
 
-  constructor(readonly opts: { fileKey: string; what: string; body?: string | string[]; shots?: { ids: string[]; maxDimension: number }; use: string; shot: string }) {
+  constructor(readonly opts: { fileKey: string; what: string; body?: string | string[]; shots?: { ids: string[]; maxDimension: number }; use: string; shot: string; session?: string; sessionId?: string | null }) {
+    this.sessionId = opts.sessionId ?? null;
     this.bodies = opts.body === undefined ? [] : Array.isArray(opts.body) ? opts.body : [opts.body];
     this.pages = this.bodies.map(() => null);
     this.lens = this.bodies.map(() => null);
@@ -241,9 +247,18 @@ export class ReadState {
     return 'Saved. Everything is read. Reply with ok true now.';
   }
 
+  private get sid() {
+    return this.sessionId ? { sessionId: this.sessionId } : {};
+  }
+
   /** PreToolUse: puts the real arguments into the call, or turns it away when there is nothing left to read. */
   pre(toolName: string, input: any, id: string): HookJSONOutput {
     const deny = (reason: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
+    if (toolName === this.opts.session) {
+      // Figma wants a session before any file tool. One is enough for the whole read.
+      if (this.sessionId) return deny(`The session is made already. ${this.nextStep()}`);
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, description: `Design Studio: ${this.opts.what}` } } };
+    }
     if (toolName === this.opts.use) {
       if (!this.bodies.length) return deny(`Do not call ${this.opts.use} for this read. ${this.nextStep()}`);
       if (this.fatal) return deny(this.nextStep());
@@ -251,13 +266,13 @@ export class ReadState {
       if (next === null) return deny(this.nextStep());
       this.inFlight.set(id, next);
       this.calls++;
-      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, description: this.opts.what, code: pagedScript(this.bodies[next[0]], next[1]) } } };
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, description: this.opts.what, code: pagedScript(this.bodies[next[0]], next[1]), ...this.sid } } };
     }
     if (toolName === this.opts.shot) {
       const nodeId = normId(input?.nodeId);
       if (!this.opts.shots?.ids.includes(nodeId)) return deny(`That node id is not on the list. ${this.nextStep()}`);
       this.calls++;
-      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, nodeId, maxDimension: this.opts.shots.maxDimension } } };
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: { fileKey: this.opts.fileKey, nodeId, maxDimension: this.opts.shots.maxDimension, ...this.sid } } };
     }
     return deny('Only the Figma read tools are allowed here.');
   }
@@ -265,6 +280,11 @@ export class ReadState {
   /** PostToolUse: keeps the result and gives the model only the next step. */
   post(toolName: string, input: any, response: unknown, id: string): HookJSONOutput {
     const reply = (text: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', updatedMCPToolOutput: [{ type: 'text', text }] } });
+    if (toolName === this.opts.session) {
+      const got = findIn<{ sessionId: string }>(response, (x) => typeof x?.sessionId === 'string' && UUID_RE.test(x.sessionId))?.sessionId ?? UUID_RE.exec(textOf(response))?.[0] ?? null;
+      if (got) this.sessionId = got;
+      return reply(`Session made. Design Studio adds it to each call. ${this.nextStep()}`);
+    }
     if (toolName === this.opts.use) {
       const at = this.inFlight.get(id);
       this.inFlight.delete(id);
@@ -294,6 +314,11 @@ export class ReadState {
   /** PostToolUseFailure: a page that fails is tried once more, then the read stops. */
   fail(toolName: string, input: any, error: string, id: string): HookJSONOutput {
     const extra = (text: string): HookJSONOutput => ({ hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext: text } });
+    // Figma reads files without a session too, so a session that fails is noted and the read goes on.
+    if (toolName === this.opts.session) {
+      this.errors.push(`Figma did not start a session: ${error}`);
+      return extra(`Go on without the session. ${this.nextStep()}`);
+    }
     if (toolName === this.opts.use) {
       const at = this.inFlight.get(id);
       this.inFlight.delete(id);
@@ -361,6 +386,14 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 
 const inFlight = new Map<string, Promise<ReadResult>>();
 
+/** Design Studio's background reads of a file are one piece of work to Figma: one session per file, new after an hour without reads. */
+const SESSION_MS = 60 * 60_000;
+const sessions = new Map<string, { id: string; at: number }>();
+const sessionFor = (fileKey: string) => {
+  const s = sessions.get(fileKey);
+  return s && Date.now() - s.at < SESSION_MS ? s.id : null;
+};
+
 export type ReadCost = { dir: string; costUsd: number; tokens: number };
 let costSink: ((c: ReadCost) => void) | null = null;
 
@@ -397,9 +430,16 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
   if (!configured) throw new FigmaError('Figma is not connected to Claude yet. Log in to Figma, then try again.', 412);
   const use = `mcp__${name}__use_figma`;
   const shot = `mcp__${name}__get_screenshot`;
+  const session = `mcp__${name}__create_session`;
   const ids = [...new Set((spec.shots?.ids ?? []).map(normId))];
-  const state = new ReadState({ fileKey: spec.fileKey, what: spec.what, body: spec.body, shots: spec.shots ? { ids, maxDimension: spec.shots.maxDimension } : undefined, use, shot });
+  const known = sessionFor(spec.fileKey);
+  const state = new ReadState({ fileKey: spec.fileKey, what: spec.what, body: spec.body, shots: spec.shots ? { ids, maxDimension: spec.shots.maxDimension } : undefined, use, shot, session, sessionId: known });
   const steps = [
+    // Figma's instructions ask for a session before any file tool. Left out, the model asks for it anyway, and a
+    // run that may not make one stops before reading anything. The file's last session is reused, which saves a turn.
+    known
+      ? `The Figma session for this file is made already (sessionId ${known}), and Design Studio adds it to each call, so do not call ${session}.`
+      : `First call ${session} with fileKey "${spec.fileKey}" and description "Design Studio: ${spec.what}". Design Studio adds the session to each later call.`,
     state.bodies.length ? `Call ${use} with fileKey "${spec.fileKey}", description "${spec.what}" and code "PAGE". Each result says whether to call it again; keep calling until it says so no more.` : '',
     ids.length ? `${state.bodies.length ? 'Then call' : 'Call'} ${shot} once for each of these node ids, with fileKey "${spec.fileKey}": ${ids.join(', ')}. You may put several of these calls in one message.` : '',
     'When a result says everything is read, reply with ok true. If a result tells you to stop, reply with ok false and the note it gives.',
@@ -413,11 +453,11 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
     tools: [],
     mcp: servers,
     plugins,
-    allowed: [use, shot],
-    // One turn per page or batch of shots, plus room for retries and the reply.
-    maxTurns: 10 + ids.length + (state.bodies.length ? 24 + 2 * state.bodies.length : 0),
+    allowed: [session, use, shot],
+    // One turn for the session, one per page or batch of shots, plus room for retries and the reply.
+    maxTurns: 12 + ids.length + (state.bodies.length ? 24 + 2 * state.bodies.length : 0),
     signal: spec.signal,
-    hooks: hookFor(state, [use, shot]),
+    hooks: hookFor(state, [session, use, shot]),
   });
   try {
     if (r.costUsd || r.tokens) costSink?.({ dir: spec.dir, costUsd: r.costUsd, tokens: r.tokens });
@@ -426,6 +466,10 @@ async function readOnce(spec: ReadSpec, deps: ReadDeps): Promise<ReadResult> {
   }
   if (spec.signal?.aborted) throw new FigmaError('Stopped', 499);
   if (!state.done && !state.fatal && !state.errors.length && r.error) state.errors.push(r.error);
+  // A run that stopped before any file call says why in its note (a call it could not make, say).
+  if (!state.done && !state.fatal && !state.calls && r.data?.note) state.errors.push(r.data.note);
+  if (state.sessionId && !/session/i.test(state.fatal ?? state.errors.at(-1) ?? '')) sessions.set(spec.fileKey, { id: state.sessionId, at: Date.now() });
+  else sessions.delete(spec.fileKey);
   const value = state.value();
   if (ids.length && !state.bodies.length && ![...state.shots.values()].some(Boolean)) throw figmaFailure(state.errors.at(-1) ?? r.data?.note ?? '');
   return { value, shots: Object.fromEntries(ids.map((id) => [id, state.shots.get(id) ?? null])), costUsd: r.costUsd, tokens: r.tokens, ms: Date.now() - t0 };
@@ -436,7 +480,8 @@ export function pluginRead(spec: ReadSpec, deps: ReadDeps = {}): Promise<ReadRes
   const key = spec.key ? `${spec.fileKey}|${spec.key}` : null;
   const hit = key ? inFlight.get(key) : undefined;
   if (hit) return hit;
-  const p = slot(() => readOnce(spec, deps));
+  // A session Figma no longer takes is dropped in readOnce, so the one retry makes a new one.
+  const p = slot(() => readOnce(spec, deps).catch((err: Error) => (/session/i.test(err.message) && !spec.signal?.aborted ? readOnce(spec, deps) : Promise.reject(err))));
   if (key) {
     inFlight.set(key, p);
     const clear = () => inFlight.delete(key);
