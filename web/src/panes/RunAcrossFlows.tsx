@@ -8,7 +8,7 @@ import { tasksChanged, weeklyLine } from './taskStore';
 import '../tasks.css';
 
 // One prompt, one chat per flow in the working iteration. A few run at once (Parallel chats in Settings), the rest
-// wait their turn, and the run pauses at the weekly cap. Sonnet is the default model.
+// wait their turn, and the run pauses at the weekly cap. Opus is the default model.
 
 type Phase = { kind: 'form' } | { kind: 'submitting' } | { kind: 'error'; text: string } | { kind: 'done'; task: Task };
 

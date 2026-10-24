@@ -77,24 +77,24 @@ describe('run across flows', () => {
     expect(path.dirname(taskFile(done))).toBe(path.join(root, 'iterations', '1.19', 'tasks'));
   });
 
-  it('gives each chat its flow, the task id, Sonnet by default and the prompt first', async () => {
+  it('gives each chat its flow, the task id, Opus by default and the prompt first', async () => {
     const { root, tasks, chats } = await setup();
     const t = await tasks.start(root, { prompt: 'Rename Sync now', flows: ['flow-3'] });
     expect(chats[0].input).toMatchObject({ model: DEFAULT_TASK_MODEL, taskId: t.id, cwd: path.join(root, 'flows', 'flow-3', 'iterations', '1.19') });
     expect(chats[0].input.prompt.startsWith('Rename Sync now')).toBe(true);
     expect(chats[0].input.prompt).toContain('Do only Flow 3 · Flow 3');
     expect(chats[0].input.title).toBe('3 · Flow 3: Rename Sync now');
-    expect(modelName(DEFAULT_TASK_MODEL)).toBe('Sonnet');
+    expect(modelName(DEFAULT_TASK_MODEL)).toBe('Opus');
   });
 
-  it('runs on Opus when picked, and records the model the chat reports', async () => {
+  it('runs on Sonnet when picked, and records the model the chat reports', async () => {
     const { root, tasks, chats, tick } = await setup();
-    const t = await tasks.start(root, { prompt: 'x', flows: ['flow-1'], model: 'claude-opus-5-5' });
-    expect(chats[0].input.model).toBe('claude-opus-5-5');
-    chats[0].set({ model: 'claude-opus-5-5[1m]' });
+    const t = await tasks.start(root, { prompt: 'x', flows: ['flow-1'], model: 'claude-sonnet-5-5' });
+    expect(chats[0].input.model).toBe('claude-sonnet-5-5');
+    chats[0].set({ model: 'claude-sonnet-5-5[1m]' });
     await tick();
-    expect((await tasks.get(t.id))!.flows[0].model).toBe('claude-opus-5-5[1m]');
-    // An unknown model falls back to Sonnet.
+    expect((await tasks.get(t.id))!.flows[0].model).toBe('claude-sonnet-5-5[1m]');
+    // An unknown model falls back to the default, Opus.
     const t2 = await tasks.start(root, { prompt: 'y', flows: ['flow-2'], model: 'gpt' });
     expect(t2.model).toBe(DEFAULT_TASK_MODEL);
   });
