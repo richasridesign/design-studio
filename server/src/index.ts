@@ -23,7 +23,6 @@ import { AgentSession, weeklyPct } from './session.js';
 import { Tasks, type ChatHandle } from './tasks.js';
 import { removeProject, renameToConvention } from './projectAdmin.js';
 import { TASK_CAP } from '../../shared/tasks.js';
-import { MODELS } from '../../shared/design.js';
 import { notifyAway } from './notify.js';
 import { mcpConfig, mcpProbe } from './mcp.js';
 import { claudeStatus } from './doctor.js';
@@ -198,8 +197,8 @@ const tasks = new Tasks({
   startChat: async ({ cwd, model, prompt, taskId, title }) => {
     const chat = await createChat(cwd, undefined, title);
     chat.taskId = taskId;
-    // Every chat starts on Sonnet (options.ts); another model is set before the first message.
-    if (model !== MODELS.work) await chat.setModel(model);
+    // A new chat starts on the chat default (Opus); the task's own model is set before the first message, always.
+    await chat.setModel(model);
     await chat.prompt(prompt);
     broadcastLive();
     return taskHandle(chat);

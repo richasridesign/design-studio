@@ -57,12 +57,14 @@ export const MAX_PARALLEL = 6;
 export const TASK_CAP = DEFAULT_WEEKLY_CAP;
 export const MAX_TASK_PROMPT = 4000;
 
-/** Models a task chat can run on. Sonnet first: it is the default for runs across flows. */
-export const TASK_MODELS = [
-  { value: MODELS.work, label: 'Sonnet', hint: 'Default. Faster and uses less of the weekly limit' },
-  { value: MODELS.plan, label: 'Opus', hint: 'For harder changes. Uses the weekly limit faster' },
-] as const;
+/** The default for runs across flows. Flip to MODELS.plan to start them on Opus, like a chat. */
 export const DEFAULT_TASK_MODEL: string = MODELS.work;
+
+/** Models a task chat can run on. The default's hint starts with "Default.". */
+export const TASK_MODELS = [
+  { value: MODELS.work, label: 'Sonnet', hint: 'Faster and uses less of the weekly limit' },
+  { value: MODELS.plan, label: 'Opus', hint: 'For harder changes. Uses the weekly limit faster' },
+].map((m) => ({ ...m, hint: m.value === DEFAULT_TASK_MODEL ? `Default. ${m.hint}` : m.hint }));
 
 export const taskModel = (m: unknown): string => (TASK_MODELS.some((x) => x.value === m) ? String(m) : DEFAULT_TASK_MODEL);
 

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { createSdkMcpServer, tool, type CanUseTool, type HookCallback, type McpServerConfig, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { userContent } from './attach.js';
-import { MODELS, type FigmaFile } from '../../shared/design.js';
+import { CHAT_MODEL, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
 import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
 import { figmaEdits } from './touched.js';
@@ -157,6 +157,8 @@ export function historyAfterFigma(cwd: string): HookCallback {
 export function agentOptions(o: {
   cwd: string;
   resume?: string;
+  /** The model the chat starts on (chatModel.ts picks it). New chats get Opus. */
+  model?: string;
   figma: FigmaFile | null;
   rules?: string;
   figmaServers: Record<string, McpServerConfig>;
@@ -177,7 +179,7 @@ export function agentOptions(o: {
   return {
     cwd: o.cwd,
     resume: o.resume,
-    model: MODELS.work,
+    model: o.model ?? CHAT_MODEL,
     systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd)) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,

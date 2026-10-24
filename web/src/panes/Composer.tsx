@@ -13,6 +13,7 @@ import { useThumbs } from '../useThumbs';
 import { useOutline } from '../outline';
 import { LongRunButton, LongRunHint, type LongRunStart } from './LongRun';
 import { ModelPicker } from './ModelPicker';
+import { contextPercent, contextWindow } from '../../../shared/models';
 import { useTip } from '../Tip';
 import { waitingPlaceholder } from './typedAnswer';
 import { markSent, publishDraft, readInserted, routeMessage, sentItems } from './awaitingSent';
@@ -175,7 +176,17 @@ export function filesEdited(events: ChatEvent[]) {
   return paths.size;
 }
 
-export const contextPercent = (context: number | null) => (context === null ? null : Math.min(100, Math.round((context / COMPACT_AT) * 100)));
+const kTokens = (n: number) => (n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : `${Math.round(n / 1000)}k`);
+
+/** The context meter's tooltip: the token counts behind the share, and what happens near full. */
+export function contextTip(context: number | null, model: string | null) {
+  if (context === null) return '';
+  const size = contextWindow(model);
+  const full = size <= COMPACT_AT
+    ? `At ${kTokens(COMPACT_AT)} Design Studio compacts the chat: Claude sums up older messages to make room.`
+    : `Design Studio compacts at ${kTokens(COMPACT_AT)} to keep turns cheap.`;
+  return `${kTokens(context)} of ${kTokens(size)} tokens in the last turn. ${full} For a fresh start, open a new chat.`;
+}
 
 const STORED_KEY = 'designstudio.prompts';
 
@@ -223,13 +234,14 @@ export function Composer() {
   const serverCommands = useStore((s) => s.session.commands);
   const customRecipes = useCustomRecipes();
   const context = useStore((s) => s.session.context);
+  const model = useStore((s) => s.session.model);
   const events = useStore((s) => s.events);
   const figma = useStore((s) => s.session.figma);
   const hasFile = !!figma;
   const figmaKey = figma?.key;
 
   const commands = useMemo(() => withRecipes(serverCommands, RECIPES, customRecipes.map(toRecipe)), [serverCommands, customRecipes]);
-  const memoryTip = useTip("How much of Claude's memory this chat fills. Near full, Claude sums up older messages to make room.", 'top');
+  const contextTipBox = useTip(contextTip(context, model), 'top');
   const [text, setText] = useState('');
   const [voiceError, setVoiceError] = useState('');
   const [caret, setCaret] = useState(0);
@@ -291,7 +303,7 @@ export function Composer() {
   const link = found && (!hasFile || found.key !== figmaKey) ? found : null;
   const carry = useRef<{ text: string; from: string; at: number } | null>(null);
   const edited = useMemo(() => filesEdited(events), [events]);
-  const pct = contextPercent(context);
+  const pct = contextPercent(context, model);
 
   useEffect(() => {
     // Filling or focusing the message box from elsewhere shows it: the Chat tab on a phone, the hidden chat column on
@@ -492,7 +504,7 @@ export function Composer() {
 
   const hint = shell ? 'Runs in the terminal' : stopping ? 'Stopping…' : !full && !running ? hasFile ? '/ for commands, # for frames' : '/ for commands like /review, /audit' : '';
   const placeholder = waiting ? waitingPlaceholder(waitingOn) : running ? 'Steer Claude: stops the current step and sends this' : FLOW_CHAT.test(cwd ?? '') ? 'Give feedback, or start a review' : 'Ask Claude anything, or paste a Figma link';
-  const level = pct === null ? '' : context! >= COMPACT_AT ? 'over' : context! >= COMPACT_AT * 0.75 ? 'near' : '';
+  const level = pct === null ? '' : pct >= 100 ? 'over' : pct >= 75 ? 'near' : '';
 
   return (
     <div className="cp">
@@ -581,8 +593,8 @@ export function Composer() {
           ? <span className="cp-hint cp-error" role="alert"><Icon name="warning" small />{voiceError}</span>
           : hint && <span className="cp-hint">{hint}</span>}
         <span className="cp-stats">
-          {pct !== null && <span {...memoryTip.props} tabIndex={0} className={level} aria-describedby={memoryTip.open ? memoryTip.id : undefined}>Memory used: {pct}%</span>}
-          {memoryTip.tip}
+          {pct !== null && <span {...contextTipBox.props} tabIndex={0} className={level} aria-describedby={contextTipBox.open ? contextTipBox.id : undefined}>Context used: {pct}%</span>}
+          {contextTipBox.tip}
           {edited > 0 && <span>{edited} {edited === 1 ? 'file' : 'files'} edited</span>}
         </span>
       </div>
