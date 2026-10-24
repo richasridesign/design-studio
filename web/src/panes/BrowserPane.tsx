@@ -94,7 +94,8 @@ export function BrowserPane() {
         setCapture({ state: 'offline' });
         setHasFrame(false);
         timer = setTimeout(open, delay);
-        delay = Math.min(delay * 2, 10000);
+        // The server runs on this Mac and is back a few seconds after a restart: tried every 2 s at most, not 10.
+        delay = Math.min(delay * 2, 2000);
       };
     };
     open();
