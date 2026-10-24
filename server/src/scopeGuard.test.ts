@@ -28,6 +28,8 @@ const map: FileMap = {
         S('3:1', 'V1.20 · Next', 'iteration;1.20;', [S('3:2', 'V1.20 · Flow 1 · Discover', 'flow;1.20;discover', [F('3:3', 'Home')])]),
         S('4:1', 'Parked', 'parked;;', [F('4:2', 'Add a workflow')]),
         S('7:1', 'V0.3 · Flow 3 · Add a connector · Fri 23 Oct 2026', 'flow;0.3;connectors', [F('7:2', 'Add a connector')]),
+        S('8:1', 'V1 · Flow 1 · new work', null, [S('8:2', 'V1 · Flow 1 · Option A', null, [F('8:3', 'Home')])]),
+        S('9:1', 'V1.19 · Flow 1 scenario 2', null, [F('9:2', 'Scenario')]),
         F('5:1', 'Loose frame'),
       ], []],
       ['0:2', 'Comp', [S('6:1', 'Buttons', null, [F('6:2', 'Button')])], []],
@@ -91,6 +93,12 @@ describe('scope guard, Flow 1 chat in 1.19', () => {
 
   it('denies the rest of its own flow in frozen LATEST: only entry screens are copied from a frozen iteration', () => {
     expect(check(ctx, ['1:2'])).toMatchObject({ allow: false, id: '1:2' });
+  });
+
+  it('denies a section with no tag named like a frozen iteration, and what is in it; one named like a working one stays open', () => {
+    for (const id of ['8:1', '8:2', '8:3']) expect(check(ctx, [id]).allow).toBe(false);
+    expect(check(projectChat, ['8:3']).allow).toBe(false);
+    expect(check(ctx, ['9:2']).allow).toBe(true);
   });
 });
 
