@@ -1,3 +1,5 @@
+import { COMPACT_AT } from './protocol.js';
+
 /** One row of the SDK's model list. resolvedModel is the id an alias runs as ('opus' -> 'claude-opus-5-5'). */
 export type ModelOption = { value: string; displayName: string; description?: string; resolvedModel?: string };
 
@@ -41,6 +43,11 @@ export function pickerOptions(model: string | null, options: ModelOption[]): Mod
 
 /** The context window of a model: 1M tokens for "[1m]" ids and aliases, 200k otherwise. */
 export const contextWindow = (model: string | null | undefined) => (/\[1m\]/i.test(model ?? '') ? 1_000_000 : 200_000);
+
+/** Design Studio compacts a chat at this share of its window, never below COMPACT_AT (200k). */
+export const COMPACT_SHARE = 0.5;
+/** Where a chat compacts: 200k on a 200k window, as before, and 500k on a 1M window. The meter's tooltip says the same. */
+export const compactAt = (model: string | null | undefined) => Math.max(COMPACT_AT, Math.round(contextWindow(model) * COMPACT_SHARE));
 
 /** Share of the window the last turn filled, 0 to 100, or null before the first turn. */
 export const contextPercent = (context: number | null, model: string | null | undefined) =>
