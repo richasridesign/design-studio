@@ -24,6 +24,21 @@ export const FIGMA_KIT = `const DS = (() => {
     return n;
   }
   async function page(id) { const n = await node(id); const p = pageOf(n); if (p && p !== figma.currentPage) await figma.setCurrentPageAsync(p); return n; }
+  // figma.createSection() lands on the current page, which is the first page in every call: make it on the named page.
+  async function section(pg, name, props = {}) {
+    pg = pg && pg.type === 'PAGE' ? pg : figma.root.children.find((p) => p.id === norm(pg) || p.name === String(pg));
+    if (!pg) throw new Error('DS.section: no page named or with id ' + short(String(arguments[0])) + '. Pages: ' + figma.root.children.map((p) => p.name).join(', ') + '.');
+    if (pg !== figma.currentPage) await figma.setCurrentPageAsync(pg);
+    name = String(name || '').trim();
+    if (!name) throw new Error('DS.section needs a name, like "V0.5 · Flow 2 · Connectors · Sat 24 Oct 2026".');
+    let s = pg.children.find((k) => k.type === 'SECTION' && k.name === name);
+    if (!s) { s = figma.createSection(); pg.appendChild(s); s.name = name; s.resizeWithoutConstraints(props.width || 1600, props.height || 1200); }
+    else if (props.width || props.height) s.resizeWithoutConstraints(props.width || s.width, props.height || s.height);
+    if (props.below) { const b = box(await get(props.below)); moveTo(s, b[0], b[1] + b[3] + (props.gap == null ? 400 : props.gap)); }
+    else if (props.x != null || props.y != null) moveTo(s, props.x == null ? s.x : props.x, props.y == null ? s.y : props.y);
+    if (props.fills) s.fills = props.fills;
+    return s;
+  }
   function matcher(m) {
     if (typeof m === 'function') return m;
     if (m instanceof RegExp) return (n) => m.test(n.name);
@@ -52,8 +67,21 @@ export const FIGMA_KIT = `const DS = (() => {
     const list = t.characters.length ? t.getRangeAllFontNames(0, t.characters.length) : [t.fontName];
     for (const f of list) if (f && typeof f === 'object') await figma.loadFontAsync(f);
   }
-  async function setText(t, chars) {
-    t = await get(t);
+  // DS.setText(text, chars), or DS.setText(root, name|"~part"|/re/, chars) to look the layer up by name, then by its text.
+  async function setText(t, a, b) {
+    let chars = a;
+    if (arguments.length >= 3) {
+      const root = sure(await get(t), 'DS.setText');
+      const all = root.type === 'TEXT' ? [root] : root.findAllWithCriteria ? root.findAllWithCriteria({ types: ['TEXT'] }) : [];
+      const ok = matcher(a);
+      const byText = a instanceof RegExp ? (x) => a.test(x.characters) : typeof a === 'function' ? () => false : String(a).startsWith('~') ? (x) => x.characters.toLowerCase().includes(String(a).slice(1).toLowerCase()) : (x) => x.characters === String(a);
+      t = all.find(ok) || all.find(byText);
+      if (!t) throw new Error('DS.setText: no text layer named or reading ' + short(String(a)) + ' inside ' + root.name + ' (' + root.id + '). List its text layers with DS.tree or DS.texts.');
+      chars = b;
+    } else {
+      if (t == null) throw new Error('DS.setText got ' + t + ' instead of a text layer: the lookup before it found nothing. Check that lookup, or call DS.setText(parent, "layer name or text", "new text") so the message names what is missing.');
+      t = await get(t);
+    }
     if (t.type !== 'TEXT') throw new Error(t.name + ' (' + t.id + ') is a ' + t.type + ', not a text layer.');
     await fonts(t);
     t.characters = String(chars);
@@ -75,10 +103,26 @@ export const FIGMA_KIT = `const DS = (() => {
     return null;
   }
   const plain = (r) => ({ trigger: r.trigger, actions: r.actions && r.actions.length ? r.actions : r.action ? [r.action] : [] });
+  // States that never change to Hover: a Disabled control has no hover, press or click (a tooltip overlay on hover
+  // is the one exception), and a selected, pressed, focused, open or working one keeps its look under the pointer.
+  const stateOf = (main) => { const p = (main && main.variantProperties) || {}; const k = Object.keys(p).find((x) => /state|interaction/i.test(x)); return k ? String(p[k]).trim().toLowerCase() : ''; };
+  const flag = (main, re) => { const p = (main && main.variantProperties) || {}; return Object.keys(p).some((k) => re.test(k) && /^(true|yes|on)$/i.test(String(p[k]))); };
+  const isDisabled = (main) => /^disabled/.test(stateOf(main)) || flag(main, /^disabled$/i);
+  const quiet = (main) => isDisabled(main) || /^(selected|pressed|focus|focused|open|working|loading|typing)\\b/.test(stateOf(main)) || flag(main, /^selected$/i);
+  const tooltipOnly = (r) => { const p = plain(r); const t = p.trigger && p.trigger.type; return /^(ON_HOVER|MOUSE_ENTER|MOUSE_LEAVE)$/.test(t) && p.actions.length > 0 && p.actions.every((a) => a.type === 'CLOSE' || a.navigation === 'OVERLAY'); };
   async function wireHover(inst) {
     inst = await get(inst);
     if (inst.type !== 'INSTANCE') return null;
     const main = await inst.getMainComponentAsync();
+    if (main && quiet(main)) {
+      // Drop a hover left over from the state it was switched from, keep tooltip overlays and clicks.
+      const set = main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : null;
+      const ids = new Set(set ? set.children.map((c) => c.id) : []);
+      const all = inst.reactions || [];
+      const keep = all.filter((r) => !(r.trigger && r.trigger.type === 'ON_HOVER' && plain(r).actions.some((a) => a.navigation === 'CHANGE_TO' && ids.has(a.destinationId))));
+      if (keep.length !== all.length) await inst.setReactionsAsync(keep.map(plain));
+      return null;
+    }
     const hover = hoverOf(main);
     if (!hover) return null;
     const keep = (inst.reactions || []).filter((r) => !(r.trigger && r.trigger.type === 'ON_HOVER')).map(plain);
@@ -132,7 +176,7 @@ export const FIGMA_KIT = `const DS = (() => {
     return out.slice(0, 40);
   }
   async function check(list) {
-    const out = { hoverMissing: [], hoverWrong: [], outside: [], overlaps: [], fewStickies: [] };
+    const out = { hoverMissing: [], hoverWrong: [], disabledReacts: [], outside: [], overlaps: [], fewStickies: [] };
     const seen = new Set();
     for (const id of [].concat(list)) {
       const root = await get(id);
@@ -140,6 +184,12 @@ export const FIGMA_KIT = `const DS = (() => {
       for (const inst of instances.slice(0, 400)) {
         if (inst.visible === false) continue;
         const main = await inst.getMainComponentAsync();
+        if (isDisabled(main)) {
+          const bad = (inst.reactions || []).filter((r) => !tooltipOnly(r));
+          if (bad.length) out.disabledReacts.push([inst.id, short(inst.name, 40), bad.map((r) => (r.trigger && r.trigger.type) || '?').join(' ')]);
+          continue;
+        }
+        if (quiet(main)) continue;
         const hover = hoverOf(main);
         if (!hover) continue;
         const r = (inst.reactions || []).find((x) => x.trigger && x.trigger.type === 'ON_HOVER');
@@ -163,7 +213,7 @@ export const FIGMA_KIT = `const DS = (() => {
       if (p && p.type === 'SECTION' && !seen.has(p.id)) { seen.add(p.id); out.overlaps.push(...overlaps(p).filter((pair) => pair.includes(root.id))); }
     }
     for (const k of Object.keys(out)) out[k] = out[k].slice(0, 30);
-    out.ok = !out.hoverMissing.length && !out.hoverWrong.length && !out.outside.length && !out.overlaps.length && !out.fewStickies.length;
+    out.ok = !out.hoverMissing.length && !out.hoverWrong.length && !out.disabledReacts.length && !out.outside.length && !out.overlaps.length && !out.fewStickies.length;
     return out;
   }
   // Decision stickies: the what and why of an iteration, 3 to 5 right below each screen. Tagged with plugin data
@@ -352,22 +402,23 @@ export const FIGMA_KIT = `const DS = (() => {
     return { truncated: true, note: 'The result was cut to fit: return fewer fields.', head: s.slice(0, 17000) };
   }
   async function shot(n, opts) { n = await get(n); await n.screenshot(opts); return n.id; }
-  return { node, page, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot };
+  return { node, page, section, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot };
 })();`;
 
 /** Short reference for Claude, kept next to the code so the two stay in step. */
 export const KIT_GUIDE = [
   'Design Studio adds a helper object DS to every use_figma script that mentions it (do not paste or define it):',
   '- DS.node(id): node by id, its page loaded; throws a clear message when the id is gone. DS.page(id): same, and makes its page current.',
+  '- DS.section(page|pageId|"Page name", "V0.5 · Flow 2 · topic · Sat 24 Oct 2026", { below: prevSection, gap=400 } or { x, y, width, height, fills }): finds or makes a top level section on that page (figma.createSection alone lands on the first page).',
   '- DS.find(root, name|"~part"|/re/|fn, type?) and DS.one(...) (first, or throws). DS.texts(root, "words") finds text layers by content.',
-  '- DS.setText(textNode|id, "new text"): loads its fonts first. DS.bindColor(node, "fills"|"strokes", "variable/name").',
-  '- DS.setVariant(instance|id, { State: "Default", Size: "Small" }): switches variant and points ON_HOVER at the matching Hover variant. DS.wireHover(instance) only rewires the hover. DS.hoverOf(variant) gives the Hover sibling.',
+  '- DS.setText(textNode|id, "new text"), or DS.setText(parent, "layer name"|"exact text"|"~part"|/re/, "new text") to look it up first: loads its fonts, and says what it could not find. DS.bindColor(node, "fills"|"strokes", "variable/name").',
+  '- DS.setVariant(instance|id, { State: "Default", Size: "Small" }): switches variant and points ON_HOVER at the matching Hover variant (none for Disabled, Selected, Pressed, Focus, Open or Working, and a stale hover is dropped). DS.wireHover(instance) only rewires the hover. DS.hoverOf(variant) gives the Hover sibling.',
   '- DS.clone(screen, { name, below?, gap? }), DS.placeRight(node, ref, gap=160), DS.placeBelow(node, ref, gap=96), DS.moveTo(node, absX, absY), DS.fit(section, pad=320) grows a section around its children.',
   '- DS.decisions(screen|id, [{ decision, why }, ...], { iteration: "1.19" }): writes the screen\'s 3 to 5 Decision stickies (the Decision sticky component), updates them in place, removes extra ones, lays them out 96px under the screen with one height per row and fits the section. Call it after every new or changed screen.',
   '- DS.option(flowSubsection|id, { id: "A", name: "Cards", iteration: "1.19" }): finds or makes the low fidelity option subsection "V1.19 · Flow 3 · Option A: Cards" inside the flow subsection, lines the options up 400px apart and fits the flow subsection. Put the option\'s screens in the returned node, then DS.fit it. DS.options(flowSubsection) lists [{ id, name, node }] for set_status options. Only the first screen of an option needs Decision stickies.',
-  '- DS.check([ids]): hover missing or pointing at the wrong variant, children outside their frame, overlaps in the section, screens with fewer than 3 Decision stickies. DS.overlaps(parent). DS.tree(node, depth=2): compact layer list for discovery.',
+  '- DS.check([ids]): hover missing or pointing at the wrong variant (Disabled, Selected and other fixed states are skipped), Disabled instances with any reaction but a hover tooltip overlay (disabledReacts: clear them with setReactionsAsync([])), children outside their frame, overlaps in the section, screens with fewer than 3 Decision stickies. DS.overlaps(parent). DS.tree(node, depth=2): compact layer list for discovery.',
   '- DS.shot(node|id): screenshot returned inline with the result, so no get_screenshot call is needed. DS.done(value) keeps the return value under the size limit.',
-  '- Await DS.node, DS.page, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
+  '- Await DS.node, DS.page, DS.section, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
   'Example, one call that fixes, checks and shows: const s = await DS.node("1:31"); await DS.wireHover(DS.one(s, "~Button", "INSTANCE")); const t = DS.one(s, "~Toast"); DS.moveTo(t, DS.box(s)[0] + (s.width - t.width) / 2, DS.box(s)[1] + 24); await DS.shot(s); return DS.done({ check: await DS.check([s.id]) });',
 ].join('\n');
 
