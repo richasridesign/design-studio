@@ -20,7 +20,7 @@ import { openFigmaPlugin, pluginFocus, pluginFor } from './figmaPlugin.js';
 import { ensureHelper, openFigmaApp, showFigmaApp } from './figmaApp.js';
 import { deleteSession, getSessionInfo, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { AgentSession, weeklyPct } from './session.js';
-import { isGoPhrase } from './brainstorm.js';
+import { BUILD_NOTE, isGoPhrase } from './brainstorm.js';
 import { Tasks, type ChatHandle } from './tasks.js';
 import { removeProject, renameToConvention } from './projectAdmin.js';
 import { TASK_CAP } from '../../shared/tasks.js';
@@ -344,9 +344,11 @@ async function newChat(cwd: string, from: AgentSession, flow?: string, iteration
 }
 
 /** A clear go typed in Brainstorm ("go", "build it") builds, the same as Build this: the mode switches, the chat says
- * so in one line, and her message runs as the first build turn. */
-function goBuild(chat: AgentSession, text: unknown) {
-  if (chat.state.session.brainstorm && typeof text === 'string' && isGoPhrase(text)) chat.setBrainstorm(false);
+ * so in one line, and her message runs as the first build turn. True when it switched. */
+function goBuild(chat: AgentSession, text: unknown): boolean {
+  if (!chat.state.session.brainstorm || typeof text !== 'string' || !isGoPhrase(text)) return false;
+  chat.setBrainstorm(false);
+  return true;
 }
 
 let remembered = '';
@@ -782,9 +784,12 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'plan':
         chat.changePlan(msg.next.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim().slice(0, 120)).slice(0, 12));
         break;
-      case 'answer':
-        chat.answerQuestion(msg.id, msg.answers, typeof msg.response === 'string' ? msg.response : undefined);
+      case 'answer': {
+        // A go typed while a brainstorm question waits answers it, so the turn learns there and then that it may build.
+        const response = typeof msg.response === 'string' ? msg.response : undefined;
+        chat.answerQuestion(msg.id, msg.answers, goBuild(chat, response) ? `${response}\n\n${BUILD_NOTE}` : response);
         break;
+      }
       case 'permission':
         chat.answerPermission(msg.id, msg.allow, msg.always, typeof msg.note === 'string' ? msg.note : undefined);
         break;
