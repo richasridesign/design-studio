@@ -57,7 +57,7 @@ describe('scope guard, Flow 1 chat in 1.19', () => {
     ['its states subsection', '2:6'],
     ['a screen in its states', '2:7'],
     ['the Decisions note in the iteration section', '2:9'],
-    ['its own flow in frozen LATEST (cloning from the baseline)', '1:3'],
+    ['its own entry screen in frozen LATEST (copying it into the subsection)', '1:3'],
     ['the Comp page', '6:2'],
     ['a loose frame outside every tagged section', '5:1'],
     ['an id the map does not know', '99:9'],
@@ -89,10 +89,26 @@ describe('scope guard, Flow 1 chat in 1.19', () => {
     expect(check(flowChat('discover', '1.19', p), ['2:1'], p).allow).toBe(true);
   });
 
-  it('uses the project state it is given: a frozen own iteration still allows its own flow, never other flows', () => {
-    const p: Project = { ...project, iterations: project.iterations.map((it) => (it.id === '1.19' ? { ...it, state: 'frozen' } : it)) };
-    expect(check(flowChat('discover', '1.19', p), ['2:3'], p).allow).toBe(true);
-    expect(check(flowChat('discover', '1.19', p), ['2:5'], p).allow).toBe(false);
+  it('denies the rest of its own flow in frozen LATEST: only entry screens are copied from a frozen iteration', () => {
+    expect(check(ctx, ['1:2'])).toMatchObject({ allow: false, id: '1:2' });
+  });
+});
+
+describe('a chat on a frozen iteration whose flow has newer work is carried there', () => {
+  // Her V0.1 chats once V0.1 is frozen and V0.3 is the work: here a Flow 1 chat on 1.19, with 1.20 working.
+  const p: Project = { ...project, iterations: project.iterations.map((it) => (it.id === '1.19' ? { ...it, state: 'frozen' } : it)) };
+  const ctx = flowChat('discover', '1.19');
+  it('edits its flow in the newer working iteration as its own, and is not read only', () => {
+    expect(check(ctx, ['3:3'], p).allow).toBe(true);
+    expect(frozenChat(ctx, p)).toBeNull();
+  });
+  it('never edits its own flow in the frozen iteration it started in, nor other flows', () => {
+    expect(check(ctx, ['2:3'], p)).toMatchObject({ allow: false, id: '2:3' });
+    expect(check(ctx, ['2:5'], p).allow).toBe(false);
+  });
+  it('stays read only when its flow has no newer working iteration', () => {
+    const none: Project = { ...p, iterations: p.iterations.map((it) => (it.id === '1.20' ? { ...it, state: 'frozen' } : it)) };
+    expect(frozenChat(ctx, none)).toMatch(/1\.19, which is frozen/);
   });
 });
 
@@ -154,16 +170,18 @@ describe('a chat on a frozen iteration is read only', () => {
   const setState = (state: 'working' | 'frozen'): Project => ({ ...project, iterations: project.iterations.map((it) => (it.id === '1.19' ? { ...it, state } : it)) });
   it('walks freeze and reopen on an open chat: writes stop at once and come back, read from the fresh project', () => {
     // The chat was opened while 1.19 was working; its context is cached at start.
-    const ctx = flowChat('discover', '1.19');
+    // Flow 2 has no newer working iteration than 1.19, so freezing 1.19 leaves its chat nowhere to edit.
+    const ctx = flowChat('connectors', '1.19');
     expect(frozenChat(ctx, project)).toBeNull();
     // Frozen from the sidebar while the chat is open: every write is denied, own subsection included.
     expect(frozenChat(ctx, setState('frozen'))).toMatch(/1\.19, which is frozen/);
     // Reopened: allowed again, even though the chat started on a frozen iteration.
-    expect(frozenChat(flowChat('discover', '1.19', setState('frozen')), setState('working'))).toBeNull();
+    expect(frozenChat(flowChat('connectors', '1.19', setState('frozen')), setState('working'))).toBeNull();
   });
-  it('denies a chat opened on frozen LATEST, also with no map and no project.json read', () => {
-    expect(frozenChat(flowChat('discover', '1'), project)).not.toBeNull();
-    expect(frozenChat(flowChat('discover', '1'), null)).not.toBeNull();
+  it('denies a chat opened on frozen LATEST when nothing newer is working, also with no project.json read', () => {
+    const allFrozen: Project = { ...project, iterations: project.iterations.map((it) => ({ ...it, state: 'frozen' })) };
+    expect(frozenChat(flowChat('discover', '1', allFrozen), allFrozen)).not.toBeNull();
+    expect(frozenChat(flowChat('discover', '1', allFrozen), null)).not.toBeNull();
   });
   it('leaves project chats to the scope guard, which keeps them off frozen iterations', () => {
     expect(frozenChat(projectChat, setState('frozen'))).toBeNull();
