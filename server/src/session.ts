@@ -35,7 +35,7 @@ import { awaitQuestions } from './awaiting.js';
 import { awaitKey, openCount, waitText } from '../../shared/awaiting.js';
 import { BRAINSTORM_NOTE, BUILD_NOTE, brainstormDeny, chooseOption, listRounds, parseRound, readMode, saveMode, saveRound } from './brainstorm.js';
 import { buildPrompt } from '../../shared/brainstorm.js';
-import { lastModel, modelId, readChatModel, saveChatModel, startModel } from './chatModel.js';
+import { modelId, readChatModel, saveChatModel, startModel } from './chatModel.js';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const STATUS_EVERY = 8;
@@ -100,9 +100,8 @@ export class AgentSession {
   private liveMsgId = '';
 
   private resumedAuto = false;
-  /** A resumed chat's saved model and its transcript's last one: it starts on that, not on the new-chat default. */
+  /** The model picked for a resumed chat, saved in models.json: it starts on that, else on Opus. */
   private savedModel: string | null = null;
-  private transcriptModel: string | null = null;
   /** The model she picked in this chat (an alias like "opus[1m]" or "default" stays as picked, never the id it runs as). */
   private pickedModel: string | null = null;
   private lastError = false;
@@ -202,8 +201,7 @@ export class AgentSession {
     const msgs = await getSessionMessages(this.resume, { dir: this.cwd });
     const { events, context, cache } = historyFrom(msgs);
     this.state.events.push(...withReviews(events, (await readReview(this.cwd)).runs));
-    this.transcriptModel = lastModel(msgs);
-    Object.assign(this.state.session, { context, cache, model: startModel(this.resume, this.savedModel, this.transcriptModel) });
+    Object.assign(this.state.session, { context, cache, model: startModel(this.savedModel) });
   }
 
   async init() {
@@ -263,7 +261,7 @@ export class AgentSession {
       options: agentOptions({
         cwd: this.cwd,
         resume: this.resume,
-        model: startModel(this.resume, this.savedModel, this.transcriptModel),
+        model: startModel(this.savedModel),
         figma: this.figma,
         rules: this.rules,
         figmaServers: this.figmaServers,
@@ -1116,8 +1114,8 @@ export class AgentSession {
           const before = this.state.session.model;
           const changed = msg.model !== before;
           this.setSession({ sessionId: msg.session_id, model: msg.model, permissionMode: msg.permissionMode, apiKeySource: msg.apiKeySource, mcp: mcpFrom(msg.mcp_servers, msg.tools) });
-          // Saved so the chat starts on it again after a restart: her pick as she made it, else the model this turn runs on.
-          void saveChatModel(this.cwd, msg.session_id, this.pickedModel ?? msg.model).catch((err) => console.error(`model: ${String(err)}`));
+          // Only a pick is saved (it can come before the session has an id), so a chat she never switched starts on Opus.
+          if (this.pickedModel) void saveChatModel(this.cwd, msg.session_id, this.pickedModel).catch((err) => console.error(`model: ${String(err)}`));
           if (this.state.session.brainstorm) void saveMode(this.cwd, msg.session_id, true).catch((err) => console.error(`brainstorm: ${String(err)}`));
           if (changed) this.system(before ? `Model: ${msg.model}` : `Session started with ${msg.model}`);
           if (this.resume && msg.permissionMode !== 'auto' && !this.resumedAuto) {

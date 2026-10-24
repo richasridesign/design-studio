@@ -72,10 +72,8 @@ export function roundCost(preset: ReviewPreset, areas: Area[], perReviewer = REV
 
 // read: the cheap model that only drives Figma plugin reads (it never sees the file content).
 export const MODELS = { plan: 'claude-opus-5-5', work: 'claude-sonnet-5-5', read: 'claude-haiku-5-5' } as const;
-/** New chats start on Opus, the main driver. Reviews, crits and recipes stay on MODELS.work (Sonnet). */
+/** Chats start on Opus, the main driver, new or reopened, unless she picked another model for one. Reviews, crits and recipes stay on MODELS.work (Sonnet). */
 export const CHAT_MODEL: string = MODELS.plan;
-/** A chat saved before chats started on Opus, with no model in its transcript, ran on Sonnet. */
-export const LEGACY_CHAT_MODEL: string = MODELS.work;
 
 export const FLOW_MODES = ['chat', 'design', 'review'] as const;
 export type FlowMode = (typeof FLOW_MODES)[number];
