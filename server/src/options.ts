@@ -21,7 +21,7 @@ export function figmaSpeed(mapFile: string | null) {
     '- One call per change: find, edit and check in the same use_figma script. End it with DS.check([changed screen ids]) and DS.shot(screen) so the result carries the checks and a screenshot. Do not read, edit, read again and then call get_screenshot.',
     '- Put independent reads (or edits on different pages) in one message as parallel calls.',
     '- Do not call figma.saveVersionHistoryAsync: use_figma does not support it and the whole call fails. Figma keeps its own version history.',
-    '- Load the Figma tools you need in one ToolSearch call, for example select:mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
+    '- Load the Figma tools you need in one ToolSearch call, create_session included (Figma wants a session before any file call), for example select:mcp__plugin_figma_figma__create_session,mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
     '- When you start a subagent for Figma work, give it the node ids it needs from the map.',
     KIT_GUIDE,
   ].filter(Boolean).join('\n');
