@@ -60,6 +60,13 @@ export const FIGMA_WRITE = /__(use_figma|html_to_figma|upload_assets|generate_fi
 /** The PreToolUse matcher for every Figma write tool: the scope guard and the frozen-chat guard run on these. */
 export const FIGMA_WRITE_MATCHER = `mcp__.*${FIGMA_WRITE.source}`;
 
+/**
+ * claude.ai connectors stay out of every Design Studio run. A claude.ai Figma connector shares the plugin's URL, and the
+ * SDK then hides the plugin server in favour of the connector, so a connector nobody logged in to left chats with no
+ * Figma tools ("needs-auth", 25 Oct 2026). Chats already allowlist out every other claude.ai connector.
+ */
+export const RUN_ENV = { ENABLE_CLAUDEAI_MCP_SERVERS: 'false' } as const;
+
 export type LeanResult<T> = { data: T | null; tokens: number; costUsd: number; error?: string; text: string };
 
 export async function lean<T>(prompt: string, opts: { cwd: string; model: string; system: string; schema: Record<string, unknown>; tools?: string[]; mcp?: Record<string, McpServerConfig>; plugins?: SdkPluginConfig[]; allowed?: string[]; maxTurns?: number; signal?: AbortSignal; onMessage?: (msg: SDKMessage) => void; env?: Record<string, string>; hooks?: Options['hooks'] }): Promise<LeanResult<T>> {
@@ -83,7 +90,7 @@ export async function lean<T>(prompt: string, opts: { cwd: string; model: string
     abortController: abort,
     stderr: (d) => process.stderr.write(d),
     // The SDK does not merge env with process.env, so extra variables are added on top of it.
-    ...(opts.env ? { env: { ...process.env, ...opts.env } } : {}),
+    env: { ...process.env, ...RUN_ENV, ...opts.env },
     ...(opts.hooks ? { hooks: opts.hooks } : {}),
   };
   let tokens = 0;

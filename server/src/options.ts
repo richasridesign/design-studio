@@ -6,7 +6,7 @@ import { CHAT_MODEL, type FigmaFile } from '../../shared/design.js';
 import { KIT_GUIDE } from './figmaKit.js';
 import { isHistoryPath, markFlowEdited, recordChanges } from './history.js';
 import { figmaEdits } from './touched.js';
-import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER } from './lean.js';
+import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER, RUN_ENV } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
@@ -222,6 +222,7 @@ export function agentOptions(o: {
       ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },
     stderr: (d) => process.stderr.write(d),
+    env: { ...process.env, ...RUN_ENV },
   };
 }
 
