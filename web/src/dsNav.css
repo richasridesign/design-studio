@@ -1,0 +1,30 @@
+/* Design system pane: a home list of sections, a page per section, a page per item (after Elastic UI's docs). */
+.dsn-list { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
+.dsn-list + .dsn-list, .dsn-after { margin-top: 12px; }
+.dsn-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px; background: none; border: 0; border-radius: var(--radius-sm); text-align: left; font-size: var(--text-sm); line-height: 20px; color: var(--fg); }
+button.dsn-row { cursor: pointer; }
+button.dsn-row:hover { background: var(--bg-hover); }
+.dsn-row > .icon { flex: none; color: var(--fg-muted); }
+.dsn-label { min-width: 0; overflow-wrap: anywhere; }
+.dsn-top button.dsn-row .dsn-label { font-weight: 600; }
+.dsn-meta { margin-left: auto; flex: none; color: var(--fg-faint); font-size: var(--text-xs); line-height: 16px; font-variant-numeric: tabular-nums; }
+.dsn-empty .dsn-label { color: var(--fg-muted); }
+.dsn-tag { flex: none; font-size: var(--text-xs); line-height: 16px; font-weight: 400; color: var(--fg-muted); padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; }
+.dsn-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 4px 0 0; background: none; border: 0; color: var(--link); font-size: var(--text-sm); line-height: 20px; cursor: pointer; }
+.dsn-back:hover { text-decoration: underline; text-underline-offset: 2px; }
+.dsn-title { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--text-lg); line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
+.dsn-title .count { font-size: var(--text-sm); }
+.dsn-sub { margin: 0; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
+.dsn-h { margin: 16px 0 0; display: flex; gap: 6px; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.dsn-group { display: flex; flex-direction: column; gap: 8px; }
+.dsn-p { margin: 0; color: var(--fg-muted); font-size: var(--text-sm); line-height: 20px; }
+.dsn-principles { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); line-height: 20px; }
+.dsn-principles li { display: flex; flex-direction: column; }
+.dsn-principles .t { font-weight: 600; }
+.dsn-principles .d { color: var(--fg-muted); }
+.dsn-icons { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); font-family: var(--mono); }
+.dsn-icons li { overflow-wrap: anywhere; }
+.ds h2.ds-name { margin: 0; }
+.dsn-props { margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); line-height: 20px; }
+.dsn-props dt { font-weight: 500; }
+.dsn-props dd { margin: 0; color: var(--fg-muted); overflow-wrap: anywhere; }
