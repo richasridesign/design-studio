@@ -10,15 +10,13 @@ import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
-import { claudeMdExcludes, designCore, skillImports } from './designRules.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
 /**
- * How to edit an existing Figma file in few calls. Shared with subagents, which do not see the system prompt, so for
- * them it also carries the design rules (`rules`); the chat's own prompt has those once, on their own.
+ * How to edit an existing Figma file in few calls. Shared with subagents, which do not see the system prompt.
  */
-export function figmaSpeed(mapFile: string | null, rules = designCore()) {
+export function figmaSpeed(mapFile: string | null) {
   return [
     'Working fast in Figma: most of the time goes into round trips, so make each call count.',
     mapFile ? `- File map: ${mapFile} (read in the background when the chat opens; if it is not there yet, call mcp__designstudio__refresh_file_map) lists every page, section and screen (ids, sizes, positions), component sets with their setProperties keys and Hover variants, variables and styles. Grep it for names before reading Figma, and only read Figma for what it does not have (layers inside a screen). If an id from it is gone, call mcp__designstudio__refresh_file_map.` : '',
@@ -28,7 +26,6 @@ export function figmaSpeed(mapFile: string | null, rules = designCore()) {
     '- Load the Figma tools you need in one ToolSearch call, create_session included (Figma wants a session before any file call), for example select:mcp__plugin_figma_figma__create_session,mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
     '- When you start a subagent for Figma work, give it the node ids it needs from the map.',
     KIT_GUIDE,
-    rules,
   ].filter(Boolean).join('\n');
 }
 
@@ -43,7 +40,7 @@ export function historyPathFor(cwd: string | null | undefined): string | null {
   return parts.length >= 4 && parts.at(-2) === 'iterations' && parts.at(-4) === 'flows' ? path.join(path.resolve(cwd), '..', '..', 'history.md') : null;
 }
 
-export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null, project: string | null = null, history: string | null = null, core = '') {
+export function instructions(figma: FigmaFile | null, rules = '', mapFile: string | null = null, project: string | null = null, history: string | null = null) {
   return [
     'You work with a product designer in Design Studio. They follow your work on a timeline, often from a phone, and watch the Figma file in their browser. Write for a designer: no code, file paths or tool names in your replies unless they ask.',
     figma ? `This chat belongs to the Figma file "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file.` : 'No Figma file is linked to this chat yet. If the designer asks for design work, ask them to paste the Figma file link.',
@@ -52,8 +49,7 @@ export function instructions(figma: FigmaFile | null, rules = '', mapFile: strin
     project ? `Projects, flows and iterations:\n${project}` : 'Changing the Figma file: put new work on a page named "Design Studio". Never edit frames on other pages in place unless the designer says so; duplicate them onto the Design Studio page instead.',
     project && history ? `This flow's history is at ${history}. Read it before changing a screen that was decided before. Do not edit it: Design Studio writes it.` : '',
     project && history ? WORKFLOW_RULES : '',
-    figma ? figmaSpeed(mapFile, '') : '',
-    core,
+    figma ? figmaSpeed(mapFile) : '',
     'Design quality: use the library components, color variables, text styles and spacing scale from design-system.md when it exists. Do not hard-code colors or build components by hand.',
     // The Fix button on the Steps panel asks in plain words; the file name lives here, out of the designer's message.
     'Review findings and failed house rules the designer closed by hand on the Review tab (fixed, won\'t fix or parked) are listed in triage.json in the chat folder. Skip them when you fix issues from a review. Leave the findings that wait for the designer\'s decision (they have a decide note in review.json): the designer decides those, so do not fix them.',
@@ -205,12 +201,11 @@ export function agentOptions(o: {
   refreshMap?: () => Promise<string>;
   onBrainstorm?: OnBrainstorm;
 }): Options {
-  const skills = skillImports();
   return {
     cwd: o.cwd,
     resume: o.resume,
     model: o.model ?? CHAT_MODEL,
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd), designCore(skills)) },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions(o.figma, o.rules, o.mapFile ?? null, o.project ?? null, historyPathFor(o.cwd)) },
     settingSources: ['user', 'project', 'local'],
     includePartialMessages: true,
     disallowedTools: ['mcp__playwright'],
@@ -218,8 +213,7 @@ export function agentOptions(o: {
     permissionMode: 'auto',
     mcpServers: { designstudio: statusServer(o.onStatus, o.refreshMap, o.cwd, o.onBrainstorm), ...o.figmaServers },
     strictMcpConfig: o.strictMcp,
-    // Her CLAUDE.md still loads, without the skill files it imports: the core rules above stand in for them.
-    settings: { allowedMcpServers: chatMcpAllowlist(o.figmaServers), claudeMdExcludes: claudeMdExcludes(skills) },
+    settings: { allowedMcpServers: chatMcpAllowlist(o.figmaServers) },
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
