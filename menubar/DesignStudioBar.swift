@@ -419,7 +419,7 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
   }
 
   /**
-   * Test aid, only with defaults DSFigmaShots set: while the view shows the scratch test file, a file named
+   * Test aid, only with defaults DSFigmaShots set: while the view shows the scratch test file (defaults DSScratchFile), a file named
    * figma-shot-now in the logs folder asks for a picture of this view alone, written next to it.
    */
   func watchShots() {
@@ -428,7 +428,7 @@ final class FigmaEmbed: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
       let ask = logs.appendingPathComponent("figma-shot-now")
       guard let self, FileManager.default.fileExists(atPath: ask.path) else { return }
       try? FileManager.default.removeItem(at: ask)
-      guard self.fileKey == "SCRATCHFILEKEY00000000", !self.view.isHidden else { return }
+      guard let scratch = UserDefaults.standard.string(forKey: "DSScratchFile"), self.fileKey == scratch, !self.view.isHidden else { return }
       let n = Int(Date().timeIntervalSince1970 * 10) % 100000
       self.view.takeSnapshot(with: nil) { image, _ in
         guard let tiff = image?.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return }
@@ -512,9 +512,9 @@ final class Studio: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelega
       label.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
     ])
     showWaiting("Starting Design Studio\u{2026}")
-    if UserDefaults.standard.bool(forKey: "DSFigmaProbe") {
+    if UserDefaults.standard.bool(forKey: "DSFigmaProbe"), let scratch = UserDefaults.standard.string(forKey: "DSScratchFile") {
       let f = makeFigma()
-      f.open(URL(string: "https://www.figma.com/design/SCRATCHFILEKEY00000000")!, "SCRATCHFILEKEY00000000")
+      f.open(URL(string: "https://www.figma.com/design/\(scratch)")!, scratch)
       DispatchQueue.main.asyncAfter(deadline: .now() + 30) { f.probe() }
     }
   }

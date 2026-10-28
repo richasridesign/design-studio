@@ -10,7 +10,7 @@ export type ComponentGroup = (typeof COMPONENT_GROUPS)[number];
 const BY_WORD: [ComponentGroup, RegExp][] = [
   ['Icons', /_\d+dp_|^icon\s*\/|^(polygon|ellipse) \d+$|^triangle$/i],
   ['Design file', /flow note|decision sticky/i],
-  ['AI', /message item|chat|suggestion chip|answer actions|trace|starter group|simulate|persona|acme|test mode|preview footer/i],
+  ['AI', /message item|chat|suggestion chip|answer actions|trace|starter group|simulate|persona|test mode|preview footer/i],
   ['Display', /tooltip/i],
   ['Tables and lists', /\brow\b|table|action log|directory$/i],
   ['Forms', /input|search|toggle|chip|dropdown|access (option|menu)|segmented/i],

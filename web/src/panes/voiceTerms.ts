@@ -4,7 +4,6 @@ const TERMS: Array<[RegExp, string]> = [
   [/\bfig\s?ma\b/gi, 'Figma'],
   [/\blucid(?:e)?(?=\s+icons?\b)/gi, 'Lucide'],
   [/\b(?:double\s?u|w)\s?cag\b/gi, 'WCAG'],
-  [/\batlas\b/gi, 'Atlas'],
   [/\ba\s?o\s?p\b/gi, 'AOP'],
   [/\be\s(vals?)\b/gi, 'e$1'],
 ];
