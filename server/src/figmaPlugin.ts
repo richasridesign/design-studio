@@ -124,6 +124,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
     } else if (m.t === 'shown' && conn.embed) {
       // Which connection is followed first changes with this, so who is told Claude edits is worked out again.
       const shown = m.on === true;
+      if (shown) conn.readsOffUntil = 0;
       if (shown !== conn.shown && conns.has(conn)) {
         conn.shown = shown;
         hooks.page?.();
@@ -263,17 +264,21 @@ export function pluginForget(conn: Conn) {
   } catch {}
 }
 
-/** After Figma did not start a plugin's read, its reads go to Claude for this long, or until it says hello or changes page. */
-export const READS_OFF_MS = 60_000;
+/**
+ * After Figma did not start a plugin's read, its reads go to Claude for this long, or until it says hello, changes page
+ * or is shown. Under a few minutes, a chat bounced between "the plugin is not running" and "use the plugin".
+ */
+export const READS_OFF_MS = 5 * 60_000;
 
 /**
- * The connections in this file that can run this read, best first: the Figma view in the Design Studio window (shown,
- * then hidden), which is Design Studio's own, then the Figma app's plugin, which shares her Figma app. Only by the
+ * The connections in this file that can run this read, best first: the Figma view in the Design Studio window when
+ * shown, which is Design Studio's own, then the Figma app's plugin, which shares her Figma app, then the hidden view. Only by the
  * file's key: a plugin matched by name could be in another file of that name, and what a read gives is kept (the
  * map, history.md) or acted on (the restack). One that Figma does not answer is left out: its reads would wait.
  */
 export function readersFor(fileKey: string, read: string): Conn[] {
-  const rank = (c: Conn) => (c.embed ? (c.shown ? 0 : 1) : 2);
+  // A hidden Figma view often never starts a read (4 s lost each time), so the Figma app's plugin goes before it.
+  const rank = (c: Conn) => (c.embed ? (c.shown ? 0 : 2) : 1);
   const now = Date.now();
   return [...conns]
     .filter((c) => c.ws.readyState === OPEN && !c.stalled && c.readsOffUntil <= now && c.reads.includes(read) && c.key === fileKey)

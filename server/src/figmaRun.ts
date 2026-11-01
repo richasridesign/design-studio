@@ -32,7 +32,10 @@ export async function runScript(fileKey: string, code: string, signal?: AbortSig
   if (!conns.length) return { content: [{ type: 'text', text: NO_PLUGIN(fileKey) }], isError: true };
   let last = '';
   for (const conn of conns) {
+    const t0 = Date.now();
     const r = await pluginReadCall(conn, SCRIPT_READ, { code }, { ms: RUN_MS, signal });
+    const inFigma = (r as { value?: { ms?: number } }).value?.ms;
+    console.log(`figma script: ${Date.now() - t0} ms through ${conn.embed ? 'the Figma view' : 'the Figma app'}${inFigma === undefined ? '' : `, ${inFigma} ms in Figma`}, ${code.length} chars`);
     if ('value' in r) return toResult(r.value);
     last = r.error;
     // Only a script Figma never started may go to the next plugin: one that ran may have edited already.
