@@ -479,6 +479,8 @@ button.link:hover { background: transparent; text-decoration: underline; }
 .ctx-line { display: flex; align-items: center; gap: 8px; padding: 0 2px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); }
 .ctx-line b { color: var(--err); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ctx-line .codicon { color: var(--claude); }
+.ctx-line.figma-slow { align-items: flex-start; }
+.ctx-line.figma-slow .codicon { color: var(--warn); }
 .ctx-line .link { font-size: var(--text-xs); line-height: 16px; margin-left: auto; }
 .brief-status { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .brief .tr { padding: 4px 8px 0 0; }

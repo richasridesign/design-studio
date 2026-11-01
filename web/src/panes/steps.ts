@@ -67,7 +67,8 @@ export function stepLabel(name: string, input: Record<string, unknown>, cwd = ''
   }
   if (name.startsWith('mcp__')) {
     const [, server, ...tool] = name.split('__');
-    const figma = /figma/i.test(server) ? figmaLabel(tool.join('__'), s) : null;
+    // Design Studio's own use_figma and get_screenshot run in its plugin: they read like the Figma MCP's.
+    const figma = /figma/i.test(server) || (server === 'designstudio' && /^(use_figma|get_screenshot)$/.test(tool.join('__'))) ? figmaLabel(tool.join('__'), s) : null;
     if (figma) return figma;
     return { verb: 'Called', object: `${tool.join('__')} (${server})` };
   }

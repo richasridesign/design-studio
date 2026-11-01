@@ -16,6 +16,7 @@ import { runningText } from '../StatusBar';
 import { WorkflowPanel } from './Workflow';
 import { stepLabel } from './steps';
 import { Brainstorm, BrainstormLine } from './Brainstorm';
+import { FigmaSpeedLine } from './FigmaSpeed';
 
 export function nextSteps(events: ChatEvent[]) {
   let next: string[] = [];
@@ -174,6 +175,7 @@ export function Brief(expand: Expand) {
       <div className="brief-input">
         <LongRunLine />
         <BrainstormLine />
+        <FigmaSpeedLine />
         <Composer />
         {compacting ? (
           <div className="ctx-line"><Icon name="loading" small spin /> Compacting the conversation…</div>

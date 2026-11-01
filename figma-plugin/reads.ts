@@ -1,9 +1,11 @@
 // Design Studio's background reads of a file, run by the plugin (agent.ts) when the server asks for one by name.
-// The server sends a name and plain arguments, never code. Each read is the same Plugin API code as the use_figma
+// The server sends a name and plain arguments. The one exception is script (run.ts): a chat's own Figma script, which
+// does edit. Each other read is the same Plugin API code as the use_figma
 // body the server sends through Claude when no plugin runs in the file (fileMap.ts MAP_SCRIPT, figmaCache.ts
 // OUTLINE_SCRIPT and containingScript, dsSources.ts FIGMA_KIT_BODY, history.ts stickyScript, iterations.ts
 // READ_SCRIPT), so both give the same value. server/src/figmaReads.test.ts runs both on one fake file to keep it so.
 // All of them only read: pages are loaded, never switched to, and nothing is set.
+import { script } from './run';
 
 const ids = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200).slice(0, max) : []);
 const word = (v: unknown, fallback: string) => (typeof v === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(v) ? v : fallback);
@@ -206,5 +208,6 @@ async function restack(figma: any, args: any) {
   return { section: { id: s.id, ...box(s) }, kids, below: below ? { id: below.id, ...box(below) } : null, above: above ? { id: above.id, ...box(above) } : null };
 }
 
-export const READS: Record<string, (figma: any, args: any) => Promise<unknown>> = { outline, map, kit, containing, stickies, restack };
+// script runs Claude's own code (run.ts); the others are Design Studio's fixed reads.
+export const READS: Record<string, (figma: any, args: any) => Promise<unknown>> = { outline, map, kit, containing, stickies, restack, script };
 export const READ_NAMES = Object.keys(READS);

@@ -64,6 +64,14 @@ const KEY = /^[A-Za-z0-9]{10,64}$/;
 /** Every PING_MS the server pings the plugin; a socket that answered nothing by the next ping is dead and dropped. */
 export const PING_MS = 10_000;
 
+const watchers = new Set<() => void>();
+
+/** Calls back whenever a plugin comes, goes or changes file; returns the way to stop. Chats show whether Figma is fast. */
+export function onPluginsChanged(cb: () => void) {
+  watchers.add(cb);
+  return () => void watchers.delete(cb);
+}
+
 export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
   const conn: Conn = { ws, key: null, name: '', page: '', pageName: '', followKey: null, pending: new Map(), stalled: false, editing: false, embed: false, shown: false, screen: '', reads: [], reading: new Map(), readsOffUntil: 0 };
   // A plugin window that Figma froze or a Mac that slept leaves a socket open on this side with nobody behind it:
@@ -107,6 +115,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
       conns.add(conn);
       console.log(`figma ${conn.embed ? 'in the Design Studio window' : 'plugin'}: running in "${conn.name}" (${conn.key ?? 'no file key, matched by name'}), page "${conn.pageName}"`);
       hooks.changed();
+      watchers.forEach((w) => w());
     } else if (m.t === 'page' && conns.has(conn)) {
       conn.readsOffUntil = 0;
       conn.page = str(m.pageId, 64);
@@ -164,6 +173,7 @@ export function openFigmaPlugin(ws: PluginSocket, hooks: PluginHooks) {
     conn.pending.clear();
     [...conn.reading.values()].forEach((r) => r.done({ error: 'the plugin closed' }));
     hooks.changed();
+    watchers.forEach((w) => w());
   });
 }
 

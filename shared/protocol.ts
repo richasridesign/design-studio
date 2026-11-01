@@ -66,6 +66,8 @@ export type SessionInfo = {
   editsAnywhere?: boolean;
   /** Brainstorm mode: Claude reads Figma but every write is denied until she builds. */
   brainstorm?: boolean;
+  /** Design Studio's plugin runs scripts in this chat's file, so Figma calls are fast; false means the slow Figma MCP. */
+  figmaFast?: boolean;
 };
 
 export type McpTool = { name: string; description?: string; readOnly?: boolean; destructive?: boolean };

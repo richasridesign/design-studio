@@ -17,6 +17,7 @@ import { FrameNames } from '../FrameNames';
 import { FoldButton, FoldLine, useFold } from '../Fold';
 import { buildTranscript, duration, firstLine, groupTurns, recentTurns, relPath, stepLabel, stepsSummary, timelineTurns, type Block, type Item, type ToolResult, type ToolUse, type Turn } from './steps';
 import { MakeRule } from './MakeRule';
+import { expectedTime, useElapsed } from './FigmaSpeed';
 import { press } from '../press';
 import { LongRunReport } from './LongRun';
 import { focusReview } from './reviewFocus';
@@ -524,7 +525,10 @@ function StepView({ use, result, cwd }: { use: ToolUse; result?: ToolResult; cwd
   const [open, setOpen] = useState(false);
   const { verb, object, mono } = stepLabel(use.name, use.input, cwd);
   const state = !result ? 'pending' : result.isError ? 'err' : 'ok';
-  const dur = result ? duration(result.at - use.at) : '';
+  // A Figma call still running shows its seconds so far and what it should take on its path.
+  const expect = !result ? expectedTime(use.name) : null;
+  const secs = useElapsed(use.at, !!expect);
+  const dur = result ? duration(result.at - use.at) : expect ? `${secs}s · ${expect}` : '';
   return (
     <div className={`tr-step tr-act ${state} ${open ? 'open' : ''}`} aria-expanded={open} onClick={() => setOpen((v) => !v)} {...press(() => setOpen((v) => !v))}>
       <span className="tr-mark">{state === 'pending' ? <Icon name="loading" small spin /> : state === 'err' ? <Icon name="close" small /> : <i className="tr-hex" />}</span>

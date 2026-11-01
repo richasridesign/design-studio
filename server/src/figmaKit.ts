@@ -401,8 +401,11 @@ export const FIGMA_KIT = `const DS = (() => {
     if (s.length <= 18000) return value;
     return { truncated: true, note: 'The result was cut to fit: return fewer fields.', head: s.slice(0, 17000) };
   }
-  async function shot(n, opts) { n = await get(n); await n.screenshot(opts); return n.id; }
-  return { node, page, section, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot };
+  // In Design Studio's plugin the script gets __dsShot (figma-plugin/run.ts); use_figma has node.screenshot instead.
+  async function shot(n, opts) { n = await get(n); if (typeof __dsShot === 'function') await __dsShot(n, opts); else await n.screenshot(opts); return n.id; }
+  // Only the properties this node has: a section has no layout ones, and reading one throws.
+  function props(n, keys) { const out = {}; for (const k of keys) if (k in n) out[k] = n[k]; return out; }
+  return { node, page, section, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot, props };
 })();`;
 
 /** Short reference for Claude, kept next to the code so the two stay in step. */
@@ -418,6 +421,8 @@ export const KIT_GUIDE = [
   '- DS.option(flowSubsection|id, { id: "A", name: "Cards", iteration: "1.19" }): finds or makes the low fidelity option subsection "V1.19 · Flow 3 · Option A: Cards" inside the flow subsection, lines the options up 400px apart and fits the flow subsection. Put the option\'s screens in the returned node, then DS.fit it. DS.options(flowSubsection) lists [{ id, name, node }] for set_status options. Only the first screen of an option needs Decision stickies.',
   '- DS.check([ids]): hover missing or pointing at the wrong variant (Disabled, Selected and other fixed states are skipped), Disabled instances with any reaction but a hover tooltip overlay (disabledReacts: clear them with setReactionsAsync([])), children outside their frame, overlaps in the section, screens with fewer than 3 Decision stickies. DS.overlaps(parent). DS.tree(node, depth=2): compact layer list for discovery.',
   '- DS.shot(node|id): screenshot returned inline with the result, so no get_screenshot call is needed. DS.done(value) keeps the return value under the size limit.',
+  '- DS.props(node, ["layoutSizingVertical", "paddingBottom"]): only the properties the node has (a section has no layout properties, and reading one throws and fails the whole call).',
+  '- Search by type: page.findAllWithCriteria({ types: ["TEXT"] }).filter(...), not page.findAll(n => n.type === "TEXT" && ...), which runs your function on every layer.',
   '- Await DS.node, DS.page, DS.section, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
   'Example, one call that fixes, checks and shows: const s = await DS.node("1:31"); await DS.wireHover(DS.one(s, "~Button", "INSTANCE")); const t = DS.one(s, "~Toast"); DS.moveTo(t, DS.box(s)[0] + (s.width - t.width) / 2, DS.box(s)[1] + 24); await DS.shot(s); return DS.done({ check: await DS.check([s.id]) });',
 ].join('\n');

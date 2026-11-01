@@ -131,6 +131,44 @@
     };
   }
 
+  // figma-plugin/run.ts
+  var SHOT_MAX = 1568;
+  var AsyncFn = Object.getPrototypeOf(async function() {
+  }).constructor;
+  function guarded(figma2) {
+    return new Proxy(figma2, {
+      get(t, k) {
+        if (k === "closePlugin" || k === "showUI") return () => {
+        };
+        const v = t[k];
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+      set(t, k, v) {
+        t[k] = v;
+        return true;
+      }
+    });
+  }
+  async function script(figma2, args) {
+    const shots = [];
+    const shoot = async (n) => {
+      const long = Math.max(n.width || 1, n.height || 1);
+      const bytes = await n.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: Math.min(1, SHOT_MAX / long) } });
+      shots.push({ id: n.id, png: figma2.base64Encode(bytes) });
+    };
+    const before = figma2.currentPage;
+    const t = Date.now();
+    try {
+      const value = await new AsyncFn("figma", "__dsShot", String(args.code))(guarded(figma2), shoot);
+      return { value: value === void 0 ? null : value, ms: Date.now() - t, shots };
+    } finally {
+      try {
+        if (figma2.currentPage !== before) await figma2.setCurrentPageAsync(before);
+      } catch (e) {
+      }
+    }
+  }
+
   // figma-plugin/reads.ts
   var ids = (v, max) => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 200).slice(0, max) : [];
   var word = (v, fallback) => typeof v === "string" && /^[A-Za-z0-9_]{1,64}$/.test(v) ? v : fallback;
@@ -359,7 +397,7 @@
     const above = aboveAll.length ? aboveAll.reduce((a2, b) => b.y + b.height > a2.y + a2.height ? b : a2) : null;
     return { section: __spreadValues({ id: s.id }, box(s)), kids, below: below ? __spreadValues({ id: below.id }, box(below)) : null, above: above ? __spreadValues({ id: above.id }, box(above)) : null };
   }
-  var READS = { outline, map, kit, containing, stickies, restack };
+  var READS = { outline, map, kit, containing, stickies, restack, script };
   var READ_NAMES = Object.keys(READS);
 
   // figma-plugin/agent.ts

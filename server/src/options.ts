@@ -10,6 +10,7 @@ import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER, RUN_ENV } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
+import { runScript, screenshot, slowFigmaRefusal, SLOW_SHOT_MATCHER } from './figmaRun.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -20,10 +21,11 @@ export function figmaSpeed(mapFile: string | null) {
   return [
     'Working fast in Figma: most of the time goes into round trips, so make each call count.',
     mapFile ? `- File map: ${mapFile} (read in the background when the chat opens; if it is not there yet, call mcp__designstudio__refresh_file_map) lists every page, section and screen (ids, sizes, positions), component sets with their setProperties keys and Hover variants, variables and styles. Grep it for names before reading Figma, and only read Figma for what it does not have (layers inside a screen). If an id from it is gone, call mcp__designstudio__refresh_file_map.` : '',
+    '- Read and edit Figma with mcp__designstudio__use_figma and take screenshots with mcp__designstudio__get_screenshot: they run in Design Studio\'s plugin inside the open file, in well under a second, with no session. The Figma MCP\'s use_figma and get_screenshot take 5 to 40 s a call and are refused while the plugin runs. Use them only when a Design Studio tool says the plugin is not running.',
     '- One call per change: find, edit and check in the same use_figma script. End it with DS.check([changed screen ids]) and DS.shot(screen) so the result carries the checks and a screenshot. Do not read, edit, read again and then call get_screenshot.',
     '- Put independent reads (or edits on different pages) in one message as parallel calls.',
     '- Do not call figma.saveVersionHistoryAsync: use_figma does not support it and the whole call fails. Figma keeps its own version history.',
-    '- Load the Figma tools you need in one ToolSearch call, create_session included (Figma wants a session before any file call), for example select:mcp__plugin_figma_figma__create_session,mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
+    '- Only when falling back to the Figma MCP: load its tools in one ToolSearch call, create_session included (Figma wants a session before any file call), for example select:mcp__plugin_figma_figma__create_session,mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
     '- When you start a subagent for Figma work, give it the node ids it needs from the map.',
     KIT_GUIDE,
   ].filter(Boolean).join('\n');
@@ -105,6 +107,22 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
           if (cwd && picked) await workflowEvent(cwd, { type: 'pick', id: picked.id, why: picked.why, at: Date.now() }).catch((err) => console.error(`workflow: ${String(err)}`));
           return { content: [{ type: 'text', text: 'ok' }] };
         },
+      ),
+      tool(
+        'use_figma',
+        'Runs a Figma Plugin API script in the open file through Design Studio\'s plugin, in well under a second. Same as the Figma MCP\'s use_figma: code is the body of an async function with figma in scope, its return value comes back, DS helpers are added, and DS.shot screenshots come back as images. No create_session needed.',
+        {
+          fileKey: z.string().max(64),
+          code: z.string().max(50_000),
+          description: z.string().max(200).optional().describe('A few words on what the script does, shown to the designer.'),
+        },
+        async ({ fileKey, code }, extra) => runScript(fileKey, code, (extra as { signal?: AbortSignal } | undefined)?.signal),
+      ),
+      tool(
+        'get_screenshot',
+        'A PNG screenshot of one Figma node, through Design Studio\'s plugin.',
+        { fileKey: z.string().max(64), nodeId: z.string().max(80) },
+        async ({ fileKey, nodeId }, extra) => screenshot(fileKey, nodeId, (extra as { signal?: AbortSignal } | undefined)?.signal),
       ),
       ...(onBrainstorm
         ? [
@@ -217,7 +235,7 @@ export function agentOptions(o: {
     toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
     canUseTool: o.canUseTool,
     hooks: {
-      PreToolUse: [{ matcher: OWN_TOOLS_MATCHER, hooks: [allowOwnTools] }, { matcher: FIGMA_WRITE_MATCHER, hooks: [o.beforeFigma] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
+      PreToolUse: [{ matcher: OWN_TOOLS_MATCHER, hooks: [allowOwnTools] }, { matcher: FIGMA_WRITE_MATCHER, hooks: [o.beforeFigma] }, { matcher: SLOW_SHOT_MATCHER, hooks: [async (input) => slowFigmaRefusal((input as { tool_name: string }).tool_name, ((input as { tool_input?: object }).tool_input ?? {}) as Record<string, unknown>, o.figma?.key) ?? {}] }, ...(o.beforeAgent ? [{ matcher: '^(Agent|Task)$', hooks: [o.beforeAgent] }] : []), { matcher: '^(Write|Edit|MultiEdit|NotebookEdit)$', hooks: [historyGuard(o.cwd)] }],
       PostToolUse: [{ hooks: [o.afterTool] }, { matcher: 'mcp__.*use_figma', hooks: [historyAfterFigma(o.cwd)] }],
       ...(o.afterFigmaFailure ? { PostToolUseFailure: [{ matcher: 'mcp__.*use_figma', hooks: [o.afterFigmaFailure] }] } : {}),
     },

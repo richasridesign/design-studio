@@ -24,6 +24,8 @@ import { stepPrompt, workflowNote } from '../../shared/workflow.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
+import { pluginRuns, slowFigmaRefusal } from './figmaRun.js';
+import { onPluginsChanged } from './figmaPlugin.js';
 import { SAMPLE_KEY } from './figma.js';
 import { acquireWrite } from './figmaLock.js';
 import { chatContext, readProject } from './project.js';
@@ -125,6 +127,16 @@ export class AgentSession {
       brainstorm: [],
     };
     this.approvals = new Approvals(this.state, (m) => this.emit(m));
+    this.state.session.figmaFast = figma ? pluginRuns(figma.key) : undefined;
+    this.offPlugins = onPluginsChanged(() => this.syncFigmaFast());
+  }
+
+  private offPlugins: () => void;
+
+  /** Whether Figma calls in this chat go through the plugin (fast) or the Figma MCP (slow), for the chat's notice. */
+  private syncFigmaFast() {
+    const fast = this.figma ? pluginRuns(this.figma.key) : undefined;
+    if (fast !== this.state.session.figmaFast) this.setSession({ figmaFast: fast });
   }
 
   get figmaFile() {
@@ -139,7 +151,8 @@ export class AgentSession {
     this.mapRead = 0;
     void ensureMapSoon(this.cwd, figma.key);
     this.setSession({ figma });
-    if (this.q) this.figmaNote = `A Figma file is now attached to this chat: "${figma.name}" (${figma.url}, file key ${figma.key}). Use the Figma MCP tools on that file from now on.`;
+    this.syncFigmaFast();
+    if (this.q) this.figmaNote = `A Figma file is now attached to this chat: "${figma.name}" (${figma.url}, file key ${figma.key}). Use mcp__designstudio__use_figma on that file from now on.`;
     this.system(`Attached ${figma.name}`);
   }
 
@@ -185,6 +198,7 @@ export class AgentSession {
 
   close() {
     this.closed = true;
+    this.offPlugins();
     this.unlock();
     if (this.figma) markTurn(this.figma.key, this.id, false);
     this.endLongRun('stopped', 'ended');
@@ -372,6 +386,9 @@ export class AgentSession {
       if (frozen) return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: frozen } };
     }
     if (!script) return {};
+    // The Figma MCP's use_figma is the slow path: refused while Design Studio's plugin can run the script.
+    const slow = slowFigmaRefusal(input.tool_name, call, this.figma?.key);
+    if (slow) return slow;
     // An edit waits for the file's write lock, so two chats on one file never run their scripts at the same time.
     const key = this.figma?.key;
     if (key && key !== SAMPLE_KEY && typeof call.code === 'string' && figmaEdits(call.code)) {
