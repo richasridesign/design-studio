@@ -24,7 +24,7 @@ import { stepPrompt, workflowNote } from '../../shared/workflow.js';
 import { addDaily, addSpend, emptySpend, loadChatSpend, modelTokens, saveChatSpend } from './spend.js';
 import { buildMap, cachedMap, ensureMapSoon, locate, mapFiles, mapSummary, type FileMap } from './fileMap.js';
 import { prepareFigmaCall, type FigmaCall } from './figmaKit.js';
-import { pluginRuns, slowFigmaRefusal } from './figmaRun.js';
+import { PLUGIN_MAX_CODE, pluginRuns, slowFigmaRefusal } from './figmaRun.js';
 import { onPluginsChanged } from './figmaPlugin.js';
 import { SAMPLE_KEY } from './figma.js';
 import { acquireWrite } from './figmaLock.js';
@@ -408,7 +408,7 @@ export class AgentSession {
       const named = touchedIds(call.code).slice(0, 20);
       if (named.length) this.onFocus(named, true);
     }
-    const next = prepareFigmaCall(call);
+    const next = prepareFigmaCall(call, input.tool_name.startsWith('mcp__designstudio__') ? PLUGIN_MAX_CODE : undefined);
     return next ? { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: next } } : {};
   }
 

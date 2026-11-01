@@ -46,22 +46,25 @@ export const FIGMA_KIT = `const DS = (() => {
     if (s.startsWith('~')) { const t = s.slice(1).toLowerCase(); return (n) => String(n.name).toLowerCase().includes(t); }
     return (n) => n.name === s;
   }
-  function find(root, m, type) {
+  // { where: true } gives [{ id, name, type, text, where }] instead of nodes. A text layer as root is searched as itself.
+  function find(root, m, type, opts) {
+    if (type && typeof type === 'object' && !Array.isArray(type)) { opts = type; type = null; }
     sure(root, 'DS.find');
     const ok = matcher(m);
     const types = type ? [].concat(type) : null;
-    const list = types && root.findAllWithCriteria ? root.findAllWithCriteria({ types }) : root.findAll ? root.findAll(() => true) : [];
-    return list.filter((n) => ok(n));
+    const list = !('children' in root) ? [root].filter((n) => !types || types.includes(n.type)) : types && root.findAllWithCriteria ? root.findAllWithCriteria({ types }) : root.findAll(() => true);
+    return found(list.filter((n) => ok(n)), opts);
   }
   function one(root, m, type) {
-    const hit = find(root, m, type);
+    const hit = find(root, m, type && typeof type === 'object' && !Array.isArray(type) ? null : type);
     if (!hit.length) throw new Error('Nothing named ' + String(m) + (type ? ' (' + type + ')' : '') + ' inside ' + root.name + ' (' + root.id + ').');
     return hit[0];
   }
-  function texts(root, m) {
+  function texts(root, m, opts) {
     sure(root, 'DS.texts');
     const ok = typeof m === 'function' ? m : m instanceof RegExp ? (t) => m.test(t) : (t) => t.includes(String(m));
-    return root.findAllWithCriteria({ types: ['TEXT'] }).filter((t) => ok(t.characters));
+    const list = root.type === 'TEXT' ? [root] : root.findAllWithCriteria ? root.findAllWithCriteria({ types: ['TEXT'] }) : [];
+    return found(list.filter((t) => ok(t.characters)), opts);
   }
   async function fonts(t) {
     const list = t.characters.length ? t.getRangeAllFontNames(0, t.characters.length) : [t.fontName];
@@ -302,11 +305,12 @@ export const FIGMA_KIT = `const DS = (() => {
     }
     let removed = 0;
     for (const h of have) if (h.n > list.length || !h.n) { if (nodes.indexOf(h.node) < 0) { h.node.remove(); removed++; } }
-    // Layout: 96px under the screen, 16px apart, as many per row as fit the screen's width; one height per row.
+    // Layout: 96px under the screen (32px under its Flow note), 16px apart, as many per row as fit the screen's width; one height per row.
     const sb = box(screen);
     const w = Math.round(nodes[0].width);
     const cols = Math.max(1, Math.floor((sb[2] + 16) / (w + 16)));
-    let y = sb[1] + sb[3] + 96;
+    const nt = noteUnder(screen);
+    let y = nt ? box(nt)[1] + box(nt)[3] + 32 : sb[1] + sb[3] + 96;
     for (let r = 0; r * cols < nodes.length; r++) {
       const row = nodes.slice(r * cols, r * cols + cols);
       for (const s of row) { try { s.layoutSizingVertical = 'HUG'; } catch (e) { /* not auto layout */ } }
@@ -405,7 +409,383 @@ export const FIGMA_KIT = `const DS = (() => {
   async function shot(n, opts) { n = await get(n); if (typeof __dsShot === 'function') await __dsShot(n, opts); else await n.screenshot(opts); return n.id; }
   // Only the properties this node has: a section has no layout ones, and reading one throws.
   function props(n, keys) { const out = {}; for (const k of keys) if (k in n) out[k] = n[k]; return out; }
-  return { node, page, section, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot, props };
+  // Where a layer sits, in the file's own terms (docs/figma-api.md): version section, flow subsection, option,
+  // screen and its number, the label above the layer, and the instance it is part of.
+  const NOT_SCREEN = /^\\s*(decision|flow note|scenario note|arrow|goal)\\b/i;
+  const isScreen = (n) => (n.type === 'FRAME' || n.type === 'COMPONENT') && !!n.parent && (n.parent.type === 'SECTION' || n.parent.type === 'PAGE') && !NOT_SCREEN.test(String(n.name)) && n.width >= 240 && n.height >= 240;
+  const topLevel = (n) => (n.type === 'FRAME' || n.type === 'COMPONENT' || n.type === 'INSTANCE') && !!n.parent && (n.parent.type === 'SECTION' || n.parent.type === 'PAGE');
+  const numberOf = (name) => { const m = /^\\s*(\\d+(?:\\.\\d+)*[a-z]?)(?![\\w.])/.exec(String(name)); return m ? m[1] : undefined; };
+  const screenOf = (n) => { for (let p = n; p; p = p.parent) if (isScreen(p)) return p; return null; };
+  const brief = (n) => ({ id: n.id, name: n.name });
+  const labels = new Map();
+  function labelAbove(n, scr) {
+    if (!scr || n === scr) return undefined;
+    let list = labels.get(scr.id);
+    if (!list) { list = scr.findAllWithCriteria({ types: ['TEXT'] }).filter((t) => t.visible !== false && String(t.characters).trim()).map((t) => ({ t, b: box(t) })); labels.set(scr.id, list); }
+    const b = box(n);
+    let best = null, gap = Infinity;
+    for (const x of list) {
+      if (x.t === n) continue;
+      const g = b[1] - (x.b[1] + x.b[3]);
+      if (g < -2 || g > 400 || x.b[0] > b[0] + b[2] || x.b[0] + x.b[2] < b[0]) continue;
+      if (g < gap) { gap = g; best = x.t; }
+    }
+    return best ? short(best.characters, 80) : undefined;
+  }
+  function where(n) {
+    sure(n, 'DS.where');
+    const out = { page: '' };
+    let scr = null, inst = null;
+    for (let p = n; p && p.type !== 'DOCUMENT'; p = p.parent) {
+      if (p.type === 'PAGE') out.page = p.name;
+      else if (p.type === 'SECTION') {
+        const o = optionId(p);
+        if (o) out.option = out.option || o;
+        else if (p.parent && p.parent.type === 'PAGE') out.version = brief(p);
+        else if (!out.flow) out.flow = brief(p);
+      } else if (!scr && isScreen(p)) scr = p;
+      else if (!scr && p.type === 'INSTANCE') inst = p;
+    }
+    if (scr) {
+      out.screen = brief(scr);
+      const num = numberOf(scr.name);
+      if (num) out.screen.number = num;
+      const l = labelAbove(n, scr);
+      if (l) out.label = l;
+    }
+    if (inst && inst !== n) out.inInstance = { id: inst.id, component: inst.name };
+    return out;
+  }
+  const found = (list, opts) => (opts && opts.where ? list.map((n) => { const o = { id: n.id, name: n.name, type: n.type }; if (n.type === 'TEXT') o.text = short(n.characters, 160); o.where = where(n); return o; }) : list);
+
+  // Screens by number ("3.1") or name, in flow order (rows top to bottom, then left to right).
+  function screensIn(root) {
+    const out = [];
+    const walk = (p) => { for (const k of p.children || []) { if (k.type === 'SECTION') walk(k); else if (isScreen(k)) out.push(k); } };
+    if (isScreen(root)) out.push(root); else walk(root);
+    const key = (n) => { const b = box(n); return [Math.round(b[1] / 200), b[0]]; };
+    return out.sort((a, b) => { const A = key(a), B = key(b); return A[0] - B[0] || A[1] - B[1]; });
+  }
+  async function screens(scope) {
+    const root = scope ? await get(scope) : figma.currentPage;
+    return screensIn(root).map((n) => { const o = brief(n); const num = numberOf(n.name); if (num) o.number = num; o.section = n.parent.name; return o; });
+  }
+  async function screen(ref, scope) {
+    if (ref && typeof ref === 'object') return get(ref);
+    const s = String(ref).trim();
+    if (/^\\d+[:-]\\d+$/.test(s)) return node(s);
+    const root = scope ? await get(scope) : figma.currentPage;
+    const all = screensIn(root);
+    let hit = all.filter((n) => numberOf(n.name) === s);
+    if (!hit.length) hit = all.filter((n) => String(n.name).trim() === s);
+    if (!hit.length) hit = all.filter((n) => String(n.name).toLowerCase().includes(s.toLowerCase()));
+    if (hit.length === 1) return hit[0];
+    const list = (hit.length ? hit : all).slice(0, 12).map((n) => n.name + ' (' + n.id + ')').join(', ');
+    throw new Error(hit.length ? 'DS.screen: ' + hit.length + ' screens match "' + s + '" in ' + root.name + ': ' + list + '. Pass the flow section as scope, or the full name.' : 'DS.screen: no screen "' + s + '" in ' + root.name + '. Screens there: ' + (list || 'none') + '.');
+  }
+
+  // A compact outline of what an edit needs: layout, variables, text, instances and overrides, prototype links.
+  async function describe(target, opts = {}) {
+    const depth = opts.depth == null ? 4 : opts.depth, max = opts.max || 300;
+    const cache = new Map();
+    const once = async (k, f) => { if (!cache.has(k)) { let v = null; try { v = await f(); } catch (e) { /* gone or not readable */ } cache.set(k, v); } return cache.get(k); };
+    const varName = async (id) => { const v = await once('v' + id, () => figma.variables.getVariableByIdAsync(id)); return v ? v.name : id; };
+    const nodeName = async (id) => { const v = await once('n' + id, () => figma.getNodeByIdAsync(id)); return v ? v.name : 'missing ' + id; };
+    const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+    async function paint(list) {
+      if (!Array.isArray(list)) return list && list.length === undefined ? 'mixed' : '';
+      const p = list.find((x) => x.visible !== false);
+      if (!p) return '';
+      if (p.type !== 'SOLID') return p.type.toLowerCase();
+      const v = p.boundVariables && p.boundVariables.color;
+      return (v ? await varName(v.id) : hex(p.color)) + (p.opacity != null && p.opacity < 1 ? ' ' + Math.round(p.opacity * 100) + '%' : '');
+    }
+    async function line(n, o) {
+      const b = box(n);
+      const out = [n.id, n.type, '"' + short(n.name, 50) + '"', b[2] + 'x' + b[3], '@' + (b[0] - o[0]) + ',' + (b[1] - o[1])];
+      if (n.visible === false) out.push('hidden');
+      if (n.layoutPositioning === 'ABSOLUTE') out.push('absolute');
+      if ('layoutMode' in n && n.layoutMode && n.layoutMode !== 'NONE') out.push('auto ' + (n.layoutMode === 'HORIZONTAL' ? 'H' : n.layoutMode === 'VERTICAL' ? 'V' : n.layoutMode) + ' pad ' + [n.paddingTop, n.paddingRight, n.paddingBottom, n.paddingLeft].join('/') + ' gap ' + n.itemSpacing + ' align ' + String(n.primaryAxisAlignItems).toLowerCase() + '/' + String(n.counterAxisAlignItems).toLowerCase());
+      try { if ('layoutSizingHorizontal' in n && ((n.layoutMode && n.layoutMode !== 'NONE') || (n.parent && n.parent.layoutMode && n.parent.layoutMode !== 'NONE'))) out.push('w:' + String(n.layoutSizingHorizontal).toLowerCase() + ' h:' + String(n.layoutSizingVertical).toLowerCase()); } catch (e) { /* no sizing here */ }
+      if ('fills' in n && n.type !== 'TEXT') { const f = await paint(n.fills); if (f) out.push('fill ' + f); }
+      if ('strokes' in n && n.strokes && n.strokes.length) { const s = await paint(n.strokes); if (s) out.push('stroke ' + (typeof n.strokeWeight === 'number' ? n.strokeWeight : 'mixed') + ' ' + s + (n.strokeAlign && n.strokeAlign !== 'INSIDE' ? ' ' + String(n.strokeAlign).toLowerCase() : '')); }
+      if (typeof n.cornerRadius === 'number' && n.cornerRadius) out.push('r ' + n.cornerRadius);
+      if ('effects' in n && n.effects && n.effects.length) out.push('effects ' + n.effects.filter((e) => e.visible !== false).map((e) => String(e.type).toLowerCase()).join('+'));
+      if (typeof n.opacity === 'number' && n.opacity < 1) out.push('opacity ' + Math.round(n.opacity * 100) + '%');
+      if (n.type === 'TEXT') {
+        const fn = n.fontName, lh = n.lineHeight;
+        const font = fn && typeof fn === 'object' ? fn.family + ' ' + fn.style : 'mixed font';
+        const lead = lh && typeof lh === 'object' ? (lh.unit === 'PIXELS' ? Math.round(lh.value) : lh.unit === 'PERCENT' ? lh.value + '%' : 'auto') : 'mixed';
+        out.push('"' + short(n.characters, 120) + '"', font + ' ' + (typeof n.fontSize === 'number' ? n.fontSize : 'mixed') + '/' + lead);
+        if (typeof n.textStyleId === 'string' && n.textStyleId) { const st = await once('s' + n.textStyleId, () => figma.getStyleByIdAsync(n.textStyleId)); if (st) out.push('style ' + st.name); }
+        const f = await paint(n.fills);
+        if (f) out.push(f);
+        if (n.textAutoResize && n.textAutoResize !== 'NONE') out.push(String(n.textAutoResize).toLowerCase().replace('_', ' '));
+      }
+      if (n.type === 'INSTANCE') {
+        const main = await once('m' + n.id, () => n.getMainComponentAsync());
+        out.push('of ' + (main && main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent.name : main ? main.name : '?'));
+        const props = n.componentProperties || {};
+        const shown = [];
+        for (const k of Object.keys(props)) {
+          const p = props[k];
+          shown.push(k.split('#')[0] + '=' + (p.type === 'INSTANCE_SWAP' ? await nodeName(p.value) : p.type === 'TEXT' ? '"' + short(p.value, 40) + '"' : p.value));
+        }
+        if (shown.length) out.push('{' + shown.join(', ') + '}');
+        const fields = new Map();
+        for (const o of n.overrides || []) for (const f of o.overriddenFields || []) fields.set(f, (fields.get(f) || 0) + 1);
+        if (fields.size) out.push('overrides ' + [...fields].map(([f, c]) => (c > 1 ? f + '×' + c : f)).join(' '));
+      }
+      if ('reactions' in n && n.reactions && n.reactions.length) {
+        for (const r of n.reactions) {
+          const p = plain(r);
+          for (const a of p.actions) out.push('→ ' + trigName(p.trigger) + ' ' + String(a.navigation || a.type || '').toLowerCase() + (a.destinationId ? ' ' + await nodeName(a.destinationId) : ''));
+        }
+      }
+      return out.join(' ');
+    }
+    const lines = [];
+    let cut = false;
+    async function walk(n, d, o) {
+      if (lines.length >= max) { cut = true; return; }
+      let l = '  '.repeat(d) + (await line(n, o));
+      const kids = 'children' in n && n.visible !== false ? n.children : [];
+      if (kids.length && d >= depth) l += ' [' + kids.length + ' inside]';
+      lines.push(l);
+      if (d < depth) for (const k of kids) await walk(k, d + 1, o);
+    }
+    for (const t of [].concat(target)) { const r = await get(t); await walk(r, 0, box(r).slice(0, 2)); }
+    if (cut) lines.push('… stopped at ' + max + ' lines: describe a deeper node, or pass { depth } or { max }');
+    return lines.join('\\n');
+  }
+
+  // Prototype links: read them all, or set one with the destination checked first.
+  const TRIG = { click: 'ON_CLICK', hover: 'ON_HOVER', press: 'ON_PRESS', drag: 'ON_DRAG', timeout: 'AFTER_TIMEOUT' };
+  const NAV = { navigate: 'NAVIGATE', overlay: 'OVERLAY', swap: 'SWAP', change: 'CHANGE_TO', scroll: 'SCROLL_TO' };
+  const trigName = (t) => (!t ? '?' : t.type === 'AFTER_TIMEOUT' ? 'after ' + t.timeout + 's' : String(t.type).replace(/^ON_/, '').toLowerCase());
+  async function links(root) {
+    root = await get(root);
+    const has = (n) => 'reactions' in n && !!n.reactions && n.reactions.length > 0;
+    const nodes = (has(root) ? [root] : []).concat(root.findAll ? root.findAll(has) : []);
+    const seen = new Map();
+    const look = async (id) => { if (!seen.has(id)) seen.set(id, await figma.getNodeByIdAsync(id)); return seen.get(id); };
+    const out = [];
+    for (const n of nodes) {
+      const s = screenOf(n);
+      for (const r of n.reactions) {
+        const p = plain(r);
+        for (const a of p.actions) {
+          if (out.length >= 400) return out.concat([{ note: 'Stopped at 400 links: pass a smaller root.' }]);
+          const d = a.destinationId ? await look(a.destinationId) : null;
+          const ds = d ? screenOf(d) : null;
+          const o = { from: n.id, fromName: short(n.name, 40), screen: s ? s.name : undefined, trigger: trigName(p.trigger), nav: String(a.navigation || a.type || '').toLowerCase() };
+          if (a.destinationId) { o.to = a.destinationId; o.toName = d ? short(d.name, 40) : 'missing'; if (ds && ds !== d) o.toScreen = ds.name; }
+          out.push(o);
+        }
+      }
+    }
+    return out;
+  }
+  async function link(from, to, opts = {}) {
+    from = await get(from);
+    to = await get(to);
+    const on = TRIG[opts.on || 'click'], nav = NAV[opts.nav || 'navigate'];
+    if (!on) throw new Error('DS.link: on is one of ' + Object.keys(TRIG).join(', ') + '.');
+    if (!nav) throw new Error('DS.link: nav is one of ' + Object.keys(NAV).join(', ') + '.');
+    if (!('reactions' in from)) throw new Error(from.name + ' (' + from.id + ') is a ' + from.type + ', which cannot have prototype links.');
+    if (nav === 'CHANGE_TO') {
+      const main = from.type === 'INSTANCE' ? await from.getMainComponentAsync() : from;
+      const set = main && main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : null;
+      if (!set || to.parent !== set) throw new Error('DS.link: change goes to a variant of ' + (set ? set.name : 'the same component set') + ', and ' + to.name + ' (' + to.id + ') is not one.');
+    } else {
+      const a = pageOf(from), b = pageOf(to);
+      if (a !== b) throw new Error('DS.link: ' + to.name + ' (' + to.id + ') is on page ' + (b ? b.name : '?') + ', not ' + (a ? a.name : '?') + '. Prototype links stay on one page.');
+      if (!topLevel(to)) throw new Error('DS.link: ' + to.name + ' (' + to.id + ') is not a top-level frame (a screen or overlay directly in a section). Point the link at the screen.');
+    }
+    const trigger = on === 'AFTER_TIMEOUT' ? { type: on, timeout: opts.seconds == null ? 2 : opts.seconds } : { type: on };
+    const action = { type: 'NODE', destinationId: to.id, navigation: nav, transition: null };
+    if (nav === 'OVERLAY' && opts.position) action.overlayRelativePosition = opts.position;
+    const keep = (from.reactions || []).filter((r) => !(r.trigger && r.trigger.type === on)).map(plain);
+    keep.push({ trigger, actions: [action] });
+    await from.setReactionsAsync(keep);
+    return { from: from.id, to: to.id, on: opts.on || 'click', nav: opts.nav || 'navigate' };
+  }
+
+  // A copy of a section whose links, Decision stickies and flow notes belong to the copy, not the source.
+  async function cloneSection(src, opts = {}) {
+    src = await get(src);
+    if (src.type !== 'SECTION') throw new Error('DS.cloneSection takes a section, not a ' + src.type + ': use DS.clone for a screen.');
+    const parent = src.parent;
+    const c = src.clone();
+    parent.insertChild(parent.children.indexOf(src) + 1, c);
+    if (opts.name) c.name = opts.name;
+    const sb = box(src);
+    if (opts.x != null || opts.y != null) moveTo(c, opts.x == null ? sb[0] : opts.x, opts.y == null ? sb[1] : opts.y);
+    else if (opts.below) { const b = box(await get(opts.below)); moveTo(c, b[0], b[1] + b[3] + (opts.gap == null ? 400 : opts.gap)); }
+    else {
+      // Under the lowest section in the source's column, so the copy never lands on another version.
+      let bottom = sb[1] + sb[3];
+      for (const k of parent.children) { if (k === c || k.type !== 'SECTION') continue; const b = box(k); if (b[0] < sb[0] + sb[2] && sb[0] < b[0] + b[2]) bottom = Math.max(bottom, b[1] + b[3]); }
+      moveTo(c, sb[0], bottom + (opts.gap == null ? 400 : opts.gap));
+    }
+    const a = [src].concat(src.findAll(() => true)), b = [c].concat(c.findAll(() => true));
+    if (a.length !== b.length) throw new Error('DS.cloneSection: the copy has ' + b.length + ' layers and the source ' + a.length + '; links were not moved. Check ' + c.id + '.');
+    const map = new Map();
+    a.forEach((n, i) => map.set(n.id, b[i]));
+    const page = pageOf(src);
+    let moved = 0, dropped = 0;
+    const failed = [];
+    for (const n of b) {
+      if ('reactions' in n && n.reactions && n.reactions.length) {
+        let changed = false;
+        const next = [];
+        for (const r of n.reactions) {
+          const p = plain(r);
+          const acts = [];
+          for (const x of p.actions) {
+            if (x && x.destinationId && map.has(x.destinationId)) { acts.push(Object.assign({}, x, { destinationId: map.get(x.destinationId).id })); moved++; changed = true; continue; }
+            // Hover and other variant changes point at the component, wherever it is. A screen link that leaves the page is dropped.
+            if (x && x.destinationId && x.navigation !== 'CHANGE_TO') {
+              const d = await figma.getNodeByIdAsync(x.destinationId);
+              if (!d || pageOf(d) !== page) { dropped++; changed = true; continue; }
+            }
+            acts.push(x);
+          }
+          if (acts.length) next.push({ trigger: p.trigger, actions: acts });
+        }
+        if (changed) { try { await n.setReactionsAsync(next); } catch (e) { failed.push(n.id + ': ' + e.message); } }
+      }
+      if (n.parent && n.parent.type === 'SECTION' && n.getSharedPluginData) {
+        for (const ns of [DNS, FNS]) for (const key of ['screen', 'from', 'to']) {
+          const v = n.getSharedPluginData(ns, key);
+          if (v && map.has(v)) n.setSharedPluginData(ns, key, map.get(v).id);
+        }
+      }
+    }
+    const pairs = {};
+    for (const n of a) if (n !== src && isScreen(n)) pairs[n.id] = map.get(n.id).id;
+    if (parent.type === 'SECTION') fit(parent);
+    return { section: c.id, screens: pairs, linksMoved: moved, linksDropped: dropped, failed: failed.slice(0, 10) };
+  }
+
+  // Flow notes, arrows and Branch labels, laid out by the design-process rules: a Note 96px under each screen with its
+  // Decision stickies 32px under the note, and between screens a 6px arrow 30px clear of each, 416px below the top,
+  // with a 300px Branch label naming the click under it. Tagged in their own namespace, so a rerun updates them.
+  const FNS = 'designstudio_flow';
+  const tagOf = (k, key) => (k.getSharedPluginData ? k.getSharedPluginData(FNS, key) : '');
+  const tagged = (sec, kind, to, from) => (sec.children || []).find((k) => tagOf(k, 'kind') === kind && tagOf(k, 'to') === to && (from == null || tagOf(k, 'from') === from));
+  const tag = (k, kind, to, from) => { k.setSharedPluginData(FNS, 'kind', kind); k.setSharedPluginData(FNS, 'to', to); if (from) k.setSharedPluginData(FNS, 'from', from); };
+  const near = (k, x, y, d) => { const b = box(k); return Math.abs(b[0] - x) < d && Math.abs(b[1] - y) < d; };
+  let flowSet = null;
+  async function flowVariant(scr, type) {
+    if (!flowSet) {
+      const inst = (scr.parent.children || []).find((k) => k.type === 'INSTANCE' && /^flow note/i.test(String(k.name)));
+      const m = inst ? await inst.getMainComponentAsync() : null;
+      if (m && m.parent && m.parent.type === 'COMPONENT_SET') flowSet = m.parent;
+      const look = (root) => (root.findAllWithCriteria ? root.findAllWithCriteria({ types: ['COMPONENT_SET'] }) : []).find((c) => /^flow note$/i.test(String(c.name).trim()));
+      if (!flowSet) flowSet = look(pageOf(scr) || figma.currentPage);
+      for (const pg of flowSet ? [] : figma.root.children) { if (pg.loadAsync) await pg.loadAsync(); flowSet = look(pg); if (flowSet) break; }
+      if (!flowSet) throw new Error('No Flow note component: a component set named "Flow note" with Type=Note and Type=Branch label.');
+    }
+    return flowSet.children.find((c) => Object.values(c.variantProperties || {}).some((v) => String(v).toLowerCase() === type.toLowerCase())) || flowSet.defaultVariant || flowSet.children[0];
+  }
+  async function noteText(inst, vals) {
+    const props = inst.componentProperties || {};
+    const set = {};
+    for (const k of Object.keys(vals)) {
+      if (vals[k] == null) continue;
+      const key = Object.keys(props).find((p) => props[p].type === 'TEXT' && p.split('#')[0].trim().toLowerCase() === k.toLowerCase());
+      if (key) set[key] = String(vals[k]);
+    }
+    if (!Object.keys(set).length) throw new Error('The Flow note component has no Step, Title or Body text property.');
+    for (const t of inst.findAll ? inst.findAll((x) => x.type === 'TEXT') : []) await fonts(t);
+    inst.setProperties(set);
+  }
+  function noteUnder(scr) {
+    const sec = scr.parent, sb = box(scr);
+    if (!sec || !sec.children) return null;
+    return tagged(sec, 'note', scr.id) || sec.children.find((k) => k.type === 'INSTANCE' && /^flow note/i.test(String(k.name)) && !/label/i.test(String(k.name)) && !tagOf(k, 'kind') && near(k, sb[0], sb[1] + sb[3] + 96, 120)) || null;
+  }
+  async function note(scr, item = {}) {
+    scr = await get(scr);
+    const sec = scr.parent;
+    if (!sec || sec.type !== 'SECTION') throw new Error(scr.name + ' (' + scr.id + ') is not in a section.');
+    let n = noteUnder(scr);
+    if (!n) {
+      n = (await flowVariant(scr, 'Note')).createInstance();
+      sec.appendChild(n);
+      const other = sec.children.find((k) => k !== n && tagOf(k, 'kind') === 'note');
+      if (other) n.resize(Math.round(other.width), n.height);
+    }
+    const step = item.step || numberOf(scr.name) || '';
+    tag(n, 'note', scr.id);
+    n.name = 'Flow note · ' + (step || scr.name);
+    await noteText(n, { Step: step, Title: item.title, Body: item.body });
+    const sb = box(scr);
+    moveTo(n, sb[0], sb[1] + sb[3] + 96);
+    const st = stickiesOf(scr).map((s) => s.node);
+    if (st.length) { const top = Math.min(...st.map((s) => box(s)[1])); const dy = box(n)[1] + box(n)[3] + 32 - top; for (const s of st) moveTo(s, box(s)[0], box(s)[1] + dy); }
+    return n;
+  }
+  async function arrow(a, b, item = {}) {
+    a = await get(a);
+    b = await get(b);
+    const sec = b.parent;
+    const A = box(a), B = box(b);
+    const beside = A[0] + A[2] < B[0] && Math.abs(A[1] - B[1]) < 40;
+    const y = (beside ? A : B)[1] + 416;
+    const x2 = B[0] - 30, x1 = beside ? A[0] + A[2] + 30 : x2 - 260;
+    const len = Math.max(40, Math.round(x2 - x1));
+    let v = tagged(sec, 'arrow', b.id, a.id) || sec.children.find((k) => /^arrow/i.test(String(k.name)) && !tagOf(k, 'kind') && (k.type === 'VECTOR' || k.type === 'LINE') && near(k, x1, y, 40));
+    const ref = v || sec.children.find((k) => /^arrow/i.test(String(k.name)) && k.type === 'VECTOR');
+    if (!v || v.type !== 'VECTOR') {
+      if (v) v.remove();
+      v = figma.createVector();
+      sec.appendChild(v);
+      v.strokes = ref && ref.strokes && ref.strokes.length ? ref.strokes : [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.45 } }];
+    }
+    const net = { vertices: [{ x: 0, y: 0 }, { x: len, y: 0, strokeCap: 'ARROW_LINES' }], segments: [{ start: 0, end: 1 }], regions: [] };
+    if (v.setVectorNetworkAsync) await v.setVectorNetworkAsync(net); else v.vectorNetwork = net;
+    v.strokeWeight = 6;
+    const from = numberOf(a.name) || a.name, to = numberOf(b.name) || b.name;
+    v.name = 'arrow · ' + from + '-' + to;
+    tag(v, 'arrow', b.id, a.id);
+    moveTo(v, x1, y);
+    let l = tagged(sec, 'label', b.id, a.id) || sec.children.find((k) => k.type === 'INSTANCE' && /^flow note · label/i.test(String(k.name)) && !tagOf(k, 'kind') && near(k, x1 - 20, y + 20, 60));
+    if (!l) { l = (await flowVariant(b, 'Branch label')).createInstance(); sec.appendChild(l); }
+    tag(l, 'label', b.id, a.id);
+    l.name = 'Flow note · label ' + from + '-' + to;
+    await noteText(l, { Step: from, Title: item.click || '', Body: item.detail || '' });
+    l.resize(300, l.height);
+    moveTo(l, x1 - 20, y + 20);
+    return { arrow: v.id, label: l.id };
+  }
+  async function flow(scope, steps, opts = {}) {
+    scope = await get(scope);
+    const list = [].concat(steps || []);
+    if (!list.length) throw new Error('DS.flow needs the steps: [{ screen: "1", title, body }, { screen: "1.1", click: "Click Save", title, body }].');
+    const out = { notes: [], arrows: [], labels: [] };
+    const touched = new Set();
+    let prev = null;
+    for (const st of list) {
+      const s = await screen(st.screen, scope);
+      if (st.title || st.body) out.notes.push((await note(s, { step: st.step, title: st.title, body: st.body })).id);
+      const from = st.from != null ? await screen(st.from, scope) : prev;
+      if (st.click && from) { const r = await arrow(from, s, { click: st.click, detail: st.detail }); out.arrows.push(r.arrow); out.labels.push(r.label); }
+      prev = s;
+      touched.add(s.parent);
+    }
+    for (const sec of touched) if (sec && sec.type === 'SECTION') fit(sec);
+    return out;
+  }
+  // Every font in a layer and its text layers, before setting text properties such as textAutoResize by hand.
+  async function fontsIn(n) {
+    n = await get(n);
+    const list = n.type === 'TEXT' ? [n] : n.findAllWithCriteria ? n.findAllWithCriteria({ types: ['TEXT'] }) : [];
+    for (const t of list) await fonts(t);
+    return list.length;
+  }
+  return { node, page, section, find, one, texts, setText, hoverOf, wireHover, setVariant, moveTo, placeBelow, placeRight, clone, fit, overlaps, check, decisions, option, options, tree, vars, bindColor, box, done, shot, props, where, screen, screens, describe, links, link, cloneSection, flow, note, arrow, fonts: fontsIn };
 })();`;
 
 /** Short reference for Claude, kept next to the code so the two stay in step. */
@@ -413,7 +793,13 @@ export const KIT_GUIDE = [
   'Design Studio adds a helper object DS to every use_figma script that mentions it (do not paste or define it):',
   '- DS.node(id): node by id, its page loaded; throws a clear message when the id is gone. DS.page(id): same, and makes its page current.',
   '- DS.section(page|pageId|"Page name", "V0.5 · Flow 2 · topic · Sat 24 Oct 2026", { below: prevSection, gap=400 } or { x, y, width, height, fills }): finds or makes a top level section on that page (figma.createSection alone lands on the first page).',
-  '- DS.find(root, name|"~part"|/re/|fn, type?) and DS.one(...) (first, or throws). DS.texts(root, "words") finds text layers by content.',
+  '- DS.describe(node|id|[ids], { depth=4, max=300 }): one outline line per layer with id, size, position, auto layout, sizing, fills and strokes as variable names, text with font and style, instance component, variant and properties, overridden fields, and prototype links. Read a screen with it once before editing, instead of several small reads.',
+  '- DS.screen("3.1" | "screen name", scope?) gives the screen node (by number, then name; throws with the near matches), DS.screens(scope) lists [{ id, name, number, section }] in flow order. DS.where(node): { page, version, flow, option, screen: { id, name, number }, label (the text above it, like a step label), inInstance }.',
+  '- DS.find(root, name|"~part"|/re/|fn, type?, { where: true }) and DS.one(...) (first, or throws). DS.texts(root, "words"|/re/, { where: true }) finds text layers by content. With where, each match comes back as { id, name, text, where }, so one call tells which screen and step each match is on: do not walk .parent.',
+  '- DS.links(root): every prototype link under it as { from, fromName, screen, trigger, nav, to, toName, toScreen }. DS.link(from, to, { on: "click"|"hover"|"timeout", nav: "navigate"|"overlay"|"change", seconds?, position? }) sets one link, keeps the others, and refuses a destination on another page or inside a screen.',
+  '- DS.cloneSection(section, { name, below?, gap=400 }): copies a version or flow section under the lowest section in its column, points links inside it at the copies, drops links that left the page, and moves Decision sticky and flow note tags to the copied screens. Returns { section, screens: { oldId: newId }, linksMoved, linksDropped }.',
+  '- DS.flow(section, [{ screen: "1", title, body }, { screen: "1.1", click: "Click Nudge managers", detail?, from?, title, body }]): the flow notes per the design-process rules, in one call. A Note 96px under each screen (Decision stickies moved 32px under it), and from the step before (or from) a 6px arrow with a 300px Branch label naming the click. A rerun updates them in place. DS.note(screen, { title, body }) and DS.arrow(from, to, { click }) do one each.',
+  '- DS.fonts(node): loads every font in it, before setting textAutoResize or other text properties by hand.',
   '- DS.setText(textNode|id, "new text"), or DS.setText(parent, "layer name"|"exact text"|"~part"|/re/, "new text") to look it up first: loads its fonts, and says what it could not find. DS.bindColor(node, "fills"|"strokes", "variable/name").',
   '- DS.setVariant(instance|id, { State: "Default", Size: "Small" }): switches variant and points ON_HOVER at the matching Hover variant (none for Disabled, Selected, Pressed, Focus, Open or Working, and a stale hover is dropped). DS.wireHover(instance) only rewires the hover. DS.hoverOf(variant) gives the Hover sibling.',
   '- DS.clone(screen, { name, below?, gap? }), DS.placeRight(node, ref, gap=160), DS.placeBelow(node, ref, gap=96), DS.moveTo(node, absX, absY), DS.fit(section, pad=320) grows a section around its children.',
@@ -423,7 +809,7 @@ export const KIT_GUIDE = [
   '- DS.shot(node|id): screenshot returned inline with the result, so no get_screenshot call is needed. DS.done(value) keeps the return value under the size limit.',
   '- DS.props(node, ["layoutSizingVertical", "paddingBottom"]): only the properties the node has (a section has no layout properties, and reading one throws and fails the whole call).',
   '- Search by type: page.findAllWithCriteria({ types: ["TEXT"] }).filter(...), not page.findAll(n => n.type === "TEXT" && ...), which runs your function on every layer.',
-  '- Await DS.node, DS.page, DS.section, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor and DS.shot. The others are not async and take nodes, not ids.',
+  '- Await DS.node, DS.page, DS.section, DS.check, DS.decisions, DS.setText, DS.setVariant, DS.wireHover, DS.bindColor, DS.shot, DS.describe, DS.screen, DS.screens, DS.links, DS.link, DS.cloneSection, DS.flow, DS.note, DS.arrow and DS.fonts. The others are not async and take nodes, not ids.',
   'Example, one call that fixes, checks and shows: const s = await DS.node("1:31"); await DS.wireHover(DS.one(s, "~Button", "INSTANCE")); const t = DS.one(s, "~Toast"); DS.moveTo(t, DS.box(s)[0] + (s.width - t.width) / 2, DS.box(s)[1] + 24); await DS.shot(s); return DS.done({ check: await DS.check([s.id]) });',
 ].join('\n');
 
@@ -445,25 +831,29 @@ function parsesSafely(code: string) {
 
 export const usesKit = (code: string) => /\bDS\s*\.\s*[A-Za-z]/.test(code);
 
-const MAX_CODE = 50000;
+/** The Figma MCP's use_figma takes at most this much code. Design Studio's plugin has no such limit. */
+export const MCP_MAX_CODE = 50000;
+
+/** The kit as it goes in front of scripts: no comment lines or indentation, so the MCP's limit leaves room for the script. */
+const KIT_SENT = FIGMA_KIT.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//')).join('\n');
 
 /**
  * Adds the helpers in front of code that uses DS, with Claude's code in its own scope so a name it declares never
- * clashes with one of ours. Returns null when nothing needs to change or the result would be too long.
+ * clashes with one of ours. Returns null when nothing needs to change or the result would be longer than `max`.
  */
-export function wrapFigmaCode(code: string): string | null {
+export function wrapFigmaCode(code: string, max = MCP_MAX_CODE): string | null {
   if (!usesKit(code)) return null;
-  const out = `${FIGMA_KIT}\nreturn await (async () => {\n${code}\n})();`;
-  return out.length <= MAX_CODE ? out : null;
+  const out = `${KIT_SENT}\nreturn await (async () => {\n${code}\n})();`;
+  return out.length <= max ? out : null;
 }
 
 export type FigmaCall = { code?: unknown; [k: string]: unknown };
 
 /** What the use_figma hook does with one call: the input with the helpers added, or null to leave it as it is. */
-export function prepareFigmaCall(input: FigmaCall): FigmaCall | null {
+export function prepareFigmaCall(input: FigmaCall, max = MCP_MAX_CODE): FigmaCall | null {
   const code = typeof input.code === 'string' ? input.code : '';
   // Code that does not parse fails the same way with or without the helpers, and Claude's error reads better alone.
   if (!code || !parsesSafely(code)) return null;
-  const wrapped = wrapFigmaCode(code);
+  const wrapped = wrapFigmaCode(code, max);
   return wrapped ? { ...input, code: wrapped } : null;
 }

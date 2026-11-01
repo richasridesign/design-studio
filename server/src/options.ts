@@ -10,7 +10,7 @@ import { FIGMA_MCP_URL, FIGMA_WRITE_MATCHER, RUN_ENV } from './lean.js';
 import { workflowEvent } from './workflow.js';
 import { STEP_IDS, WORKFLOW_RULES } from '../../shared/workflow.js';
 import { BRAINSTORM_INPUT, BRAINSTORM_TOOL } from './brainstorm.js';
-import { runScript, screenshot, slowFigmaRefusal, SLOW_SHOT_MATCHER } from './figmaRun.js';
+import { PLUGIN_MAX_CODE, runScript, screenshot, slowFigmaRefusal, SLOW_SHOT_MATCHER } from './figmaRun.js';
 
 export const STATUS_REMINDER = 'You have not called mcp__designstudio__set_status for a while, so the designer sees no progress. Call it now with what you are doing, what is done and the next steps.';
 
@@ -22,7 +22,8 @@ export function figmaSpeed(mapFile: string | null) {
     'Working fast in Figma: most of the time goes into round trips, so make each call count.',
     mapFile ? `- File map: ${mapFile} (read in the background when the chat opens; if it is not there yet, call mcp__designstudio__refresh_file_map) lists every page, section and screen (ids, sizes, positions), component sets with their setProperties keys and Hover variants, variables and styles. Grep it for names before reading Figma, and only read Figma for what it does not have (layers inside a screen). If an id from it is gone, call mcp__designstudio__refresh_file_map.` : '',
     '- Read and edit Figma with mcp__designstudio__use_figma and take screenshots with mcp__designstudio__get_screenshot: they run in Design Studio\'s plugin inside the open file, in well under a second, with no session. The Figma MCP\'s use_figma and get_screenshot take 5 to 40 s a call and are refused while the plugin runs. Use them only when a Design Studio tool says the plugin is not running.',
-    '- One call per change: find, edit and check in the same use_figma script. End it with DS.check([changed screen ids]) and DS.shot(screen) so the result carries the checks and a screenshot. Do not read, edit, read again and then call get_screenshot.',
+    '- Each call costs a step of yours, which now takes longer than Figma. Plan, then build in few calls: first one read of everything the job touches (DS.describe on the screens, DS.texts or DS.find with { where: true } to locate text), decide every change, then one call per group of screens that edits, ends with DS.check([changed screen ids]) and DS.shot(screen), and returns what the next call needs. Do not alternate small reads and small edits.',
+    '- A text change whose matches are all the same line is one call: find with { where: true } and change them together. When matches differ, change the one the designer meant (by its screen and label) and say which.',
     '- Put independent reads (or edits on different pages) in one message as parallel calls.',
     '- Do not call figma.saveVersionHistoryAsync: use_figma does not support it and the whole call fails. Figma keeps its own version history.',
     '- Only when falling back to the Figma MCP: load its tools in one ToolSearch call, create_session included (Figma wants a session before any file call), for example select:mcp__plugin_figma_figma__create_session,mcp__plugin_figma_figma__use_figma,mcp__plugin_figma_figma__get_screenshot.',
@@ -113,7 +114,7 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
         'Runs a Figma Plugin API script in the open file through Design Studio\'s plugin, in well under a second. Same as the Figma MCP\'s use_figma: code is the body of an async function with figma in scope, its return value comes back, DS helpers are added, and DS.shot screenshots come back as images. No create_session needed.',
         {
           fileKey: z.string().max(64),
-          code: z.string().max(50_000),
+          code: z.string().max(PLUGIN_MAX_CODE),
           description: z.string().max(200).optional().describe('A few words on what the script does, shown to the designer.'),
         },
         async ({ fileKey, code }, extra) => runScript(fileKey, code, (extra as { signal?: AbortSignal } | undefined)?.signal),

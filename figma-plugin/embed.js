@@ -140,6 +140,11 @@
       get(_, k) {
         if (k === "closePlugin" || k === "showUI") return () => {
         };
+        if (k === "setCurrentPageAsync") return (p) => {
+          let x = p;
+          while (x && x.type !== "PAGE") x = x.parent;
+          return figma.setCurrentPageAsync(x || p);
+        };
         const v = figma[k];
         return typeof v === "function" ? v.bind(figma) : v;
       },

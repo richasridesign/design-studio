@@ -17,6 +17,8 @@ function guarded(figma: any) {
   return new Proxy({}, {
     get(_, k) {
       if (k === 'closePlugin' || k === 'showUI') return () => {};
+      // Given a layer instead of a page (a common slip), go to the layer's page.
+      if (k === 'setCurrentPageAsync') return (p: any) => { let x = p; while (x && x.type !== 'PAGE') x = x.parent; return figma.setCurrentPageAsync(x || p); };
       const v = figma[k];
       return typeof v === 'function' ? v.bind(figma) : v;
     },

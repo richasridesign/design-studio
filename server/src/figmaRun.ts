@@ -9,6 +9,8 @@ import { pluginReadCall, readersFor } from './figmaPlugin.js';
 export const SCRIPT_READ = 'script';
 /** A script Figma has started may run this long (DS.check on a big section takes a while). */
 const RUN_MS = 120_000;
+/** A script with the DS kit in front: the plugin takes far more than the Figma MCP's 50,000 characters. */
+export const PLUGIN_MAX_CODE = 200_000;
 /** Text over this many characters is cut, so one call cannot flood the context. */
 const MAX_TEXT = 40_000;
 

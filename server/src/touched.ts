@@ -10,6 +10,8 @@ const EDITS = [
   /figma\.(?:create\w*|group|ungroup|flatten|union|subtract|intersect|exclude|combineAsVariants|importComponentByKeyAsync)\s*\(/,
   /\.(?:appendChild|insertChild|remove|clone|resize|resizeWithoutConstraints|rescale|swapComponent|createInstance|detachInstance|createComponentFromNode|setProperties|insertCharacters|deleteCharacters)\s*\(/,
   /\.set[A-Z]\w*\s*\(/,
+  // DS helpers that change the file (figmaKit.ts) without a call the patterns above see.
+  /\bDS\.(?:wireHover|decisions|moveTo|placeBelow|placeRight|fit|option|section|bindColor|flow|note|arrow|link|cloneSection)\s*\(/,
   // A property set on a node: name = "x", fills = [...], x += 8. Not ==, ===, or an arrow.
   /\.[\w$]+\s*(?:[-+*/]?=)(?![=>])/,
 ];
