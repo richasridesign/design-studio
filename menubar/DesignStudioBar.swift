@@ -827,7 +827,7 @@ final class Bar: NSObject, NSApplicationDelegate {
       assertion = 0
     }
     awakeItem.state = on ? .on : .off
-    item.button?.image = NSImage(systemSymbolName: on ? "cup.and.saucer.fill" : "cup.and.saucer", accessibilityDescription: "Design Studio")
+    item.button?.image = barIcon(awake: on)
     item.button?.toolTip = on ? "Design Studio: keeping Mac awake" : "Design Studio"
   }
 
@@ -855,21 +855,18 @@ final class Bar: NSObject, NSApplicationDelegate {
   }
 }
 
-// Draws the app icon: start.sh runs the binary with --write-icon <png> while building.
-func writeIcon(_ path: String) {
-  let size = 1024
-  guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
-  NSGraphicsContext.saveGraphicsState()
-  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+// Draws the app icon on a square tile at (o, o) with side `side`: the dock icon and the menu bar icon share it.
+func drawIcon(_ o: CGFloat, _ side: CGFloat) {
   let rgb = { (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) in NSColor(deviceRed: r / 255, green: g / 255, blue: b / 255, alpha: a) }
-  let tile = NSBezierPath(roundedRect: NSRect(x: 100, y: 100, width: 824, height: 824), xRadius: 184, yRadius: 184)
+  let k = side / 824
+  let tile = NSBezierPath(roundedRect: NSRect(x: o, y: o, width: side, height: side), xRadius: 184 * k, yRadius: 184 * k)
   NSGradient(starting: rgb(209, 234, 250, 1), ending: rgb(231, 224, 235, 1))?.draw(in: tile, angle: -45)
   rgb(0, 0, 0, 0.08).setStroke()
-  tile.lineWidth = 4
+  tile.lineWidth = max(4 * k, 0.5)
   tile.stroke()
-  // Teammate cursor, laid out on a 512 grid like web/public/icon.svg and scaled onto the 824 tile.
-  let s: CGFloat = 824 / 512
-  let p = { (x: CGFloat, y: CGFloat) in NSPoint(x: 100 + x * s, y: 924 - y * s) }
+  // Teammate cursor, laid out on a 512 grid like web/public/icon.svg and scaled onto the tile.
+  let s: CGFloat = side / 512
+  let p = { (x: CGFloat, y: CGFloat) in NSPoint(x: o + x * s, y: o + side - y * s) }
   let pointer = NSBezierPath()
   pointer.move(to: p(119, 112))
   pointer.line(to: p(119, 384))
@@ -883,9 +880,27 @@ func writeIcon(_ path: String) {
   pointer.fill()
   pointer.stroke()
   rgb(214, 92, 137, 1).setFill()
-  NSBezierPath(roundedRect: NSRect(x: 100 + 259 * s, y: 924 - 420 * s, width: 150 * s, height: 76 * s), xRadius: 38 * s, yRadius: 38 * s).fill()
+  NSBezierPath(roundedRect: NSRect(x: o + 259 * s, y: o + side - 420 * s, width: 150 * s, height: 76 * s), xRadius: 38 * s, yRadius: 38 * s).fill()
+}
+
+// Draws the dock icon: start.sh runs the binary with --write-icon <png> while building.
+func writeIcon(_ path: String) {
+  let size = 1024
+  guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
+  NSGraphicsContext.saveGraphicsState()
+  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+  drawIcon(100, 824)
   NSGraphicsContext.restoreGraphicsState()
   try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+}
+
+// The same icon at menu bar size, in colour. Faded while the Mac is allowed to sleep.
+func barIcon(awake: Bool) -> NSImage {
+  NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+    drawIcon(1, 16)
+    if !awake { NSColor.white.withAlphaComponent(0.5).set(); NSRect(x: 0, y: 0, width: 18, height: 18).fill(using: .destinationOut) }
+    return true
+  }
 }
 
 if CommandLine.arguments.count > 2 && CommandLine.arguments[1] == "--write-icon" {
