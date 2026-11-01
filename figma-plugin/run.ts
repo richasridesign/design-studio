@@ -8,18 +8,23 @@ const SHOT_MAX = 1568;
 
 const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
 
-/** The figma object Claude's script gets: closePlugin and showUI would close or replace Design Studio's own plugin. */
+/**
+ * The figma object Claude's script gets: closePlugin and showUI would close or replace Design Studio's own plugin.
+ * The proxy wraps an empty object, not figma: figma's methods are non-writable and non-configurable, and a proxy may
+ * not hand back a bound copy of such a property of its target.
+ */
 function guarded(figma: any) {
-  return new Proxy(figma, {
-    get(t, k) {
+  return new Proxy({}, {
+    get(_, k) {
       if (k === 'closePlugin' || k === 'showUI') return () => {};
-      const v = t[k];
-      return typeof v === 'function' ? v.bind(t) : v;
+      const v = figma[k];
+      return typeof v === 'function' ? v.bind(figma) : v;
     },
-    set(t, k, v) {
-      t[k] = v;
+    set(_, k, v) {
+      figma[k] = v;
       return true;
     },
+    has: (_, k) => k in figma,
   });
 }
 

@@ -136,17 +136,18 @@
   var AsyncFn = Object.getPrototypeOf(async function() {
   }).constructor;
   function guarded(figma) {
-    return new Proxy(figma, {
-      get(t, k) {
+    return new Proxy({}, {
+      get(_, k) {
         if (k === "closePlugin" || k === "showUI") return () => {
         };
-        const v = t[k];
-        return typeof v === "function" ? v.bind(t) : v;
+        const v = figma[k];
+        return typeof v === "function" ? v.bind(figma) : v;
       },
-      set(t, k, v) {
-        t[k] = v;
+      set(_, k, v) {
+        figma[k] = v;
         return true;
-      }
+      },
+      has: (_, k) => k in figma
     });
   }
   async function script(figma, args) {

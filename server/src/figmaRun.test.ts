@@ -28,10 +28,12 @@ describe('Figma scripts through the plugin', () => {
       setCurrentPageAsync: async (p: any) => (figma.currentPage = p),
       base64Encode: () => 'UE5H',
     };
+    // As in Figma: the API's methods are non-writable and non-configurable.
+    Object.defineProperty(figma, 'getNodeByIdAsync', { value: async () => node, writable: false, configurable: false });
     const node = { id: '1:2', width: 3000, height: 100, exportAsync: async (o: any) => (node.scale = o.constraint.value, new Uint8Array(1)), scale: 0 };
     figma.__other = other;
     figma.__node = node;
-    const out = await script(figma, { code: `figma.closePlugin(); figma.showUI('<p>'); await figma.setCurrentPageAsync(figma.__other); await __dsShot(figma.__node); return 7;` });
+    const out = await script(figma, { code: `figma.closePlugin(); figma.showUI('<p>'); await figma.setCurrentPageAsync(figma.__other); await __dsShot(await figma.getNodeByIdAsync('1:2')); return 7;` });
     expect(closed).toBe(false);
     expect(figma.currentPage).toBe(home);
     expect(out.value).toBe(7);
