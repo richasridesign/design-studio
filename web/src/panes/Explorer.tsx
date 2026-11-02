@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { api, setUi, useStore } from '../store';
 import { setOpened, useOpened } from './CodePane';
 import { Icon } from '../Icon';
-import '../explorer.css';
+import '../styles/explorer.css';
 
 type Entry = { name: string; dir: boolean; hidden: boolean };
 type Row = Entry & { path: string; depth: number };

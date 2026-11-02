@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import '../terminal.css';
+import '../styles/terminal.css';
 import { Icon } from '../Icon';
 import { touch } from '../touch';
 

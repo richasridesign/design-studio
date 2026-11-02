@@ -4,7 +4,7 @@ import { insertPrompt } from './composerEvents';
 import { focusReview } from './reviewFocus';
 import { allRules, rulesLine } from '../../../shared/rules';
 import type { ReviewDoc, ReviewRun } from '../../../shared/design';
-import '../rules.css';
+import '../styles/rules.css';
 
 type R = { global: string; file: string };
 

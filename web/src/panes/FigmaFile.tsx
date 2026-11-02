@@ -5,7 +5,7 @@ import { useThumbs } from '../useThumbs';
 import { Icon } from '../Icon';
 import { Empty, BrowserArt } from './Empty';
 import { SelectionFigma } from './SelectionFigma';
-import '../figmafile.css';
+import '../styles/figmafile.css';
 
 const SAMPLE = 'sample';
 

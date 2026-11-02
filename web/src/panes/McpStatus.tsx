@@ -4,7 +4,7 @@ import { MCP_BAD, type McpServer } from '../../../shared/protocol';
 import { api, send, useStore } from '../store';
 import { Icon } from '../Icon';
 import { openFigmaLogin } from '../FigmaLogin';
-import '../mcp.css';
+import '../styles/mcp.css';
 
 const STATUS: Record<string, [tone: string, label: string]> = {
   connected: ['ok', 'Connected'],

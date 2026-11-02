@@ -4,7 +4,7 @@ import { Markdown } from './Chat';
 import { ago } from '../ago';
 import { Icon } from '../Icon';
 import { parseHistory, type HistoryBlock } from '../../../shared/history';
-import '../history.css';
+import '../styles/history.css';
 
 // The flow's history (flows/NN-slug/history.md): what changed in each iteration and why. Read only. Decisions are
 // copied one way from the Decision stickies in Figma, so this tab never edits them: the stickies are the source.

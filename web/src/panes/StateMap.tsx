@@ -5,7 +5,7 @@ import { insertPrompt } from './composerEvents';
 import type { DesignDoc, ReviewDoc } from '../../../shared/design';
 import { stageFrames } from '../../../shared/stages';
 import { missingPrompt, stateMap, type MappedScreen } from '../../../shared/stateMap';
-import '../statemap.css';
+import '../styles/statemap.css';
 
 const missingIn = (s: MappedScreen) => s.states.filter((x) => !x.frame).length;
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);

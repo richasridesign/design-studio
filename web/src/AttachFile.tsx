@@ -7,7 +7,7 @@ import { parseFigmaUrl, type FigmaFile } from '../../shared/design';
 import { figmaProjectId, projectNameProblem, projectSlug, type FigmaTeam } from '../../shared/newProject';
 import type { LiveChat } from '../../shared/protocol';
 import { autofill, TOAST, type ToastDetail } from './panes/autofill';
-import './attach.css';
+import './styles/attach.css';
 
 export function recentFiles(live: LiveChat[], currentUrl?: string, max = 5) {
   const seen = new Set<string>(currentUrl ? [currentUrl] : []);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getJson, notice, postJson } from '../store';
 import { addRule, ruleDraft } from './ruleDraft';
-import '../makeRule.css';
+import '../styles/makeRule.css';
 
 type Scope = 'file' | 'global';
 

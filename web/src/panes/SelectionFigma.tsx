@@ -3,8 +3,8 @@ import { figmaNodeUrl } from '../../../shared/design';
 import { getJson, setUi, useStore, type Selection } from '../store';
 import { Icon } from '../Icon';
 import { ago } from '../ago';
-import '../figmafile.css';
-import '../selection.css';
+import '../styles/figmafile.css';
+import '../styles/selection.css';
 
 // The Figma tab for a project, flow or iteration picked in the sidebar: its screens from the file map, grouped, with
 // frozen groups greyed and labelled. Thumbnails are left out: each one is a plugin read, and a click here should be free.

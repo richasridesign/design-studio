@@ -6,7 +6,7 @@ import { ago } from '../ago';
 import { FlowCheck } from './FlowCheck';
 import { SelectionHead } from './SelectionFigma';
 import { isAudit, runLabel, summarize } from './reviewRuns';
-import '../selection.css';
+import '../styles/selection.css';
 
 // The Review tab for a project, flow or iteration picked in the sidebar: the flow check of its iteration, then the
 // review runs of each flow chat folder in that iteration, newest first. A project or flow uses its working iteration.

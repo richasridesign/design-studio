@@ -9,7 +9,7 @@ import { insertPrompt } from './composerEvents';
 import { DEFAULT_CAP, DEFAULT_ROUNDS, DEFAULT_WEEKLY_CAP, MAX_ROUNDS, REASON_TEXT, askedEnd, hhmm, isActive, reportQuestions, stallReason, untilFrom, windowPct, withLimit, type Limits, type LongRun, type Report } from '../../../shared/longRun';
 import type { PlanLimit } from '../../../shared/protocol';
 import { answerPrompt } from '../../../shared/awaiting';
-import '../longrun.css';
+import '../styles/longrun.css';
 
 const TWO_HOURS = 2 * 3600_000;
 

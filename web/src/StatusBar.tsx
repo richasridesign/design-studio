@@ -6,7 +6,7 @@ import { SpendPill } from './SpendPill';
 import { McpItem, openMcp } from './panes/McpStatus';
 import { openFigmaLogin, RECHECK } from './FigmaLogin';
 import { useDevTools } from './devTools';
-import './statusbar.css';
+import './styles/statusbar.css';
 
 const FIGMA: Record<string, [tone: string, label: string]> = {
   connected: ['ok', 'Connected'],

@@ -3,7 +3,7 @@ import { postJson } from '../store';
 import { PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import type { Project } from '../../../shared/project';
 import { busy as isBusy, initial, isValid, iterationFor, needsTopic, payload, reduce, shown, type Created, type Event as DialogEvent, type FigmaOutcome, type State } from './newFlowState';
-import '../newIteration.css';
+import '../styles/newIteration.css';
 
 // New flow, from the project row menu: adds the flow (and project.json on a file that has none), its folders and its
 // Figma subsection, then opens a chat on it. A new flow has no screens, so its chat starts From scratch at Explore.

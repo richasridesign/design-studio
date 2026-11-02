@@ -5,7 +5,7 @@ import { PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import { tasksChanged } from './taskStore';
 import { renameLabel } from '../../../shared/projectNames';
 import { cleanProjectName, projectNameProblem } from '../../../shared/newProject';
-import '../tasks.css';
+import '../styles/tasks.css';
 
 // Project chores from the sidebar menu. Remove project moves the folder to .trash (nothing is deleted, Figma is
 // not touched). Rename project changes only the name Design Studio shows. Rename to the convention renames the

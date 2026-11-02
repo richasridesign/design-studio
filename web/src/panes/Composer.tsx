@@ -17,7 +17,7 @@ import { compactAt, contextPercent, contextWindow } from '../../../shared/models
 import { useTip } from '../Tip';
 import { waitingPlaceholder } from './typedAnswer';
 import { markSent, publishDraft, readInserted, routeMessage, sentItems } from './awaitingSent';
-import '../composer.css';
+import '../styles/composer.css';
 
 export type Trigger = { kind: 'command' | 'file' | 'frame'; start: number; query: string } | { kind: 'shell' } | null;
 

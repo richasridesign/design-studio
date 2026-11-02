@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { IconButton, useTip } from './Tip';
-import './fold.css';
+import './styles/fold.css';
 
 // Cards in the chat that fold to one line: the workflow card above the conversation and older review cards in it.
 // Open, the card's head has a chevron (Collapse). Folded, the whole line is one button that opens it (Expand).

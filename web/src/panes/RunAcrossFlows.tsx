@@ -5,7 +5,7 @@ import { Shell } from './ProjectDialogs';
 import { iterationLabel, vId, workingIteration, type Project } from '../../../shared/project';
 import { DEFAULT_TASK_MODEL, TASK_MODELS, mentionsComponents, type Task } from '../../../shared/tasks';
 import { tasksChanged, weeklyLine } from './taskStore';
-import '../tasks.css';
+import '../styles/tasks.css';
 
 // One prompt, one chat per flow in the working iteration. A few run at once (Parallel chats in Settings), the rest
 // wait their turn, and the run pauses at the weekly cap. Opus is the default model.

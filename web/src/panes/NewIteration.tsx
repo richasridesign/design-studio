@@ -3,7 +3,7 @@ import { postJson } from '../store';
 import { PROJECTS_CHANGED, Shell } from './ProjectDialogs';
 import { iterationLabel, vId, weekdayDate, type Iteration, type Project } from '../../../shared/project';
 import { busy as isBusy, initial, isValid, payload, reduce, sectionPreview, shown, startFrom, type Event as DialogEvent, type FigmaOutcome, type State } from './newIterationState';
-import '../newIteration.css';
+import '../styles/newIteration.css';
 
 // A new working iteration: project.json and the flow folders, then its section in Figma (800px above the newest
 // one, a subsection per ticked flow with copies of its entry screens). The Figma step can fail on its own (Figma

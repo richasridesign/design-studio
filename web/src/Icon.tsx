@@ -10,7 +10,7 @@ import {
   Smartphone, Sparkles, Square, SquareCode, SquareDashed, Target, Terminal, TextWrap, Timer, Type, TriangleAlert, User, Volume2, VolumeX, Wrench,
   X, Zap, ZoomIn, ZoomOut,
 } from 'lucide';
-import './icon.css';
+import './styles/icon.css';
 
 // Every icon is a Lucide line icon. Call sites still use the old codicon names, so this table maps each name to one Lucide
 // glyph: the same meaning gets the same icon everywhere. "blank" keeps an empty slot so ticked and unticked rows line up.

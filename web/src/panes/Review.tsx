@@ -22,7 +22,7 @@ import { ClosedGroup, CloseForm, useNodeLabel, useTriage } from './Triage';
 import { ScopeBox } from './Scope';
 import { StateBox } from './StateMap';
 import { useWorkflow } from './Workflow';
-import '../review.css';
+import '../styles/review.css';
 import '../marks';
 
 const SEV: Record<Finding['severity'], string> = { blocking: 'Blocking', major: 'Major', minor: 'Minor' };

@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import './tip.css';
+import './styles/tip.css';
 
 export type Place = 'top' | 'bottom' | 'right';
 

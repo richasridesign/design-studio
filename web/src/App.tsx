@@ -30,8 +30,8 @@ import { Research } from './panes/Research';
 import { openSection } from './Section';
 import { canNotify, toggleNotify, useNotify } from './notify';
 import { FigmaLoginHost } from './FigmaLogin';
-import './page.css';
-import './design.css';
+import './styles/page.css';
+import './styles/design.css';
 
 type Center = 'figma' | 'canvas' | 'review' | 'history' | 'preview' | 'code';
 type Tab = 'chat' | 'figma' | 'review' | 'history' | 'more';

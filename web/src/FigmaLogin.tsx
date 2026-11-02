@@ -5,8 +5,8 @@ import { useDialogFocus } from './useDialog';
 import { getJson, postJson, send, useStore } from './store';
 import { CHECKS } from './setupChecks';
 import { figmaState, useFigmaRows } from './StatusBar';
-import './research.css';
-import './figmalogin.css';
+import './styles/research.css';
+import './styles/figmalogin.css';
 
 /** A command she types, with a Copy button. */
 export function Command({ id, text }: { id: string; text: string }) {

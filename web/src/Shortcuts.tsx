@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { IconButton } from './Tip';
 import { useDevTools } from './devTools';
-import './shortcuts.css';
+import './styles/shortcuts.css';
 
 type Page = { key: string; page: string; label: string; dev?: boolean };
 

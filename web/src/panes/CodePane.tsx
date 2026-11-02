@@ -12,7 +12,7 @@ import { css } from '@codemirror/lang-css';
 import { api, setUi, useStore } from '../store';
 import { Icon } from '../Icon';
 import { FileIcon } from './Explorer';
-import '../code.css';
+import '../styles/code.css';
 
 function lang(path: string) {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';

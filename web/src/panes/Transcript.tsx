@@ -28,8 +28,8 @@ import { openRun } from '../../../shared/triage';
 import { useTriage } from './Triage';
 import { reviewChecklist, type ReviewDoc, type ReviewRun } from '../../../shared/design';
 import type { ChatEvent } from '../../../shared/protocol';
-import '../transcript.css';
-import '../timeline.css';
+import '../styles/transcript.css';
+import '../styles/timeline.css';
 import { runningText } from '../StatusBar';
 
 export type ChatView = 'brainstorm' | 'timeline' | 'transcript';

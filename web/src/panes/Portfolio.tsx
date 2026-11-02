@@ -12,8 +12,8 @@ import {
   adoptedLine, clearanceTag, currentRun, doneLine, editedLine, editingLine, emptyLine, gatherLine, gatherRunning, planLine, publishChangedLine, publishLine,
   screenName, sourceLabel, undoingLine, type Candidate, type PortfolioView,
 } from './portfolioState';
-import '../newIteration.css';
-import '../portfolio.css';
+import '../styles/newIteration.css';
+import '../styles/portfolio.css';
 
 // Update portfolio: richadesign.in from finished Figma work. A full-height page over the app, opened from the
 // Portfolio row in the sidebar or the `page:portfolio` command. Design Studio never publishes: Richa does, in Framer.

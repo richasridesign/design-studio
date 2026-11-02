@@ -8,7 +8,7 @@ import { Markdown } from './Chat';
 import { focusComposer, insertPrompt } from './composerEvents';
 import { runningText } from '../StatusBar';
 import { optionLetter, sketchText, type BrainstormOption, type BrainstormRound, type FlowStep, type Sketch } from '../../../shared/brainstorm';
-import '../brainstorm.css';
+import '../styles/brainstorm.css';
 
 // The Brainstorm view: Claude's rounds, newest first and open, earlier ones folded below. Each round has the problem
 // and its assumptions, 2 or 3 options with a grey-box sketch, the flow, and questions with answers she can click.

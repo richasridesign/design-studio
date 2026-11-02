@@ -7,7 +7,7 @@ import { Confirm, type ConfirmRequest } from '../Confirm';
 import { type ChatEvent, type LiveChat, type SavedSession } from '../../../shared/protocol';
 import { compareIds, iterationLabel, vId, type Iteration, type ProjectSummary } from '../../../shared/project';
 import { replyLine } from '../../../shared/edits';
-import '../chats.css';
+import '../styles/chats.css';
 import { press } from '../press';
 import { runningText } from '../StatusBar';
 import { buildTree, chatCount, filterTree, type ChatSet, type TreeFlow, type TreeIteration, type TreeProject } from './projectTree';

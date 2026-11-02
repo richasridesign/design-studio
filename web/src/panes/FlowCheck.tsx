@@ -8,7 +8,7 @@ import { Empty, ReviewArt } from './Empty';
 import { ago } from '../ago';
 import { useOutline } from '../outline';
 import { FigmaErrorText } from '../FigmaLogin';
-import '../flowcheck.css';
+import '../styles/flowcheck.css';
 
 const SEV = { major: 'Major', minor: 'Minor' } as const;
 

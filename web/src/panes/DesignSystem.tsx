@@ -9,7 +9,7 @@ import type { DesignSystem as DS } from '../../../shared/design';
 import { STARTERS } from '../../../shared/dsProfiles';
 import { DsEditor, changeDs } from './DsEditor';
 import { COMPONENT_GROUPS, COMPONENT_HEADINGS, CONTENT_SLOTS, DATAVIZ_SLOTS, FOUNDATION_SLOTS, GOVUK_PRINCIPLES, OWN_PRINCIPLES, PATTERN_SLOTS, componentGroup, groupColors, groupComponents, type Principle } from '../../../shared/dsCatalog';
-import '../dsNav.css';
+import '../styles/dsNav.css';
 
 type SkillFile = { folder: string; path: string; lines: number };
 type SectionId = 'principles' | 'foundations' | 'components' | 'patterns' | 'content' | 'dataviz' | 'guidelines' | 'export';

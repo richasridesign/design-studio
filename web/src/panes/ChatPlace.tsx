@@ -9,7 +9,7 @@ import type { LiveChat, SavedSession } from '../../../shared/protocol';
 import type { Project } from '../../../shared/project';
 import { buildTree, type ChatSet, type TreeProject } from './projectTree';
 import { defaultIteration, iterationsFor, needsCopy, placeLabel, placeOf, startFlowChat, useProjects, vId, type Place } from './chatPlaceState';
-import '../chatPlace.css';
+import '../styles/chatPlace.css';
 
 // The chip above the chat: where this chat works (a flow in an iteration, or the whole project), with a Frozen marker
 // when it only reads Figma. It opens "Switch flow or chat" (also ⌘K): picking a chat views it, picking a flow's

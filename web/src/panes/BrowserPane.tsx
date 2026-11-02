@@ -3,7 +3,7 @@ import { Icon } from '../Icon';
 import { IconButton, useTip } from '../Tip';
 import { useStore, postJson } from '../store';
 import { useDialogFocus } from '../useDialog';
-import '../figmaapp.css';
+import '../styles/figmaapp.css';
 
 // The Figma tab: her Figma app window, view only. The server captures the frontmost Figma window (only while this tab
 // is shown and the page is visible) and sends it here as JPEG frames over /ws?figma-app. A click brings Figma forward.

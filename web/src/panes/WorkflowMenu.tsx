@@ -3,7 +3,7 @@ import { Icon } from '../Icon';
 import { focusChecked, menuKeys } from '../press';
 import { Shell } from './ProjectDialogs';
 import { STEP_NAME, WORKFLOW_IDS, WORKFLOW_INFO, WORKFLOW_STEPS, nothingDone, type WorkflowId, type WorkflowState } from '../../../shared/workflow';
-import '../workflowScratch.css';
+import '../styles/workflowScratch.css';
 
 // The workflow switch at the left of the strip: a Ghost menu button with the workflow's name. The menu picks Review
 // and update or From scratch (radio items with their one line), then Update portfolio, which opens the portfolio

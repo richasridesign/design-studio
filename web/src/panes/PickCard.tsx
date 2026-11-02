@@ -3,7 +3,7 @@ import { send } from '../store';
 import { showNode } from './composerEvents';
 import { buildBlocked, buildLabel, buildMessage, initialPick, pickBody, whyCount, whyError, type PickFields } from './pickState';
 import type { OptionId, StepId, WorkflowState } from '../../../shared/workflow';
-import '../workflowScratch.css';
+import '../styles/workflowScratch.css';
 
 // From scratch, Pick: the options Explore made as radios, each with a View link to it in Figma, an optional one line
 // Why, and Build, which saves the pick and asks Claude for High fidelity. The pick and its reason are quoted in the

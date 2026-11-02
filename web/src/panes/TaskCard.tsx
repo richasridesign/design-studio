@@ -6,7 +6,7 @@ import { Icon } from '../Icon';
 import { Shell } from './ProjectDialogs';
 import { STATE_TEXT, TASK_STATE_TEXT, modelName, pauseText, rollup, taskTitle, tokenText, type Task, type TaskFlow, type TaskFlowState } from '../../../shared/tasks';
 import { tasksChanged } from './taskStore';
-import '../tasks.css';
+import '../styles/tasks.css';
 
 // One run across flows: the roll-up, each flow's state, model and tokens, a link to its chat, and Pause, Resume or
 // Stop. Opened from the task row in the sidebar.

@@ -8,7 +8,7 @@ import { AdoptDialog, NewIterationDialog, PROJECTS_CHANGED, Shell } from './Proj
 import { PickCard } from './PickCard';
 import { WorkflowMenu } from './WorkflowMenu';
 import { FoldButton, FoldLine, useFold } from '../Fold';
-import '../workflow.css';
+import '../styles/workflow.css';
 
 // The workflow strip and the step card above a flow chat: which step the flow's iteration is at, and the one next
 // action. Steps are a guide, never a gate: any step can be made current. The card's copy comes from the server

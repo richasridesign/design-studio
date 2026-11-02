@@ -4,7 +4,7 @@ import { iterationLabel, type Project } from '../../../shared/project';
 import { send } from '../store';
 import { Shell } from './ProjectDialogs';
 import { defaultIteration, iterationsFor, needsCopy, startFlowChat, vId } from './chatPlaceState';
-import '../chatPlace.css';
+import '../styles/chatPlace.css';
 
 // The project row "+": where the new chat works. No flow is a project-wide chat, as the "+" was before; a flow picks
 // its iteration, the newest working one by default. A frozen iteration opens read only. One primary action.

@@ -3,7 +3,7 @@ import { getJson, postJson, useStore } from '../store';
 import { Icon } from '../Icon';
 import { Empty, PrototypeArt } from './Empty';
 import { SIZES, type Board, type CanvasElement, type CanvasOp, type CanvasStatus, type Frame, type Manifest } from '../../../shared/canvas';
-import '../canvas.css';
+import '../styles/canvas.css';
 
 // The Canvas tab: the prototype app's screens as live frames on a board. Select mode picks an element inside a frame
 // and the inspector edits its source (text and attributes) through canvas-core; Vite then updates every frame.

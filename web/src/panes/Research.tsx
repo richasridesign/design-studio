@@ -3,7 +3,7 @@ import { api, getJson } from '../store';
 import { Icon } from '../Icon';
 import { Markdown } from './Chat';
 import { useDialogFocus } from '../useDialog';
-import '../research.css';
+import '../styles/research.css';
 
 // Pictures Claude saved next to research.md load from the chat folder.
 const withImages = (md: string) => md.replace(/!\[([^\]]*)\]\((?![a-z]+:|\/)([^)\s]+)\)/gi, (_, alt, src) => `![${alt}](${api(`/api/chat-file/${src.split('/').map(encodeURIComponent).join('/')}`)})`);

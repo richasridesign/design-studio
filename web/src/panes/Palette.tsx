@@ -3,7 +3,7 @@ import { api, send, setUi, useStore } from '../store';
 import { toggleNotify } from '../notify';
 import { getCustomRecipes, runRecipeById, useCustomRecipes } from '../recipes';
 import { RECIPES } from '../../../shared/recipes';
-import '../palette.css';
+import '../styles/palette.css';
 
 export type Command = { id: string; label: string; key?: string };
 export type Match = { score: number; hits: number[] };
