@@ -21,6 +21,7 @@ shots/
 buildcheck/
 refs/
 node_modules/
+app/
 *.png
 *.jpg
 *.jpeg

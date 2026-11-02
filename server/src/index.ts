@@ -59,6 +59,7 @@ import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
+import { canvasStatus, createApp, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, readBoard, refreshTokens, startApp, stopAll as stopCanvas, writeBoard } from './canvas.js';
 
 // Every server log line starts with the local time, so a lost message can be traced to a restart.
 for (const level of ['log', 'warn', 'error'] as const) {
@@ -77,6 +78,8 @@ const IGNORED = /(^|\/)(node_modules|\.git|dist|build|coverage|\.next|\.venv|ven
 const LAST = path.join(os.homedir(), '.designstudio-last.json');
 
 process.on('uncaughtException', (err) => console.error('uncaught:', err));
+process.on('exit', () => stopCanvas());
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(0));
 process.on('unhandledRejection', (err) => console.error('unhandled:', err));
 
 const IDLE_MS = 10 * 60 * 1000;
@@ -421,6 +424,20 @@ const server = http.createServer(async (req, res) => {
       return json(await readFileWithOriginal(chat.cwd, rel));
     }
     const readJsonBody = async () => JSON.parse((await readBody(req)) || '{}');
+    if (url.pathname.startsWith('/api/canvas')) {
+      const project = await projectOf(chat.cwd);
+      if (url.pathname === '/api/canvas') return json({ status: await canvasStatus(project), board: await readBoard(project) });
+      if (url.pathname === '/api/canvas/create' && req.method === 'POST') { void createApp(project); return json({ status: await canvasStatus(project) }); }
+      if (url.pathname === '/api/canvas/start' && req.method === 'POST') { void startApp(project).catch(() => undefined); return json({ status: await canvasStatus(project) }); }
+      if (url.pathname === '/api/canvas/tokens' && req.method === 'POST') { await refreshTokens(project); return json({ ok: true }); }
+      if (url.pathname === '/api/canvas/board' && req.method === 'POST') return json({ board: await writeBoard(project, await readJsonBody()) });
+      if (url.pathname === '/api/canvas/manifest') return json(await canvasManifest(project));
+      if (url.pathname === '/api/canvas/inspect') return json({ element: await canvasInspect(project, url.searchParams.get('src') ?? '') });
+      if (url.pathname === '/api/canvas/edit' && req.method === 'POST') {
+        const b = await readJsonBody();
+        return json(await canvasEdit(project, String(b.src ?? ''), String(b.tag ?? ''), b.op));
+      }
+    }
     const figma = chat.state.session.figma;
     const needFigma = () => {
       if (!figma) throw new FigmaError('This chat has no Figma file. Start a chat from a Figma link.', 409);

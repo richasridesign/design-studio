@@ -40,6 +40,13 @@ PLIST
   codesign --force --sign - --identifier io.github.richasridesign.designstudio "$APP"
 fi
 
+# The Canvas tab's source engine (Rust). Without cargo the Canvas tab says how to build it.
+CORE=canvas-core/target/release/canvas-core
+CARGO=$(command -v cargo || ls "$HOME"/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -n 1 || true)
+if [ -n "$CARGO" ] && { [ ! -x "$CORE" ] || [ -n "$(find canvas-core/src canvas-core/Cargo.toml -newer "$CORE" 2>/dev/null)" ]; }; then
+  "$CARGO" build --release --quiet --manifest-path canvas-core/Cargo.toml || echo "The canvas engine did not build. The Canvas tab stays off until npm run core works."
+fi
+
 pkill -x designstudio-bar 2>/dev/null || true
 if pgrep -xq DesignStudio; then
   echo "Design Studio is running. Use the menu bar icon to restart the server, or quit it and run this again."

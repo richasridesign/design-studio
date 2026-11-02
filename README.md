@@ -25,6 +25,7 @@ stops the server too.
 | `npm run serve` | Server and web app without the menu bar app |
 | `npm test` | Unit tests |
 | `npm run typecheck` | Type checks for server and web |
+| `npm run core` | Builds the Canvas tab's engine (needs Rust, from rustup.rs); `start.sh` does it when cargo is there |
 
 ## Setup
 
@@ -155,6 +156,27 @@ conversation fills the window. The Sketch tab is an Excalidraw canvas: Claude dr
 screen, and you can draw and write notes that Claude reads before it designs. Settings opens as an overlay (Escape
 closes it). The Preview and Files tabs, a terminal and the build check show when "Developer tools" is on in Settings.
 
+## Canvas tab
+
+The Canvas tab is a board of live screens from a prototype app, next to the Figma tab. Each frame is one screen at
+one size (Desktop, Laptop, Tablet, Phone) in one state (scenarios such as an empty workspace, loading, an error or no
+access). Frames run the real app, so what you see is code, not a picture of it.
+
+- **Create the app.** A project without one shows "Create prototype app". Design Studio makes a React, Vite and
+  Tailwind app in the project's `app` folder, with the design system profile as its theme, a few base components and
+  fake data per scenario. It installs it, commits it and starts it.
+- **Select (V).** Click an element in a frame. The inspector shows its source line, its text and its properties.
+  Change them and the edit is written to that line of the source file, and the frame updates. Values set by code show
+  as read only; ask Claude to change those.
+- **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it.
+- **Frames.** Add a frame, then pick its screen, state and size. Click a frame's name to select it.
+
+The app is its own git repository (`app/`, ignored by the project's history), so its commits are code you can hand
+over. The board is `canvas/boards/main.json` in the project and follows the project's history. Edits go through
+`canvas-core`, a small Rust program that edits the parsed source by exact positions, keeps formatting, refuses an edit
+if the element moved, and never writes a file that would not parse. It only writes `.jsx` and `.tsx` files under
+`app/src`.
+
 ## Review tab
 
 One list of every review, audit, crit and copy pass, newest first, one line each (kind, time, counts, tokens). The
@@ -213,7 +235,10 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 | Cmd+B | Toggle sidebar |
 | Cmd+. | Toggle focus mode |
 | Cmd+J | Toggle terminal (dev tools) |
-| Cmd+1 to Cmd+5 | Figma, Sketch, Review, Preview, Settings |
+| Cmd+1 to Cmd+5 | Figma, Canvas, Review, History, Preview |
+| Cmd+, | Settings |
+| V, H, I | Canvas: select, move around, use the app |
+| Shift+1 | Canvas: fit the board |
 | `/` | Focus the composer |
 | `?` | Show the shortcut sheet |
 | Enter, Shift+Enter | Send, new line |

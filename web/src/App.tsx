@@ -14,6 +14,7 @@ import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Review } from './panes/Review';
 import { History } from './panes/History';
+import { Canvas } from './panes/Canvas';
 import { Settings } from './panes/Settings';
 import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';
@@ -32,7 +33,7 @@ import { FigmaLoginHost } from './FigmaLogin';
 import './page.css';
 import './design.css';
 
-type Center = 'figma' | 'review' | 'history' | 'preview' | 'code';
+type Center = 'figma' | 'canvas' | 'review' | 'history' | 'preview' | 'code';
 type Tab = 'chat' | 'figma' | 'review' | 'history' | 'more';
 const MOBILE_CENTER: Center[] = ['figma', 'review', 'history'];
 const isMobileCenter = (t: string): t is Center & Tab => MOBILE_CENTER.some((c) => c === t);
@@ -49,6 +50,7 @@ const VIEWS: { id: View; icon: string; title: string; dev?: boolean }[] = [
 
 const CENTER: { id: Center; icon: string; label: string; dev?: boolean }[] = [
   { id: 'figma', icon: 'browser', label: 'Figma' },
+  { id: 'canvas', icon: 'canvas', label: 'Canvas' },
   { id: 'review', icon: 'checklist', label: 'Review' },
   { id: 'history', icon: 'history', label: 'History' },
   { id: 'preview', icon: 'play', label: 'Preview', dev: true },
@@ -483,6 +485,7 @@ export function App() {
           </div>
           <ErrorBoundary label="panel">
           <div className={`editor browser ${shownCenter === 'figma' ? 'shown' : ''}`} id="panel-figma" role="tabpanel" aria-labelledby="tab-figma">{shownCenter === 'figma' && <BrowserPane />}</div>
+          <div className={`editor ${shownCenter === 'canvas' ? 'shown' : ''}`} id="panel-canvas" role="tabpanel" aria-labelledby="tab-canvas">{shownCenter === 'canvas' && <Canvas />}</div>
           <div className={`editor ${shownCenter === 'review' ? 'shown' : ''}`} id="panel-review" role="tabpanel" aria-labelledby="tab-review">{shownCenter === 'review' && <Review dev={dev} />}</div>
           <div className={`editor ${shownCenter === 'history' ? 'shown' : ''}`} id="panel-history" role="tabpanel" aria-labelledby="tab-history">{shownCenter === 'history' && <History />}</div>
           <div className={`editor ${shownCenter === 'preview' ? 'shown' : ''}`} id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">{shownCenter === 'preview' && <Preview />}</div>

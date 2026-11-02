@@ -8,8 +8,8 @@ export default defineConfig({
     host: true,
     allowedHosts: ['.netbird.cloud'],
     proxy: {
-      '/api': 'http://localhost:7778',
-      '/ws': { target: 'ws://localhost:7778', ws: true },
+      '/api': `http://localhost:${process.env.DS_SERVER_PORT ?? 7778}`,
+      '/ws': { target: `ws://localhost:${process.env.DS_SERVER_PORT ?? 7778}`, ws: true },
     },
   },
 });
