@@ -94,3 +94,9 @@ select.cv-frame-scenario:hover { background: var(--bg-hover); color: var(--fg); 
   .cv { flex-direction: column; }
   .cv-inspector { width: auto; max-height: 40%; border-left: 0; border-top: 1px solid var(--border); }
 }
+.cv-style { display: flex; flex-direction: column; gap: 8px; }
+.cv-panel .cv-style-row { display: grid; grid-template-columns: 96px auto 1fr; align-items: center; gap: 8px; }
+.cv-style-row > span { grid-column: 1; }
+.cv-style-row > select { grid-column: 3; height: 32px; }
+.cv-swatch { grid-column: 2; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
+.cv-panel .cv-style-add { height: 32px; color: var(--fg-muted); }

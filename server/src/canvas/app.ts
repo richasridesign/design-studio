@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { appendFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { emptyBoard, type CanvasStatus, type Manifest } from '../../../shared/canvas.js';
 import { toTheme } from '../../../shared/tokens.js';
+import { readTokens, type Tokens } from '../../../shared/classes.js';
 import { readProfile } from '../profile.js';
 import { runGit } from '../projectGit.js';
 import { stopCore } from './core.js';
@@ -34,6 +35,13 @@ export async function canvasStatus(project: string): Promise<CanvasStatus> {
 async function writeTokens(project: string) {
   const ds = await readProfile(project).catch(() => null);
   await writeFile(path.join(appOf(project), 'src', 'tokens.css'), toTheme(ds ?? {}));
+}
+
+/** The colour, text size and radius tokens the app's theme defines, for the inspector's style menus. */
+export async function appTokens(project: string): Promise<Tokens> {
+  const src = path.join(appOf(project), 'src');
+  const css = await Promise.all(['tokens.css', 'index.css'].map((f) => readFile(path.join(src, f), 'utf8').catch(() => '')));
+  return readTokens(css.join('\n'));
 }
 
 export async function refreshTokens(project: string) {

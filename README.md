@@ -169,7 +169,9 @@ access). Frames run the real app, so what you see is code, not a picture of it.
   page title inside a shared header opens as that header's use (`title`, `text`), so the change stays on this
   screen. Variants show as menus and on/off props as switches, read from the component's own types. The layer chips
   above go into the component itself, which changes every use. Values set by code show as read only; **Ask Claude
-  about this** puts the element's file, line, screen and state in the composer.
+  about this** puts the element's file, line, screen and state in the composer. **Style** shows the element's
+  Tailwind classes as design values: padding, gap and margin on the 4px scale, radius, and text size and colours from
+  the app's tokens; each menu rewrites that one class.
 - **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it;
   the frame's name follows the screen you reach. Escape or V goes back to Select.
 - **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
