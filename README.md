@@ -173,7 +173,8 @@ access). Frames run the real app, so what you see is code, not a picture of it.
 - **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it;
   the frame's name follows the screen you reach. Escape or V goes back to Select.
 - **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
-  the name to change its screen and size, double-click it to zoom to it.
+  the name to change its screen and size, double-click it to zoom to it. **All states (S)** shows the selected
+  frame's screen once per state in a grid; Escape goes back to the board.
 - **Changes.** Every edit can be undone (Cmd+Z). The Changes button lists the app's changed files with their diffs,
   discards a file, and commits to the app's own repo. Nothing is pushed.
 

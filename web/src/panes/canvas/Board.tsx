@@ -30,6 +30,8 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   const [showChanges, setShowChanges] = useState(false);
   const [changes, setChanges] = useState<CanvasChanges | null>(null);
   const [toast, setToast] = useState('');
+  // "All states": one screen laid out in every scenario for a consistency sweep. Nothing is saved; Esc goes back.
+  const [states, setStates] = useState<{ of: string; view: View } | null>(null);
   const origin = useMemo(() => new URL(url).origin, [url]);
 
   useEffect(() => { getJson<Manifest>('/api/canvas/manifest').then(setManifest, () => setManifest({ screens: [], scenarios: [] })); }, [url]);
@@ -63,15 +65,22 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     return () => ro.disconnect();
   }, []);
 
+  const shown = useMemo(() => {
+    const f = states && board.frames.find((x) => x.id === states.of);
+    if (!f || !manifest?.scenarios.length) return board.frames;
+    const cols = Math.ceil(Math.sqrt(manifest.scenarios.length));
+    return manifest.scenarios.map((sc, i): Frame => ({ ...f, id: `${f.id}~${sc.id}`, name: sc.name, scenario: sc.id, x: (i % cols) * (f.w + GAP), y: Math.floor(i / cols) * (f.h + GAP * 3) }));
+  }, [states, board.frames, manifest]);
+
   const fit = useCallback(() => {
-    if (!board.frames.length || !size.w) return;
-    const minX = Math.min(...board.frames.map((f) => f.x));
-    const minY = Math.min(...board.frames.map((f) => f.y));
-    const maxX = Math.max(...board.frames.map((f) => f.x + f.w));
-    const maxY = Math.max(...board.frames.map((f) => f.y + f.h));
+    if (!shown.length || !size.w) return;
+    const minX = Math.min(...shown.map((f) => f.x));
+    const minY = Math.min(...shown.map((f) => f.y));
+    const maxX = Math.max(...shown.map((f) => f.x + f.w));
+    const maxY = Math.max(...shown.map((f) => f.y + f.h));
     const zoom = clampZoom(Math.min(1, (size.w - 80) / (maxX - minX), (size.h - 120) / (maxY - minY)));
     setView({ zoom, x: (size.w - (maxX - minX) * zoom) / 2 - minX * zoom, y: (size.h - (maxY - minY) * zoom) / 2 - minY * zoom + 12 });
-  }, [board.frames, size]);
+  }, [shown, size]);
 
   /** Zooms by a factor around a point on the stage (the centre when none is given). */
   const zoomBy = useCallback((factor: number, px = size.w / 2, py = size.h / 2) => {
@@ -155,6 +164,24 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     for (const f of frames.current.values()) tell(f.contentWindow, { type: 'select', src: null });
   }, [tell]);
 
+  const toggleStates = useCallback(() => {
+    setPicked(null);
+    if (states) {
+      fitOnSwitch.current = false;
+      setView(states.view);
+      setSelFrame(states.of);
+      setStates(null);
+      return;
+    }
+    const of = selFrame?.split('~')[0] ?? picked?.frame;
+    if (!of || !board.frames.some((f) => f.id === of)) { setToast('Select a frame first, then show all its states'); return; }
+    setStates({ of, view });
+    setSelFrame(null);
+  }, [states, selFrame, picked, board.frames, view]);
+  // Fit whenever the view switches between the board and all states.
+  const fitOnSwitch = useRef(false);
+  useEffect(() => { if (fitOnSwitch.current) fit(); fitOnSwitch.current = true; }, [states?.of]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard: V select, H hand, I interact, Shift+1 fit, Shift+2 the selected frame, Shift+0 100%, + and - zoom,
   // Escape clears.
   useEffect(() => {
@@ -169,17 +196,18 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
       else if (k === 'h') setMode('hand');
       else if (k === 'i') setMode('interact');
       else if (e.shiftKey && e.code === 'Digit1') fit();
-      else if (e.shiftKey && e.code === 'Digit2') { const f = board.frames.find((x) => x.id === selFrame); if (f) focusFrame(f); }
+      else if (e.shiftKey && e.code === 'Digit2') { const f = shown.find((x) => x.id === selFrame); if (f) focusFrame(f); }
+      else if (k === 's' && !e.shiftKey) toggleStates();
       else if (e.shiftKey && e.code === 'Digit0') zoomTo(1);
       else if (e.key === '+' || e.key === '=') zoomBy(1.25);
       else if (e.key === '-' || e.key === '_') zoomBy(0.8);
-      else if (e.key === 'Escape') { if (mode === 'interact') setMode('select'); else { clearPick(); setSelFrame(null); } }
+      else if (e.key === 'Escape') { if (mode === 'interact') setMode('select'); else if (states) toggleStates(); else { clearPick(); setSelFrame(null); } }
       else return;
       e.preventDefault();
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, board.frames, selFrame, undo, mode]);
+  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, shown, selFrame, undo, mode, states, toggleStates]);
 
   // Wheel pans; Cmd or Ctrl with the wheel (and pinch) zooms around the pointer.
   useEffect(() => {
@@ -204,6 +232,8 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   const drag = (e: React.PointerEvent, move: (dx: number, dy: number) => void, done?: () => void) => {
     if (e.button !== 0 && e.button !== 1) return;
     e.preventDefault();
+    // preventDefault keeps focus where it was, so a field elsewhere (the composer) would take the canvas's keys.
+    (document.activeElement as HTMLElement | null)?.blur?.();
     const sx = e.clientX;
     const sy = e.clientY;
     const target = e.currentTarget as HTMLElement;
@@ -284,13 +314,14 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   };
 
   const frame = board.frames.find((f) => f.id === selFrame) ?? null;
+  const statesOf = states && board.frames.find((f) => f.id === states.of);
 
   return (
     <div className="cv">
       <div className="cv-main">
         <div ref={stage} className={`cv-stage mode-${mode}`} onPointerDown={panStart}>
           <div className="cv-plane" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-            {board.frames.map((f) => (
+            {shown.map((f) => (
               <div key={f.id} className="cv-frame" style={{ left: f.x, top: f.y, width: f.w, height: f.h, boxShadow: `0 0 0 ${(selFrame === f.id ? 2 : 1) / view.zoom}px var(${selFrame === f.id ? '--accent' : '--border'})` }}>
                 {mode !== 'interact' && (
                   <div className="cv-shield" onPointerMove={(e) => shieldMove(e, f)} onPointerLeave={() => shieldLeave(f)} onClick={(e) => shieldClick(e, f)} />
@@ -308,15 +339,15 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
             ))}
           </div>
           <div className="cv-labels">
-            {board.frames.map((f) => {
+            {shown.map((f) => {
               const w = f.w * view.zoom;
               if (w < 48 || !inView(f)) return null;
               return (
                 <div key={f.id} className={`cv-frame-head${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x * view.zoom + view.x, top: f.y * view.zoom + view.y - 20, width: w }}
                   title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
-                  onPointerDown={(e) => { e.stopPropagation(); moveFrame(e, f); }} onDoubleClick={() => focusFrame(f)}>
+                  onPointerDown={(e) => { e.stopPropagation(); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => focusFrame(f)}>
                   <span className="cv-frame-name">{f.name}</span>
-                  {w > 200 && manifest && manifest.scenarios.length > 1 ? (
+                  {states ? null : w > 200 && manifest && manifest.scenarios.length > 1 ? (
                     <select className="cv-frame-scenario" aria-label={`State of ${f.name}`} value={f.scenario} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => setFrame(f.id, { scenario: e.target.value })}>
                       {manifest.scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
@@ -339,6 +370,7 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
           <span className="cv-sep" />
           <button title="Add a frame" aria-label="Add a frame" onClick={addFrame} disabled={!manifest?.screens.length}><Icon name="add" /></button>
           <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={fit}><Icon name="screen-full" /></button>
+          <button className={states ? 'active' : ''} aria-pressed={!!states} title="All states of the selected screen (S)" aria-label="All states of the selected screen" onClick={toggleStates}><Icon name="layers" /></button>
           <span className="cv-sep" />
           <button className={showChanges ? 'active cv-changes-btn' : 'cv-changes-btn'} aria-pressed={showChanges} title="Changes to the app's code" onClick={() => { setShowChanges((v) => !v); void loadChanges(); }}>
             <Icon name="git-commit" />{changes?.files.length ? <span className="cv-count">{changes.files.length}</span> : null}
@@ -350,10 +382,12 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
         </div>
         {saveError && <div className="cv-toast" role="alert">Board not saved: {saveError}</div>}
         {toast && !saveError && <div className="cv-toast" role="status">{toast}</div>}
+        {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
         {showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
-          : picked ? <ElementPanel picked={picked} frame={board.frames.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
+          : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
+          : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
           : frame ? <FramePanel frame={frame} manifest={manifest} setFrame={setFrame} remove={removeFrame} />
           : <p className="cv-muted">Pick an element in a frame to edit it, or a frame's name to change its screen, state and size.</p>}
       </aside>
