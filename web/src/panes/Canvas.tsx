@@ -7,6 +7,8 @@ import '../canvas.css';
 
 // The Canvas tab: the prototype app's screens as live frames on a board. Select mode picks an element inside a frame
 // and the inspector edits its source (text and attributes) through canvas-core; Vite then updates every frame.
+// In Select and Hand modes a shield covers every frame, so the board gets every wheel, pinch and drag; a click on the
+// shield asks the frame which element sits under that point. Only Interact mode hands the pointer to the app.
 
 type Mode = 'select' | 'hand' | 'interact';
 type View = { x: number; y: number; zoom: number };
@@ -14,7 +16,9 @@ type Picked = { frame: string; src: string; tag: string; element?: CanvasElement
 
 const BUSY = ['creating', 'installing', 'starting'];
 const GAP = 80;
-const HEAD = 28;
+const ZOOM_MIN = 0.02;
+const ZOOM_MAX = 4;
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
 export function Canvas() {
   const chat = useStore((s) => s.session.id);
@@ -102,12 +106,27 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
   const fit = useCallback(() => {
     if (!board.frames.length || !size.w) return;
     const minX = Math.min(...board.frames.map((f) => f.x));
-    const minY = Math.min(...board.frames.map((f) => f.y - HEAD));
+    const minY = Math.min(...board.frames.map((f) => f.y));
     const maxX = Math.max(...board.frames.map((f) => f.x + f.w));
     const maxY = Math.max(...board.frames.map((f) => f.y + f.h));
-    const zoom = Math.min(1, (size.w - 80) / (maxX - minX), (size.h - 80) / (maxY - minY));
-    setView({ zoom, x: (size.w - (maxX - minX) * zoom) / 2 - minX * zoom, y: (size.h - (maxY - minY) * zoom) / 2 - minY * zoom });
+    const zoom = clampZoom(Math.min(1, (size.w - 80) / (maxX - minX), (size.h - 120) / (maxY - minY)));
+    setView({ zoom, x: (size.w - (maxX - minX) * zoom) / 2 - minX * zoom, y: (size.h - (maxY - minY) * zoom) / 2 - minY * zoom + 12 });
   }, [board.frames, size]);
+
+  /** Zooms by a factor around a point on the stage (the centre when none is given). */
+  const zoomBy = useCallback((factor: number, px = size.w / 2, py = size.h / 2) => {
+    setView((v) => {
+      const zoom = clampZoom(v.zoom * factor);
+      return { zoom, x: px - ((px - v.x) * zoom) / v.zoom, y: py - ((py - v.y) * zoom) / v.zoom };
+    });
+  }, [size]);
+  const zoomTo = useCallback((zoom: number) => zoomBy(zoom / view.zoom), [zoomBy, view.zoom]);
+
+  /** Brings one frame to fill the stage. */
+  const focusFrame = useCallback((f: Frame) => {
+    const zoom = clampZoom(Math.min(1, (size.w - 80) / f.w, (size.h - 120) / f.h));
+    setView({ zoom, x: (size.w - f.w * zoom) / 2 - f.x * zoom, y: (size.h - f.h * zoom) / 2 - f.y * zoom + 12 });
+  }, [size]);
 
   const fitted = useRef(false);
   useEffect(() => { if (!fitted.current && size.w && board.frames.length) { fitted.current = true; fit(); } }, [size.w, board.frames.length, fit]);
@@ -154,7 +173,8 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
     for (const f of frames.current.values()) tell(f.contentWindow, { type: 'select', src: null });
   }, [tell]);
 
-  // Keyboard: V select, H hand, I interact, Shift+1 fit, Escape clears.
+  // Keyboard: V select, H hand, I interact, Shift+1 fit, Shift+2 the selected frame, Shift+0 100%, + and - zoom,
+  // Escape clears.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -165,13 +185,17 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
       else if (k === 'h') setMode('hand');
       else if (k === 'i') setMode('interact');
       else if (e.shiftKey && e.code === 'Digit1') fit();
+      else if (e.shiftKey && e.code === 'Digit2') { const f = board.frames.find((x) => x.id === selFrame); if (f) focusFrame(f); }
+      else if (e.shiftKey && e.code === 'Digit0') zoomTo(1);
+      else if (e.key === '+' || e.key === '=') zoomBy(1.25);
+      else if (e.key === '-' || e.key === '_') zoomBy(0.8);
       else if (e.key === 'Escape') { clearPick(); setSelFrame(null); }
       else return;
       e.preventDefault();
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [fit, clearPick]);
+  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, board.frames, selFrame]);
 
   // Wheel pans; Cmd or Ctrl with the wheel (and pinch) zooms around the pointer.
   useEffect(() => {
@@ -181,20 +205,20 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
       e.preventDefault();
       const r = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
-        const px = e.clientX - r.left;
-        const py = e.clientY - r.top;
-        setView((v) => {
-          const zoom = Math.min(2, Math.max(0.05, v.zoom * Math.exp(-e.deltaY * 0.01)));
-          return { zoom, x: px - ((px - v.x) * zoom) / v.zoom, y: py - ((py - v.y) * zoom) / v.zoom };
-        });
+        // A pinch sends small steps, a mouse wheel big ones; both are capped so one notch is about 40%.
+        const step = Math.max(-35, Math.min(35, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY));
+        zoomByRef.current(Math.exp(-step * 0.01), e.clientX - r.left, e.clientY - r.top);
       } else setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
     };
     el.addEventListener('wheel', on, { passive: false });
     return () => el.removeEventListener('wheel', on);
   }, []);
 
+  const zoomByRef = useRef(zoomBy);
+  zoomByRef.current = zoomBy;
+
   const drag = (e: React.PointerEvent, move: (dx: number, dy: number) => void, done?: () => void) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
     e.preventDefault();
     const sx = e.clientX;
     const sy = e.clientY;
@@ -207,9 +231,11 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
   };
 
   const panStart = (e: React.PointerEvent) => {
-    if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains('cv-plane')) return;
-    setSelFrame(null);
-    clearPick();
+    const t = e.target as HTMLElement;
+    const onEmpty = t === e.currentTarget || t.classList.contains('cv-plane');
+    // Hand mode, the middle button or Space-less dragging on empty board all pan.
+    if (!(mode === 'hand' || onEmpty) && e.button !== 1) return;
+    if (onEmpty && mode !== 'hand') { setSelFrame(null); clearPick(); }
     const start = view;
     drag(e, (dx, dy) => setView({ ...start, x: start.x + dx, y: start.y + dy }));
   };
@@ -245,6 +271,24 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
     return x + f.w * view.zoom > -m && y + f.h * view.zoom > -m && x < size.w + m && y < size.h + m;
   };
 
+  // The shield turns a point on a frame into a point in the app, and asks the frame what is there.
+  const pointIn = (e: React.PointerEvent | React.MouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return { x: (e.clientX - r.left) / view.zoom, y: (e.clientY - r.top) / view.zoom };
+  };
+  const hoverAt = useRef(0);
+  const shieldMove = (e: React.PointerEvent, f: Frame) => {
+    if (mode !== 'select') return;
+    const p = pointIn(e);
+    cancelAnimationFrame(hoverAt.current);
+    hoverAt.current = requestAnimationFrame(() => tell(frames.current.get(f.id)?.contentWindow, { type: 'hover', ...p }));
+  };
+  const shieldLeave = (f: Frame) => tell(frames.current.get(f.id)?.contentWindow, { type: 'hover', x: -1, y: -1 });
+  const shieldClick = (e: React.MouseEvent, f: Frame) => {
+    if (mode !== 'select') return;
+    tell(frames.current.get(f.id)?.contentWindow, { type: 'pick', ...pointIn(e) });
+  };
+
   const frame = board.frames.find((f) => f.id === selFrame) ?? null;
 
   return (
@@ -253,11 +297,10 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
         <div ref={stage} className={`cv-stage mode-${mode}`} onPointerDown={panStart}>
           <div className="cv-plane" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
             {board.frames.map((f) => (
-              <div key={f.id} className={`cv-frame${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x, top: f.y, width: f.w, height: f.h }}>
-                <div className="cv-frame-head" style={{ fontSize: 12 / view.zoom, paddingBottom: 6 / view.zoom }} onPointerDown={(e) => moveFrame(e, f)}>
-                  <span className="cv-frame-name">{f.name}</span>
-                  <span className="cv-frame-scenario">{manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}</span>
-                </div>
+              <div key={f.id} className="cv-frame" style={{ left: f.x, top: f.y, width: f.w, height: f.h, boxShadow: `0 0 0 ${(selFrame === f.id ? 2 : 1) / view.zoom}px var(${selFrame === f.id ? '--accent' : '--border'})` }}>
+                {mode !== 'interact' && (
+                  <div className="cv-shield" onPointerMove={(e) => shieldMove(e, f)} onPointerLeave={() => shieldLeave(f)} onClick={(e) => shieldClick(e, f)} />
+                )}
                 {inView(f) ? (
                   <iframe
                     ref={(el) => { if (el) frames.current.set(f.id, el); else frames.current.delete(f.id); }}
@@ -269,6 +312,20 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
                 ) : <div className="cv-frame-off">{f.name}</div>}
               </div>
             ))}
+          </div>
+          <div className="cv-labels">
+            {board.frames.map((f) => {
+              const w = f.w * view.zoom;
+              if (w < 48 || !inView(f)) return null;
+              return (
+                <div key={f.id} className={`cv-frame-head${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x * view.zoom + view.x, top: f.y * view.zoom + view.y - 20, width: w }}
+                  title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
+                  onPointerDown={(e) => { e.stopPropagation(); moveFrame(e, f); }} onDoubleClick={() => focusFrame(f)}>
+                  <span className="cv-frame-name">{f.name}</span>
+                  {w > 160 && <span className="cv-frame-scenario">{manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}</span>}
+                </div>
+              );
+            })}
           </div>
           {!board.frames.length && (
             <div className="cv-hint">
@@ -284,7 +341,10 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
           <span className="cv-sep" />
           <button title="Add a frame" aria-label="Add a frame" onClick={addFrame} disabled={!manifest?.screens.length}><Icon name="add" /></button>
           <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={fit}><Icon name="screen-full" /></button>
-          <span className="cv-zoom">{Math.round(view.zoom * 100)}%</span>
+          <span className="cv-sep" />
+          <button title="Zoom out (-)" aria-label="Zoom out" onClick={() => zoomBy(0.8)}><Icon name="zoom-out" /></button>
+          <button className="cv-zoom" title="Zoom to 100% (Shift+0)" aria-label={`Zoom ${Math.round(view.zoom * 100)}%, set to 100%`} onClick={() => zoomTo(1)}>{Math.round(view.zoom * 100)}%</button>
+          <button title="Zoom in (+)" aria-label="Zoom in" onClick={() => zoomBy(1.25)}><Icon name="zoom-in" /></button>
         </div>
         {saveError && <div className="cv-toast" role="alert">Board not saved: {saveError}</div>}
       </div>

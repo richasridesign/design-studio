@@ -8,7 +8,7 @@ import {
   LockOpen, Maximize, Maximize2, MessageSquare, MessagesSquare, Mic, Minimize, Minimize2, Minus, Package, Palette, PanelLeft, PanelRight,
   PanelRightDashed, Paperclip, Pause, Pencil, Play, Plug, Plus, RefreshCw, RotateCcw, RotateCw, Scale, Search, Settings, Settings2,
   Smartphone, Sparkles, Square, SquareCode, SquareDashed, Target, Terminal, TextWrap, Timer, Type, TriangleAlert, User, Volume2, VolumeX, Wrench,
-  X, Zap,
+  X, Zap, ZoomIn, ZoomOut,
 } from 'lucide';
 import './icon.css';
 
@@ -29,6 +29,8 @@ const ICONS: Record<string, IconNode> = {
   browser: AppWindow,
   canvas: Frame,
   hand: Hand,
+  'zoom-in': ZoomIn,
+  'zoom-out': ZoomOut,
   interact: Pointer,
   select: MousePointer2,
   check: Check,

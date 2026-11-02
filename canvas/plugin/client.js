@@ -1,5 +1,5 @@
-// Runs inside each canvas frame. In Select mode a click picks the nearest element with data-ds-src instead of
-// clicking it, and tells the canvas. The canvas tells it the mode and which element to keep outlined.
+// Runs inside each canvas frame. In Select mode the canvas sends the point under the pointer; the nearest element
+// with data-ds-src there is outlined or picked, and the canvas is told. The canvas tells it the mode and which element to keep outlined.
 (() => {
   if (window.parent === window) return;
   const origin = location.ancestorOrigins?.[0] ?? '*';
@@ -54,6 +54,14 @@
       if (mode !== 'select') place(hover, null);
     }
     if (e.data.type === 'select') selected = e.data.src ?? null;
+    // The canvas covers the frame with a shield and sends points in the frame's own pixels.
+    if (e.data.type === 'hover') place(hover, e.data.x < 0 ? null : target(document.elementFromPoint(e.data.x, e.data.y)));
+    if (e.data.type === 'pick') {
+      const el = target(document.elementFromPoint(e.data.x, e.data.y));
+      selected = el ? el.getAttribute('data-ds-src') : null;
+      place(pick, el);
+      post({ type: 'select', element: el ? describe(el) : null });
+    }
   });
 
   const ready = () => post({ type: 'ready', path: location.pathname + location.search });

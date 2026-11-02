@@ -8,18 +8,20 @@
   background-size: 16px 16px;
 }
 .cv-stage.mode-hand { cursor: grab; }
-.cv-stage.mode-hand iframe { pointer-events: none; }
+.cv-stage.mode-hand .cv-shield { cursor: grab; }
+.cv-shield { position: absolute; inset: 0; z-index: 1; }
+.cv-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .cv-plane { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .cv-frame { position: absolute; background: #fff; box-shadow: 0 0 0 1px var(--border); }
-.cv-frame.selected { box-shadow: 0 0 0 2px var(--accent); }
 .cv-frame iframe { display: block; border: 0; background: #fff; }
 .cv-frame-head {
-  position: absolute; left: 0; right: 0; bottom: 100%; display: flex; gap: 0.6em; align-items: baseline;
-  white-space: nowrap; overflow: hidden; cursor: move; user-select: none; line-height: 1.4; color: var(--fg-muted);
+  position: absolute; height: 18px; display: flex; gap: 6px; align-items: baseline; pointer-events: auto;
+  font-size: var(--text-xs); white-space: nowrap; overflow: hidden; cursor: move; user-select: none; line-height: 18px; color: var(--fg-muted);
 }
+.cv-frame-head.selected .cv-frame-name { color: var(--accent); }
 .cv-frame-name { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .cv-frame-scenario { overflow: hidden; text-overflow: ellipsis; }
-.cv-frame-off { display: grid; place-items: center; height: 100%; color: var(--fg-faint); font-size: 48px; }
+.cv-frame-off { height: 100%; background: var(--bg-sunken); }
 .cv-hint { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--fg-muted); pointer-events: none; }
 .cv-hint p { margin: 0; font-size: var(--text-md); }
 .cv-hint button { pointer-events: auto; }
@@ -32,7 +34,7 @@
 .cv-tools button:hover { background: var(--bg-hover); }
 .cv-tools button.active { background: var(--accent-soft); color: var(--accent); }
 .cv-sep { width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
-.cv-zoom { min-width: 44px; padding: 0 6px; text-align: center; font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.cv-tools .cv-zoom { width: auto; min-width: 44px; padding: 0 6px; text-align: center; font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .cv-toast { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: var(--radius); background: var(--fg); color: var(--bg); font-size: var(--text-sm); }
 .cv-wait { display: flex; align-items: center; justify-content: center; gap: 8px; height: 100%; color: var(--fg-muted); font-size: var(--text-sm); }
 
