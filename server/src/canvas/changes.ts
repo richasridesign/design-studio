@@ -67,14 +67,14 @@ export async function diff(project: string, file: string): Promise<string> {
 }
 
 /** Commits every change in the app, locally. The undo list is cleared, since those edits are now history. */
-export async function commit(project: string, message: string): Promise<{ hash: string }> {
+export async function commit(project: string, message: string): Promise<{ hash: string; message: string }> {
   const msg = message.trim().slice(0, 2000) || 'Canvas edits';
   return queued(async () => {
     await git(project, ['add', '-A']);
     if (!(await git(project, ['diff', '--cached', '--name-only'])).trim()) throw new Error('Nothing to commit');
     await git(project, ['commit', '-q', '-m', msg]);
     history.delete(project);
-    return { hash: (await git(project, ['rev-parse', '--short', 'HEAD'])).trim() };
+    return { hash: (await git(project, ['rev-parse', '--short', 'HEAD'])).trim(), message: msg.split('\n')[0] };
   });
 }
 

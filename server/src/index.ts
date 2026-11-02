@@ -33,7 +33,7 @@ import { FigmaError, attachFolder, chatFolders, folderFor, freshChatFolder, isCh
 import { loadSample, samplePath } from './sample.js';
 import { addDaily, today } from './spend.js';
 import { onReadCost } from './pluginRead.js';
-import { HistoryError, historyView, onHistoryWrite, syncDecisions } from './history.js';
+import { HistoryError, historyView, onHistoryWrite, recordDone, syncDecisions } from './history.js';
 import { buildMap, cachedMap, ensureMapSoon, refreshMapSoon } from './fileMap.js';
 import { CHATS_ROOT, loadedSettings, publicSettings, saveSettings, settings } from './settings.js';
 import { projectRoot } from './roots.js';
@@ -442,7 +442,12 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/canvas/changes') return json(await canvasChanges(project));
       if (url.pathname === '/api/canvas/diff') return json({ diff: await canvasDiff(project, url.searchParams.get('file') ?? '') });
       if (url.pathname === '/api/canvas/undo' && req.method === 'POST') return json(await canvasUndo(project));
-      if (url.pathname === '/api/canvas/commit' && req.method === 'POST') return json(await canvasCommit(project, String((await readJsonBody()).message ?? '')));
+      if (url.pathname === '/api/canvas/commit' && req.method === 'POST') {
+        // A commit is one finished change to the prototype, so a flow chat's iteration notes it under what was done.
+        const r = await canvasCommit(project, String((await readJsonBody()).message ?? ''));
+        await recordDone(chat.cwd, `Prototype: ${r.message} (app commit ${r.hash})`).catch(() => undefined);
+        return json(r);
+      }
       if (url.pathname === '/api/canvas/discard' && req.method === 'POST') { await canvasDiscard(project, String((await readJsonBody()).file ?? '')); return json({ ok: true }); }
     }
     const figma = chat.state.session.figma;
