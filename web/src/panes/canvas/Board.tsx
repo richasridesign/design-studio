@@ -20,7 +20,8 @@ const rid = () => Math.random().toString(36).slice(2, 10);
 /** Arrows leave and enter a frame this far below its top (her Figma flows use 416), or at the middle of a short one. */
 const armY = (f: Frame) => f.y + Math.min(416, f.h / 2);
 
-export type FlowRef = { n: number; name: string };
+/** The flow board's flow and iteration; a frozen iteration's board is read only, like her frozen Figma versions. */
+export type FlowRef = { n: number; name: string; iteration: string; frozen: boolean };
 
 export function Board({ url, board, setBoard, flow }: { url: string; board: BoardData; setBoard: (b: BoardData) => void; flow: FlowRef | null }) {
   const stage = useRef<HTMLDivElement>(null);
@@ -64,11 +65,13 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
 
   // Saves shortly after the last change.
   const saveTimer = useRef<number>(0);
+  const frozen = !!flow?.frozen;
   const update = useCallback((next: BoardData) => {
+    if (frozen) { setToast(`${flow?.iteration} is frozen, so its board is read only`); return; }
     setBoard(next);
     clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => postJson('/api/canvas/board', next).then(() => setSaveError(''), (e) => setSaveError(e.message)), 400);
-  }, [setBoard]);
+  }, [setBoard, frozen, flow?.iteration]);
   // A board left for another chat's must not save into that chat's board.
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
@@ -149,7 +152,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   // The frame clicked in goes back to its screen; the screen it reached is the next step, or an arrow to the frame
   // already showing it (same path and state), which she can turn into a new step (the same screen later in the flow).
   const record = useCallback((from: Frame, route: string, via: string | null) => {
-    tell(frames.current.get(from.id)?.contentWindow, { type: 'back' });
+    tell(frames.current.get(from.id)?.contentWindow, { type: 'restore', path: `${from.route}${from.route.includes('?') ? '&' : '?'}scenario=${encodeURIComponent(from.scenario)}` });
     const b = boardRef.current;
     const label = via ? `Click ${via}` : 'Click';
     const there = b.frames.find((x) => x.id !== from.id && x.route === route && x.scenario === from.scenario);
@@ -175,6 +178,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
 
   const toggleRec = useCallback(() => {
     if (!flow) { setToast('Recording is for a flow: open one of the flow\'s chats'); return; }
+    if (flow.frozen) { setToast(`${flow.iteration} is frozen, so its board is read only`); return; }
     setRec((r) => !r);
     setMode(rec ? 'select' : 'interact');
   }, [flow, rec]);
@@ -307,6 +311,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
 
   const moveFrame = (e: React.PointerEvent, f: Frame) => {
     setSelFrame(f.id);
+    if (frozen) return;
     const start = { x: f.x, y: f.y };
     let last = board;
     drag(e, (dx, dy) => {
@@ -467,7 +472,9 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           {!states && board.frames.map((f) => f.note && f.w * view.zoom > 160 && inView(f) && (
             <p key={f.id} className="cv-frame-note" style={{ left: f.x * view.zoom + view.x, top: (f.y + f.h) * view.zoom + view.y + 12, width: f.w * view.zoom }}>{f.note}</p>
           ))}
-          {!board.frames.length && (flow ? (
+          {!board.frames.length && (flow?.frozen ? (
+            <div className="cv-hint"><p>{flow.iteration} is frozen and has no recorded flow.</p></div>
+          ) : flow ? (
             <div className="cv-hint">
               <p>Record Flow {flow.n}: pick the screen it starts on, then click through the app. Each screen you reach becomes the next step, with an arrow named after the click.</p>
               <select aria-label="First screen" value="" onChange={(e) => startFlow(e.target.value)} disabled={!manifest?.screens.length}>
@@ -489,7 +496,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           <span className="cv-sep" />
           <button title="Add a frame" aria-label="Add a frame" onClick={addFrame} disabled={!manifest?.screens.length}><Icon name="add" /></button>
           <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={fit}><Icon name="screen-full" /></button>
-          {flow && <button className={rec ? 'active cv-rec' : 'cv-rec'} aria-pressed={rec} title="Record the flow by clicking through the app (R)" aria-label="Record the flow" onClick={toggleRec}><Icon name="record" /></button>}
+          {flow && !frozen && <button className={rec ? 'active cv-rec' : 'cv-rec'} aria-pressed={rec} title="Record the flow by clicking through the app (R)" aria-label="Record the flow" onClick={toggleRec}><Icon name="record" /></button>}
           <button className={states ? 'active' : ''} aria-pressed={!!states} title="All states of the selected screen (S)" aria-label="All states of the selected screen" onClick={toggleStates}><Icon name="layers" /></button>
           <span className="cv-sep" />
           <button className={showChanges ? 'active cv-changes-btn' : 'cv-changes-btn'} aria-pressed={showChanges} title="Changes to the app's code" onClick={() => { setShowChanges((v) => !v); void loadChanges(); }}>

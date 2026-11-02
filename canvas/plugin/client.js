@@ -82,8 +82,14 @@
       if (mode !== 'select') place(hover, null);
     }
     if (e.data.type === 'select') selected = e.data.src ?? null;
-    // Recording a flow keeps this frame on its screen: the screen it reached opens in a new frame instead.
-    if (e.data.type === 'back') { clicked = null; history.back(); }
+    // Recording a flow keeps this frame on its screen: the screen it reached opens in a new frame instead. The path
+    // is put back in place (not history.back, which after a replaceState would leave the app's own history).
+    if (e.data.type === 'restore' && typeof e.data.path === 'string' && e.data.path.startsWith('/')) {
+      clicked = null;
+      shownPath = e.data.path;
+      history.replaceState(null, '', e.data.path);
+      dispatchEvent(new PopStateEvent('popstate'));
+    }
     // The canvas covers the frame with a shield and sends points in the frame's own pixels.
     if (e.data.type === 'hover') place(hover, e.data.x < 0 ? null : target(document.elementFromPoint(e.data.x, e.data.y)));
     if (e.data.type === 'pick') {

@@ -177,12 +177,14 @@ access). Frames run the real app, so what you see is code, not a picture of it.
 - **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
   the name to change its screen and size, double-click it to zoom to it. **All states (S)** shows the selected
   frame's screen once per state in a grid; Escape goes back to the board.
-- **Flow boards.** In a flow's chat the canvas opens that flow's own board (`flows/NN-slug/canvas.json`). Pick the
+- **Flow boards.** In a flow's chat the canvas opens that iteration's flow board
+  (`flows/NN-slug/iterations/<id>/canvas.json`). A new iteration starts from a copy of the latest earlier one, and a
+  frozen iteration's board is read only. Pick the
   screen it starts on and **Record (R)**: click through the app, and each screen you reach becomes the next numbered
   step, joined by an arrow named after the click ("Click Connectors"). A click back to a screen already on the board
   only adds an arrow, with "Make it a new step" for the same screen later in the flow. Dialogs and other changes inside
   a screen are not recorded. Click an arrow's label to rename or delete it; a frame's panel sets its step and a note.
-  Deleting a step closes up the numbers. The project's history is the board's version history.
+  Deleting a step closes up the numbers.
 - **Changes.** Every edit can be undone (Cmd+Z). The Changes button lists the app's changed files with their diffs,
   discards a file, and commits to the app's own repo. Nothing is pushed.
 
