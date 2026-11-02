@@ -43,6 +43,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const recRef = useRef(rec);
   recRef.current = rec;
   const [selLink, setSelLink] = useState<string | null>(null);
+  const inPlace = useRef(0);
   // After a click led to a screen already on the board: the arrow went there, and she can make it a new step instead.
   const [linked, setLinked] = useState<{ text: string; from: string; route: string; label: string; link: string } | null>(null);
   useEffect(() => { if (!linked) return; const t = setTimeout(() => setLinked(null), 8000); return () => clearTimeout(t); }, [linked]);
@@ -199,6 +200,13 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
         setPicked(el?.src ? { frame: id, src: el.src, tag: el.tag, layers: el.layers ?? [] } : null);
         if (el?.src) setShowChanges(false);
       }
+      // While recording, a click that changes no screen (a dialog, a menu) is said out loud, so a missing step is no surprise.
+      if (e.data.type === 'clicked' && rec) {
+        clearTimeout(inPlace.current);
+        const label = String(e.data.label).slice(0, 60);
+        inPlace.current = window.setTimeout(() => setToast(`"${label}" stayed on this screen, so it is not a new step`), 900);
+      }
+      if (e.data.type === 'nav') clearTimeout(inPlace.current);
       if (e.data.type === 'nav' && typeof e.data.path === 'string') followNav(id, e.data.path, typeof e.data.via === 'string' ? e.data.via : null);
       if (e.data.type === 'key') {
         const k = String(e.data.key).toLowerCase();
@@ -470,7 +478,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             })}
           </div>
           {!states && board.frames.map((f) => f.note && f.w * view.zoom > 160 && inView(f) && (
-            <p key={f.id} className="cv-frame-note" style={{ left: f.x * view.zoom + view.x, top: (f.y + f.h) * view.zoom + view.y + 12, width: f.w * view.zoom }}>{f.note}</p>
+            <p key={f.id} className="cv-frame-note" style={{ left: f.x * view.zoom + view.x, top: (f.y + f.h + 96) * view.zoom + view.y, width: f.w * view.zoom }}>{f.note}</p>
           ))}
           {!board.frames.length && (flow?.frozen ? (
             <div className="cv-hint"><p>{flow.iteration} is frozen and has no recorded flow.</p></div>
@@ -514,7 +522,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             <button className="ghost" onClick={() => { const b = boardRef.current; const from = b.frames.find((f) => f.id === linked.from); if (from) addStep(b, from, linked.route, linked.label, linked.link); setLinked(null); }}>Make it a new step</button>
           </div>
         )}
-        {rec && !linked && !toast && <div className="cv-banner" role="status" title="Dialogs and other changes inside a screen are not recorded">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
+        {rec && !linked && !toast && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
         {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">

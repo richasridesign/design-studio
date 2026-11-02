@@ -55,6 +55,7 @@
       const c = e.target.closest?.('button, a, [role="button"], [role="tab"], [role="menuitem"], label');
       const label = c && (c.getAttribute('aria-label') || c.innerText || c.title || '').trim().replace(/\s+/g, ' ').slice(0, 60);
       clicked = label ? { label, at: Date.now() } : null;
+      if (label) post({ type: 'clicked', label });
       return;
     }
     e.preventDefault();
