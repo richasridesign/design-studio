@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getJson, postJson, useStore } from '../../store';
 import { Icon } from '../../Icon';
 import { Empty, PrototypeArt } from '../Empty';
 import type { Board as BoardData, CanvasStatus } from '../../../../shared/canvas';
-import { Board } from './Board';
+import { Board, type FlowRef } from './Board';
 import '../../styles/canvas.css';
 
 // The Canvas tab: the prototype app's screens as live frames on a board. Select mode picks an element inside a frame
@@ -17,12 +17,19 @@ export function Canvas() {
   const chat = useStore((s) => s.session.id);
   const [status, setStatus] = useState<CanvasStatus | null>(null);
   const [board, setBoard] = useState<BoardData | null>(null);
+  const [flow, setFlow] = useState<FlowRef | null>(null);
   const [error, setError] = useState('');
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
 
+  // A flow chat opens its flow's board, any other chat the project's main board.
   const load = useCallback(async () => {
+    const asked = chatRef.current;
     try {
-      const r = await getJson<{ status: CanvasStatus; board: BoardData }>('/api/canvas');
+      const r = await getJson<{ status: CanvasStatus; board: BoardData; flow: FlowRef | null }>('/api/canvas');
+      if (asked !== chatRef.current) return;
       setStatus(r.status);
+      setFlow(r.flow);
       setBoard((b) => b ?? r.board);
       setError('');
     } catch (e) {
@@ -63,5 +70,5 @@ export function Canvas() {
   if (status.state === 'failed' || !status.url) {
     return <Empty art={<PrototypeArt />} title="The app did not start" text={status.error ?? 'Unknown error'} action={{ label: 'Try again', onClick: () => postJson('/api/canvas/start', {}).then(load) }} />;
   }
-  return <Board url={status.url} board={board} setBoard={setBoard} />;
+  return <Board key={chat} url={status.url} board={board} setBoard={setBoard} flow={flow} />;
 }

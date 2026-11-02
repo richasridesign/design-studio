@@ -59,7 +59,7 @@ import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
-import { appTokens, canvasStatus, changes as canvasChanges, commit as canvasCommit, createApp, diff as canvasDiff, discard as canvasDiscard, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, props as canvasProps, readBoard, refreshTokens, startApp, stopAll as stopCanvas, undo as canvasUndo, writeBoard } from './canvas/index.js';
+import { appTokens, canvasStatus, changes as canvasChanges, commit as canvasCommit, createApp, diff as canvasDiff, discard as canvasDiscard, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, boardPlace, projectOf, props as canvasProps, readBoard, refreshTokens, startApp, stopAll as stopCanvas, undo as canvasUndo, writeBoard } from './canvas/index.js';
 
 // Every server log line starts with the local time, so a lost message can be traced to a restart.
 for (const level of ['log', 'warn', 'error'] as const) {
@@ -426,12 +426,15 @@ const server = http.createServer(async (req, res) => {
     const readJsonBody = async () => JSON.parse((await readBody(req)) || '{}');
     if (url.pathname.startsWith('/api/canvas')) {
       const project = await projectOf(chat.cwd);
-      if (url.pathname === '/api/canvas') return json({ status: await canvasStatus(project), board: await readBoard(project) });
+      if (url.pathname === '/api/canvas') {
+        const place = await boardPlace(project, chat.cwd);
+        return json({ status: await canvasStatus(project), board: await readBoard(place), flow: place.flow });
+      }
       if (url.pathname === '/api/canvas/create' && req.method === 'POST') { void createApp(project); return json({ status: await canvasStatus(project) }); }
       if (url.pathname === '/api/canvas/start' && req.method === 'POST') { void startApp(project).catch(() => undefined); return json({ status: await canvasStatus(project) }); }
       if (url.pathname === '/api/canvas/tokens' && req.method === 'POST') { await refreshTokens(project); return json({ ok: true }); }
       if (url.pathname === '/api/canvas/tokens') return json(await appTokens(project));
-      if (url.pathname === '/api/canvas/board' && req.method === 'POST') return json({ board: await writeBoard(project, await readJsonBody()) });
+      if (url.pathname === '/api/canvas/board' && req.method === 'POST') return json({ board: await writeBoard(await boardPlace(project, chat.cwd), await readJsonBody()) });
       if (url.pathname === '/api/canvas/manifest') return json(await canvasManifest(project));
       if (url.pathname === '/api/canvas/inspect') return json({ element: await canvasInspect(project, url.searchParams.get('src') ?? '') });
       if (url.pathname === '/api/canvas/edit' && req.method === 'POST') {

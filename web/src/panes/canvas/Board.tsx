@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../store';
 import { Icon } from '../../Icon';
-import { SIZES, type Board as BoardData, type CanvasChanges, type Frame, type Manifest } from '../../../../shared/canvas';
+import { nextStep, placeAfter, renumber, SIZES, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../shared/canvas';
 import { ChangesPanel } from './ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from './ElementPanel';
 import { FramePanel } from './FramePanel';
@@ -16,8 +16,13 @@ const GAP = 80;
 const ZOOM_MIN = 0.02;
 const ZOOM_MAX = 4;
 const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+const rid = () => Math.random().toString(36).slice(2, 10);
+/** Arrows leave and enter a frame this far below its top (her Figma flows use 416), or at the middle of a short one. */
+const armY = (f: Frame) => f.y + Math.min(416, f.h / 2);
 
-export function Board({ url, board, setBoard }: { url: string; board: BoardData; setBoard: (b: BoardData) => void }) {
+export type FlowRef = { n: number; name: string };
+
+export function Board({ url, board, setBoard, flow }: { url: string; board: BoardData; setBoard: (b: BoardData) => void; flow: FlowRef | null }) {
   const stage = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [view, setView] = useState<View>({ x: 40, y: 60, zoom: 0.5 });
@@ -32,6 +37,14 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   const [toast, setToast] = useState('');
   // "All states": one screen laid out in every scenario for a consistency sweep. Nothing is saved; Esc goes back.
   const [states, setStates] = useState<{ of: string; view: View } | null>(null);
+  // Recording a flow (flow boards only): a click that reaches another screen adds it as the next step, with an arrow.
+  const [rec, setRec] = useState(false);
+  const recRef = useRef(rec);
+  recRef.current = rec;
+  const [selLink, setSelLink] = useState<string | null>(null);
+  // After a click led to a screen already on the board: the arrow went there, and she can make it a new step instead.
+  const [linked, setLinked] = useState<{ text: string; from: string; route: string; label: string; link: string } | null>(null);
+  useEffect(() => { if (!linked) return; const t = setTimeout(() => setLinked(null), 8000); return () => clearTimeout(t); }, [linked]);
   const origin = useMemo(() => new URL(url).origin, [url]);
 
   useEffect(() => { getJson<Manifest>('/api/canvas/manifest').then(setManifest, () => setManifest({ screens: [], scenarios: [] })); }, [url]);
@@ -56,6 +69,8 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => postJson('/api/canvas/board', next).then(() => setSaveError(''), (e) => setSaveError(e.message)), 400);
   }, [setBoard]);
+  // A board left for another chat's must not save into that chat's board.
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
 
   useEffect(() => {
     const el = stage.current;
@@ -118,17 +133,51 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   };
   const boardRef = useRef(board);
   boardRef.current = board;
-  const followNav = useCallback((id: string, path: string) => {
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
+  /** A new step for the screen a click reached, placed after the frame it came from and joined by an arrow. */
+  const addStep = useCallback((b: BoardData, from: Frame, route: string, label: string, dropLink?: string) => {
+    const screen = manifest?.screens.find((s) => s.route === route.split('?')[0]);
+    const f: Frame = { id: rid(), name: screen?.name ?? route, route, scenario: from.scenario, ...placeAfter(b.frames, from, GAP * 3), w: from.w, h: from.h, n: nextStep(b.frames) };
+    update({ ...b, frames: [...b.frames, f], links: [...b.links.filter((l) => l.id !== dropLink), { id: rid(), from: from.id, to: f.id, label }] });
+    setSelFrame(f.id);
+    // Keep the zoom, and bring the new step to the middle so she can go on clicking in it.
+    setView((v) => ({ ...v, x: sizeRef.current.w / 2 - (f.x + f.w / 2) * v.zoom, y: sizeRef.current.h / 2 - (f.y + f.h / 2) * v.zoom }));
+  }, [manifest, update]);
+
+  // The frame clicked in goes back to its screen; the screen it reached is the next step, or an arrow to the frame
+  // already showing it (same path and state), which she can turn into a new step (the same screen later in the flow).
+  const record = useCallback((from: Frame, route: string, via: string | null) => {
+    tell(frames.current.get(from.id)?.contentWindow, { type: 'back' });
+    const b = boardRef.current;
+    const label = via ? `Click ${via}` : 'Click';
+    const there = b.frames.find((x) => x.id !== from.id && x.route === route && x.scenario === from.scenario);
+    if (!there) { addStep(b, from, route, label); return; }
+    const had = b.links.find((l) => l.from === from.id && l.to === there.id);
+    const link = had ?? { id: rid(), from: from.id, to: there.id, label };
+    if (!had) update({ ...b, links: [...b.links, link] });
+    setLinked({ text: `Arrow to ${there.n ? `step ${there.n}, ` : ''}${there.name}`, from: from.id, route, label, link: link.id });
+  }, [addStep, update, tell]);
+
+  const followNav = useCallback((id: string, path: string, via: string | null) => {
     const u = new URL(path, 'http://app');
     u.searchParams.delete('scenario');
     const route = u.pathname + u.search;
     const b = boardRef.current;
     const f = b.frames.find((x) => x.id === id);
     if (!f || f.route === route) return;
+    if (recRef.current) { record(f, route, via); return; }
     const named = manifest?.screens.find((s) => s.route === f.route)?.name === f.name;
     selfNav.current.set(id, route);
     update({ ...b, frames: b.frames.map((x) => (x.id === id ? { ...x, route, name: named ? manifest?.screens.find((s) => s.route === route)?.name ?? x.name : x.name } : x)) });
-  }, [manifest, update]);
+  }, [manifest, update, record]);
+
+  const toggleRec = useCallback(() => {
+    if (!flow) { setToast('Recording is for a flow: open one of the flow\'s chats'); return; }
+    setRec((r) => !r);
+    setMode(rec ? 'select' : 'interact');
+  }, [flow, rec]);
 
   useEffect(() => {
     const on = (e: MessageEvent) => {
@@ -146,10 +195,11 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
         setPicked(el?.src ? { frame: id, src: el.src, tag: el.tag, layers: el.layers ?? [] } : null);
         if (el?.src) setShowChanges(false);
       }
-      if (e.data.type === 'nav' && typeof e.data.path === 'string') followNav(id, e.data.path);
+      if (e.data.type === 'nav' && typeof e.data.path === 'string') followNav(id, e.data.path, typeof e.data.via === 'string' ? e.data.via : null);
       if (e.data.type === 'key') {
         const k = String(e.data.key).toLowerCase();
-        if (k === 'escape') { if (mode === 'interact') setMode('select'); else setPicked(null); }
+        if (k === 'escape') { if (rec) setRec(false); if (mode === 'interact') setMode('select'); else setPicked(null); }
+        else if (k === 'r') toggleRec();
         else if (k === 'v') setMode('select');
         else if (k === 'h') setMode('hand');
         else if (k === 'i') setMode('interact');
@@ -157,7 +207,7 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     };
     addEventListener('message', on);
     return () => removeEventListener('message', on);
-  }, [origin, mode, picked, tell, followNav]);
+  }, [origin, mode, picked, tell, followNav, rec, toggleRec]);
 
   const clearPick = useCallback(() => {
     setPicked(null);
@@ -198,16 +248,17 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
       else if (e.shiftKey && e.code === 'Digit1') fit();
       else if (e.shiftKey && e.code === 'Digit2') { const f = shown.find((x) => x.id === selFrame); if (f) focusFrame(f); }
       else if (k === 's' && !e.shiftKey) toggleStates();
+      else if (k === 'r' && !e.shiftKey) toggleRec();
       else if (e.shiftKey && e.code === 'Digit0') zoomTo(1);
       else if (e.key === '+' || e.key === '=') zoomBy(1.25);
       else if (e.key === '-' || e.key === '_') zoomBy(0.8);
-      else if (e.key === 'Escape') { if (mode === 'interact') setMode('select'); else if (states) toggleStates(); else { clearPick(); setSelFrame(null); } }
+      else if (e.key === 'Escape') { if (rec) { setRec(false); setMode('select'); } else if (mode === 'interact') setMode('select'); else if (states) toggleStates(); else { clearPick(); setSelFrame(null); } }
       else return;
       e.preventDefault();
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, shown, selFrame, undo, mode, states, toggleStates]);
+  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, shown, selFrame, undo, mode, states, toggleStates, rec, toggleRec]);
 
   // Wheel pans; Cmd or Ctrl with the wheel (and pinch) zooms around the pointer.
   useEffect(() => {
@@ -249,7 +300,7 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     const onEmpty = t === e.currentTarget || t.classList.contains('cv-plane');
     // Hand mode, the middle button or Space-less dragging on empty board all pan.
     if (!(mode === 'hand' || onEmpty) && e.button !== 1) return;
-    if (onEmpty && mode !== 'hand') { setSelFrame(null); clearPick(); }
+    if (onEmpty && mode !== 'hand') { setSelFrame(null); setSelLink(null); clearPick(); }
     const start = view;
     drag(e, (dx, dy) => setView({ ...start, x: start.x + dx, y: start.y + dy }));
   };
@@ -272,20 +323,68 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     update({ ...board, frames: manifest.screens.map((s, i) => ({ id: Math.random().toString(36).slice(2, 10), name: s.name, route: s.route, scenario, x: i * (laptop.w + GAP), y: 0, w: laptop.w, h: laptop.h })) });
     fitted.current = false;
   }, [manifest, board, update]);
-  useEffect(() => { if (manifest && !board.frames.length) layOutScreens(); }, [manifest]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The main board starts with every screen; a flow board starts empty and is recorded.
+  useEffect(() => { if (manifest && !board.frames.length && !flow) layOutScreens(); }, [manifest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A flow board's first step, then recording from it. */
+  const startFlow = (route: string) => {
+    const screen = manifest?.screens.find((s) => s.route === route);
+    if (!screen) return;
+    const laptop = SIZES[1];
+    const f: Frame = { id: rid(), name: screen.name, route, scenario: manifest?.scenarios[0]?.id ?? 'default', x: 0, y: 0, w: laptop.w, h: laptop.h, n: '1' };
+    update({ ...board, frames: [f], links: [] });
+    fitted.current = false;
+    setSelFrame(f.id);
+    setRec(true);
+    setMode('interact');
+  };
 
   const addFrame = () => {
     const screen = manifest?.screens.find((s) => !board.frames.some((f) => f.route === s.route)) ?? manifest?.screens[0];
     if (!screen) return;
     const right = board.frames.reduce((m, f) => Math.max(m, f.x + f.w + GAP), 0);
     const laptop = SIZES[1];
-    const f: Frame = { id: Math.random().toString(36).slice(2, 10), name: screen.name, route: screen.route, scenario: manifest?.scenarios[0]?.id ?? 'default', x: right, y: 0, w: laptop.w, h: laptop.h };
+    const f: Frame = { id: rid(), name: screen.name, route: screen.route, scenario: manifest?.scenarios[0]?.id ?? 'default', x: right, y: 0, w: laptop.w, h: laptop.h, ...(flow ? { n: nextStep(board.frames) } : {}) };
     update({ ...board, frames: [...board.frames, f] });
     setSelFrame(f.id);
   };
 
   const setFrame = (id: string, patch: Partial<Frame>) => update({ ...board, frames: board.frames.map((f) => (f.id === id ? { ...f, ...patch } : f)) });
-  const removeFrame = (id: string) => { update({ ...board, frames: board.frames.filter((f) => f.id !== id) }); setSelFrame(null); clearPick(); };
+  // Steps close up after a frame goes, so a flow keeps 1, 2, 3 with no gaps; its arrows go with it.
+  const removeFrame = (id: string) => { update({ ...board, frames: renumber(board.frames.filter((f) => f.id !== id)), links: board.links.filter((l) => l.from !== id && l.to !== id) }); setSelFrame(null); clearPick(); };
+  const setLink = (id: string, patch: Partial<Link>) => update({ ...board, links: board.links.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+  const removeLink = (id: string) => { update({ ...board, links: board.links.filter((l) => l.id !== id) }); setSelLink(null); };
+
+  // Arrows in screen pixels, so they stay 2px and their labels readable at any zoom. A frame to the right is joined
+  // side to side; one above or below, bottom to top.
+  const arrows = states ? [] : board.links.flatMap((l) => {
+    const a = board.frames.find((f) => f.id === l.from);
+    const b = board.frames.find((f) => f.id === l.to);
+    if (!a || !b) return [];
+    const sx = (x: number) => x * view.zoom + view.x;
+    const sy = (y: number) => y * view.zoom + view.y;
+    const clear = 8;
+    let d: string;
+    let mid: { x: number; y: number };
+    if (b.x >= a.x + a.w || b.x + b.w <= a.x) {
+      const right = b.x >= a.x + a.w;
+      const x1 = sx(right ? a.x + a.w : a.x) + (right ? clear : -clear);
+      const x2 = sx(right ? b.x : b.x + b.w) - (right ? clear : -clear);
+      const [y1, y2] = [sy(armY(a)), sy(armY(b))];
+      const mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} H${mx} V${y2} H${x2}`;
+      mid = { x: mx, y: y2 };
+    } else {
+      const down = b.y >= a.y + a.h;
+      const y1 = sy(down ? a.y + a.h : a.y) + (down ? clear : -clear);
+      const y2 = sy(down ? b.y : b.y + b.h) - (down ? clear : -clear);
+      const [x1, x2] = [sx(a.x + a.w / 2), sx(b.x + b.w / 2)];
+      const my = (y1 + y2) / 2;
+      d = `M${x1},${y1} V${my} H${x2} V${y2}`;
+      mid = { x: x2, y: my };
+    }
+    return [{ l, d, mid }];
+  });
 
   // Only frames in or near view load the app; the rest show their name until they come into view.
   const inView = (f: Frame) => {
@@ -338,7 +437,15 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
               </div>
             ))}
           </div>
+          <svg className="cv-links" aria-hidden="true">
+            <defs><marker id="cv-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" /></marker></defs>
+            {arrows.map(({ l, d }) => <path key={l.id} d={d} className={selLink === l.id ? 'selected' : ''} markerEnd="url(#cv-arrow)" />)}
+          </svg>
           <div className="cv-labels">
+            {arrows.map(({ l, mid }) => (
+              <button key={l.id} className={`cv-link-label${selLink === l.id ? ' selected' : ''}`} style={{ left: mid.x, top: mid.y }}
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => { setSelLink(l.id); setSelFrame(null); clearPick(); setShowChanges(false); }}>{l.label || 'Click'}</button>
+            ))}
             {shown.map((f) => {
               const w = f.w * view.zoom;
               if (w < 48 || !inView(f)) return null;
@@ -346,6 +453,7 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
                 <div key={f.id} className={`cv-frame-head${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x * view.zoom + view.x, top: f.y * view.zoom + view.y - 20, width: w }}
                   title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
                   onPointerDown={(e) => { e.stopPropagation(); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => focusFrame(f)}>
+                  {f.n && <span className="cv-frame-step">{f.n}</span>}
                   <span className="cv-frame-name">{f.name}</span>
                   {states ? null : w > 200 && manifest && manifest.scenarios.length > 1 ? (
                     <select className="cv-frame-scenario" aria-label={`State of ${f.name}`} value={f.scenario} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => setFrame(f.id, { scenario: e.target.value })}>
@@ -356,12 +464,23 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
               );
             })}
           </div>
-          {!board.frames.length && (
+          {!states && board.frames.map((f) => f.note && f.w * view.zoom > 160 && inView(f) && (
+            <p key={f.id} className="cv-frame-note" style={{ left: f.x * view.zoom + view.x, top: (f.y + f.h) * view.zoom + view.y + 12, width: f.w * view.zoom }}>{f.note}</p>
+          ))}
+          {!board.frames.length && (flow ? (
+            <div className="cv-hint">
+              <p>Record Flow {flow.n}: pick the screen it starts on, then click through the app. Each screen you reach becomes the next step, with an arrow named after the click.</p>
+              <select aria-label="First screen" value="" onChange={(e) => startFlow(e.target.value)} disabled={!manifest?.screens.length}>
+                <option value="">Start recording on…</option>
+                {manifest?.screens.map((s) => <option key={s.route} value={s.route}>{s.name}</option>)}
+              </select>
+            </div>
+          ) : (
             <div className="cv-hint">
               <p>An empty board</p>
               <button className="primary" onClick={addFrame} disabled={!manifest?.screens.length}>Add a frame</button>
             </div>
-          )}
+          ))}
         </div>
         <div className="cv-tools" role="toolbar" aria-label="Canvas tools">
           {([['select', 'select', 'Select an element (V)'], ['hand', 'hand', 'Move around (H)'], ['interact', 'interact', 'Use the app (I)']] as const).map(([m, icon, tip]) => (
@@ -370,6 +489,7 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
           <span className="cv-sep" />
           <button title="Add a frame" aria-label="Add a frame" onClick={addFrame} disabled={!manifest?.screens.length}><Icon name="add" /></button>
           <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={fit}><Icon name="screen-full" /></button>
+          {flow && <button className={rec ? 'active cv-rec' : 'cv-rec'} aria-pressed={rec} title="Record the flow by clicking through the app (R)" aria-label="Record the flow" onClick={toggleRec}><Icon name="record" /></button>}
           <button className={states ? 'active' : ''} aria-pressed={!!states} title="All states of the selected screen (S)" aria-label="All states of the selected screen" onClick={toggleStates}><Icon name="layers" /></button>
           <span className="cv-sep" />
           <button className={showChanges ? 'active cv-changes-btn' : 'cv-changes-btn'} aria-pressed={showChanges} title="Changes to the app's code" onClick={() => { setShowChanges((v) => !v); void loadChanges(); }}>
@@ -382,15 +502,34 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
         </div>
         {saveError && <div className="cv-toast" role="alert">Board not saved: {saveError}</div>}
         {toast && !saveError && <div className="cv-toast" role="status">{toast}</div>}
+        {linked && !toast && (
+          <div className="cv-toast" role="status">{linked.text}
+            <button className="ghost" onClick={() => { const b = boardRef.current; const from = b.frames.find((f) => f.id === linked.from); if (from) addStep(b, from, linked.route, linked.label, linked.link); setLinked(null); }}>Make it a new step</button>
+          </div>
+        )}
+        {rec && !linked && !toast && <div className="cv-banner" role="status" title="Dialogs and other changes inside a screen are not recorded">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
         {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
-        {showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
+        {selLink && board.links.some((l) => l.id === selLink) ? <LinkPanel link={board.links.find((l) => l.id === selLink)!} frames={board.frames} setLink={setLink} remove={removeLink} />
+          : showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
           : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
           : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
           : frame ? <FramePanel frame={frame} manifest={manifest} setFrame={setFrame} remove={removeFrame} />
           : <p className="cv-muted">Pick an element in a frame to edit it, or a frame's name to change its screen, state and size.</p>}
       </aside>
+    </div>
+  );
+}
+
+function LinkPanel({ link, frames, setLink, remove }: { link: Link; frames: Frame[]; setLink: (id: string, p: Partial<Link>) => void; remove: (id: string) => void }) {
+  const name = (id: string) => { const f = frames.find((x) => x.id === id); return f ? `${f.n ? `${f.n} ` : ''}${f.name}` : ''; };
+  return (
+    <div className="cv-panel">
+      <h2>Arrow</h2>
+      <p className="cv-muted">{name(link.from)} to {name(link.to)}</p>
+      <label>Label<input value={link.label} placeholder="Click Open" onChange={(e) => setLink(link.id, { label: e.target.value })} /></label>
+      <button className="danger" onClick={() => remove(link.id)}>Delete arrow</button>
     </div>
   );
 }

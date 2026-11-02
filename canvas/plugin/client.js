@@ -48,8 +48,15 @@
   for (const type of ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'submit']) {
     addEventListener(type, (e) => { if (mode === 'select') { e.preventDefault(); e.stopPropagation(); } }, true);
   }
+  // What was last clicked while using the app, so a screen change can say which click led to it ("Click Open").
+  let clicked = null;
   addEventListener('click', (e) => {
-    if (mode !== 'select') return;
+    if (mode !== 'select') {
+      const c = e.target.closest?.('button, a, [role="button"], [role="tab"], [role="menuitem"], label');
+      const label = c && (c.getAttribute('aria-label') || c.innerText || c.title || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+      clicked = label ? { label, at: Date.now() } : null;
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const el = target(e.target);
@@ -60,7 +67,7 @@
   // After using the app, focus is inside the frame, so the canvas's own keys are passed up (not while typing).
   addEventListener('keydown', (e) => {
     const typing = e.target.closest?.('input, textarea, select, [contenteditable]');
-    if (e.key === 'Escape' || (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && ['v', 'h', 'i'].includes(e.key.toLowerCase()))) post({ type: 'key', key: e.key });
+    if (e.key === 'Escape' || (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && ['v', 'h', 'i', 'r'].includes(e.key.toLowerCase()))) post({ type: 'key', key: e.key });
   });
 
   // Keep the selection outlined through scrolling, resizing and hot updates.
@@ -75,6 +82,8 @@
       if (mode !== 'select') place(hover, null);
     }
     if (e.data.type === 'select') selected = e.data.src ?? null;
+    // Recording a flow keeps this frame on its screen: the screen it reached opens in a new frame instead.
+    if (e.data.type === 'back') { clicked = null; history.back(); }
     // The canvas covers the frame with a shield and sends points in the frame's own pixels.
     if (e.data.type === 'hover') place(hover, e.data.x < 0 ? null : target(document.elementFromPoint(e.data.x, e.data.y)));
     if (e.data.type === 'pick') {
@@ -87,7 +96,14 @@
 
   // The router moves with pushState, which fires no event, so the history calls are wrapped to tell the canvas
   // which screen the frame now shows.
-  const nav = () => post({ type: 'nav', path: location.pathname + location.search });
+  // The router calls pushState and then fires popstate, so each screen change is told once.
+  let shownPath = location.pathname + location.search;
+  const nav = () => {
+    const path = location.pathname + location.search;
+    if (path === shownPath) return;
+    shownPath = path;
+    post({ type: 'nav', path, via: clicked && Date.now() - clicked.at < 1500 ? clicked.label : null });
+  };
   for (const m of ['pushState', 'replaceState']) {
     const orig = history[m];
     history[m] = function (...args) { const r = orig.apply(this, args); queueMicrotask(nav); return r; };

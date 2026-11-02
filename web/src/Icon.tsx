@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import type { IconNode } from 'lucide';
 import {
   AppWindow, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bell, BellDot, BellOff, BookOpen, Bookmark, Braces, Check, ChevronDown, ChevronRight,
-  ChevronUp, ChevronsDownUp, Circle, CircleCheck, CircleSlash, CircleX, Clock, CloudDownload, CodeXml, Compass, Copy, CreditCard, Database,
+  ChevronUp, ChevronsDownUp, Circle, CircleCheck, CircleDot, CircleSlash, CircleX, Clock, CloudDownload, CodeXml, Compass, Copy, CreditCard, Database,
   Diff, Ellipsis, EllipsisVertical, Eraser, ExternalLink, Eye, EyeOff, File, FileArchive, FileCode, FileImage, FilePlus, FileText, Files,
   Folder, FolderOpen, Frame, Hand, MousePointer2, Pointer, FoldVertical, GitBranch, GitCommitHorizontal, Globe, History, Info, Layers, Lightbulb, ListChecks, LoaderCircle, Lock,
   LockOpen, Maximize, Maximize2, MessageSquare, MessagesSquare, Mic, Minimize, Minimize2, Minus, Package, Palette, PanelLeft, PanelRight,
@@ -102,6 +102,7 @@ const ICONS: Record<string, IconNode> = {
   person: User,
   play: Play,
   plug: Plug,
+  record: CircleDot,
   refresh: RotateCw,
   'screen-full': Maximize,
   'screen-normal': Minimize,

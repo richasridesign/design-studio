@@ -5,6 +5,8 @@ export function FramePanel({ frame, manifest, setFrame, remove }: { frame: Frame
     <div className="cv-panel">
       <h2>Frame</h2>
       <label>Name<input value={frame.name} onChange={(e) => setFrame(frame.id, { name: e.target.value })} /></label>
+      {frame.n !== undefined && <label>Step<input value={frame.n} placeholder="3 or 3.1" onChange={(e) => setFrame(frame.id, { n: e.target.value })} /></label>}
+      {frame.n !== undefined && <label>Note<textarea rows={3} value={frame.note ?? ''} placeholder="What happens on this step" onChange={(e) => setFrame(frame.id, { note: e.target.value })} /></label>}
       <label>Screen
         <select value={frame.route} onChange={(e) => setFrame(frame.id, { route: e.target.value, name: manifest?.screens.find((s) => s.route === e.target.value)?.name ?? frame.name })}>
           {(manifest?.screens ?? []).map((s) => <option key={s.route} value={s.route}>{s.name} ({s.route})</option>)}

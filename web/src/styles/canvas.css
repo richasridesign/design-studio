@@ -40,7 +40,7 @@ select.cv-frame-scenario:hover { background: var(--bg-hover); color: var(--fg); 
 .cv-count { position: absolute; top: 2px; right: 2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
 .cv-tools .cv-zoom { width: auto; min-width: 44px; padding: 0 6px; text-align: center; font-size: var(--text-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .cv-toast { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: var(--radius); background: var(--fg); color: var(--bg); font-size: var(--text-sm); }
-.cv-banner { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; white-space: nowrap; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated); font-size: var(--text-sm); box-shadow: 0 4px 16px rgb(0 0 0 / 0.08); }
+.cv-banner { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; width: max-content; max-width: calc(100% - 32px); box-sizing: border-box; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated); font-size: var(--text-sm); box-shadow: 0 4px 16px rgb(0 0 0 / 0.08); }
 .cv-banner button { min-height: 28px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--text-sm); }
 .cv-wait { display: flex; align-items: center; justify-content: center; gap: 8px; height: 100%; color: var(--fg-muted); font-size: var(--text-sm); }
 
@@ -100,3 +100,20 @@ select.cv-frame-scenario:hover { background: var(--bg-hover); color: var(--fg); 
 .cv-style-row > select { grid-column: 3; height: 32px; }
 .cv-swatch { grid-column: 2; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
 .cv-panel .cv-style-add { height: 32px; color: var(--fg-muted); }
+/* Flow boards: arrows between steps, labelled with the click, a step number by each name and a note under each frame. */
+.cv-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; color: var(--fg-muted); }
+.cv-links path { fill: none; stroke: currentColor; stroke-width: 2; }
+.cv-links path.selected { stroke: var(--accent); }
+.cv-links marker path { fill: var(--fg-muted); stroke: none; }
+.cv-link-label {
+  position: absolute; transform: translate(-50%, -50%); max-width: 200px; min-height: 0; padding: 2px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--fg); font-size: var(--text-xs); line-height: 16px; pointer-events: auto; cursor: pointer;
+}
+.cv-link-label.selected { border-color: var(--accent); color: var(--accent); }
+.cv-frame-step { flex: none; min-width: 18px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--fg); color: var(--bg); font-weight: 500; text-align: center; }
+.cv-frame-head.selected .cv-frame-step { background: var(--accent); }
+.cv-frame-note { position: absolute; margin: 0; max-height: 120px; overflow: hidden; white-space: pre-wrap; font-size: var(--text-xs); line-height: 16px; color: var(--fg-muted); pointer-events: none; }
+.cv-hint select { pointer-events: auto; height: 36px; padding-inline: 12px; }
+.cv-hint p { max-width: 420px; text-align: center; }
+.cv-tools .cv-rec.active { color: var(--red); }
+.cv-toast button { margin-left: 8px; min-height: 24px; padding: 0 8px; color: inherit; text-decoration: underline; }
