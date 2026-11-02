@@ -85,21 +85,23 @@ export const FORMATS: Record<TokenFormat, { label: string; file: string; type: s
 };
 
 // The prototype app's base components use five role colours. Each role takes the profile colour whose name fits it
-// best, so a new app looks like the design system before any screen is built.
-const ROLES: [string, RegExp, string][] = [
-  ['accent', /primary|brand|accent|action|interactive/i, '#1f6feb'],
-  ['surface', /surface|background|^bg|canvas|base/i, '#ffffff'],
-  ['fg', /(text|foreground|fg|content).*(primary|default|base)|^text$|foreground/i, '#1b1f24'],
-  ['fg-muted', /(text|foreground|fg|content).*(secondary|muted|subtle|weak)|muted/i, '#59636e'],
-  ['line', /border|stroke|divider|outline|line/i, '#d1d9e0'],
+// best (patterns in order of preference), so a new app looks like the design system before any screen is built.
+// Names that belong to another role are skipped: "text/primary" is text, not the accent.
+const ROLES: [string, RegExp[], RegExp, string][] = [
+  ['accent', [/action.*primary|primary.*action|brand/i, /action|interactive|accent|primary/i], /text|icon|fg|foreground|surface|border|bg|status|feedback|hover|pressed|disabled/i, '#1f6feb'],
+  ['surface', [/surface.*(page|default|base)|background|canvas/i, /surface|^bg|base/i], /hover|pressed|selected|subtle/i, '#ffffff'],
+  ['fg', [/(text|foreground|fg|content).*(primary|default|base)|^text$|foreground/i], /muted|secondary|subtle|on-/i, '#1b1f24'],
+  ['fg-muted', [/(text|foreground|fg|content).*(secondary|muted|subtle|weak)/i, /muted/i], /on-|icon/i, '#59636e'],
+  ['line', [/border.*default|divider/i, /border|stroke|outline|line/i], /focus|feedback|control|hover/i, '#d1d9e0'],
 ];
 
 /** tokens.css for the prototype app: the profile as a Tailwind v4 @theme, plus the role colours. */
 export function toTheme(ds: Partial<DesignSystem>): string {
   const m = model(ds);
   const taken = new Set<string>();
-  const roles = ROLES.map(([role, re, fallback]): Entry => {
-    const hit = m.color.find(([k, v]) => re.test(k) && !taken.has(v) && !(role === 'fg' && /muted|secondary|subtle/.test(k)));
+  const roles = ROLES.map(([role, prefer, skip, fallback]): Entry => {
+    let hit: Entry | undefined;
+    for (const re of prefer) if (!hit) hit = m.color.find(([k, v]) => re.test(k) && !skip.test(k) && !taken.has(v));
     if (hit) taken.add(hit[1]);
     return [role, hit?.[1] ?? fallback];
   });
