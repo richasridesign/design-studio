@@ -5,7 +5,7 @@
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    BindingPattern, Expression, FormalParameters, Function, ObjectPropertyKind, PropertyKey, TSLiteral, TSSignature, TSType, TSTypeName, VariableDeclarator,
+    BindingPattern, Expression, FormalParameters, Function, ImportDeclarationSpecifier, ModuleExportName, ObjectPropertyKind, PropertyKey, Statement, TSLiteral, TSSignature, TSType, TSTypeName, VariableDeclarator,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_parser::Parser;
@@ -238,6 +238,38 @@ fn resolve(types: &HashMap<String, Shape>, shape: &Shape, depth: u32, out: &mut 
     }
 }
 
+/// Where a name used in a file comes from: the import's source as written and the name it has there
+/// ("default" for a default import), or None when the file does not import it (it is defined in the file itself).
+pub fn import_of(path: &str, src: &str, local: &str) -> Result<Option<(String, String)>, String> {
+    let source_type = SourceType::from_path(path).map_err(|_| format!("Not a script file: {path}"))?;
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, src, source_type).parse();
+    if ret.fatal_error {
+        return Err(format!("Could not parse {path}"));
+    }
+    for stmt in &ret.program.body {
+        let Statement::ImportDeclaration(d) = stmt else { continue };
+        for spec in d.specifiers.iter().flatten() {
+            let found = match spec {
+                ImportDeclarationSpecifier::ImportSpecifier(s) if s.local.name == local => Some(match &s.imported {
+                    ModuleExportName::StringLiteral(l) => self_unquote(src, l.span),
+                    other => other.name().to_string(),
+                }),
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(s) if s.local.name == local => Some("default".to_string()),
+                _ => None,
+            };
+            if let Some(name) = found {
+                return Ok(Some((self_unquote(src, d.source.span), name)));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn self_unquote(src: &str, span: oxc_span::Span) -> String {
+    src[span.start as usize + 1..span.end as usize - 1].to_string()
+}
+
 pub fn components(path: &str, src: &str) -> Result<Vec<Component>, String> {
     let source_type = SourceType::from_path(path).map_err(|_| format!("Not a script file: {path}"))?;
     let allocator = Allocator::default();
@@ -292,6 +324,14 @@ function helper(x: { a: string }) { return x; }
         assert_eq!(b.props.iter().find(|p| p.name == "label").unwrap().ty, PropType::String);
         assert_eq!(b.props.iter().find(|p| p.name == "on").unwrap().ty, PropType::Boolean);
         assert_eq!(cs[1].props.iter().find(|p| p.name == "count").unwrap().ty, PropType::Number);
+    }
+
+    #[test]
+    fn finds_where_a_component_comes_from() {
+        let src = "import B, { Card as C, Badge } from '../components/ui';\nimport { Shell } from './Shell';\nexport function Page() { return <C />; }";
+        assert_eq!(import_of("a.tsx", src, "C").unwrap(), Some(("../components/ui".into(), "Card".into())));
+        assert_eq!(import_of("a.tsx", src, "B").unwrap(), Some(("../components/ui".into(), "default".into())));
+        assert_eq!(import_of("a.tsx", src, "Page").unwrap(), None);
     }
 
     #[test]

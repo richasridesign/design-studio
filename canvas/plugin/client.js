@@ -22,7 +22,26 @@
   };
   const target = (el) => el?.closest?.('[data-ds-src]') ?? null;
   const bySrc = (src) => (src ? document.querySelector(`[data-ds-src="${CSS.escape(src)}"]`) : null);
-  const describe = (el) => ({ src: el.getAttribute('data-ds-src'), tag: el.tagName.toLowerCase(), text: (el.innerText ?? '').trim().slice(0, 200) });
+  // The element and the component uses around it, innermost first. A component like PageHeader takes data-ds-src
+  // from its use (<PageHeader title="..."> in a screen) but does not pass it to the DOM, so React's fiber tree is
+  // the only place that use can be found. Each layer is a src and a name; the canvas picks which one to edit.
+  const fiberOf = (el) => { const k = Object.keys(el).find((x) => x.startsWith('__reactFiber$')); return k ? el[k] : null; };
+  const layers = (el) => {
+    const out = [{ src: el.getAttribute('data-ds-src'), name: el.tagName.toLowerCase(), component: false }];
+    let f = fiberOf(el)?.return;
+    for (let n = 0; f && n < 60 && out.length < 4; n++, f = f.return) {
+      if (!f.type || typeof f.type === 'string') continue;
+      const src = f.memoizedProps?.['data-ds-src'];
+      if (!src) continue;
+      const name = f.type.displayName || f.type.name || 'Component';
+      const same = out.find((o) => o.src === src);
+      // A component that spreads its props onto its root element puts its use's src on the DOM node itself.
+      if (same) Object.assign(same, { name, component: true });
+      else out.push({ src, name, component: true });
+    }
+    return out;
+  };
+  const describe = (el) => ({ src: el.getAttribute('data-ds-src'), tag: el.tagName.toLowerCase(), text: (el.innerText ?? '').trim().slice(0, 200), layers: layers(el) });
 
   addEventListener('mousemove', (e) => place(hover, mode === 'select' ? target(e.target) : null), true);
   addEventListener('mouseleave', () => place(hover, null));
@@ -38,8 +57,10 @@
     place(pick, el);
     post({ type: 'select', element: el ? describe(el) : null });
   }, true);
+  // After using the app, focus is inside the frame, so the canvas's own keys are passed up (not while typing).
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') post({ type: 'key', key: 'Escape' });
+    const typing = e.target.closest?.('input, textarea, select, [contenteditable]');
+    if (e.key === 'Escape' || (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && ['v', 'h', 'i'].includes(e.key.toLowerCase()))) post({ type: 'key', key: e.key });
   });
 
   // Keep the selection outlined through scrolling, resizing and hot updates.
@@ -64,7 +85,13 @@
     }
   });
 
-  const ready = () => post({ type: 'ready', path: location.pathname + location.search });
-  addEventListener('popstate', ready);
-  ready();
+  // The router moves with pushState, which fires no event, so the history calls are wrapped to tell the canvas
+  // which screen the frame now shows.
+  const nav = () => post({ type: 'nav', path: location.pathname + location.search });
+  for (const m of ['pushState', 'replaceState']) {
+    const orig = history[m];
+    history[m] = function (...args) { const r = orig.apply(this, args); queueMicrotask(nav); return r; };
+  }
+  addEventListener('popstate', nav);
+  post({ type: 'ready', path: location.pathname + location.search });
 })();

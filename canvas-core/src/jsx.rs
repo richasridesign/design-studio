@@ -69,6 +69,16 @@ pub struct Info {
 pub enum Op {
     Text { value: String },
     Attr { name: String, value: Option<String> },
+    /// A boolean prop: `name` when on, `name={false}` when off (for props that default to on; to fall back to an
+    /// off default, remove the attribute instead).
+    Flag { name: String, value: bool },
+}
+
+fn check_name(name: &str) -> Result<(), String> {
+    if name == ATTR || name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':') {
+        return Err(format!("Not an attribute name: {name}"));
+    }
+    Ok(())
 }
 
 struct Collect<'s> {
@@ -254,10 +264,19 @@ pub fn edit(path: &str, src: &str, line: u32, col: u32, tag: &str, op: &Op) -> R
             let (s, e, _) = plain_text(el, src).ok_or("This element's text is mixed with other elements. Ask Claude to change it")?;
             (s, e, quote_text(value.trim()))
         }
-        Op::Attr { name, value } => {
-            if name == ATTR || name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':') {
-                return Err(format!("Not an attribute name: {name}"));
+        Op::Flag { name, value } => {
+            check_name(name)?;
+            let text = if *value { name.clone() } else { format!("{name}={{false}}") };
+            match el.attrs.iter().find(|a| &a.name == name) {
+                Some(a) if matches!(a.value, Value::Expr { ref raw } if raw != "{true}" && raw != "{false}") => {
+                    return Err(format!("{name} is set by code. Ask Claude to change it"));
+                }
+                Some(a) => (a.start, a.end, text),
+                None => (el.attrs_end, el.attrs_end, format!(" {text}")),
             }
+        }
+        Op::Attr { name, value } => {
+            check_name(name)?;
             match (el.attrs.iter().find(|a| &a.name == name), value) {
                 (Some(a), None) => {
                     // Remove it with the space before it.
@@ -314,6 +333,11 @@ mod tests {
         assert!(add.contains("{...rest} size=\"sm\">Invite"));
         let rm = edit("a.tsx", SRC, 7, 7, "Button", &Op::Attr { name: "disabled".into(), value: None }).unwrap();
         assert!(rm.contains("variant=\"primary\" {...rest}>"));
+        let flag = |name: &str, value: bool| edit("a.tsx", SRC, 7, 7, "Button", &Op::Flag { name: name.into(), value }).unwrap();
+        assert!(flag("disabled", false).contains("variant=\"primary\" disabled={false} {...rest}>"));
+        assert!(flag("loading", true).contains("{...rest} loading>Invite"));
+        let off = edit("a.tsx", &flag("disabled", false), 7, 7, "Button", &Op::Flag { name: "disabled".into(), value: true }).unwrap();
+        assert_eq!(off, SRC);
         let q = edit("a.tsx", SRC, 4, 7, "h1", &Op::Text { value: "a < b".into() }).unwrap();
         assert!(q.contains("{\"a < b\"}"));
     }

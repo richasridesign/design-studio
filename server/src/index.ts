@@ -59,7 +59,7 @@ import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
-import { canvasStatus, createApp, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, readBoard, refreshTokens, startApp, stopAll as stopCanvas, writeBoard } from './canvas/index.js';
+import { canvasStatus, changes as canvasChanges, commit as canvasCommit, createApp, diff as canvasDiff, discard as canvasDiscard, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, props as canvasProps, readBoard, refreshTokens, startApp, stopAll as stopCanvas, undo as canvasUndo, writeBoard } from './canvas/index.js';
 
 // Every server log line starts with the local time, so a lost message can be traced to a restart.
 for (const level of ['log', 'warn', 'error'] as const) {
@@ -435,8 +435,14 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/canvas/inspect') return json({ element: await canvasInspect(project, url.searchParams.get('src') ?? '') });
       if (url.pathname === '/api/canvas/edit' && req.method === 'POST') {
         const b = await readJsonBody();
-        return json(await canvasEdit(project, String(b.src ?? ''), String(b.tag ?? ''), b.op));
+        return json(await canvasEdit(project, String(b.src ?? ''), String(b.tag ?? ''), b.op, String(b.label ?? '')));
       }
+      if (url.pathname === '/api/canvas/props') return json(await canvasProps(project, url.searchParams.get('file') ?? '', url.searchParams.get('name') || undefined));
+      if (url.pathname === '/api/canvas/changes') return json(await canvasChanges(project));
+      if (url.pathname === '/api/canvas/diff') return json({ diff: await canvasDiff(project, url.searchParams.get('file') ?? '') });
+      if (url.pathname === '/api/canvas/undo' && req.method === 'POST') return json(await canvasUndo(project));
+      if (url.pathname === '/api/canvas/commit' && req.method === 'POST') return json(await canvasCommit(project, String((await readJsonBody()).message ?? '')));
+      if (url.pathname === '/api/canvas/discard' && req.method === 'POST') { await canvasDiscard(project, String((await readJsonBody()).file ?? '')); return json({ ok: true }); }
     }
     const figma = chat.state.session.figma;
     const needFigma = () => {

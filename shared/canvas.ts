@@ -16,8 +16,14 @@ export type CanvasStatus = { state: CanvasState; step?: string; error?: string; 
 export type Manifest = { screens: { route: string; name: string }[]; scenarios: { id: string; name: string }[] };
 
 /** One inspector change: the element's text, or one attribute (value null removes it). */
-export type CanvasOp = { kind: 'text'; value: string } | { kind: 'attr'; name: string; value: string | null };
+export type CanvasOp = { kind: 'text'; value: string } | { kind: 'attr'; name: string; value: string | null } | { kind: 'flag'; name: string; value: boolean };
 export type CanvasAttr = { name: string; kind: 'string' | 'expr' | 'bool'; value?: string; raw?: string };
+/** A component's props as canvas-core reads them from its file: variants, strings, numbers, switches. */
+export type CanvasPropType = { kind: 'variant'; options: string[] } | { kind: 'string' } | { kind: 'number' } | { kind: 'boolean' } | { kind: 'other'; raw: string };
+export type CanvasProp = { name: string; optional: boolean; type: CanvasPropType; default?: string };
+export type CanvasComponent = { name: string; line: number; props: CanvasProp[] };
+/** What the canvas changed in the app: uncommitted files, and this session's edits (newest first) for undo. */
+export type CanvasChanges = { files: { file: string; state: 'changed' | 'new' | 'deleted'; added: number; removed: number }[]; edits: { label: string; file: string; at: number }[] };
 export type CanvasElement = { tag: string; line: number; col: number; attrs: CanvasAttr[]; text: string | null; selfClosing: boolean };
 
 export const emptyBoard = (): Board => ({ version: 1, name: 'Main board', frames: [] });

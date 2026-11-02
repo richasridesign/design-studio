@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { realpath } from 'node:fs/promises';
-import { parseSrc, type CanvasElement, type CanvasOp } from '../../../shared/canvas.js';
+import { readFile, realpath } from 'node:fs/promises';
+import { parseSrc, type CanvasComponent, type CanvasElement, type CanvasOp } from '../../../shared/canvas.js';
+import { record } from './changes.js';
 import { appOf, CORE_BIN, exists } from './paths.js';
 
 // canvas-core (Rust) reads and edits the app's source. Edits are only ever written to files under app/src, one at
@@ -58,32 +59,49 @@ export async function srcFile(project: string, rel: string): Promise<string | nu
   }
 }
 
+const srcRoot = (project: string) => path.join(appOf(project), 'src');
+
 export async function inspect(project: string, src: string): Promise<CanvasElement> {
   const at = parseSrc(src);
   const file = at && (await srcFile(project, at.file));
   if (!at || !file) throw new Error('That element is not in the app\'s source');
-  const r = await callCore({ cmd: 'inspect', path: file, line: at.line, col: at.col });
+  const r = await callCore({ cmd: 'inspect', path: file, line: at.line, col: at.col, root: srcRoot(project) });
   return r.element as CanvasElement;
 }
 
-// One edit at a time across all projects: the engine reads, changes and renames the file in one call, and a queue
-// keeps two quick edits to one file from reading the same old text.
+/**
+ * The props of the components a file defines (variant options, defaults), for the inspector. With a name, the file
+ * is where the component is used, and the engine follows that file's import to where it is defined.
+ */
+export async function props(project: string, rel: string, name?: string): Promise<{ file: string; components: CanvasComponent[] }> {
+  const file = await srcFile(project, rel);
+  if (!file) throw new Error('That component is not in the app\'s source');
+  const r = await callCore({ cmd: 'props', path: file, root: srcRoot(project), ...(name ? { name } : {}) });
+  return { file: path.relative(appOf(project), String(r.file)), components: r.components as CanvasComponent[] };
+}
+
+// One change at a time across all projects: the engine reads, changes and renames the file in one call, and a queue
+// keeps two quick edits (or an edit and an undo) to one file from reading the same old text.
 let edits: Promise<unknown> = Promise.resolve();
 
-export function edit(project: string, src: string, tag: string, op: CanvasOp): Promise<{ changed: boolean }> {
-  const go = async () => {
-    const at = parseSrc(src);
-    const file = at && (await srcFile(project, at.file));
-    if (!at || !file) throw new Error('That element is not in the app\'s source');
-    if (op.kind === 'text' && op.value.length > 2000) throw new Error('That text is too long for one element');
-    if (op.kind === 'attr' && (op.value?.length ?? 0) > 2000) throw new Error('That value is too long');
-    const r = await callCore({ cmd: 'edit', path: file, line: at.line, col: at.col, tag, op });
-    return { changed: r.changed === true };
-  };
+export function queued<T>(go: () => Promise<T>): Promise<T> {
   const p = edits.then(go, go);
   edits = p.catch(() => undefined);
   return p;
 }
 
+export function edit(project: string, src: string, tag: string, op: CanvasOp, label = ''): Promise<{ changed: boolean }> {
+  return queued(async () => {
+    const at = parseSrc(src);
+    const file = at && (await srcFile(project, at.file));
+    if (!at || !file) throw new Error('That element is not in the app\'s source');
+    if (op.kind === 'text' && op.value.length > 2000) throw new Error('That text is too long for one element');
+    if (op.kind === 'attr' && (op.value?.length ?? 0) > 2000) throw new Error('That value is too long');
+    const before = await readFile(file, 'utf8');
+    const r = await callCore({ cmd: 'edit', path: file, line: at.line, col: at.col, tag, op, root: srcRoot(project) });
+    if (r.changed === true) record(project, { file, rel: at.file, before, after: await readFile(file, 'utf8'), label: label.slice(0, 200) || `${tag} in ${at.file}` });
+    return { changed: r.changed === true };
+  });
+}
 
 export const stopCore = () => core?.proc.kill();

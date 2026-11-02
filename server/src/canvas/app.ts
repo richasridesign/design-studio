@@ -41,8 +41,19 @@ export async function refreshTokens(project: string) {
   await writeTokens(project);
 }
 
-/** The plugin is Design Studio's, so each start copies the current one in. */
-const copyPlugin = (project: string) => cp(PLUGIN, path.join(appOf(project), '.designstudio'), { recursive: true, force: true });
+/**
+ * The plugin is Design Studio's, so each start copies the current one in. It is not the app's own code, so the app's
+ * repo ignores it (apps made before that rule stop tracking it on their next start).
+ */
+async function copyPlugin(project: string) {
+  const app = appOf(project);
+  await cp(PLUGIN, path.join(app, '.designstudio'), { recursive: true, force: true });
+  const ignore = path.join(app, '.gitignore');
+  const has = await readFile(ignore, 'utf8').catch(() => '');
+  if (/^\/?\.designstudio\/?$/m.test(has)) return;
+  await writeFile(ignore, `${has}${has && !has.endsWith('\n') ? '\n' : ''}.designstudio/\n`);
+  if (await exists(path.join(app, '.git'))) await runGit(['rm', '-r', '-q', '--cached', '--ignore-unmatch', '.designstudio'], app).catch(() => undefined);
+}
 
 function sh(cmd: string, args: string[], cwd: string, r: Run, timeoutMs: number) {
   return new Promise<void>((resolve, reject) => {

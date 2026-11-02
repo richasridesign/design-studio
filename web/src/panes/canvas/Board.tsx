@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../store';
 import { Icon } from '../../Icon';
-import { SIZES, type Board as BoardData, type CanvasElement, type Frame, type Manifest } from '../../../../shared/canvas';
-import { ElementPanel, type Picked } from './ElementPanel';
+import { SIZES, type Board as BoardData, type CanvasChanges, type Frame, type Manifest } from '../../../../shared/canvas';
+import { ChangesPanel } from './ChangesPanel';
+import { ElementPanel, type Layer, type Picked } from './ElementPanel';
 import { FramePanel } from './FramePanel';
 
 // The board: frames on a plane that pans and zooms. In Select and Hand modes a shield covers every frame, so the
@@ -26,9 +27,25 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   const [picked, setPicked] = useState<Picked | null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [saveError, setSaveError] = useState('');
+  const [showChanges, setShowChanges] = useState(false);
+  const [changes, setChanges] = useState<CanvasChanges | null>(null);
+  const [toast, setToast] = useState('');
   const origin = useMemo(() => new URL(url).origin, [url]);
 
   useEffect(() => { getJson<Manifest>('/api/canvas/manifest').then(setManifest, () => setManifest({ screens: [], scenarios: [] })); }, [url]);
+
+  const loadChanges = useCallback(() => getJson<CanvasChanges>('/api/canvas/changes').then(setChanges, () => undefined), []);
+  useEffect(() => { void loadChanges(); }, [loadChanges]);
+  const undo = useCallback(async () => {
+    try {
+      const r = await postJson<{ label: string }>('/api/canvas/undo', {});
+      setToast(`Undone: ${r.label}`);
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+    void loadChanges();
+  }, [loadChanges]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t); }, [toast]);
 
   // Saves shortly after the last change.
   const saveTimer = useRef<number>(0);
@@ -78,14 +95,31 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   const tell = useCallback((win: Window | null | undefined, msg: Record<string, unknown>) => win?.postMessage({ ds: true, ...msg }, origin), [origin]);
   useEffect(() => { for (const f of frames.current.values()) tell(f.contentWindow, { type: 'mode', mode }); }, [mode, tell]);
 
-  const inspect = useCallback(async (p: Picked) => {
-    try {
-      const r = await getJson<{ element: CanvasElement }>(`/api/canvas/inspect?src=${encodeURIComponent(p.src)}`);
-      setPicked((cur) => (cur?.src === p.src && cur.frame === p.frame ? { ...cur, element: r.element, error: undefined } : cur));
-    } catch (e) {
-      setPicked((cur) => (cur?.src === p.src ? { ...cur, error: (e as Error).message } : cur));
-    }
-  }, []);
+  // A frame keeps the page its iframe was given while the app navigates inside it, so following a link does not
+  // reload the frame; the frame's route follows the app instead. A frame named after its screen takes the new name.
+  const loaded = useRef(new Map<string, string>());
+  const selfNav = useRef(new Map<string, string>());
+  const srcFor = (f: Frame) => {
+    const want = `${url}${f.route}${f.route.includes('?') ? '&' : '?'}scenario=${encodeURIComponent(f.scenario)}`;
+    const had = loaded.current.get(f.id);
+    if (had && selfNav.current.get(f.id) === f.route && had.endsWith(`scenario=${encodeURIComponent(f.scenario)}`)) return had;
+    loaded.current.set(f.id, want);
+    selfNav.current.delete(f.id);
+    return want;
+  };
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const followNav = useCallback((id: string, path: string) => {
+    const u = new URL(path, 'http://app');
+    u.searchParams.delete('scenario');
+    const route = u.pathname + u.search;
+    const b = boardRef.current;
+    const f = b.frames.find((x) => x.id === id);
+    if (!f || f.route === route) return;
+    const named = manifest?.screens.find((s) => s.route === f.route)?.name === f.name;
+    selfNav.current.set(id, route);
+    update({ ...b, frames: b.frames.map((x) => (x.id === id ? { ...x, route, name: named ? manifest?.screens.find((s) => s.route === route)?.name ?? x.name : x.name } : x)) });
+  }, [manifest, update]);
 
   useEffect(() => {
     const on = (e: MessageEvent) => {
@@ -97,19 +131,24 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
         if (picked?.frame === id) tell(e.source as Window, { type: 'select', src: picked.src });
       }
       if (e.data.type === 'select') {
-        const el = e.data.element as { src: string; tag: string } | null;
+        const el = e.data.element as { src: string; tag: string; layers?: Layer[] } | null;
         setSelFrame(id);
         for (const [fid, f] of frames.current) if (fid !== id) tell(f.contentWindow, { type: 'select', src: null });
-        if (!el?.src) { setPicked(null); return; }
-        const p: Picked = { frame: id, src: el.src, tag: el.tag };
-        setPicked(p);
-        void inspect(p);
+        setPicked(el?.src ? { frame: id, src: el.src, tag: el.tag, layers: el.layers ?? [] } : null);
+        if (el?.src) setShowChanges(false);
       }
-      if (e.data.type === 'key' && e.data.key === 'Escape') setPicked(null);
+      if (e.data.type === 'nav' && typeof e.data.path === 'string') followNav(id, e.data.path);
+      if (e.data.type === 'key') {
+        const k = String(e.data.key).toLowerCase();
+        if (k === 'escape') { if (mode === 'interact') setMode('select'); else setPicked(null); }
+        else if (k === 'v') setMode('select');
+        else if (k === 'h') setMode('hand');
+        else if (k === 'i') setMode('interact');
+      }
     };
     addEventListener('message', on);
     return () => removeEventListener('message', on);
-  }, [origin, mode, picked, tell, inspect]);
+  }, [origin, mode, picked, tell, followNav]);
 
   const clearPick = useCallback(() => {
     setPicked(null);
@@ -121,8 +160,10 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (t.closest('input, textarea, select, [contenteditable]')) return;
       if (!stage.current?.closest('.editor.shown')) return;
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); void undo(); return; }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'v') setMode('select');
       else if (k === 'h') setMode('hand');
@@ -132,13 +173,13 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
       else if (e.shiftKey && e.code === 'Digit0') zoomTo(1);
       else if (e.key === '+' || e.key === '=') zoomBy(1.25);
       else if (e.key === '-' || e.key === '_') zoomBy(0.8);
-      else if (e.key === 'Escape') { clearPick(); setSelFrame(null); }
+      else if (e.key === 'Escape') { if (mode === 'interact') setMode('select'); else { clearPick(); setSelFrame(null); } }
       else return;
       e.preventDefault();
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, board.frames, selFrame]);
+  }, [fit, clearPick, focusFrame, zoomBy, zoomTo, board.frames, selFrame, undo, mode]);
 
   // Wheel pans; Cmd or Ctrl with the wheel (and pinch) zooms around the pointer.
   useEffect(() => {
@@ -193,8 +234,18 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
     }, () => update(last));
   };
 
+  /** One frame per screen in the first state, in one row: the board a project starts with. */
+  const layOutScreens = useCallback(() => {
+    if (!manifest?.screens.length) return;
+    const laptop = SIZES[1];
+    const scenario = manifest.scenarios[0]?.id ?? 'default';
+    update({ ...board, frames: manifest.screens.map((s, i) => ({ id: Math.random().toString(36).slice(2, 10), name: s.name, route: s.route, scenario, x: i * (laptop.w + GAP), y: 0, w: laptop.w, h: laptop.h })) });
+    fitted.current = false;
+  }, [manifest, board, update]);
+  useEffect(() => { if (manifest && !board.frames.length) layOutScreens(); }, [manifest]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addFrame = () => {
-    const screen = manifest?.screens[0];
+    const screen = manifest?.screens.find((s) => !board.frames.some((f) => f.route === s.route)) ?? manifest?.screens[0];
     if (!screen) return;
     const right = board.frames.reduce((m, f) => Math.max(m, f.x + f.w + GAP), 0);
     const laptop = SIZES[1];
@@ -248,11 +299,11 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
                   <iframe
                     ref={(el) => { if (el) frames.current.set(f.id, el); else frames.current.delete(f.id); }}
                     title={f.name}
-                    src={`${url}${f.route}?scenario=${encodeURIComponent(f.scenario)}`}
+                    src={srcFor(f)}
                     width={f.w}
                     height={f.h}
                   />
-                ) : <div className="cv-frame-off">{f.name}</div>}
+                ) : (loaded.current.delete(f.id), <div className="cv-frame-off">{f.name}</div>)}
               </div>
             ))}
           </div>
@@ -265,7 +316,11 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
                   title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
                   onPointerDown={(e) => { e.stopPropagation(); moveFrame(e, f); }} onDoubleClick={() => focusFrame(f)}>
                   <span className="cv-frame-name">{f.name}</span>
-                  {w > 160 && <span className="cv-frame-scenario">{manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}</span>}
+                  {w > 200 && manifest && manifest.scenarios.length > 1 ? (
+                    <select className="cv-frame-scenario" aria-label={`State of ${f.name}`} value={f.scenario} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => setFrame(f.id, { scenario: e.target.value })}>
+                      {manifest.scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  ) : w > 160 && <span className="cv-frame-scenario">{manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}</span>}
                 </div>
               );
             })}
@@ -285,14 +340,20 @@ export function Board({ url, board, setBoard }: { url: string; board: BoardData;
           <button title="Add a frame" aria-label="Add a frame" onClick={addFrame} disabled={!manifest?.screens.length}><Icon name="add" /></button>
           <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={fit}><Icon name="screen-full" /></button>
           <span className="cv-sep" />
+          <button className={showChanges ? 'active cv-changes-btn' : 'cv-changes-btn'} aria-pressed={showChanges} title="Changes to the app's code" onClick={() => { setShowChanges((v) => !v); void loadChanges(); }}>
+            <Icon name="git-commit" />{changes?.files.length ? <span className="cv-count">{changes.files.length}</span> : null}
+          </button>
+          <span className="cv-sep" />
           <button title="Zoom out (-)" aria-label="Zoom out" onClick={() => zoomBy(0.8)}><Icon name="zoom-out" /></button>
           <button className="cv-zoom" title="Zoom to 100% (Shift+0)" aria-label={`Zoom ${Math.round(view.zoom * 100)}%, set to 100%`} onClick={() => zoomTo(1)}>{Math.round(view.zoom * 100)}%</button>
           <button title="Zoom in (+)" aria-label="Zoom in" onClick={() => zoomBy(1.25)}><Icon name="zoom-in" /></button>
         </div>
         {saveError && <div className="cv-toast" role="alert">Board not saved: {saveError}</div>}
+        {toast && !saveError && <div className="cv-toast" role="status">{toast}</div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
-        {picked ? <ElementPanel picked={picked} onEdited={() => inspect(picked)} />
+        {showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
+          : picked ? <ElementPanel picked={picked} frame={board.frames.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
           : frame ? <FramePanel frame={frame} manifest={manifest} setFrame={setFrame} remove={removeFrame} />
           : <p className="cv-muted">Pick an element in a frame to edit it, or a frame's name to change its screen, state and size.</p>}
       </aside>

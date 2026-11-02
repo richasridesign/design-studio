@@ -165,11 +165,17 @@ access). Frames run the real app, so what you see is code, not a picture of it.
 - **Create the app.** A project without one shows "Create prototype app". Design Studio makes a React, Vite and
   Tailwind app in the project's `app` folder, with the design system profile as its theme, a few base components and
   fake data per scenario. It installs it, commits it and starts it.
-- **Select (V).** Click an element in a frame. The inspector shows its source line, its text and its properties.
-  Change them and the edit is written to that line of the source file, and the frame updates. Values set by code show
-  as read only; ask Claude to change those.
-- **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it.
-- **Frames.** Add a frame, then pick its screen, state and size. Click a frame's name to select it.
+- **Select (V).** Click an element in a frame. The inspector opens where the element is written for this screen: a
+  page title inside a shared header opens as that header's use (`title`, `text`), so the change stays on this
+  screen. Variants show as menus and on/off props as switches, read from the component's own types. The layer chips
+  above go into the component itself, which changes every use. Values set by code show as read only; **Ask Claude
+  about this** puts the element's file, line, screen and state in the composer.
+- **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it;
+  the frame's name follows the screen you reach. Escape or V goes back to Select.
+- **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
+  the name to change its screen and size, double-click it to zoom to it.
+- **Changes.** Every edit can be undone (Cmd+Z). The Changes button lists the app's changed files with their diffs,
+  discards a file, and commits to the app's own repo. Nothing is pushed.
 
 The app is its own git repository (`app/`, ignored by the project's history), so its commits are code you can hand
 over. The board is `canvas/boards/main.json` in the project and follows the project's history. Edits go through

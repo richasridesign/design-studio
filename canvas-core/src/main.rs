@@ -6,6 +6,7 @@
 //   {"id":2,"cmd":"inspect","path":"/abs/src/A.tsx","line":7,"col":7}                   -> {"id":2,"element":{...}}
 //   {"id":3,"cmd":"edit","path":"...","line":7,"col":7,"tag":"Button","op":{...}}      -> {"id":3,"ok":true}
 //   {"id":4,"cmd":"props","path":"/abs/src/components/Button.tsx"}                     -> {"id":4,"components":[...]}
+//   {"id":5,"cmd":"props","path":"/abs/src/screens/Home.tsx","name":"Button"}         -> the Button that Home.tsx imports
 //
 // inspect, edit and props take an optional "root" (the app's src folder). With it, a path that resolves outside root,
 // through `..` or a symlink, or that is not a .tsx/.jsx file, is refused before anything is read or written.
@@ -26,7 +27,7 @@ enum Req {
     Stamp { path: String, label: String, source: String },
     Inspect { path: String, line: u32, col: u32, root: Option<String> },
     Edit { path: String, line: u32, col: u32, tag: String, op: jsx::Op, root: Option<String> },
-    Props { path: String, root: Option<String> },
+    Props { path: String, root: Option<String>, name: Option<String> },
 }
 
 /// The real path of `path` when it is a .tsx or .jsx file inside `root`, else why not.
@@ -41,6 +42,23 @@ fn guard(path: &str, root: Option<&str>) -> Result<String, String> {
         return Err(format!("Not a component file: {path}"));
     }
     real.to_str().map(str::to_string).ok_or_else(|| format!("Bad path: {path}"))
+}
+
+/// The file a relative import points at, tried with the usual extensions; packages are not followed.
+fn resolve_import(from: &str, source: &str, root: Option<&str>) -> Result<String, String> {
+    if !source.starts_with('.') {
+        return Err(format!("{source} is a package, not a component of the app"));
+    }
+    let base = std::path::Path::new(from).parent().unwrap_or(std::path::Path::new("/")).join(source);
+    for ext in ["", ".tsx", ".jsx", "/index.tsx", "/index.jsx"] {
+        let p = format!("{}{ext}", base.display());
+        if std::path::Path::new(&p).is_file() {
+            if let Ok(ok) = guard(&p, root) {
+                return Ok(ok);
+            }
+        }
+    }
+    Err(format!("Could not find {source}"))
 }
 
 fn write_atomic(path: &str, text: &str) -> Result<(), String> {
@@ -62,9 +80,21 @@ fn handle(req: Req) -> Result<Value, String> {
             let path = guard(&path, root.as_deref())?;
             Ok(json!({ "element": jsx::inspect(&path, &read(&path)?, line, col)? }))
         }
-        Req::Props { path, root } => {
+        Req::Props { path, root, name: None } => {
             let path = guard(&path, root.as_deref())?;
-            Ok(json!({ "components": props::components(&path, &read(&path)?)? }))
+            Ok(json!({ "file": path, "components": props::components(&path, &read(&path)?)? }))
+        }
+        Req::Props { path, root, name: Some(name) } => {
+            let path = guard(&path, root.as_deref())?;
+            let (file, exported) = match props::import_of(&path, &read(&path)?, &name)? {
+                None => (path, name.clone()),
+                Some((source, exported)) => (resolve_import(&path, &source, root.as_deref())?, exported),
+            };
+            let all = props::components(&file, &read(&file)?)?;
+            // A default import can be named anything at the use; a file with one component has no doubt.
+            let one = all.len() == 1;
+            let picked: Vec<_> = all.into_iter().filter(|c| c.name == exported || c.name == name || one).collect();
+            Ok(json!({ "file": file, "components": picked }))
         }
         Req::Edit { path, line, col, tag, op, root } => {
             let path = guard(&path, root.as_deref())?;
