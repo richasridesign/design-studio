@@ -14,7 +14,7 @@ import { Empty, PrototypeArt } from './panes/Empty';
 import { DesignSystem } from './panes/DesignSystem';
 import { Review } from './panes/Review';
 import { History } from './panes/History';
-import { Canvas } from './panes/Canvas';
+import { Canvas } from './panes/canvas';
 import { Settings } from './panes/Settings';
 import { RecipeEditorHost } from './RecipeEditorHost';
 import { Icon } from './Icon';

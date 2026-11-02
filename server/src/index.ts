@@ -59,7 +59,7 @@ import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
-import { canvasStatus, createApp, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, readBoard, refreshTokens, startApp, stopAll as stopCanvas, writeBoard } from './canvas.js';
+import { canvasStatus, createApp, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, projectOf, readBoard, refreshTokens, startApp, stopAll as stopCanvas, writeBoard } from './canvas/index.js';
 
 // Every server log line starts with the local time, so a lost message can be traced to a restart.
 for (const level of ['log', 'warn', 'error'] as const) {

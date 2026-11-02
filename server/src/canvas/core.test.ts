@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { srcFile } from './canvas.js';
+import { srcFile } from './core.js';
 
 // The inspector writes to whatever file the page names, so the guard is the only thing keeping edits inside app/src.
 describe('srcFile', () => {

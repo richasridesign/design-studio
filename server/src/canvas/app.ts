@@ -1,29 +1,15 @@
 import path from 'node:path';
 import net from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createInterface } from 'node:readline';
-import { fileURLToPath } from 'node:url';
-import { appendFile, cp, mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
-import { cleanBoard, emptyBoard, parseSrc, type Board, type CanvasElement, type CanvasOp, type CanvasStatus, type Manifest } from '../../shared/canvas.js';
-import { toTheme } from '../../shared/tokens.js';
-import { readProfile } from './profile.js';
-import { gitFolder, runGit } from './projectGit.js';
+import { appendFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { emptyBoard, type CanvasStatus, type Manifest } from '../../../shared/canvas.js';
+import { toTheme } from '../../../shared/tokens.js';
+import { readProfile } from '../profile.js';
+import { runGit } from '../projectGit.js';
+import { stopCore } from './core.js';
+import { appOf, boardFile, CORE_BIN, exists, PLUGIN, TEMPLATE } from './paths.js';
 
-// The Canvas tab: a prototype app in <project>/app (its own git repo, ignored by the project's), its Vite dev server,
-// the board in <project>/canvas/boards, and inspector edits through canvas-core (Rust). Edits are only ever written
-// to files under app/src, one at a time.
-
-const REPO = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
-const TEMPLATE = path.join(REPO, 'canvas', 'template');
-const PLUGIN = path.join(REPO, 'canvas', 'plugin');
-export const CORE_BIN = path.join(REPO, 'canvas-core', 'target', 'release', 'canvas-core');
-
-const exists = (p: string) => stat(p).then(() => true, () => false);
-
-/** The project folder for a chat's folder: the project when the chat is in one, else the chat's own folder. */
-export const projectOf = async (cwd: string) => (await gitFolder(cwd)) ?? cwd;
-const appOf = (project: string) => path.join(project, 'app');
-const boardFile = (project: string) => path.join(project, 'canvas', 'boards', 'main.json');
+// The prototype app: made from the template, started with its own Vite dev server, one per project.
 
 type Run = { status: CanvasStatus; proc?: ChildProcess; log: string[] };
 const runs = new Map<string, Run>();
@@ -44,86 +30,6 @@ export async function canvasStatus(project: string): Promise<CanvasStatus> {
   return { ...r.status, hasProfile };
 }
 
-// ---- canvas-core ----------------------------------------------------------------------------------------------
-
-type Pending = (msg: Record<string, unknown>) => void;
-let core: { proc: ChildProcess; waiting: Map<number, Pending>; next: number } | null = null;
-
-function coreProc() {
-  if (core && core.proc.exitCode === null) return core;
-  const proc = spawn(CORE_BIN, [], { stdio: ['pipe', 'pipe', 'inherit'] });
-  const c = { proc, waiting: new Map<number, Pending>(), next: 1 };
-  createInterface({ input: proc.stdout! }).on('line', (line) => {
-    let msg: Record<string, unknown>;
-    try { msg = JSON.parse(line); } catch { return; }
-    c.waiting.get(Number(msg.id))?.(msg);
-    c.waiting.delete(Number(msg.id));
-  });
-  const fail = (why: string) => { for (const done of c.waiting.values()) done({ error: why }); c.waiting.clear(); };
-  proc.on('error', (e) => fail(`canvas-core did not start: ${e.message}`));
-  proc.on('exit', () => fail('canvas-core stopped'));
-  core = c;
-  return c;
-}
-
-async function callCore(req: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (!(await exists(CORE_BIN))) throw new Error('The canvas engine is not built yet. Run npm run core in the Design Studio folder');
-  const c = coreProc();
-  const msg = await new Promise<Record<string, unknown>>((resolve) => {
-    const id = c.next++;
-    const timer = setTimeout(() => { c.waiting.delete(id); resolve({ error: 'canvas-core did not answer in 10 seconds' }); }, 10_000);
-    c.waiting.set(id, (m) => { clearTimeout(timer); resolve(m); });
-    c.proc.stdin!.write(JSON.stringify({ ...req, id }) + '\n');
-  });
-  if (typeof msg.error === 'string') throw new Error(msg.error);
-  return msg;
-}
-
-/**
- * The absolute file for a data-ds-src path, or null when it is not a source file under app/src. Symlinks are
- * resolved first, so a link inside src cannot point an edit outside it.
- */
-export async function srcFile(project: string, rel: string): Promise<string | null> {
-  if (!/\.[jt]sx$/.test(rel) || rel.includes('\0')) return null;
-  const root = path.join(appOf(project), 'src');
-  const file = path.resolve(appOf(project), rel);
-  if (!file.startsWith(root + path.sep)) return null;
-  try {
-    const [r, f] = await Promise.all([realpath(root), realpath(file)]);
-    return f.startsWith(r + path.sep) ? f : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function inspect(project: string, src: string): Promise<CanvasElement> {
-  const at = parseSrc(src);
-  const file = at && (await srcFile(project, at.file));
-  if (!at || !file) throw new Error('That element is not in the app\'s source');
-  const r = await callCore({ cmd: 'inspect', path: file, line: at.line, col: at.col });
-  return r.element as CanvasElement;
-}
-
-// One edit at a time across all projects: the engine reads, changes and renames the file in one call, and a queue
-// keeps two quick edits to one file from reading the same old text.
-let edits: Promise<unknown> = Promise.resolve();
-
-export function edit(project: string, src: string, tag: string, op: CanvasOp): Promise<{ changed: boolean }> {
-  const go = async () => {
-    const at = parseSrc(src);
-    const file = at && (await srcFile(project, at.file));
-    if (!at || !file) throw new Error('That element is not in the app\'s source');
-    if (op.kind === 'text' && op.value.length > 2000) throw new Error('That text is too long for one element');
-    if (op.kind === 'attr' && (op.value?.length ?? 0) > 2000) throw new Error('That value is too long');
-    const r = await callCore({ cmd: 'edit', path: file, line: at.line, col: at.col, tag, op });
-    return { changed: r.changed === true };
-  };
-  const p = edits.then(go, go);
-  edits = p.catch(() => undefined);
-  return p;
-}
-
-// ---- the app ----------------------------------------------------------------------------------------------------
 
 async function writeTokens(project: string) {
   const ds = await readProfile(project).catch(() => null);
@@ -238,7 +144,7 @@ export async function startApp(project: string, creating = false): Promise<void>
 
 export function stopAll() {
   for (const r of runs.values()) r.proc?.kill();
-  core?.proc.kill();
+  stopCore();
 }
 
 export async function manifest(project: string): Promise<Manifest> {
@@ -248,26 +154,4 @@ export async function manifest(project: string): Promise<Manifest> {
   const body = await res.json();
   if (!res.ok) throw new Error(body.error ?? 'Could not read the app\'s screens');
   return body as Manifest;
-}
-
-// ---- the board ----------------------------------------------------------------------------------------------------
-
-export async function readBoard(project: string): Promise<Board> {
-  const raw = await readFile(boardFile(project), 'utf8').catch(() => null);
-  if (!raw) return emptyBoard();
-  try {
-    return cleanBoard(JSON.parse(raw));
-  } catch {
-    return emptyBoard();
-  }
-}
-
-export async function writeBoard(project: string, board: unknown): Promise<Board> {
-  const clean = cleanBoard(board);
-  const file = boardFile(project);
-  await mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  await writeFile(tmp, JSON.stringify(clean, null, 2) + '\n');
-  await rename(tmp, file);
-  return clean;
 }

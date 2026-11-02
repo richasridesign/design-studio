@@ -1,79 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getJson, postJson, useStore } from '../store';
-import { Icon } from '../Icon';
-import { Empty, PrototypeArt } from './Empty';
-import { SIZES, type Board, type CanvasElement, type CanvasOp, type CanvasStatus, type Frame, type Manifest } from '../../../shared/canvas';
-import '../styles/canvas.css';
+import { getJson, postJson } from '../../store';
+import { Icon } from '../../Icon';
+import { SIZES, type Board as BoardData, type CanvasElement, type Frame, type Manifest } from '../../../../shared/canvas';
+import { ElementPanel, type Picked } from './ElementPanel';
+import { FramePanel } from './FramePanel';
 
-// The Canvas tab: the prototype app's screens as live frames on a board. Select mode picks an element inside a frame
-// and the inspector edits its source (text and attributes) through canvas-core; Vite then updates every frame.
-// In Select and Hand modes a shield covers every frame, so the board gets every wheel, pinch and drag; a click on the
-// shield asks the frame which element sits under that point. Only Interact mode hands the pointer to the app.
+// The board: frames on a plane that pans and zooms. In Select and Hand modes a shield covers every frame, so the
+// board gets every wheel, pinch and drag; a click on the shield asks the frame which element sits under that point.
 
 type Mode = 'select' | 'hand' | 'interact';
 type View = { x: number; y: number; zoom: number };
-type Picked = { frame: string; src: string; tag: string; element?: CanvasElement; error?: string };
 
-const BUSY = ['creating', 'installing', 'starting'];
 const GAP = 80;
 const ZOOM_MIN = 0.02;
 const ZOOM_MAX = 4;
 const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
-export function Canvas() {
-  const chat = useStore((s) => s.session.id);
-  const [status, setStatus] = useState<CanvasStatus | null>(null);
-  const [board, setBoard] = useState<Board | null>(null);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    try {
-      const r = await getJson<{ status: CanvasStatus; board: Board }>('/api/canvas');
-      setStatus(r.status);
-      setBoard((b) => b ?? r.board);
-      setError('');
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, []);
-
-  useEffect(() => { setBoard(null); setStatus(null); void load(); }, [chat, load]);
-  useEffect(() => {
-    if (!status || !BUSY.includes(status.state)) return;
-    const t = setInterval(load, 1000);
-    return () => clearInterval(t);
-  }, [status, load]);
-  // A made app starts by itself when the tab opens.
-  useEffect(() => {
-    if (status?.state === 'stopped') postJson<{ status: CanvasStatus }>('/api/canvas/start', {}).then((r) => setStatus(r.status), (e) => setError(e.message));
-  }, [status?.state]);
-
-  const create = () => postJson<{ status: CanvasStatus }>('/api/canvas/create', {}).then((r) => setStatus({ ...r.status, state: 'creating' }), (e) => setError(e.message));
-
-  if (error && !status) return <Empty art={<PrototypeArt />} title="The canvas could not load" text={error} action={{ label: 'Try again', onClick: load }} />;
-  if (!status || !board) return null;
-  if (status.state === 'none') {
-    return (
-      <Empty
-        art={<PrototypeArt />}
-        title="No prototype app yet"
-        text={status.hasProfile
-          ? 'Design Studio makes a React app in this project with your design system tokens and base components. Every screen on the canvas is that real app.'
-          : 'Design Studio makes a React app in this project with base components. There is no design system profile yet, so it starts with neutral colours; Refresh tokens applies the profile later.'}
-        action={{ label: 'Create prototype app', onClick: create }}
-      />
-    );
-  }
-  if (BUSY.includes(status.state) || status.state === 'stopped') {
-    return <div className="cv-wait" role="status"><Icon name="loading" spin /> {status.step ?? 'Starting the app'}</div>;
-  }
-  if (status.state === 'failed' || !status.url) {
-    return <Empty art={<PrototypeArt />} title="The app did not start" text={status.error ?? 'Unknown error'} action={{ label: 'Try again', onClick: () => postJson('/api/canvas/start', {}).then(load) }} />;
-  }
-  return <BoardView url={status.url} board={board} setBoard={setBoard} />;
-}
-
-function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoard: (b: Board) => void }) {
+export function Board({ url, board, setBoard }: { url: string; board: BoardData; setBoard: (b: BoardData) => void }) {
   const stage = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [view, setView] = useState<View>({ x: 40, y: 60, zoom: 0.5 });
@@ -89,7 +32,7 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
 
   // Saves shortly after the last change.
   const saveTimer = useRef<number>(0);
-  const update = useCallback((next: Board) => {
+  const update = useCallback((next: BoardData) => {
     setBoard(next);
     clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => postJson('/api/canvas/board', next).then(() => setSaveError(''), (e) => setSaveError(e.message)), 400);
@@ -354,110 +297,5 @@ function BoardView({ url, board, setBoard }: { url: string; board: Board; setBoa
           : <p className="cv-muted">Pick an element in a frame to edit it, or a frame's name to change its screen, state and size.</p>}
       </aside>
     </div>
-  );
-}
-
-function FramePanel({ frame, manifest, setFrame, remove }: { frame: Frame; manifest: Manifest | null; setFrame: (id: string, p: Partial<Frame>) => void; remove: (id: string) => void }) {
-  return (
-    <div className="cv-panel">
-      <h2>Frame</h2>
-      <label>Name<input value={frame.name} onChange={(e) => setFrame(frame.id, { name: e.target.value })} /></label>
-      <label>Screen
-        <select value={frame.route} onChange={(e) => setFrame(frame.id, { route: e.target.value, name: manifest?.screens.find((s) => s.route === e.target.value)?.name ?? frame.name })}>
-          {(manifest?.screens ?? []).map((s) => <option key={s.route} value={s.route}>{s.name} ({s.route})</option>)}
-          {!manifest?.screens.some((s) => s.route === frame.route) && <option value={frame.route}>{frame.route}</option>}
-        </select>
-      </label>
-      <label>State
-        <select value={frame.scenario} onChange={(e) => setFrame(frame.id, { scenario: e.target.value })}>
-          {(manifest?.scenarios ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </label>
-      <div className="cv-field">
-        <span>Size</span>
-        <div className="cv-sizes" role="group" aria-label="Size">
-          {SIZES.map((s) => <button key={s.id} className={frame.w === s.w && frame.h === s.h ? 'active' : ''} onClick={() => setFrame(frame.id, { w: s.w, h: s.h })}>{s.label}</button>)}
-        </div>
-        <span className="cv-muted">{frame.w} × {frame.h}</span>
-      </div>
-      <button className="danger" onClick={() => remove(frame.id)}>Delete frame</button>
-    </div>
-  );
-}
-
-function ElementPanel({ picked, onEdited }: { picked: Picked; onEdited: () => void }) {
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [newAttr, setNewAttr] = useState({ name: '', value: '' });
-  const el = picked.element;
-  useEffect(() => setError(''), [picked.src]);
-
-  const apply = async (op: CanvasOp) => {
-    if (!el) return;
-    setBusy(true);
-    try {
-      await postJson('/api/canvas/edit', { src: picked.src, tag: el.tag, op });
-      setError('');
-      onEdited();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const file = picked.src.replace(/:\d+$/, '');
-  return (
-    <div className="cv-panel" aria-busy={busy}>
-      <h2><code>&lt;{el?.tag ?? picked.tag}&gt;</code></h2>
-      <p className="cv-src" title={picked.src}>{file}</p>
-      {/^src\/components\//.test(file) && <p className="cv-note">This is inside a base component, so a change here applies to every use of it.</p>}
-      {picked.error && <p className="cv-error" role="alert">{picked.error}</p>}
-      {el && (
-        <>
-          {el.text !== null && <Field key={`text:${picked.src}:${el.text}`} label="Text" value={el.text} multiline onCommit={(v) => apply({ kind: 'text', value: v })} />}
-          {el.attrs.map((a) =>
-            a.kind === 'string' ? (
-              <Field key={`${picked.src}:${a.name}:${a.value}`} label={a.name} value={a.value ?? ''} multiline={a.name === 'className'} mono={a.name === 'className'}
-                onCommit={(v) => apply({ kind: 'attr', name: a.name, value: v })} onRemove={() => apply({ kind: 'attr', name: a.name, value: null })} />
-            ) : a.kind === 'bool' ? (
-              <div key={a.name} className="cv-field cv-row"><span>{a.name}</span><button className="ghost" onClick={() => apply({ kind: 'attr', name: a.name, value: null })}>Remove</button></div>
-            ) : (
-              <div key={a.name} className="cv-field"><span>{a.name}</span><code className="cv-expr" title="Set by code. Ask Claude to change it">{a.raw}</code></div>
-            ),
-          )}
-          <form className="cv-add" onSubmit={(e) => { e.preventDefault(); if (newAttr.name) void apply({ kind: 'attr', name: newAttr.name.trim(), value: newAttr.value }).then(() => setNewAttr({ name: '', value: '' })); }}>
-            <span>Add a property</span>
-            <div className="cv-row">
-              <input aria-label="Property name" placeholder="name" value={newAttr.name} onChange={(e) => setNewAttr({ ...newAttr, name: e.target.value })} />
-              <input aria-label="Property value" placeholder="value" value={newAttr.value} onChange={(e) => setNewAttr({ ...newAttr, value: e.target.value })} />
-              <button type="submit" disabled={!newAttr.name.trim()} aria-label="Add property"><Icon name="add" small /></button>
-            </div>
-          </form>
-        </>
-      )}
-      {error && <p className="cv-error" role="alert">{error}</p>}
-    </div>
-  );
-}
-
-function Field({ label, value, multiline, mono, onCommit, onRemove }: { label: string; value: string; multiline?: boolean; mono?: boolean; onCommit: (v: string) => void; onRemove?: () => void }) {
-  const [v, setV] = useState(value);
-  const commit = () => { if (v !== value) onCommit(v); };
-  const props = {
-    value: v,
-    className: mono ? 'mono' : undefined,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV(e.target.value),
-    onBlur: commit,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') setV(value);
-    },
-  };
-  return (
-    <label className="cv-field">
-      <span className="cv-row">{label}{onRemove && <button type="button" className="ghost cv-remove" aria-label={`Remove ${label}`} title={`Remove ${label}`} onClick={onRemove}><Icon name="close" small /></button>}</span>
-      {multiline ? <textarea rows={Math.min(5, Math.max(2, Math.ceil(v.length / 34)))} {...props} /> : <input {...props} />}
-    </label>
   );
 }
