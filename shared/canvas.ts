@@ -1,8 +1,15 @@
 // The Canvas tab's board: frames of the prototype app (a route, a scenario and a size) placed on a plane. Saved as
 // canvas/boards/<id>.json in the project. A frame never copies a screen; it points at the running app.
 
-/** n is the step in a flow ("1", "3.1"), note the short text under the frame, as on her Figma flow sections. */
-export type Frame = { id: string; name: string; route: string; scenario: string; x: number; y: number; w: number; h: number; n?: string; note?: string };
+/**
+ * n is the step in a flow ("1", "3.1") and note the short text under the frame, as on her Figma flow sections. clicks
+ * are the labels clicked after the screen loads, to reach a side state such as an open dialog. A parked frame is a
+ * tried option, kept to the side of the flow. figma links the frame to its screen in Figma.
+ */
+export type Frame = {
+  id: string; name: string; route: string; scenario: string; x: number; y: number; w: number; h: number;
+  n?: string; note?: string; clicks?: string[]; parked?: boolean; figma?: string;
+};
 /** An arrow from one frame to the next, labelled with the click that leads there ("Click Open"). */
 export type Link = { id: string; from: string; to: string; label: string };
 export type Board = { version: 1; name: string; frames: Frame[]; links: Link[] };
@@ -54,6 +61,9 @@ export function cleanBoard(raw: unknown): Board {
       h: num(o.h, 240, 4000, 800),
       ...(str(o.n, 12).trim() ? { n: str(o.n, 12).trim() } : {}),
       ...(str(o.note, 600).trim() ? { note: str(o.note, 600) } : {}),
+      ...(Array.isArray(o.clicks) && o.clicks.length ? { clicks: o.clicks.slice(0, 10).map((c) => str(c, 60)).filter(Boolean) } : {}),
+      ...(o.parked === true ? { parked: true } : {}),
+      ...(isFigmaLink(o.figma) ? { figma: str(o.figma, 300) } : {}),
     }];
   });
   const ids = new Set(frames.map((f) => f.id));
@@ -65,6 +75,9 @@ export function cleanBoard(raw: unknown): Board {
   });
   return { version: 1, name: str(b.name, 120, 'Main board') || 'Main board', frames, links };
 }
+
+/** Only figma.com links are kept, so a frame's link can never open anything else. */
+export const isFigmaLink = (v: unknown): v is string => typeof v === 'string' && v.length <= 300 && /^https:\/\/(www\.)?figma\.com\//.test(v);
 
 /** "src/screens/People.tsx:12:7" into its parts, or null. */
 export function parseSrc(src: string): { file: string; line: number; col: number } | null {
@@ -100,6 +113,16 @@ export function renumber(frames: Frame[]): Frame[] {
   });
 }
 
+/** Parks a frame as a tried option (kept, out of the flow) with its side states, or brings it back as the next step. */
+export function park(frames: Frame[], id: string, on: boolean): Frame[] {
+  const f = frames.find((x) => x.id === id);
+  if (!f) return frames;
+  if (!on) return frames.map((x) => (x.id === id ? { ...x, parked: undefined, n: x.n ?? nextStep(frames) } : x));
+  const step = f.n && !f.n.includes('.') ? f.n : null;
+  const goes = (x: Frame) => x.id === id || (!!step && x.n?.split('.')[0] === step && x.n.includes('.'));
+  return renumber(frames.map((x) => (goes(x) ? { ...x, parked: true, n: undefined } : x)));
+}
+
 /** Where the frame after `from` goes: to its right, moved down until it covers no other frame. */
 export function placeAfter(frames: Frame[], from: Frame, gap: number): { x: number; y: number } {
   const x = from.x + from.w + gap;
@@ -107,4 +130,40 @@ export function placeAfter(frames: Frame[], from: Frame, gap: number): { x: numb
   const hits = (yy: number) => frames.find((f) => f.x < x + from.w && f.x + f.w > x && f.y < yy + from.h && f.y + f.h > yy);
   for (let hit = hits(y), i = 0; hit && i < 50; hit = hits(y), i++) y = hit.y + hit.h + gap;
   return { x, y };
+}
+
+/** The next side state of a step: "3" or "3.1" gives "3.2" when 3.1 exists, else "3.1". */
+export function nextSide(frames: Frame[], of: string): string {
+  const main = of.split('.')[0];
+  const used = frames.flatMap((f) => (f.n?.startsWith(`${main}.`) ? [Number(f.n.split('.')[1])] : []));
+  return `${main}.${used.length ? Math.max(...used) + 1 : 1}`;
+}
+
+const stepKey = (n?: string) => (n && /^\d+(\.\d+)?$/.test(n) ? n.split('.').map(Number) : [Infinity, 0]);
+
+/**
+ * Lays a flow board out like her Figma flow sections: whole steps in one row in step order, each side state in a
+ * column under its step, frames with no step after the steps, and parked frames (tried options) in a row below it all.
+ */
+export function tidy(frames: Frame[], gapX = 240, gapY = 320): Frame[] {
+  const live = frames.filter((f) => !f.parked);
+  const cols: Frame[][] = [];
+  const sorted = [...live].sort((a, b) => { const [x, y] = [stepKey(a.n), stepKey(b.n)]; return x[0] - y[0] || x[1] - y[1]; });
+  for (const f of sorted) {
+    const [main, side] = stepKey(f.n);
+    const col = side && main !== Infinity ? cols.find((c) => stepKey(c[0].n)[0] === main) : undefined;
+    if (col) col.push(f); else cols.push([f]);
+  }
+  const at = new Map<string, { x: number; y: number }>();
+  let x = 0;
+  let bottom = 0;
+  for (const col of cols) {
+    let y = 0;
+    for (const f of col) { at.set(f.id, { x, y }); y += f.h + gapY; }
+    bottom = Math.max(bottom, y);
+    x += Math.max(...col.map((f) => f.w)) + gapX;
+  }
+  let px = 0;
+  for (const f of frames.filter((f) => f.parked)) { at.set(f.id, { x: px, y: bottom + gapY }); px += f.w + gapX; }
+  return frames.map((f) => ({ ...f, ...at.get(f.id)! }));
 }

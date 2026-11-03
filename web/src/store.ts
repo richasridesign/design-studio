@@ -196,6 +196,9 @@ function handle(m: ServerMessage) {
         ui: { ...s.ui, revs: { ...s.ui.revs, [m.path]: (s.ui.revs[m.path] ?? 0) + 1 } },
       }));
       break;
+    case 'canvas_board':
+      window.dispatchEvent(new CustomEvent('designstudio:canvas-board'));
+      break;
     case 'focus':
       setUi({ focus: m.nodeId });
       break;

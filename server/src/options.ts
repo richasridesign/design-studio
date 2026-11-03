@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { canvasTools } from './canvas/index.js';
 import { createSdkMcpServer, tool, type CanUseTool, type HookCallback, type McpServerConfig, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { userContent } from './attach.js';
@@ -147,6 +148,7 @@ function statusServer(onStatus: (text: string, nodes: string[]) => void, refresh
             ),
           ]
         : []),
+      ...(cwd ? canvasTools(cwd) : []),
     ],
   });
 }
@@ -192,7 +194,7 @@ export function chatMcpAllowlist(figmaServers: Record<string, McpServerConfig>) 
 }
 
 /** Design Studio's own tools never ask. */
-export const OWN_TOOLS_MATCHER = '^mcp__designstudio__(set_status|refresh_file_map|brainstorm_update)$';
+export const OWN_TOOLS_MATCHER = '^mcp__designstudio__(set_status|refresh_file_map|brainstorm_update|canvas_read|canvas_add_frame|canvas_add_arrow|canvas_update_frame|canvas_tidy)$';
 /**
  * Allows Design Studio's own tools on purpose, in a hook. Bare allowedTools entries did the same, but the SDK warned
  * that they shadow canUseTool (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED), which reads like a gap in the approvals.

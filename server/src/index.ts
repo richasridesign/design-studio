@@ -59,7 +59,7 @@ import { changeDesignSystem, designSystemView } from './dsSources.js';
 import { buildReport, reportSlug } from './report.js';
 import { MCP_BAD, STALE_MS, type ClientMessage, type LiveChat, type ServerMessage } from '../../shared/protocol.js';
 import { replyLine, sumEdits } from '../../shared/edits.js';
-import { appTokens, canvasStatus, changes as canvasChanges, commit as canvasCommit, createApp, diff as canvasDiff, discard as canvasDiscard, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, boardPlace, projectOf, props as canvasProps, readBoard, refreshTokens, startApp, stopAll as stopCanvas, undo as canvasUndo, writeBoard } from './canvas/index.js';
+import { appTokens, canvasStatus, changes as canvasChanges, commit as canvasCommit, createApp, diff as canvasDiff, discard as canvasDiscard, edit as canvasEdit, inspect as canvasInspect, manifest as canvasManifest, boardPlace, onBoardChanged, projectOf, props as canvasProps, readBoard, refreshTokens, startApp, stopAll as stopCanvas, undo as canvasUndo, writeBoard } from './canvas/index.js';
 
 // Every server log line starts with the local time, so a lost message can be traced to a restart.
 for (const level of ['log', 'warn', 'error'] as const) {
@@ -127,6 +127,8 @@ function summary(chat: AgentSession): LiveChat {
 
 let liveTimer: NodeJS.Timeout | null = null;
 let liveSent = '';
+onBoardChanged((cwd) => clients.forEach((c) => c.send({ type: 'canvas_board', cwd })));
+
 function broadcastLive() {
   liveTimer ??= setTimeout(() => {
     liveTimer = null;

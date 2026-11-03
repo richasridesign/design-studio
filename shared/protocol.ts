@@ -114,6 +114,8 @@ export type ServerMessage =
   | { type: 'resolved'; id: string }
   | { type: 'file_changed'; path: string; source: 'tool' | 'watcher' }
   | { type: 'focus'; nodeId: string }
+  /** Claude changed the canvas board of a chat; an open Canvas tab reloads it. */
+  | { type: 'canvas_board'; cwd: string }
   | { type: 'session'; session: SessionInfo }
   | { type: 'live'; chats: LiveChat[] }
   | { type: 'brainstorm'; rounds: BrainstormRound[] }

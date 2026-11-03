@@ -38,6 +38,12 @@ export function Canvas() {
   }, []);
 
   useEffect(() => { setBoard(null); setStatus(null); void load(); }, [chat, load]);
+  // Claude changed a board with its canvas tools: take the saved one.
+  useEffect(() => {
+    const reload = () => getJson<{ board: BoardData }>('/api/canvas').then((r) => chatRef.current === chat && setBoard(r.board), () => undefined);
+    window.addEventListener('designstudio:canvas-board', reload);
+    return () => window.removeEventListener('designstudio:canvas-board', reload);
+  }, [chat]);
   useEffect(() => {
     if (!status || !BUSY.includes(status.state)) return;
     const t = setInterval(load, 1000);
