@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
-import { nextStep, placeAfter, renumber, SIZES, tidy, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { groupOf, nextStep, placeAfter, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
 import { LinkPanel } from '../panels/LinkPanel';
+import { BoardPanel, SectionPanel } from '../panels/SectionPanel';
 import { arrows } from './arrows';
 import { Toolbar, type Mode } from './Toolbar';
 import { useFrames, withScenario } from './useFrames';
@@ -38,6 +39,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const recRef = useRef(rec);
   recRef.current = rec;
   const [selLink, setSelLink] = useState<string | null>(null);
+  const [selSection, setSelSection] = useState<string | null>(null);
   const inPlace = useRef(0);
   // After a click led to a screen already on the board: the arrow went there, and she can make it a new step instead.
   const [linked, setLinked] = useState<{ text: string; from: string; route: string; label: string; link: string } | null>(null);
@@ -227,7 +229,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     const onEmpty = t === e.currentTarget || t.classList.contains('cv-plane');
     // Hand mode, the middle button or dragging on empty board all pan.
     if (!(mode === 'hand' || onEmpty) && e.button !== 1) return;
-    if (onEmpty && mode !== 'hand') { setSelFrame(null); setSelLink(null); clearPick(); }
+    if (onEmpty && mode !== 'hand') { setSelFrame(null); setSelLink(null); setSelSection(null); clearPick(); }
     const start = view;
     drag(e, (dx, dy) => setView({ ...start, x: start.x + dx, y: start.y + dy }));
   };
@@ -284,6 +286,48 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const removeLink = (id: string) => { update({ ...board, links: board.links.filter((l) => l.id !== id) }); setSelLink(null); };
 
   const lines = states ? [] : arrows(board.frames, board.links, view);
+  const secs = states ? [] : sections(board.frames);
+  const scenarioName = (id: string) => manifest?.scenarios.find((s) => s.id === id)?.name ?? id;
+
+  /** Dragging a section's name moves all its frames. */
+  const moveSection = (e: React.PointerEvent, name: string) => {
+    e.stopPropagation();
+    selectOnly({ section: name });
+    if (frozen) return;
+    const start = new Map(board.frames.filter((f) => groupOf(f) === name).map((f) => [f.id, { x: f.x, y: f.y }]));
+    let last = board;
+    drag(e, (dx, dy) => {
+      last = { ...board, frames: board.frames.map((x) => { const p = start.get(x.id); return p ? { ...x, x: Math.round(p.x + dx / view.zoom), y: Math.round(p.y + dy / view.zoom) } : x; }) };
+      setBoard(last);
+    }, () => update(last));
+  };
+  const inSection = (name: string, f: Frame) => groupOf(f) === name;
+  const renameSection = (from: string, to: string) => { update({ ...board, frames: board.frames.map((f) => (inSection(from, f) && !f.parked ? { ...f, group: to } : f)) }); setSelSection(to); };
+  const ungroup = (name: string) => { update({ ...board, frames: board.frames.map((f) => (inSection(name, f) ? { ...f, group: undefined } : f)) }); setSelSection(null); };
+  const removeSection = (name: string) => {
+    const gone = new Set(board.frames.filter((f) => inSection(name, f)).map((f) => f.id));
+    update({ ...board, frames: renumber(board.frames.filter((f) => !gone.has(f.id))), links: board.links.filter((l) => !gone.has(l.from) && !gone.has(l.to)) });
+    setSelSection(null);
+  };
+  /** A section per state, named after the state, then tidied: the board reads as "every screen, every state". */
+  const groupByState = () => { update({ ...board, frames: tidy(board.frames.map((f) => (f.parked ? f : { ...f, group: scenarioName(f.scenario) }))) }); fitted.current = false; };
+  /** All states of a screen, kept: a frame per other state, each in a section named after its state. */
+  const keepStates = () => {
+    const f = statesOf;
+    if (!f || !manifest) return;
+    const others = manifest.scenarios.filter((sc) => sc.id !== f.scenario && !board.frames.some((x) => x.route === f.route && x.scenario === sc.id));
+    const added = others.map((sc): Frame => ({ ...f, id: rid(), scenario: sc.id, group: sc.name, n: undefined, note: undefined, parked: undefined }));
+    const frames = [...board.frames.map((x) => (x.id === f.id && !x.group ? { ...x, group: scenarioName(x.scenario) } : x)), ...added];
+    setStates(null);
+    update({ ...board, frames: tidy(frames) });
+    fitted.current = false;
+    setToast(`${added.length} ${added.length === 1 ? 'frame' : 'frames'} added, one section per state`);
+  };
+  /** One thing selected at a time: a frame, an arrow or a section. */
+  const selectOnly = (s: { frame?: string; link?: string; section?: string }) => {
+    setSelFrame(s.frame ?? null); setSelLink(s.link ?? null); setSelSection(s.section ?? null);
+    clearPick(); setShowChanges(false);
+  };
 
   // Only frames in or near view load the app; the rest show their name until they come into view.
   const inView = (f: Frame) => {
@@ -316,6 +360,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       <div className="cv-main">
         <div ref={stage} className={`cv-stage mode-${mode}`} onPointerDown={panStart}>
           <div className="cv-plane" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
+            {secs.map((s) => <div key={s.name} className={`cv-section${selSection === s.name ? ' selected' : ''}${s.name === TRIED ? ' tried' : ''}`} style={{ left: s.x, top: s.y, width: s.w, height: s.h, borderWidth: (selSection === s.name ? 2 : 1) / view.zoom, borderRadius: 16 / view.zoom }} />)}
             {shown.map((f) => (
               <div key={f.id} className="cv-frame" style={{ left: f.x, top: f.y, width: f.w, height: f.h, boxShadow: `0 0 0 ${(selFrame === f.id ? 2 : 1) / view.zoom}px var(${selFrame === f.id ? '--accent' : '--border'})` }}>
                 {mode !== 'interact' && (
@@ -331,9 +376,13 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             {lines.map(({ l, d }) => <path key={l.id} d={d} className={selLink === l.id ? 'selected' : ''} markerEnd="url(#cv-arrow)" />)}
           </svg>
           <div className="cv-labels">
+            {secs.map((s) => (
+              <button key={s.name} className={`cv-section-name${selSection === s.name ? ' selected' : ''}`} style={{ left: s.x * view.zoom + view.x, top: s.y * view.zoom + view.y - 28 }}
+                onPointerDown={(e) => moveSection(e, s.name)} onDoubleClick={() => show(s)}>{s.name}</button>
+            ))}
             {lines.map(({ l, mid }) => (
               <button key={l.id} className={`cv-link-label${selLink === l.id ? ' selected' : ''}`} style={{ left: mid.x, top: mid.y }}
-                onPointerDown={(e) => e.stopPropagation()} onClick={() => { setSelLink(l.id); setSelFrame(null); clearPick(); setShowChanges(false); }}>{l.label || 'Click'}</button>
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => selectOnly({ link: l.id })}>{l.label || 'Click'}</button>
             ))}
             {shown.map((f) => {
               const w = f.w * view.zoom;
@@ -341,7 +390,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
               return (
                 <div key={f.id} className={`cv-frame-head${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x * view.zoom + view.x, top: f.y * view.zoom + view.y - 20, width: w }}
                   title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
-                  onPointerDown={(e) => { e.stopPropagation(); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => show(f)}>
+                  onPointerDown={(e) => { e.stopPropagation(); setSelLink(null); setSelSection(null); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => show(f)}>
                   {f.n && <span className="cv-frame-step">{f.n}</span>}
                   <span className="cv-frame-name">{f.name}</span>
                   {states ? null : w > 200 && manifest && manifest.scenarios.length > 1 ? (
@@ -385,7 +434,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           </div>
         )}
         {rec && !linked && !toast && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
-        {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
+        {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}{!frozen && <button className="ghost" onClick={keepStates}>Keep on the board</button>}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
         {selLink && board.links.some((l) => l.id === selLink) ? <LinkPanel link={board.links.find((l) => l.id === selLink)!} frames={board.frames} setLink={setLink} remove={removeLink} />
@@ -393,7 +442,10 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
           : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
           : frame ? <FramePanel frame={frame} manifest={manifest} setFrame={setFrame} remove={removeFrame} />
-          : <p className="cv-muted">Pick an element in a frame to edit it, or a frame's name to change its screen, state and size.</p>}
+          : selSection && secs.some((s) => s.name === selSection) ? <SectionPanel section={secs.find((s) => s.name === selSection)!} frames={board.frames} rename={(to) => renameSection(selSection, to)}
+            ungroup={() => ungroup(selSection)} remove={() => removeSection(selSection)} show={() => show(secs.find((s) => s.name === selSection)!)} select={(id) => { selectOnly({ frame: id }); const f = board.frames.find((x) => x.id === id); if (f) show(f); }} />
+          : <BoardPanel name={board.name} frames={board.frames.length} sections={secs.length} fit={fit} tidy={!frozen && board.frames.length > 1 ? tidyUp : null}
+            groupByState={!frozen && (manifest?.scenarios.length ?? 0) > 1 && board.frames.length ? groupByState : null} />}
       </aside>
     </div>
   );
