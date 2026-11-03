@@ -13,7 +13,7 @@ type Pending = (msg: Record<string, unknown>) => void;
 let core: { proc: ChildProcess; waiting: Map<number, Pending>; next: number } | null = null;
 
 function coreProc() {
-  if (core && core.proc.exitCode === null) return core;
+  if (core) return core;
   const proc = spawn(CORE_BIN, [], { stdio: ['pipe', 'pipe', 'inherit'] });
   const c = { proc, waiting: new Map<number, Pending>(), next: 1 };
   createInterface({ input: proc.stdout! }).on('line', (line) => {
@@ -22,9 +22,11 @@ function coreProc() {
     c.waiting.get(Number(msg.id))?.(msg);
     c.waiting.delete(Number(msg.id));
   });
-  const fail = (why: string) => { for (const done of c.waiting.values()) done({ error: why }); c.waiting.clear(); };
+  // A stopped engine (crashed, killed, or replaced by a rebuild) is started again on the next call.
+  const fail = (why: string) => { if (core === c) core = null; for (const done of c.waiting.values()) done({ error: why }); c.waiting.clear(); };
   proc.on('error', (e) => fail(`canvas-core did not start: ${e.message}`));
   proc.on('exit', () => fail('canvas-core stopped'));
+  proc.stdin!.on('error', () => fail('canvas-core stopped'));
   core = c;
   return c;
 }
