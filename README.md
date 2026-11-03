@@ -174,7 +174,7 @@ access). Frames run the real app, so what you see is code, not a picture of it.
   **Size** (width and height as Auto, Fill, Hug or Fixed), **Text** (size, weight, colour, align, truncate) and
   **Fill and border** (fill, border, radius, shadow), with spacing on the 4px scale and colours from the app's tokens.
   Each control rewrites one class. The arrows move the element before or after its neighbour; it can also be
-  duplicated or deleted.
+  duplicated, deleted, wrapped in a new row or column, or followed by new text, a heading or a box.
 - **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it;
   the frame's name follows the screen you reach. Escape or V goes back to Select.
 - **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
@@ -182,8 +182,9 @@ access). Frames run the real app, so what you see is code, not a picture of it.
   duplicates, reloads and parks a frame, and **Review** asks Claude for a design system and visual craft review of
   that screen.
 - **Sections.** Frames can sit in named sections, like Figma sections (Happy path, Empty, Error). Drag a section's
-  name to move it, click it to rename, ungroup or delete it. With nothing selected, the board panel has **Tidy up**
-  (Ctrl+Alt+T) and **Group by state**, a section per state. In All states, **Keep on the board** adds the screen's
+  name to move it, click it to rename, ungroup or delete it. Dropping a frame inside a section's box puts it in that
+  section; dropping it outside every box takes it out. Right-click a frame's or a section's name for its menu. With nothing selected, the board panel has **Tidy up**
+  (Ctrl+Alt+T) and **Group by state**, a section per state. Group by state leaves frames already in a section alone. In All states, **Keep on the board** adds the screen's
   other states as frames, a section each. **All states (S)** shows the selected
   frame's screen once per state in a grid; Escape goes back to the board.
 - **Flow boards.** In a flow's chat the canvas opens that iteration's flow board
@@ -196,7 +197,9 @@ access). Frames run the real app, so what you see is code, not a picture of it.
   loads. Parked frames go to **Tried options**, out of the flow. **Play (P)** steps through the flow one frame at a
   time, following the arrows. Click an arrow's label to rename or delete it; a frame's panel sets its step and a note.
   Deleting a step closes up the numbers.
-- **Changes.** Every edit can be undone (Cmd+Z). The Changes button lists the app's changed files with their diffs,
+- **Undo.** Cmd+Z undoes the last edit, to the board (moving, grouping, deleting frames) or to the code. Delete
+  removes the selected frame, arrow or section and Cmd+D duplicates the selected frame.
+- **Changes.** The Changes button lists the app's changed files with their diffs,
   discards a file, and commits to the app's own repo. Nothing is pushed.
 
 The app is its own git repository (`app/`, ignored by the project's history), so its commits are code you can hand
@@ -268,6 +271,7 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 | V, H, I | Canvas: select, move around, use the app |
 | Shift+1 | Canvas: fit the board |
 | R, S, P | Canvas: record a flow, all states, play the flow |
+| Delete, Cmd+D, Cmd+Z | Canvas: delete, duplicate, undo |
 | `/` | Focus the composer |
 | `?` | Show the shortcut sheet |
 | Enter, Shift+Enter | Send, new line |
