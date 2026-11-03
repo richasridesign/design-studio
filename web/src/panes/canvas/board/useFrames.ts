@@ -19,8 +19,12 @@ export function useFrames(url: string) {
   const [failed, setFailed] = useState<Record<string, string>>({});
 
   const tell = useCallback((win: Window | null | undefined, msg: Record<string, unknown>) => win?.postMessage({ ds: true, ...msg }, origin), [origin]);
-  const tellFrame = useCallback((id: string, msg: Record<string, unknown>) => tell(els.current.get(id)?.contentWindow, msg), [tell]);
-  const tellAll = useCallback((msg: Record<string, unknown>, except?: string) => { for (const [id, f] of els.current) if (id !== except) tell(f.contentWindow, msg); }, [tell]);
+  // Only frames whose app said it is ready get messages; one still on about:blank would refuse them with a warning.
+  const ready = useRef(new WeakSet<Window>());
+  const heard = useCallback((win: MessageEventSource | null) => { if (win) ready.current.add(win as Window); }, []);
+  const tellReady = useCallback((win: Window | null | undefined, msg: Record<string, unknown>) => { if (win && ready.current.has(win)) tell(win, msg); }, [tell]);
+  const tellFrame = useCallback((id: string, msg: Record<string, unknown>) => tellReady(els.current.get(id)?.contentWindow, msg), [tellReady]);
+  const tellAll = useCallback((msg: Record<string, unknown>, except?: string) => { for (const [id, f] of els.current) if (id !== except) tellReady(f.contentWindow, msg); }, [tellReady]);
   const idOf = useCallback((win: MessageEventSource | null) => [...els.current].find(([, f]) => f.contentWindow === win)?.[0], []);
 
   const src = (f: Frame) => {
@@ -45,5 +49,5 @@ export function useFrames(url: string) {
   const replay = useCallback((f: Frame) => { if (f.clicks?.length) tellFrame(f.id, { type: 'replay', clicks: f.clicks }); }, [tellFrame]);
   const replayFailed = useCallback((id: string, label: string | null) => setFailed(({ [id]: _, ...rest }) => (label ? { ...rest, [id]: label } : rest)), []);
 
-  return { origin, tell, tellFrame, tellAll, idOf, src, key, ref, unloaded, moved, reload, replay, failed, replayFailed };
+  return { origin, heard, tell, tellFrame, tellAll, idOf, src, key, ref, unloaded, moved, reload, replay, failed, replayFailed };
 }

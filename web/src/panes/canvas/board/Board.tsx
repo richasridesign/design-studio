@@ -173,6 +173,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       if (e.origin !== fr.origin || !e.data?.ds) return;
       const id = fr.idOf(e.source);
       if (!id) return;
+      fr.heard(e.source);
       if (e.data.type === 'ready') {
         fr.tell(e.source as Window, { type: 'mode', mode });
         if (picked?.frame === id) fr.tell(e.source as Window, { type: 'select', src: picked.src });
