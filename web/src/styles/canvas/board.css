@@ -76,3 +76,4 @@ select.cv-frame-scenario:hover { background: var(--bg-hover); color: var(--fg); 
 .cv-frame-figma { flex: none; display: inline-flex; color: var(--fg-muted); pointer-events: auto; }
 .cv-frame-figma:hover { color: var(--fg); }
 .cv-frame-figma svg { width: 12px; height: 12px; }
+.cv-play > span:first-child { font-weight: 600; }

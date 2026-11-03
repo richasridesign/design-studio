@@ -7,7 +7,7 @@ export type Mode = 'select' | 'hand' | 'interact';
 type Props = {
   mode: Mode; setMode: (m: Mode) => void; zoom: number;
   canAdd: boolean; addFrame: () => void; fit: () => void; tidy: (() => void) | null;
-  rec: boolean | null; toggleRec: () => void; states: boolean; toggleStates: () => void;
+  rec: boolean | null; toggleRec: () => void; play: boolean; togglePlay: () => void; states: boolean; toggleStates: () => void;
   changes: number; showChanges: boolean; toggleChanges: () => void;
   zoomBy: (f: number) => void; zoomTo: (z: number) => void;
 };
@@ -25,6 +25,7 @@ export function Toolbar(p: Props) {
       <button title="Fit the board (Shift+1)" aria-label="Fit the board" onClick={p.fit}><Icon name="screen-full" /></button>
       {p.tidy && <button title="Tidy up (Ctrl+Alt+T)" aria-label="Tidy up" onClick={p.tidy}><Icon name="tidy" /></button>}
       {p.rec !== null && <button className={p.rec ? 'active cv-rec' : 'cv-rec'} aria-pressed={p.rec} title="Record the flow by clicking through the app (R)" aria-label="Record the flow" onClick={p.toggleRec}><Icon name="record" /></button>}
+      <button className={p.play ? 'active' : ''} aria-pressed={p.play} title="Play the flow, one frame at a time (P)" aria-label="Play the flow" onClick={p.togglePlay}><Icon name="play" /></button>
       <button className={p.states ? 'active' : ''} aria-pressed={p.states} title="All states of the selected screen (S)" aria-label="All states of the selected screen" onClick={p.toggleStates}><Icon name="layers" /></button>
       <span className="cv-sep" />
       <button className={p.showChanges ? 'active cv-changes-btn' : 'cv-changes-btn'} aria-pressed={p.showChanges} title="Changes to the app's code" onClick={p.toggleChanges}>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
 import { insertPrompt } from '../../composerEvents';
-import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, stepKey, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
@@ -198,6 +198,28 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const fitOnSwitch = useRef(false);
   useEffect(() => { if (fitOnSwitch.current) fit(); fitOnSwitch.current = true; }, [states?.of]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Play: one frame at a time, following its arrows like a click-through prototype. Back goes where it came from.
+  const [play, setPlay] = useState<{ at: string; back: string[] } | null>(null);
+  const goTo = useCallback((id: string, back: string[]) => {
+    const f = board.frames.find((x) => x.id === id);
+    if (!f) return;
+    setPlay({ at: id, back });
+    setSelFrame(id);
+    show(f);
+  }, [board.frames, show]);
+  const togglePlay = useCallback(() => {
+    if (play) { setPlay(null); fit(); return; }
+    const flowFrames = board.frames.filter((f) => !f.parked);
+    const first = flowFrames.find((f) => f.id === selFrame) ?? [...flowFrames].sort((a, b) => { const x = stepKey(a.n), y = stepKey(b.n); return x[0] - y[0] || x[1] - y[1] || a.x - b.x; })[0];
+    if (!first) return;
+    setStates(null); clearPick(); setSelLink(null); setSelSection(null);
+    goTo(first.id, []);
+  }, [play, board.frames, selFrame, goTo, fit, clearPick]);
+  const playOut = play ? board.links.filter((l) => l.from === play.at && board.frames.some((f) => f.id === l.to)) : [];
+  const playAt = play ? board.frames.find((f) => f.id === play.at) : undefined;
+  const playNext = (to: string) => play && goTo(to, [...play.back, play.at]);
+  const playBack = () => { if (play?.back.length) goTo(play.back[play.back.length - 1], play.back.slice(0, -1)); };
+
   const tidyUp = useCallback(() => { update({ ...board, frames: tidy(board.frames) }); fitted.current = false; }, [board, update]);
 
   // Keyboard: V select, H hand, I interact, Shift+1 fit, Shift+2 the selected frame, Shift+0 100%, + and - zoom,
@@ -211,7 +233,16 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       if (e.ctrlKey && e.altKey && e.code === 'KeyT') { e.preventDefault(); if (!states) tidyUp(); return; }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      if (k === 'v') setMode('select');
+      if (play) {
+        if (e.key === 'ArrowRight' && playOut[0]) playNext(playOut[0].to);
+        else if (e.key === 'ArrowLeft') playBack();
+        else if (e.key === 'Escape' || k === 'p') togglePlay();
+        else return;
+        e.preventDefault();
+        return;
+      }
+      if (k === 'p' && !e.shiftKey) togglePlay();
+      else if (k === 'v') setMode('select');
       else if (k === 'h') setMode('hand');
       else if (k === 'i') setMode('interact');
       else if (e.shiftKey && e.code === 'Digit1') fit();
@@ -227,7 +258,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [fit, clearPick, show, zoomBy, zoomTo, shown, selFrame, undo, mode, states, toggleStates, rec, toggleRec, tidyUp]);
+  }, [fit, clearPick, show, zoomBy, zoomTo, shown, selFrame, undo, mode, states, toggleStates, rec, toggleRec, tidyUp, play, playOut, togglePlay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const panStart = (e: React.PointerEvent) => {
     const t = e.target as HTMLElement;
@@ -449,7 +480,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           ))}
         </div>
         <Toolbar mode={mode} setMode={setMode} zoom={view.zoom} canAdd={!!manifest?.screens.length} addFrame={addFrame} fit={fit}
-          tidy={!states && !frozen && board.frames.length > 1 ? tidyUp : null} rec={flow && !frozen ? rec : null} toggleRec={toggleRec}
+          tidy={!states && !frozen && board.frames.length > 1 ? tidyUp : null} rec={flow && !frozen ? rec : null} toggleRec={toggleRec} play={!!play} togglePlay={togglePlay}
           states={!!states} toggleStates={toggleStates} changes={changes?.files.length ?? 0} showChanges={showChanges}
           toggleChanges={() => { setShowChanges((v) => !v); void loadChanges(); }} zoomBy={zoomBy} zoomTo={zoomTo} />
         {saveError && <div className="cv-toast" role="alert">Board not saved: {saveError}</div>}
@@ -467,7 +498,16 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             </div>
           );
         })()}
-        {rec && !linked && !toast && !side && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
+        {play && playAt && (
+          <div className="cv-banner cv-play" role="status">
+            <span>{playAt.n ? `Step ${playAt.n} · ` : ''}{playAt.name}</span>
+            <button className="ghost" disabled={!play.back.length} onClick={playBack} title="Back (Left arrow)">Back</button>
+            {playOut.map((l) => <button key={l.id} onClick={() => playNext(l.to)}>{l.label || 'Next'} →</button>)}
+            {!playOut.length && <span className="cv-muted">End of the flow</span>}
+            <button className="ghost" onClick={togglePlay} title="Stop (Esc)">Stop</button>
+          </div>
+        )}
+        {rec && !linked && !toast && !side && !play && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
         {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}{!frozen && <button className="ghost" onClick={keepStates}>Keep on the board</button>}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
