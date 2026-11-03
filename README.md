@@ -169,21 +169,32 @@ access). Frames run the real app, so what you see is code, not a picture of it.
   page title inside a shared header opens as that header's use (`title`, `text`), so the change stays on this
   screen. Variants show as menus and on/off props as switches, read from the component's own types. The layer chips
   above go into the component itself, which changes every use. Values set by code show as read only; **Ask Claude
-  about this** puts the element's file, line, screen and state in the composer. **Style** shows the element's
-  Tailwind classes as design values: padding, gap and margin on the 4px scale, radius, and text size and colours from
-  the app's tokens; each menu rewrites that one class.
+  about this** puts the element's file, line, screen and state in the composer. The style groups show the element's
+  Tailwind classes as design controls: **Layout** (Block, Row, Column, Grid, align, justify, wrap, gap, padding),
+  **Size** (width and height as Auto, Fill, Hug or Fixed), **Text** (size, weight, colour, align, truncate) and
+  **Fill and border** (fill, border, radius, shadow), with spacing on the 4px scale and colours from the app's tokens.
+  Each control rewrites one class. The arrows move the element before or after its neighbour; it can also be
+  duplicated or deleted.
 - **Move around (H)** drags the board. Wheel pans, Cmd+wheel zooms. **Use the app (I)** lets you click through it;
   the frame's name follows the screen you reach. Escape or V goes back to Select.
 - **Frames.** A new board has one frame per screen in one row. Each frame's state is a menu next to its name; click
-  the name to change its screen and size, double-click it to zoom to it. **All states (S)** shows the selected
+  the name to change its screen, size, section and Figma link, double-click it to zoom to it. The frame panel also
+  duplicates, reloads and parks a frame, and **Review** asks Claude for a design system and visual craft review of
+  that screen.
+- **Sections.** Frames can sit in named sections, like Figma sections (Happy path, Empty, Error). Drag a section's
+  name to move it, click it to rename, ungroup or delete it. With nothing selected, the board panel has **Tidy up**
+  (Ctrl+Alt+T) and **Group by state**, a section per state. In All states, **Keep on the board** adds the screen's
+  other states as frames, a section each. **All states (S)** shows the selected
   frame's screen once per state in a grid; Escape goes back to the board.
 - **Flow boards.** In a flow's chat the canvas opens that iteration's flow board
   (`flows/NN-slug/iterations/<id>/canvas.json`). A new iteration starts from a copy of the latest earlier one, and a
   frozen iteration's board is read only. Pick the
   screen it starts on and **Record (R)**: click through the app, and each screen you reach becomes the next numbered
   step, joined by an arrow named after the click ("Click Connectors"). A click back to a screen already on the board
-  only adds an arrow, with "Make it a new step" for the same screen later in the flow. Dialogs and other changes inside
-  a screen are not recorded. Click an arrow's label to rename or delete it; a frame's panel sets its step and a note.
+  only adds an arrow, with "Make it a new step" for the same screen later in the flow. A click that opens something on
+  the same screen, like a dialog, offers "Make it 3.1": a side state frame that replays that click each time it
+  loads. Parked frames go to **Tried options**, out of the flow. **Play (P)** steps through the flow one frame at a
+  time, following the arrows. Click an arrow's label to rename or delete it; a frame's panel sets its step and a note.
   Deleting a step closes up the numbers.
 - **Changes.** Every edit can be undone (Cmd+Z). The Changes button lists the app's changed files with their diffs,
   discards a file, and commits to the app's own repo. Nothing is pushed.
@@ -256,6 +267,7 @@ Press `?` for the sheet. Chrome may keep Cmd+digit; use Ctrl then.
 | Cmd+, | Settings |
 | V, H, I | Canvas: select, move around, use the app |
 | Shift+1 | Canvas: fit the board |
+| R, S, P | Canvas: record a flow, all states, play the flow |
 | `/` | Focus the composer |
 | `?` | Show the shortcut sheet |
 | Enter, Shift+Enter | Send, new line |
