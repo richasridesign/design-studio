@@ -5,6 +5,7 @@
 //   {"id":1,"cmd":"stamp","path":"/abs/src/A.tsx","label":"src/A.tsx","source":"..."}  -> {"id":1,"code":"..."|null}
 //   {"id":2,"cmd":"inspect","path":"/abs/src/A.tsx","line":7,"col":7}                   -> {"id":2,"element":{...}}
 //   {"id":3,"cmd":"edit","path":"...","line":7,"col":7,"tag":"Button","op":{...}}      -> {"id":3,"ok":true}
+//      op is {"kind":"text"|"attr"|"flag",...}, {"kind":"remove"}, {"kind":"duplicate"} or {"kind":"move","by":-1|1}
 //   {"id":4,"cmd":"props","path":"/abs/src/components/Button.tsx"}                     -> {"id":4,"components":[...]}
 //   {"id":5,"cmd":"props","path":"/abs/src/screens/Home.tsx","name":"Button"}         -> the Button that Home.tsx imports
 //

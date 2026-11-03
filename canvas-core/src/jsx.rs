@@ -36,12 +36,15 @@ pub struct Attr {
 #[derive(Debug, Clone)]
 enum Child {
     Text { start: u32, end: u32 },
+    Element { start: u32, end: u32 },
     Other,
 }
 
 #[derive(Debug, Clone)]
 pub struct Element {
     pub start: u32,
+    /// The end of the whole element, its closing tag included.
+    end: u32,
     pub tag: String,
     /// Where new attributes go: after the last attribute, or after the name and type arguments.
     attrs_end: u32,
@@ -72,6 +75,12 @@ pub enum Op {
     /// A boolean prop: `name` when on, `name={false}` when off (for props that default to on; to fall back to an
     /// off default, remove the attribute instead).
     Flag { name: String, value: bool },
+    /// Takes the element out, with its line when it was alone on it.
+    Remove,
+    /// A copy of the element right after it, on its own line at the same indent.
+    Duplicate,
+    /// Swaps the element with the element before (-1) or after (1) it in the same parent.
+    Move { by: i32 },
 }
 
 fn check_name(name: &str) -> Result<(), String> {
@@ -108,11 +117,13 @@ impl<'a, 's> Visit<'a> for Collect<'s> {
             .iter()
             .map(|c| match c {
                 JSXChild::Text(t) => Child::Text { start: t.span.start, end: t.span.end },
+                JSXChild::Element(e) => Child::Element { start: e.span.start, end: e.span.end },
                 _ => Child::Other,
             })
             .collect();
         self.out.push(Element {
             start: open.span.start,
+            end: it.span.end,
             tag: self.src[name_span.start as usize..name_span.end as usize].to_string(),
             attrs_end,
             name_end,
@@ -204,7 +215,7 @@ fn plain_text(el: &Element, src: &str) -> Option<(u32, u32, String)> {
     let mut text: Option<(u32, u32)> = None;
     for c in &el.children {
         match c {
-            Child::Other => return None,
+            Child::Other | Child::Element { .. } => return None,
             Child::Text { start, end } => {
                 let raw = &src[*start as usize..*end as usize];
                 if raw.trim().is_empty() {
@@ -254,12 +265,60 @@ fn quote_text(v: &str) -> String {
     }
 }
 
+/// The spaces and tabs before `at` on its line.
+fn indent(src: &str, at: u32) -> &str {
+    let line = src[..at as usize].rfind('\n').map_or(0, |i| i + 1);
+    let lead = &src[line..at as usize];
+    &lead[..lead.len() - lead.trim_start().len()]
+}
+
+/// `start..end` widened to its whole line (and the line break) when nothing else is on that line.
+fn whole_line(src: &str, start: u32, end: u32) -> (u32, u32) {
+    let before = src[..start as usize].rfind('\n').map_or(0, |i| i + 1);
+    let after = src[end as usize..].find('\n').map_or(src.len(), |i| end as usize + i);
+    if src[before..start as usize].trim().is_empty() && src[end as usize..after].trim().is_empty() && after < src.len() {
+        (before as u32, after as u32 + 1)
+    } else {
+        (start, end)
+    }
+}
+
+/// The element next to `el` among its parent's children, skipping only blank text; code in between stops it.
+fn sibling(els: &[Element], src: &str, el: &Element, by: i32) -> Result<(u32, u32), String> {
+    let parent = els.iter().find(|p| p.children.iter().any(|c| matches!(c, Child::Element { start, .. } if *start == el.start)));
+    let kids = &parent.ok_or("This element is not inside another element here. Ask Claude to move it")?.children;
+    let i = kids.iter().position(|c| matches!(c, Child::Element { start, .. } if *start == el.start)).unwrap() as i32;
+    let mut j = i + by.signum();
+    while j >= 0 && (j as usize) < kids.len() {
+        match &kids[j as usize] {
+            Child::Element { start, end } => return Ok((*start, *end)),
+            Child::Text { start, end } if src[*start as usize..*end as usize].trim().is_empty() => j += by.signum(),
+            _ => return Err("Text or code sits next to it. Ask Claude to move it".into()),
+        }
+    }
+    Err(if by < 0 { "It is already first".into() } else { "It is already last".into() })
+}
+
 /// The source after one inspector edit. The element is found again by position and tag; if it is gone or
 /// different the edit is refused and nothing is written.
 pub fn edit(path: &str, src: &str, line: u32, col: u32, tag: &str, op: &Op) -> Result<String, String> {
     let els = parse(path, src)?;
     let el = find(&els, src, line, col, Some(tag))?;
     let (start, end, text) = match op {
+        Op::Remove => {
+            let (s, e) = whole_line(src, el.start, el.end);
+            (s, e, String::new())
+        }
+        Op::Duplicate => {
+            let piece = &src[el.start as usize..el.end as usize];
+            (el.end, el.end, format!("\n{}{piece}", indent(src, el.start)))
+        }
+        Op::Move { by } => {
+            let other = sibling(&els, src, el, *by)?;
+            let (a, b) = if el.start < other.0 { ((el.start, el.end), other) } else { (other, (el.start, el.end)) };
+            let text = format!("{}{}{}", &src[b.0 as usize..b.1 as usize], &src[a.1 as usize..b.0 as usize], &src[a.0 as usize..a.1 as usize]);
+            (a.0, b.1, text)
+        }
         Op::Text { value } => {
             let (s, e, _) = plain_text(el, src).ok_or("This element's text is mixed with other elements. Ask Claude to change it")?;
             (s, e, quote_text(value.trim()))
@@ -340,6 +399,21 @@ mod tests {
         assert_eq!(off, SRC);
         let q = edit("a.tsx", SRC, 4, 7, "h1", &Op::Text { value: "a < b".into() }).unwrap();
         assert!(q.contains("{\"a < b\"}"));
+    }
+
+    #[test]
+    fn removes_duplicates_and_moves_elements() {
+        let rm = edit("a.tsx", SRC, 4, 7, "h1", &Op::Remove).unwrap();
+        assert_eq!(rm, SRC.replace("      <h1>\n        Users\n      </h1>\n", ""));
+        let dup = edit("a.tsx", SRC, 7, 7, "Button", &Op::Duplicate).unwrap();
+        let b = "<Button variant=\"primary\" disabled {...rest}>Invite</Button>";
+        assert_eq!(dup, SRC.replace(b, &format!("{b}\n      {b}")));
+        let down = edit("a.tsx", SRC, 4, 7, "h1", &Op::Move { by: 1 }).unwrap();
+        assert!(down.find("<Button").unwrap() < down.find("<h1>").unwrap());
+        assert_eq!(edit("a.tsx", &down, 4, 7, "Button", &Op::Move { by: 1 }).unwrap(), SRC);
+        assert!(edit("a.tsx", SRC, 4, 7, "h1", &Op::Move { by: -1 }).is_err());
+        // Taking out the root of a return would break the file, so it is refused.
+        assert!(edit("a.tsx", SRC, 3, 5, "div", &Op::Remove).is_err());
     }
 
     #[test]
