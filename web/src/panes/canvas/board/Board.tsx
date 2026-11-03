@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
 import { insertPrompt } from '../../composerEvents';
-import { groupOf, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
@@ -46,6 +46,9 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   // After a click led to a screen already on the board: the arrow went there, and she can make it a new step instead.
   const [linked, setLinked] = useState<{ text: string; from: string; route: string; label: string; link: string } | null>(null);
   useEffect(() => { if (!linked) return; const t = setTimeout(() => setLinked(null), 8000); return () => clearTimeout(t); }, [linked]);
+  // A click that opened something on the same screen (a dialog, a menu) while recording: it can become side state N.1.
+  const [side, setSide] = useState<{ from: string; label: string } | null>(null);
+  useEffect(() => { if (!side) return; const t = setTimeout(() => setSide(null), 8000); return () => clearTimeout(t); }, [side]);
 
   useEffect(() => { getJson<Manifest>('/api/canvas/manifest').then(setManifest, () => setManifest({ screens: [], scenarios: [] })); }, [url]);
 
@@ -158,9 +161,9 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       if (e.data.type === 'clicked' && rec) {
         clearTimeout(inPlace.current);
         const label = String(e.data.label).slice(0, 60);
-        inPlace.current = window.setTimeout(() => setToast(`"${label}" stayed on this screen, so it is not a new step`), 900);
+        inPlace.current = window.setTimeout(() => setSide({ from: id, label }), 900);
       }
-      if (e.data.type === 'nav') clearTimeout(inPlace.current);
+      if (e.data.type === 'nav') { clearTimeout(inPlace.current); setSide(null); }
       if (e.data.type === 'nav' && typeof e.data.path === 'string') followNav(id, e.data.path, typeof e.data.via === 'string' ? e.data.via : null);
       if (e.data.type === 'key') {
         const k = String(e.data.key).toLowerCase();
@@ -293,6 +296,16 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const parkFrame = (f: Frame, on: boolean) => { update({ ...board, frames: park(board.frames, f.id, on) }); setToast(on ? `${f.name} parked in Tried options` : `${f.name} is back in the flow`); };
   /** Asks Claude to review one screen, as it is on the board: its route, state and the clicks that open its side state. */
   const review = (f: Frame) => insertPrompt(`Review the screen "${f.name}"${f.n ? ` (step ${f.n})` : ''} at ${f.route} in the ${scenarioName(f.scenario)} state${f.clicks?.length ? `, after clicking ${f.clicks.map((c) => `"${c}"`).join(' then ')}` : ''}. Check it against the design system and visual craft rules and list what to fix.`);
+  /** The side state a click opened, as its own frame: same screen and state, the clicks replayed after load, under its step. */
+  const addSide = (fromId: string, label: string) => {
+    const from = board.frames.find((f) => f.id === fromId);
+    if (!from) return;
+    const f: Frame = { ...from, id: rid(), ...placeBelow(board.frames, from, GAP), clicks: [...(from.clicks ?? []), label], name: `${from.name}, ${label}`, note: undefined, n: from.n ? nextSide(board.frames, from.n) : undefined };
+    update({ ...board, frames: [...board.frames, f], links: [...board.links, { id: rid(), from: from.id, to: f.id, label: `Click ${label}` }] });
+    fr.reload(from.id);
+    setSide(null);
+    selectOnly({ frame: f.id });
+  };
   const setLink = (id: string, patch: Partial<Link>) => update({ ...board, links: board.links.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
   const removeLink = (id: string) => { update({ ...board, links: board.links.filter((l) => l.id !== id) }); setSelLink(null); };
 
@@ -446,7 +459,15 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             <button className="ghost" onClick={() => { const b = boardRef.current; const from = b.frames.find((f) => f.id === linked.from); if (from) addStep(b, from, linked.route, linked.label, linked.link); setLinked(null); }}>Make it a new step</button>
           </div>
         )}
-        {rec && !linked && !toast && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
+        {side && !linked && !toast && (() => {
+          const from = board.frames.find((f) => f.id === side.from);
+          return from && (
+            <div className="cv-toast" role="status">"{side.label}" stayed on this screen
+              <button className="ghost" onClick={() => addSide(side.from, side.label)}>{from.n ? `Make it ${nextSide(board.frames, from.n)}` : 'Keep as a frame'}</button>
+            </div>
+          );
+        })()}
+        {rec && !linked && !toast && !side && <div className="cv-banner" role="status">Recording Flow {flow?.n}: each new screen is the next step<button className="ghost" onClick={toggleRec}>Stop (R)</button></div>}
         {statesOf && !toast && <div className="cv-banner" role="status">All states of {statesOf.name}{!frozen && <button className="ghost" onClick={keepStates}>Keep on the board</button>}<button className="ghost" onClick={toggleStates}>Back to the board</button></div>}
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
