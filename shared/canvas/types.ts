@@ -30,7 +30,8 @@ export type Manifest = { screens: { route: string; name: string }[]; scenarios: 
 /** One inspector change: the element's text, one attribute (value null removes it), or the element itself taken out,
  * copied after itself or moved past its neighbour. */
 export type CanvasOp = { kind: 'text'; value: string } | { kind: 'attr'; name: string; value: string | null } | { kind: 'flag'; name: string; value: boolean }
-  | { kind: 'remove' } | { kind: 'duplicate' } | { kind: 'move'; by: -1 | 1 };
+  | { kind: 'remove' } | { kind: 'duplicate' } | { kind: 'move'; by: -1 | 1 }
+  | { kind: 'wrap'; class: string } | { kind: 'add'; tag: 'p' | 'span' | 'div' | 'h2' | 'h3'; class: string; text: string };
 export type CanvasAttr = { name: string; kind: 'string' | 'expr' | 'bool'; value?: string; raw?: string };
 /** A component's props as canvas-core reads them from its file: variants, strings, numbers, switches. */
 export type CanvasPropType = { kind: 'variant'; options: string[] } | { kind: 'string' } | { kind: 'number' } | { kind: 'boolean' } | { kind: 'other'; raw: string };

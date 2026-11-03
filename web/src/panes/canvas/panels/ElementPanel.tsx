@@ -65,7 +65,7 @@ export function ElementPanel({ picked, frame, onEdited, onGone }: { picked: Pick
       setError('');
       onEdited();
       // Removing, copying or moving shifts the element's place in its file, so the pick no longer points at it.
-      if (op.kind === 'remove' || op.kind === 'duplicate' || op.kind === 'move') { onGone(); return; }
+      if (op.kind !== 'text' && op.kind !== 'attr' && op.kind !== 'flag') { onGone(); return; }
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -122,6 +122,10 @@ export function ElementPanel({ picked, frame, onEdited, onGone }: { picked: Pick
           <button className="ghost" title="Move down, after the element below it" aria-label="Move down" onClick={() => void apply({ kind: 'move', by: 1 }, `Moved ${el.tag} down`)}><Icon name="arrow-down" /></button>
           <button className="ghost" title="Duplicate" aria-label="Duplicate" onClick={() => void apply({ kind: 'duplicate' }, `Duplicated ${el.tag}`)}><Icon name="copy" /></button>
           <button className="ghost danger" title="Delete" aria-label="Delete" onClick={() => void apply({ kind: 'remove' }, `Removed ${el.tag}`)}><Icon name="trash" /></button>
+          <select className="cv-el-more" value="" aria-label="Wrap or add" onChange={(e) => { const a = MORE[Number(e.target.value)]; if (a) void apply(a.op, `${a.label} · ${el.tag}`); }}>
+            <option value="">Wrap or add…</option>
+            {MORE.map((a, i) => <option key={a.label} value={i}>{a.label}</option>)}
+          </select>
         </div>
       )}
       {error && <p className="cv-error" role="alert">{error}</p>}
@@ -131,6 +135,15 @@ export function ElementPanel({ picked, frame, onEdited, onGone }: { picked: Pick
 }
 
 type Apply = (op: CanvasOp, label: string) => Promise<void>;
+
+/** Structure changes: a new auto layout around the element, or a new element after it. */
+const MORE: { label: string; op: CanvasOp }[] = [
+  { label: 'Wrap in a row', op: { kind: 'wrap', class: 'flex items-center gap-2' } },
+  { label: 'Wrap in a column', op: { kind: 'wrap', class: 'flex flex-col gap-2' } },
+  { label: 'Add text after', op: { kind: 'add', tag: 'p', class: 'text-sm', text: 'New text' } },
+  { label: 'Add a heading after', op: { kind: 'add', tag: 'h2', class: 'text-lg font-semibold', text: 'New heading' } },
+  { label: 'Add a box after', op: { kind: 'add', tag: 'div', class: 'p-4 rounded-lg border', text: '' } },
+];
 
 /** One component prop at its use. A string written at the use is always editable, whatever the prop's type says. */
 function PropRow({ prop, attr, apply }: { prop: CanvasProp; attr?: CanvasAttr; apply: Apply }) {

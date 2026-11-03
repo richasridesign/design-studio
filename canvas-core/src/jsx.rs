@@ -81,6 +81,22 @@ pub enum Op {
     Duplicate,
     /// Swaps the element with the element before (-1) or after (1) it in the same parent.
     Move { by: i32 },
+    /// Puts the element inside a new `<div className="...">`, one level deeper.
+    Wrap { class: String },
+    /// A new plain element right after this one: `<p>`, `<span>`, `<div>`, `<h2>` or `<h3>`, with classes and text.
+    Add { tag: String, class: String, text: String },
+}
+
+/// Tailwind classes only: letters, digits and the few marks class names use.
+fn check_class(class: &str) -> Result<(), String> {
+    if class.len() > 300 || !class.chars().all(|c| c.is_ascii_alphanumeric() || " -_:./[]#%".contains(c)) {
+        return Err("Those are not plain classes".into());
+    }
+    Ok(())
+}
+
+fn class_attr(class: &str) -> String {
+    if class.trim().is_empty() { String::new() } else { format!(" className=\"{}\"", class.trim()) }
 }
 
 fn check_name(name: &str) -> Result<(), String> {
@@ -313,6 +329,20 @@ pub fn edit(path: &str, src: &str, line: u32, col: u32, tag: &str, op: &Op) -> R
             let piece = &src[el.start as usize..el.end as usize];
             (el.end, el.end, format!("\n{}{piece}", indent(src, el.start)))
         }
+        Op::Wrap { class } => {
+            check_class(class)?;
+            let pad = indent(src, el.start);
+            let piece = src[el.start as usize..el.end as usize].replace('\n', "\n  ");
+            (el.start, el.end, format!("<div{}>\n{pad}  {piece}\n{pad}</div>", class_attr(class)))
+        }
+        Op::Add { tag, class, text } => {
+            check_class(class)?;
+            if !["p", "span", "div", "h2", "h3"].contains(&tag.as_str()) {
+                return Err(format!("Not an element that can be added here: {tag}"));
+            }
+            let inner = quote_text(text.trim());
+            (el.end, el.end, format!("\n{}<{tag}{}>{inner}</{tag}>", indent(src, el.start), class_attr(class)))
+        }
         Op::Move { by } => {
             let other = sibling(&els, src, el, *by)?;
             let (a, b) = if el.start < other.0 { ((el.start, el.end), other) } else { (other, (el.start, el.end)) };
@@ -412,6 +442,13 @@ mod tests {
         assert!(down.find("<Button").unwrap() < down.find("<h1>").unwrap());
         assert_eq!(edit("a.tsx", &down, 4, 7, "Button", &Op::Move { by: 1 }).unwrap(), SRC);
         assert!(edit("a.tsx", SRC, 4, 7, "h1", &Op::Move { by: -1 }).is_err());
+        let wrapped = edit("a.tsx", SRC, 7, 7, "Button", &Op::Wrap { class: "flex gap-2".into() }).unwrap();
+        assert!(wrapped.contains("      <div className=\"flex gap-2\">\n        <Button"));
+        assert!(wrapped.contains("</Button>\n      </div>\n      <>"));
+        let added = edit("a.tsx", SRC, 4, 7, "h1", &Op::Add { tag: "p".into(), class: "text-sm".into(), text: "New text".into() }).unwrap();
+        assert!(added.contains("      </h1>\n      <p className=\"text-sm\">New text</p>\n      <Button"));
+        assert!(edit("a.tsx", SRC, 4, 7, "h1", &Op::Add { tag: "script".into(), class: String::new(), text: String::new() }).is_err());
+        assert!(edit("a.tsx", SRC, 4, 7, "h1", &Op::Wrap { class: "a\" onClick={x}".into() }).is_err());
         // Taking out the root of a return would break the file, so it is refused.
         assert!(edit("a.tsx", SRC, 3, 5, "div", &Op::Remove).is_err());
     }
