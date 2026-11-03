@@ -78,3 +78,9 @@ select.cv-frame-scenario:hover { background: var(--bg-hover); color: var(--fg); 
 .cv-frame-figma:hover { color: var(--fg); }
 .cv-frame-figma svg { width: 12px; height: 12px; }
 .cv-play > span:first-child { font-weight: 600; }
+.cv-menu { position: absolute; z-index: 10; display: flex; flex-direction: column; width: 220px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elevated); box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+.cv-menu button { display: flex; justify-content: space-between; align-items: center; min-height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg); font-size: var(--text-sm); text-align: left; }
+.cv-menu button:hover, .cv-menu button:focus-visible { background: var(--bg-hover); }
+.cv-menu button.danger { color: var(--err); }
+.cv-menu kbd { padding: 0; border: 0; background: none; box-shadow: none; font: inherit; font-size: var(--text-xs); color: var(--fg-muted); }
+.cv-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--border); }

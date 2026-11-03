@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
 import { insertPrompt } from '../../composerEvents';
-import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, SECTION_PAD, sections, SIZES, stepKey, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, SECTION_PAD, sections, SIZES, stepKey, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest, type Section } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
@@ -9,6 +9,7 @@ import { LinkPanel } from '../panels/LinkPanel';
 import { BoardPanel, SectionPanel } from '../panels/SectionPanel';
 import { arrows } from './arrows';
 import { Icon } from '../../../Icon';
+import { Menu, type MenuItem } from './Menu';
 import { Toolbar, type Mode } from './Toolbar';
 import { useFrames, withScenario } from './useFrames';
 import { bounds, drag, useView, type View } from './useView';
@@ -425,6 +426,40 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     fitted.current = false;
     setToast(`${added.length} ${added.length === 1 ? 'frame' : 'frames'} added, one section per state`);
   };
+  // Right-click menus on a frame's name and a section's name.
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = (e: React.MouseEvent, items: MenuItem[]) => {
+    e.preventDefault();
+    const r = stage.current!.getBoundingClientRect();
+    setMenu({ x: Math.min(e.clientX - r.left, r.width - 220), y: Math.min(e.clientY - r.top, r.height - items.length * 32 - 16), items });
+  };
+  const frameMenu = (e: React.MouseEvent, f: Frame) => {
+    selectOnly({ frame: f.id });
+    openMenu(e, [
+      { label: 'Zoom to frame', keys: 'Shift+2', run: () => show(f) },
+      { label: 'Reload', run: () => fr.reload(f.id) },
+      { label: 'Review this screen', run: () => review(f) },
+      ...(f.figma ? [{ label: 'Open in Figma', run: () => window.open(f.figma, '_blank', 'noreferrer') }] : []),
+      ...(frozen ? [] : ['sep' as const,
+        { label: 'Duplicate', keys: '⌘D', run: () => duplicateFrame(f) },
+        ...(f.n !== undefined || f.parked ? [{ label: f.parked ? 'Back into the flow' : 'Park as tried option', run: () => parkFrame(f, !f.parked) }] : []),
+        ...(f.group && !f.parked ? [{ label: `Take out of ${f.group}`, run: () => setFrame(f.id, { group: undefined }) }] : []),
+        { label: 'Delete', keys: 'Del', danger: true, run: () => removeFrame(f.id) }]),
+    ]);
+  };
+  const sectionMenu = (e: React.MouseEvent, s: Section) => {
+    selectOnly({ section: s.name });
+    openMenu(e, [
+      { label: 'Zoom to section', run: () => show(s) },
+      ...(frozen ? [] : [
+        ...(s.name !== TRIED ? [{ label: 'Ungroup', run: () => ungroup(s.name) }] : []),
+        { label: 'Tidy up the board', run: tidyUp },
+        'sep' as const,
+        { label: 'Delete section and its frames', danger: true, run: () => removeSection(s.name) }]),
+    ]);
+  };
+
   /** One thing selected at a time: a frame, an arrow or a section. */
   const selectOnly = (s: { frame?: string; link?: string; section?: string }) => {
     setSelFrame(s.frame ?? null); setSelLink(s.link ?? null); setSelSection(s.section ?? null);
@@ -496,7 +531,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           <div className="cv-labels">
             {secs.map((s) => (
               <button key={s.name} className={`cv-section-name${selSection === s.name ? ' selected' : ''}`} style={{ left: s.x * view.zoom + view.x + 8, top: s.y * view.zoom + view.y + 8 }}
-                onPointerDown={(e) => moveSection(e, s.name)} onDoubleClick={() => show(s)}>{s.name}</button>
+                onPointerDown={(e) => { if (e.button !== 2) moveSection(e, s.name); }} onContextMenu={(e) => sectionMenu(e, s)} onDoubleClick={() => show(s)}>{s.name}</button>
             ))}
             {lines.map(({ l, mid }) => (
               <button key={l.id} className={`cv-link-label${selLink === l.id ? ' selected' : ''}`} style={{ left: mid.x, top: mid.y }}
@@ -508,7 +543,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
               return (
                 <div key={f.id} className={`cv-frame-head${selFrame === f.id ? ' selected' : ''}`} style={{ left: f.x * view.zoom + view.x, top: f.y * view.zoom + view.y - 20, width: w }}
                   title={`${f.name} · ${manifest?.scenarios.find((s) => s.id === f.scenario)?.name ?? f.scenario}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setSelLink(null); setSelSection(null); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => show(f)}>
+                  onPointerDown={(e) => { e.stopPropagation(); setSelLink(null); setSelSection(null); if (states || e.button === 2) setSelFrame(f.id); else moveFrame(e, f); }} onContextMenu={(e) => { if (!states) frameMenu(e, f); }} onDoubleClick={() => show(f)}>
                   {f.n && <span className="cv-frame-step">{f.n}</span>}
                   <span className="cv-frame-name">{f.name}</span>
                   {fr.failed[f.id] && <span className="cv-frame-failed" title={`"${fr.failed[f.id]}" was not found, so this side state may not show`}>!</span>}
@@ -542,6 +577,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
             </div>
           ))}
         </div>
+        {menu && <Menu x={menu.x} y={menu.y} items={menu.items} close={closeMenu} />}
         <Toolbar mode={mode} setMode={setMode} zoom={view.zoom} canAdd={!!manifest?.screens.length} addFrame={addFrame} fit={fit}
           tidy={!states && !frozen && board.frames.length > 1 ? tidyUp : null} rec={flow && !frozen ? rec : null} toggleRec={toggleRec} play={!!play} togglePlay={togglePlay}
           states={!!states} toggleStates={toggleStates} changes={changes?.files.length ?? 0} showChanges={showChanges}
