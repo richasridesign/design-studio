@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
-import { groupOf, nextStep, placeAfter, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { insertPrompt } from '../../composerEvents';
+import { groupOf, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
 import { LinkPanel } from '../panels/LinkPanel';
 import { BoardPanel, SectionPanel } from '../panels/SectionPanel';
 import { arrows } from './arrows';
+import { Icon } from '../../../Icon';
 import { Toolbar, type Mode } from './Toolbar';
 import { useFrames, withScenario } from './useFrames';
 import { bounds, drag, useView, type View } from './useView';
@@ -282,6 +284,15 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const setFrame = (id: string, patch: Partial<Frame>) => update({ ...board, frames: board.frames.map((f) => (f.id === id ? { ...f, ...patch } : f)) });
   // Steps close up after a frame goes, so a flow keeps 1, 2, 3 with no gaps; its arrows go with it.
   const removeFrame = (id: string) => { update({ ...board, frames: renumber(board.frames.filter((f) => f.id !== id)), links: board.links.filter((l) => l.from !== id && l.to !== id) }); setSelFrame(null); clearPick(); };
+  const duplicateFrame = (f: Frame) => {
+    const at = placeBelow(board.frames, f, GAP);
+    const copy: Frame = { ...f, id: rid(), ...at, name: `${f.name} copy`, n: undefined, note: undefined };
+    update({ ...board, frames: [...board.frames, copy] });
+    selectOnly({ frame: copy.id });
+  };
+  const parkFrame = (f: Frame, on: boolean) => { update({ ...board, frames: park(board.frames, f.id, on) }); setToast(on ? `${f.name} parked in Tried options` : `${f.name} is back in the flow`); };
+  /** Asks Claude to review one screen, as it is on the board: its route, state and the clicks that open its side state. */
+  const review = (f: Frame) => insertPrompt(`Review the screen "${f.name}"${f.n ? ` (step ${f.n})` : ''} at ${f.route} in the ${scenarioName(f.scenario)} state${f.clicks?.length ? `, after clicking ${f.clicks.map((c) => `"${c}"`).join(' then ')}` : ''}. Check it against the design system and visual craft rules and list what to fix.`);
   const setLink = (id: string, patch: Partial<Link>) => update({ ...board, links: board.links.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
   const removeLink = (id: string) => { update({ ...board, links: board.links.filter((l) => l.id !== id) }); setSelLink(null); };
 
@@ -393,6 +404,8 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
                   onPointerDown={(e) => { e.stopPropagation(); setSelLink(null); setSelSection(null); if (states) setSelFrame(f.id); else moveFrame(e, f); }} onDoubleClick={() => show(f)}>
                   {f.n && <span className="cv-frame-step">{f.n}</span>}
                   <span className="cv-frame-name">{f.name}</span>
+                  {fr.failed[f.id] && <span className="cv-frame-failed" title={`"${fr.failed[f.id]}" was not found, so this side state may not show`}>!</span>}
+                  {f.figma && w > 120 && <a className="cv-frame-figma" href={f.figma} target="_blank" rel="noreferrer" title="Open in Figma" aria-label={`Open ${f.name} in Figma`} onPointerDown={(e) => e.stopPropagation()}><Icon name="link-external" /></a>}
                   {states ? null : w > 200 && manifest && manifest.scenarios.length > 1 ? (
                     <select className="cv-frame-scenario" aria-label={`State of ${f.name}`} value={f.scenario} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => setFrame(f.id, { scenario: e.target.value })}>
                       {manifest.scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -441,7 +454,8 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           : showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
           : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
           : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
-          : frame ? <FramePanel frame={frame} manifest={manifest} setFrame={setFrame} remove={removeFrame} />
+          : frame ? <FramePanel frame={frame} manifest={manifest} groups={[...new Set(board.frames.map((f) => f.group).filter((g): g is string => !!g))]} failed={fr.failed[frame.id]} setFrame={setFrame}
+            act={{ duplicate: () => duplicateFrame(frame), focus: () => show(frame), reload: () => fr.reload(frame.id), review: () => review(frame), park: (on) => parkFrame(frame, on), remove: () => removeFrame(frame.id) }} />
           : selSection && secs.some((s) => s.name === selSection) ? <SectionPanel section={secs.find((s) => s.name === selSection)!} frames={board.frames} rename={(to) => renameSection(selSection, to)}
             ungroup={() => ungroup(selSection)} remove={() => removeSection(selSection)} show={() => show(secs.find((s) => s.name === selSection)!)} select={(id) => { selectOnly({ frame: id }); const f = board.frames.find((x) => x.id === id); if (f) show(f); }} />
           : <BoardPanel name={board.name} frames={board.frames.length} sections={secs.length} fit={fit} tidy={!frozen && board.frames.length > 1 ? tidyUp : null}
