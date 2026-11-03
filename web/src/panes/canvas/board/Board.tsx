@@ -366,7 +366,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   // Steps close up after a frame goes, so a flow keeps 1, 2, 3 with no gaps; its arrows go with it.
   const removeFrame = (id: string) => { update({ ...board, frames: renumber(board.frames.filter((f) => f.id !== id)), links: board.links.filter((l) => l.from !== id && l.to !== id) }); setSelFrame(null); clearPick(); };
   const duplicateFrame = (f: Frame) => {
-    const at = placeBelow(board.frames, f, GAP);
+    const at = placeBelow(board.frames, f, GAP * 3);
     const copy: Frame = { ...f, id: rid(), ...at, name: `${f.name} copy`, n: undefined, note: undefined };
     update({ ...board, frames: [...board.frames, copy] });
     selectOnly({ frame: copy.id });
@@ -374,11 +374,11 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const parkFrame = (f: Frame, on: boolean) => { update({ ...board, frames: park(board.frames, f.id, on) }); setToast(on ? `${f.name} parked in Tried options` : `${f.name} is back in the flow`); };
   /** Asks Claude to review one screen, as it is on the board: its route, state and the clicks that open its side state. */
   const review = (f: Frame) => insertPrompt(`Review the screen "${f.name}"${f.n ? ` (step ${f.n})` : ''} at ${f.route} in the ${scenarioName(f.scenario)} state${f.clicks?.length ? `, after clicking ${f.clicks.map((c) => `"${c}"`).join(' then ')}` : ''}. Check it against the design system and visual craft rules and list what to fix.`);
-  /** The side state a click opened, as its own frame: same screen and state, the clicks replayed after load, under its step. */
+  /** The side state a click opened, as its own frame under its step, far enough for the arrow label between them. */
   const addSide = (fromId: string, label: string) => {
     const from = board.frames.find((f) => f.id === fromId);
     if (!from) return;
-    const f: Frame = { ...from, id: rid(), ...placeBelow(board.frames, from, GAP), clicks: [...(from.clicks ?? []), label], name: `${from.name}, ${label}`, note: undefined, n: from.n ? nextSide(board.frames, from.n) : undefined };
+    const f: Frame = { ...from, id: rid(), ...placeBelow(board.frames, from, GAP * 3), clicks: [...(from.clicks ?? []), label], name: `${from.name}, ${label}`, note: undefined, n: from.n ? nextSide(board.frames, from.n) : undefined };
     update({ ...board, frames: [...board.frames, f], links: [...board.links, { id: rid(), from: from.id, to: f.id, label: `Click ${label}` }] });
     fr.reload(from.id);
     setSide(null);
