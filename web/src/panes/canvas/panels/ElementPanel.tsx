@@ -3,7 +3,8 @@ import { getJson, postJson } from '../../../store';
 import { Icon } from '../../../Icon';
 import { insertPrompt } from '../../composerEvents';
 import type { CanvasAttr, CanvasComponent, CanvasElement, CanvasOp, CanvasProp, Frame } from '../../../../../shared/canvas';
-import { pixels, RADIUS, setClass, SPACE, styleClasses, TEXT, type ClassKind, type StyleClass, type Tokens } from '../../../../../shared/canvas';
+import type { Tokens } from '../../../../../shared/canvas';
+import { StyleRows } from './StyleRows';
 
 // The inspector for a picked element. A pick has layers: the element itself and the component uses around it
 // (the h1 inside PageHeader, then <PageHeader title="..."> in the screen). Text that comes from a prop can only be
@@ -168,59 +169,6 @@ function PropRow({ prop, attr, apply }: { prop: CanvasProp; attr?: CanvasAttr; a
     return <Field label={prop.name} value={attr?.value ?? ''} placeholder={fallback} onCommit={(v) => apply({ kind: 'attr', name: prop.name, value: v === '' && prop.optional ? null : v }, `${prop.name} "${v.slice(0, 40)}"`)} />;
   }
   return null;
-}
-
-const ADD: { prefix: string; kind: ClassKind; label: string; value: (t: Tokens) => string | undefined }[] = [
-  { prefix: 'p', kind: 'space', label: 'Padding', value: () => '4' },
-  { prefix: 'px', kind: 'space', label: 'Padding x', value: () => '4' },
-  { prefix: 'py', kind: 'space', label: 'Padding y', value: () => '2' },
-  { prefix: 'gap', kind: 'space', label: 'Gap', value: () => '2' },
-  { prefix: 'rounded', kind: 'radius', label: 'Radius', value: () => 'lg' },
-  { prefix: 'text', kind: 'size', label: 'Text size', value: () => 'sm' },
-  { prefix: 'text', kind: 'color', label: 'Text colour', value: (t) => t.colors[0]?.name },
-  { prefix: 'bg', kind: 'color', label: 'Background', value: (t) => t.colors[0]?.name },
-];
-
-/**
- * The element's Tailwind classes as design values: spacing on the 4px scale, radius, text size and colours from the
- * app's tokens. Each menu rewrites one class in className; hover:, breakpoint and arbitrary classes are left alone.
- */
-function StyleRows({ className, tokens, apply }: { className: string; tokens: Tokens; apply: Apply }) {
-  const found = styleClasses(className, tokens);
-  const set = (c: Pick<StyleClass, 'prefix' | 'kind' | 'label'>, v: string | null) =>
-    apply({ kind: 'attr', name: 'className', value: setClass(className, c.prefix, c.kind, v, tokens) }, `${c.label} ${v === null ? 'removed' : v}`);
-  const missing = ADD.filter((a) => !found.some((f) => f.prefix === a.prefix && f.kind === a.kind) && a.value(tokens));
-  return (
-    <section className="cv-style" aria-label="Style">
-      <span className="cv-label">Style</span>
-      {found.map((c) => {
-        const options = optionsFor(c, tokens);
-        return (
-          <label key={`${c.prefix}:${c.kind}`} className="cv-field cv-style-row">
-            <span>{c.label}</span>
-            {c.kind === 'color' && <i className="cv-swatch" style={{ background: pixels(c, c.value, tokens) }} />}
-            <select value={c.value} onChange={(e) => void set(c, e.target.value || null)}>
-              {(options.includes(c.value) ? options : [c.value, ...options]).map((o) => <option key={o} value={o}>{c.kind === 'color' ? o : `${pixels(c, o, tokens)} · ${o}`}</option>)}
-              <option value="">Remove</option>
-            </select>
-          </label>
-        );
-      })}
-      {missing.length > 0 && (
-        <select className="cv-style-add" value="" aria-label="Add a style" onChange={(e) => { const a = missing[Number(e.target.value)]; if (a) void set(a, a.value(tokens)!); }}>
-          <option value="">Add a style…</option>
-          {missing.map((a, i) => <option key={a.label} value={i}>{a.label}</option>)}
-        </select>
-      )}
-    </section>
-  );
-}
-
-function optionsFor(c: StyleClass, t: Tokens): string[] {
-  if (c.kind === 'space') return SPACE;
-  if (c.kind === 'radius') return [...Object.keys(RADIUS), ...t.radius.map((r) => r.name)];
-  if (c.kind === 'size') return [...t.text.map((r) => r.name), ...Object.keys(TEXT)];
-  return t.colors.map((r) => r.name);
 }
 
 function AttrRow({ a, apply }: { a: CanvasAttr; apply: Apply }) {
