@@ -413,7 +413,14 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     setSelSection(null);
   };
   /** A section per state, named after the state, then tidied: the board reads as "every screen, every state". */
-  const groupByState = () => { update({ ...board, frames: tidy(board.frames.map((f) => (f.parked ? f : { ...f, group: scenarioName(f.scenario) }))) }); fitted.current = false; };
+  // Frames already in a section of hers (Happy path) keep it; only loose frames get their state's section.
+  const groupByState = () => {
+    const loose = board.frames.filter((f) => !f.parked && !f.group);
+    if (!loose.length) { setToast('Every frame is already in a section'); return; }
+    update({ ...board, frames: tidy(board.frames.map((f) => (loose.includes(f) ? { ...f, group: scenarioName(f.scenario) } : f))) });
+    fitted.current = false;
+    setToast(`${loose.length} ${loose.length === 1 ? 'frame' : 'frames'} grouped by state. Cmd+Z undoes it`);
+  };
   /** All states of a screen, kept: a frame per other state, each in a section named after its state. */
   const keepStates = () => {
     const f = statesOf;

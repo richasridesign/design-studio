@@ -39,7 +39,7 @@ export function BoardPanel({ name, frames, sections, tidy, groupByState, fit }: 
       <div className="cv-actions">
         <button onClick={fit}>Fit the board</button>
         {tidy && <button onClick={tidy}>Tidy up</button>}
-        {groupByState && <button onClick={groupByState} title="A section per state, named after it, like Empty or Error">Group by state</button>}
+        {groupByState && <button onClick={groupByState} title="A section per state for frames not in a section yet, named after the state">Group by state</button>}
       </div>
     </div>
   );
