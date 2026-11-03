@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import type { CanvasChanges } from '../../../shared/canvas.js';
+import type { CanvasChanges } from '../../../shared/canvas/index.js';
 import { runGit } from '../projectGit.js';
 import { queued } from './core.js';
 import { appOf } from './paths.js';

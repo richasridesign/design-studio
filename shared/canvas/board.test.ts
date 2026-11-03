@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanBoard, nextSide, park, placeAfter, renumber, tidy, type Frame } from './canvas';
+import { cleanBoard, nextSide, park, placeAfter, renumber, sections, tidy, type Frame } from './index';
 
 const f = (id: string, n?: string, x = 0, y = 0): Frame => ({ id, name: id, route: '/', scenario: 'default', x, y, w: 100, h: 100, ...(n ? { n } : {}) });
 
@@ -27,7 +27,14 @@ describe('flow layout', () => {
   it('puts steps in a row, side states under their step and parked frames below', () => {
     const out = tidy([f('c', '2'), f('a', '1'), f('a1', '1.1'), f('p', '3'), f('x'), { ...f('old'), parked: true }], 20, 30);
     const pos = Object.fromEntries(out.map((o) => [o.id, `${o.x},${o.y}`]));
-    expect(pos).toEqual({ a: '0,0', a1: '0,130', c: '120,0', p: '240,0', x: '360,0', old: '0,290' });
+    expect(pos).toEqual({ a: '0,0', a1: '0,130', c: '120,0', p: '240,0', x: '360,0', old: '0,380' });
+  });
+
+  it('lays each section out as a band, in the order the sections sit', () => {
+    const g = (id: string, group: string, y: number): Frame => ({ ...f(id, undefined, 0, y), group });
+    const out = tidy([g('e1', 'Empty', 900), g('h1', 'Happy', 0), g('h2', 'Happy', 50), g('e2', 'Empty', 900)], 20, 30);
+    expect(Object.fromEntries(out.map((o) => [o.id, `${o.x},${o.y}`]))).toEqual({ h1: '0,0', h2: '120,0', e1: '0,330', e2: '120,330' });
+    expect(sections(out).map((s) => [s.name, s.y])).toEqual([['Happy', -120], ['Empty', 210]]);
   });
 
   it('numbers side states after the last one of their step', () => {

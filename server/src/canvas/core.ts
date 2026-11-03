@@ -2,7 +2,7 @@ import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { readFile, realpath } from 'node:fs/promises';
-import { parseSrc, type CanvasComponent, type CanvasElement, type CanvasOp } from '../../../shared/canvas.js';
+import { parseSrc, type CanvasComponent, type CanvasElement, type CanvasOp } from '../../../shared/canvas/index.js';
 import { record } from './changes.js';
 import { appOf, CORE_BIN, exists } from './paths.js';
 

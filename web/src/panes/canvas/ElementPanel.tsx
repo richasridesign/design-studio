@@ -3,7 +3,7 @@ import { getJson, postJson } from '../../store';
 import { Icon } from '../../Icon';
 import { insertPrompt } from '../composerEvents';
 import type { CanvasAttr, CanvasComponent, CanvasElement, CanvasOp, CanvasProp, Frame } from '../../../../shared/canvas';
-import { pixels, RADIUS, setClass, SPACE, styleClasses, TEXT, type ClassKind, type StyleClass, type Tokens } from '../../../../shared/classes';
+import { pixels, RADIUS, setClass, SPACE, styleClasses, TEXT, type ClassKind, type StyleClass, type Tokens } from '../../../../shared/canvas';
 
 // The inspector for a picked element. A pick has layers: the element itself and the component uses around it
 // (the h1 inside PageHeader, then <PageHeader title="..."> in the screen). Text that comes from a prop can only be

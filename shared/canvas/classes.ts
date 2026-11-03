@@ -67,3 +67,70 @@ export function readTokens(css: string): Tokens {
   }
   return out;
 }
+
+/**
+ * className with every plain class that `match` accepts taken out and `next` put where the first one was (or at the
+ * end when there was none). null only takes them out.
+ */
+export function replaceClass(className: string, match: (cls: string) => boolean, next: string | null): string {
+  let put = false;
+  const out = className.split(/\s+/).filter(Boolean).flatMap((c) => {
+    if (c.includes(':') || !match(c)) return [c];
+    if (put || next === null) return [];
+    put = true;
+    return [next];
+  });
+  if (!put && next !== null) out.push(next);
+  return out.join(' ');
+}
+
+/** Classes of which an element has one at most, shown as menus or segments. '' is "none of them". */
+export const KEYWORDS = {
+  align: { label: 'Align', options: { '': 'Default', 'items-start': 'Start', 'items-center': 'Centre', 'items-end': 'End', 'items-stretch': 'Stretch', 'items-baseline': 'Baseline' } },
+  justify: { label: 'Justify', options: { '': 'Default', 'justify-start': 'Start', 'justify-center': 'Centre', 'justify-end': 'End', 'justify-between': 'Space between' } },
+  wrap: { label: 'Wrap', options: { '': 'No wrap', 'flex-wrap': 'Wrap' } },
+  weight: { label: 'Weight', options: { '': 'Inherit', 'font-normal': 'Regular', 'font-medium': 'Medium', 'font-semibold': 'Semibold', 'font-bold': 'Bold' } },
+  textAlign: { label: 'Align', options: { '': 'Inherit', 'text-left': 'Left', 'text-center': 'Centre', 'text-right': 'Right' } },
+  truncate: { label: 'Overflow', options: { '': 'Wrap', truncate: 'Truncate' } },
+  border: { label: 'Border', options: { '': 'None', border: '1px', 'border-2': '2px' } },
+  shadow: { label: 'Shadow', options: { '': 'None', 'shadow-xs': 'XS', 'shadow-sm': 'Small', shadow: 'Default', 'shadow-md': 'Medium', 'shadow-lg': 'Large' } },
+} as const;
+export type KeywordGroup = keyof typeof KEYWORDS;
+
+const inGroup = (g: KeywordGroup) => (c: string) => c !== '' && c in KEYWORDS[g].options;
+export const keyword = (className: string, g: KeywordGroup): string => className.split(/\s+/).find((c) => !c.includes(':') && inGroup(g)(c)) ?? '';
+export const setKeyword = (className: string, g: KeywordGroup, value: string): string => replaceClass(className, inGroup(g), value || null);
+
+/** How an element lays out its children, as the Block / Row / Column / Grid segments. */
+export type Layout = 'block' | 'row' | 'column' | 'grid';
+const DISPLAY = new Set(['block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'inline-block']);
+const DIRECTION = new Set(['flex-row', 'flex-col', 'flex-row-reverse', 'flex-col-reverse']);
+export function layoutOf(className: string): Layout {
+  const cs = className.split(/\s+/).filter((c) => !c.includes(':'));
+  if (cs.some((c) => c === 'grid' || c === 'inline-grid')) return 'grid';
+  if (cs.some((c) => c === 'flex' || c === 'inline-flex')) return cs.some((c) => c.startsWith('flex-col')) ? 'column' : 'row';
+  return 'block';
+}
+export function setLayout(className: string, to: Layout): string {
+  const display = to === 'block' ? null : to === 'grid' ? 'grid' : 'flex';
+  const out = replaceClass(className, (c) => DISPLAY.has(c), display);
+  return replaceClass(out, (c) => DIRECTION.has(c), to === 'column' ? 'flex-col' : null);
+}
+
+/** Width or height like Figma's resizing: Auto (no class), Fill (w-full), Hug (w-fit) or Fixed pixels. */
+export type Dim = { mode: 'auto' | 'fill' | 'hug' | 'fixed'; px?: number };
+const dimMatch = (axis: 'w' | 'h') => (c: string) => new RegExp(`^${axis}-(full|fit|auto|screen|\\d+(\\.5)?|\\[\\d+px\\])$`).test(c);
+export function dimOf(className: string, axis: 'w' | 'h'): Dim {
+  const c = className.split(/\s+/).find((x) => !x.includes(':') && dimMatch(axis)(x));
+  const v = c?.slice(2);
+  if (!v || v === 'auto') return { mode: 'auto' };
+  if (v === 'full' || v === 'screen') return { mode: 'fill' };
+  if (v === 'fit') return { mode: 'hug' };
+  return { mode: 'fixed', px: v.startsWith('[') ? Number(v.slice(1, -3)) : Number(v) * 4 };
+}
+/** A fixed size on the 4px scale is written as a scale step (w-28), anything else in pixels (w-[113px]). */
+export function setDim(className: string, axis: 'w' | 'h', d: Dim): string {
+  const px = Math.max(0, Math.round(d.px ?? 0));
+  const next = d.mode === 'auto' ? null : d.mode === 'fill' ? `${axis}-full` : d.mode === 'hug' ? `${axis}-fit` : px % 4 === 0 ? `${axis}-${px / 4}` : `${axis}-[${px}px]`;
+  return replaceClass(className, dimMatch(axis), next);
+}

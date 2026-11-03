@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { cleanBoard, emptyBoard, type Board } from '../../../shared/canvas.js';
+import { cleanBoard, emptyBoard, type Board } from '../../../shared/canvas/index.js';
 import { compareIds, vId } from '../../../shared/project.js';
 import { chatContext, flowDir, ITERATIONS_DIR, iterationDir } from '../project.js';
 import { boardFile } from './paths.js';

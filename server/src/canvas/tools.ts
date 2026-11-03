@@ -1,6 +1,6 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { nextSide, nextStep, park, placeAfter, renumber, tidy, type Board, type Frame } from '../../../shared/canvas.js';
+import { nextSide, nextStep, park, placeAfter, renumber, tidy, type Board, type Frame } from '../../../shared/canvas/index.js';
 import { manifest } from './app.js';
 import { boardPlace, readBoard, writeBoard } from './board.js';
 import { projectOf } from './paths.js';
