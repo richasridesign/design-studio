@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getJson, postJson } from '../../store';
-import { Icon } from '../../Icon';
-import type { CanvasChanges } from '../../../../shared/canvas';
+import { getJson, postJson } from '../../../store';
+import { Icon } from '../../../Icon';
+import type { CanvasChanges } from '../../../../../shared/canvas';
 
 // What the canvas changed in the app's code: this session's edits (the newest can be undone, also with Cmd+Z), the
 // files with uncommitted changes and their diffs, and a commit. Commits stay in the app's own repo on this Mac.

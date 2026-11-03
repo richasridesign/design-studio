@@ -1,4 +1,4 @@
-import { SIZES, type Frame, type Manifest } from '../../../../shared/canvas';
+import { SIZES, type Frame, type Manifest } from '../../../../../shared/canvas';
 
 export function FramePanel({ frame, manifest, setFrame, remove }: { frame: Frame; manifest: Manifest | null; setFrame: (id: string, p: Partial<Frame>) => void; remove: (id: string) => void }) {
   return (
