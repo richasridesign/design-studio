@@ -309,7 +309,22 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     drag(e, (dx, dy) => {
       last = { ...board, frames: board.frames.map((x) => (x.id === f.id ? { ...x, x: Math.round(start.x + dx / view.zoom), y: Math.round(start.y + dy / view.zoom) } : x)) };
       setOwn(last);
-    }, () => update(last));
+    }, () => { if (last !== board) update(f.parked ? last : regroup(last, f.id)); });
+  };
+  /**
+   * Like Figma sections: a frame dropped inside a section's box joins it, one dropped outside every box leaves its
+   * section. A frame alone in its section keeps it, since its box moves with it.
+   */
+  const regroup = (b: BoardData, id: string): BoardData => {
+    const f = b.frames.find((x) => x.id === id)!;
+    const others = b.frames.filter((x) => x.id !== id);
+    const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+    const into = sections(others).find((s) => s.name !== TRIED && cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h);
+    const alone = !!f.group && !others.some((x) => x.group === f.group && !x.parked);
+    const group = into ? into.name : alone ? f.group : undefined;
+    if (group === f.group) return b;
+    setToast(group ? `${f.name} is in ${group}` : `${f.name} left ${f.group}`);
+    return { ...b, frames: b.frames.map((x) => (x.id === id ? { ...x, group } : x)) };
   };
 
   /** One frame per screen in the first state, in one row: the board a project starts with. */
