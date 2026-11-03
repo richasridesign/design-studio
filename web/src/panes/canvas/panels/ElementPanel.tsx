@@ -26,7 +26,7 @@ export const defaultLayer = (layers: Layer[]) => Math.max(0, layers.findIndex((l
 let tokensOnce: Promise<Tokens> | null = null;
 const loadTokens = () => (tokensOnce ??= getJson<Tokens>('/api/canvas/tokens').catch(() => { tokensOnce = null; return { colors: [], text: [], radius: [] }; }));
 
-export function ElementPanel({ picked, frame, onEdited }: { picked: Picked; frame: Frame | null; onEdited: () => void }) {
+export function ElementPanel({ picked, frame, onEdited, onGone }: { picked: Picked; frame: Frame | null; onEdited: () => void; onGone: () => void }) {
   const [tokens, setTokens] = useState<Tokens | null>(null);
   useEffect(() => { void loadTokens().then(setTokens); }, []);
   const layers = picked.layers.length ? picked.layers : [{ src: picked.src, name: picked.tag, component: false }];
@@ -63,6 +63,8 @@ export function ElementPanel({ picked, frame, onEdited }: { picked: Picked; fram
       await postJson('/api/canvas/edit', { src: layer.src, tag: el.tag, op, label: `${label} · ${fileOf(layer.src).replace(/^src\//, '')}` });
       setError('');
       onEdited();
+      // Removing, copying or moving shifts the element's place in its file, so the pick no longer points at it.
+      if (op.kind === 'remove' || op.kind === 'duplicate' || op.kind === 'move') { onGone(); return; }
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -112,6 +114,14 @@ export function ElementPanel({ picked, frame, onEdited }: { picked: Picked; fram
             </details>
           )}
         </>
+      )}
+      {el && (
+        <div className="cv-el-actions" role="group" aria-label="Element">
+          <button className="ghost" title="Move up, before the element above it" aria-label="Move up" onClick={() => void apply({ kind: 'move', by: -1 }, `Moved ${el.tag} up`)}><Icon name="arrow-up" /></button>
+          <button className="ghost" title="Move down, after the element below it" aria-label="Move down" onClick={() => void apply({ kind: 'move', by: 1 }, `Moved ${el.tag} down`)}><Icon name="arrow-down" /></button>
+          <button className="ghost" title="Duplicate" aria-label="Duplicate" onClick={() => void apply({ kind: 'duplicate' }, `Duplicated ${el.tag}`)}><Icon name="copy" /></button>
+          <button className="ghost danger" title="Delete" aria-label="Delete" onClick={() => void apply({ kind: 'remove' }, `Removed ${el.tag}`)}><Icon name="trash" /></button>
+        </div>
       )}
       {error && <p className="cv-error" role="alert">{error}</p>}
       <button className="cv-ask" onClick={ask}><Icon name="comment" small /> Ask Claude about this</button>

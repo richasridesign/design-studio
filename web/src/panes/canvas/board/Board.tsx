@@ -473,7 +473,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       <aside className="cv-inspector" aria-label="Inspector">
         {selLink && board.links.some((l) => l.id === selLink) ? <LinkPanel link={board.links.find((l) => l.id === selLink)!} frames={board.frames} setLink={setLink} remove={removeLink} />
           : showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
-          : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} />
+          : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} onGone={clearPick} />
           : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
           : frame ? <FramePanel frame={frame} manifest={manifest} groups={[...new Set(board.frames.map((f) => f.group).filter((g): g is string => !!g))]} failed={fr.failed[frame.id]} setFrame={setFrame}
             act={{ duplicate: () => duplicateFrame(frame), focus: () => show(frame), reload: () => fr.reload(frame.id), review: () => review(frame), park: (on) => parkFrame(frame, on), remove: () => removeFrame(frame.id) }} />
