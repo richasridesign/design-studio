@@ -54,7 +54,25 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
 
   const loadChanges = useCallback(() => getJson<CanvasChanges>('/api/canvas/changes').then(setChanges, () => undefined), []);
   useEffect(() => { void loadChanges(); }, [loadChanges]);
-  const undo = useCallback(async () => {
+  // One undo history for the board and the code, newest last. A board entry holds the board before that edit; a code
+  // entry stands for an edit the server can undo. A board changed from outside (Claude's tools) starts it afresh.
+  const history = useRef<({ kind: 'board'; before: BoardData; at: number } | { kind: 'code' })[]>([]);
+  const own = useRef(new WeakSet<BoardData>());
+  const saved = useRef(board);
+  useEffect(() => { if (!own.current.has(board)) { saved.current = board; history.current = []; } }, [board]);
+  const setOwn = useCallback((b: BoardData) => { own.current.add(b); setBoard(b); }, [setBoard]);
+  const codeEdited = useCallback(() => { history.current.push({ kind: 'code' }); void loadChanges(); }, [loadChanges]);
+
+  // Saves shortly after the last change.
+  const saveTimer = useRef<number>(0);
+  const save = useCallback((next: BoardData) => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => postJson('/api/canvas/board', next).then(() => setSaveError(''), (e) => setSaveError(e.message)), 400);
+  }, []);
+  /** Undoes the last code edit, wherever it sits in the history (the Changes panel's Undo is for code only). */
+  const undoCode = useCallback(async () => {
+    const i = history.current.map((h) => h.kind).lastIndexOf('code');
+    if (i >= 0) history.current.splice(i, 1);
     try {
       const r = await postJson<{ label: string }>('/api/canvas/undo', {});
       setToast(`Undone: ${r.label}`);
@@ -63,17 +81,29 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     }
     void loadChanges();
   }, [loadChanges]);
+  const undo = useCallback(async () => {
+    const last = history.current.at(-1);
+    if (last?.kind !== 'board') return undoCode();
+    history.current.pop();
+    saved.current = last.before;
+    setOwn(last.before);
+    save(last.before);
+    setToast('Undone: board change');
+  }, [undoCode, setOwn, save]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t); }, [toast]);
 
-  // Saves shortly after the last change.
-  const saveTimer = useRef<number>(0);
   const frozen = !!flow?.frozen;
   const update = useCallback((next: BoardData) => {
     if (frozen) { setToast(`${flow?.iteration} is frozen, so its board is read only`); return; }
-    setBoard(next);
-    clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => postJson('/api/canvas/board', next).then(() => setSaveError(''), (e) => setSaveError(e.message)), 400);
-  }, [setBoard, frozen, flow?.iteration]);
+    // Edits within a second of the last one (typing a name) undo together.
+    const last = history.current.at(-1);
+    if (last?.kind === 'board' && Date.now() - last.at < 1000) last.at = Date.now();
+    else history.current.push({ kind: 'board', before: saved.current, at: Date.now() });
+    if (history.current.length > 100) history.current.shift();
+    saved.current = next;
+    setOwn(next);
+    save(next);
+  }, [setOwn, save, frozen, flow?.iteration]);
   // A board left for another chat's must not save into that chat's board.
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
@@ -277,7 +307,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     let last = board;
     drag(e, (dx, dy) => {
       last = { ...board, frames: board.frames.map((x) => (x.id === f.id ? { ...x, x: Math.round(start.x + dx / view.zoom), y: Math.round(start.y + dy / view.zoom) } : x)) };
-      setBoard(last);
+      setOwn(last);
     }, () => update(last));
   };
 
@@ -354,7 +384,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     let last = board;
     drag(e, (dx, dy) => {
       last = { ...board, frames: board.frames.map((x) => { const p = start.get(x.id); return p ? { ...x, x: Math.round(p.x + dx / view.zoom), y: Math.round(p.y + dy / view.zoom) } : x; }) };
-      setBoard(last);
+      setOwn(last);
     }, () => update(last));
   };
   const inSection = (name: string, f: Frame) => groupOf(f) === name;
@@ -384,6 +414,22 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
     setSelFrame(s.frame ?? null); setSelLink(s.link ?? null); setSelSection(s.section ?? null);
     clearPick(); setShowChanges(false);
   };
+
+  // Delete or Backspace removes the selected frame, arrow or section, Cmd+D duplicates the selected frame. All undo.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]') || !stage.current?.closest('.editor.shown')) return;
+      if (states || play || picked) return;
+      const f = board.frames.find((x) => x.id === selFrame);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+        if (f) removeFrame(f.id); else if (selLink) removeLink(selLink); else if (selSection) removeSection(selSection); else return;
+      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd' && f) duplicateFrame(f);
+      else return;
+      e.preventDefault();
+    };
+    addEventListener('keydown', on);
+    return () => removeEventListener('keydown', on);
+  });
 
   // Only frames in or near view load the app; the rest show their name until they come into view.
   const inView = (f: Frame) => {
@@ -513,8 +559,8 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
       </div>
       <aside className="cv-inspector" aria-label="Inspector">
         {selLink && board.links.some((l) => l.id === selLink) ? <LinkPanel link={board.links.find((l) => l.id === selLink)!} frames={board.frames} setLink={setLink} remove={removeLink} />
-          : showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undo} close={() => setShowChanges(false)} />
-          : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={loadChanges} onGone={clearPick} />
+          : showChanges ? <ChangesPanel changes={changes} reload={loadChanges} undo={undoCode} close={() => setShowChanges(false)} />
+          : picked ? <ElementPanel picked={picked} frame={shown.find((f) => f.id === picked.frame) ?? null} onEdited={codeEdited} onGone={clearPick} />
           : statesOf ? <p className="cv-muted">Every state of {statesOf.name}. Pick an element to edit it; a change shows in every state at once. Esc goes back to the board.</p>
           : frame ? <FramePanel frame={frame} manifest={manifest} groups={[...new Set(board.frames.map((f) => f.group).filter((g): g is string => !!g))]} failed={fr.failed[frame.id]} setFrame={setFrame}
             act={{ duplicate: () => duplicateFrame(frame), focus: () => show(frame), reload: () => fr.reload(frame.id), review: () => review(frame), park: (on) => parkFrame(frame, on), remove: () => removeFrame(frame.id) }} />
