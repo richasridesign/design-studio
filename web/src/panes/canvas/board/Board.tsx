@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson } from '../../../store';
 import { insertPrompt } from '../../composerEvents';
-import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, sections, SIZES, stepKey, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
+import { groupOf, nextSide, nextStep, park, placeAfter, placeBelow, renumber, SECTION_PAD, sections, SIZES, stepKey, tidy, TRIED, type Board as BoardData, type CanvasChanges, type Frame, type Link, type Manifest } from '../../../../../shared/canvas';
 import { ChangesPanel } from '../panels/ChangesPanel';
 import { ElementPanel, type Layer, type Picked } from '../panels/ElementPanel';
 import { FramePanel } from '../panels/FramePanel';
@@ -341,7 +341,8 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
   const removeLink = (id: string) => { update({ ...board, links: board.links.filter((l) => l.id !== id) }); setSelLink(null); };
 
   const lines = states ? [] : arrows(board.frames, board.links, view);
-  const secs = states ? [] : sections(board.frames);
+  // The section name sits inside the box's top left; the box keeps at least 64px on screen above its frames for it.
+  const secs = (states ? [] : sections(board.frames)).map((s) => { const extra = Math.max(0, 64 / view.zoom - SECTION_PAD.top); return { ...s, y: s.y - extra, h: s.h + extra }; });
   const scenarioName = (id: string) => manifest?.scenarios.find((s) => s.id === id)?.name ?? id;
 
   /** Dragging a section's name moves all its frames. */
@@ -432,7 +433,7 @@ export function Board({ url, board, setBoard, flow }: { url: string; board: Boar
           </svg>
           <div className="cv-labels">
             {secs.map((s) => (
-              <button key={s.name} className={`cv-section-name${selSection === s.name ? ' selected' : ''}`} style={{ left: s.x * view.zoom + view.x, top: s.y * view.zoom + view.y - 28 }}
+              <button key={s.name} className={`cv-section-name${selSection === s.name ? ' selected' : ''}`} style={{ left: s.x * view.zoom + view.x + 8, top: s.y * view.zoom + view.y + 8 }}
                 onPointerDown={(e) => moveSection(e, s.name)} onDoubleClick={() => show(s)}>{s.name}</button>
             ))}
             {lines.map(({ l, mid }) => (
