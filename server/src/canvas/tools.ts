@@ -35,7 +35,7 @@ async function change(cwd: string, go: (b: Board, screens: Awaited<ReturnType<ty
 }
 
 function describe(b: Board): string {
-  const frame = (f: Frame) => `- ${f.id}: ${f.n ? `step ${f.n} ` : ''}"${f.name}" ${f.route} [${f.scenario}]${f.clicks?.length ? ` after clicking ${f.clicks.map((c) => `"${c}"`).join(', ')}` : ''}${f.parked ? ' (tried option)' : ''}${f.note ? ` note: ${f.note.replace(/\s+/g, ' ').slice(0, 120)}` : ''}`;
+  const frame = (f: Frame) => `- ${f.id}: ${f.n ? `step ${f.n} ` : ''}"${f.name}" ${f.route} [${f.scenario}]${f.clicks?.length ? ` after clicking ${f.clicks.map((c) => `"${c}"`).join(', ')}` : ''}${f.parked ? ' (tried option)' : f.group ? ` in section "${f.group}"` : ''}${f.note ? ` note: ${f.note.replace(/\s+/g, ' ').slice(0, 120)}` : ''}`;
   const name = (id: string) => b.frames.find((f) => f.id === id)?.name ?? id;
   return [
     `${b.name}: ${b.frames.length} frames, ${b.links.length} arrows.`,
@@ -70,6 +70,7 @@ export function canvasTools(cwd: string) {
         name: z.string().max(120).optional(),
         note: z.string().max(600).optional(),
         clicks: z.array(z.string().max(60)).max(10).optional(),
+        section: z.string().max(80).optional().describe('A section name, like "Happy path", "Empty" or "Error"; default the section of the frame it follows.'),
       },
       async (a) => change(cwd, (b, m) => {
         if (!a.route.startsWith('/') || a.route.startsWith('//')) return 'The route must start with /';
@@ -83,6 +84,7 @@ export function canvasTools(cwd: string) {
           id: rid(), route: a.route, scenario: a.scenario ?? from?.scenario ?? m?.scenarios[0]?.id ?? 'default',
           name: a.name ?? m?.screens.find((s) => s.route === a.route.split('?')[0])?.name ?? a.route,
           ...at, w: size.w, h: size.h, ...(n ? { n } : {}), ...(a.note ? { note: a.note } : {}), ...(a.clicks?.length ? { clicks: a.clicks } : {}),
+          ...((a.section ?? from?.group) ? { group: a.section ?? from?.group } : {}),
         };
         return { ...b, frames: [...b.frames, f], links: from && a.label ? [...b.links, { id: rid(), from: from.id, to: f.id, label: a.label }] : b.links };
       }),
@@ -98,13 +100,14 @@ export function canvasTools(cwd: string) {
     ),
     tool(
       'canvas_update_frame',
-      'Changes one frame: its name, step, note or state, parks it as a tried option (kept to the side, out of the flow) or brings it back, or removes it. Steps close up after a removal or a park.',
+      'Changes one frame: its name, step, note, state or section ("" takes it out of its section), parks it as a tried option (kept to the side, out of the flow) or brings it back, or removes it. Steps close up after a removal or a park.',
       {
         id: z.string().max(40),
         name: z.string().max(120).optional(),
         n: z.string().max(12).optional(),
         note: z.string().max(600).optional(),
         scenario: z.string().max(60).optional(),
+        section: z.string().max(80).optional(),
         parked: z.boolean().optional(),
         remove: z.boolean().optional(),
       },
@@ -112,7 +115,7 @@ export function canvasTools(cwd: string) {
         const f = b.frames.find((x) => x.id === a.id);
         if (!f) return `There is no frame ${a.id}`;
         if (a.remove) return { ...b, frames: renumber(b.frames.filter((x) => x.id !== a.id)), links: b.links.filter((l) => l.from !== a.id && l.to !== a.id) };
-        const patch: Partial<Frame> = { ...(a.name ? { name: a.name } : {}), ...(a.n ? { n: a.n } : {}), ...(a.note !== undefined ? { note: a.note } : {}), ...(a.scenario ? { scenario: a.scenario } : {}) };
+        const patch: Partial<Frame> = { ...(a.name ? { name: a.name } : {}), ...(a.n ? { n: a.n } : {}), ...(a.note !== undefined ? { note: a.note } : {}), ...(a.scenario ? { scenario: a.scenario } : {}), ...(a.section !== undefined ? { group: a.section.trim() || undefined } : {}) };
         let frames = b.frames.map((x) => (x.id === a.id ? { ...x, ...patch } : x));
         if (a.parked !== undefined) frames = park(frames, a.id, a.parked);
         return { ...b, frames };
@@ -120,7 +123,7 @@ export function canvasTools(cwd: string) {
     ),
     tool(
       'canvas_tidy',
-      'Lays the board out like a Figma flow section: steps in one row in order, side states under their step, tried options in a row below.',
+      'Lays the board out like Figma flow sections: frames outside a section first, then each section as its own band (steps in a row in order, side states under their step), tried options last.',
       {},
       async () => change(cwd, (b) => ({ ...b, frames: tidy(b.frames) })),
     ),
