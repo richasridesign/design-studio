@@ -1,5 +1,6 @@
 // Runs inside each canvas frame. In Select mode the canvas sends the point under the pointer; the nearest element
-// with data-ds-src there is outlined or picked, and the canvas is told. The canvas tells it the mode and which element to keep outlined.
+// with data-ds-src there is outlined or picked, and the canvas is told. The canvas tells it the mode and which element to
+// keep outlined, and the clicks to replay for a side state.
 (() => {
   if (window.parent === window) return;
   const origin = location.ancestorOrigins?.[0] ?? '*';
@@ -43,17 +44,23 @@
   };
   const describe = (el) => ({ src: el.getAttribute('data-ds-src'), tag: el.tagName.toLowerCase(), text: (el.innerText ?? '').trim().slice(0, 200), layers: layers(el) });
 
+  // A frame showing a side state (an open dialog) has its clicks replayed after load, whatever the mode.
+  let replaying = false;
+  const CLICKABLE = 'button, a, [role="button"], [role="tab"], [role="menuitem"], label';
+  const labelOf = (c) => (c.getAttribute('aria-label') || c.innerText || c.title || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+
   addEventListener('mousemove', (e) => place(hover, mode === 'select' ? target(e.target) : null), true);
   addEventListener('mouseleave', () => place(hover, null));
   for (const type of ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'submit']) {
-    addEventListener(type, (e) => { if (mode === 'select') { e.preventDefault(); e.stopPropagation(); } }, true);
+    addEventListener(type, (e) => { if (mode === 'select' && !replaying) { e.preventDefault(); e.stopPropagation(); } }, true);
   }
   // What was last clicked while using the app, so a screen change can say which click led to it ("Click Open").
   let clicked = null;
   addEventListener('click', (e) => {
+    if (replaying) return;
     if (mode !== 'select') {
-      const c = e.target.closest?.('button, a, [role="button"], [role="tab"], [role="menuitem"], label');
-      const label = c && (c.getAttribute('aria-label') || c.innerText || c.title || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+      const c = e.target.closest?.(CLICKABLE);
+      const label = c && labelOf(c);
       clicked = label ? { label, at: Date.now() } : null;
       if (label) post({ type: 'clicked', label });
       return;
@@ -91,6 +98,7 @@
       history.replaceState(null, '', e.data.path);
       dispatchEvent(new PopStateEvent('popstate'));
     }
+    if (e.data.type === 'replay' && Array.isArray(e.data.clicks)) void replay(e.data.clicks.map(String));
     // The canvas covers the frame with a shield and sends points in the frame's own pixels.
     if (e.data.type === 'hover') place(hover, e.data.x < 0 ? null : target(document.elementFromPoint(e.data.x, e.data.y)));
     if (e.data.type === 'pick') {
@@ -101,6 +109,33 @@
     }
   });
 
+  // Each label is looked for among the visible controls (the last one wins, so a dialog's button beats the page's),
+  // for up to 3 seconds while the screen loads, and pressed as a mouse would, since menus open on pointerdown.
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const find = (label) => [...document.querySelectorAll(CLICKABLE)].reverse().find((c) => c.getClientRects().length && labelOf(c) === label);
+  const press = (el) => {
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) {
+      const Ev = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+      el.dispatchEvent(new Ev(type, { bubbles: true, cancelable: true, button: 0, pointerType: 'mouse', isPrimary: true }));
+    }
+    el.click();
+  };
+  const replay = async (clicks) => {
+    replaying = true;
+    try {
+      for (const label of clicks) {
+        let el = null;
+        for (let i = 0; i < 20 && !(el = find(label)); i++) await wait(150);
+        if (!el) { post({ type: 'replayed', failed: label }); return; }
+        press(el);
+        await wait(300);
+      }
+      post({ type: 'replayed', failed: null });
+    } finally {
+      replaying = false;
+    }
+  };
+
   // The router moves with pushState, which fires no event, so the history calls are wrapped to tell the canvas
   // which screen the frame now shows.
   // The router calls pushState and then fires popstate, so each screen change is told once.
@@ -109,6 +144,7 @@
     const path = location.pathname + location.search;
     if (path === shownPath) return;
     shownPath = path;
+    if (replaying) return;
     post({ type: 'nav', path, via: clicked && Date.now() - clicked.at < 1500 ? clicked.label : null });
   };
   for (const m of ['pushState', 'replaceState']) {
