@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanBoard, nextSide, park, placeAfter, renumber, sections, tidy, type Frame } from './index';
+import { cleanBoard, nextSide, park, placeAfter, renumber, sections, tidy, type Frame } from './index.js';
 
 const f = (id: string, n?: string, x = 0, y = 0): Frame => ({ id, name: id, route: '/', scenario: 'default', x, y, w: 100, h: 100, ...(n ? { n } : {}) });
 

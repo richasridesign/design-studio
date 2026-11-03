@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dimOf, keyword, layoutOf, readTokens, setClass, setDim, setKeyword, setLayout, styleClasses } from './index';
+import { dimOf, keyword, layoutOf, readTokens, setClass, setDim, setKeyword, setLayout, styleClasses } from './index.js';
 
 const tokens = readTokens('@theme { --color-text-muted: #807F81; --color-line: #E6E5E6; --text-body-card: 12px; --text-body-card--line-height: 16px; }');
 
